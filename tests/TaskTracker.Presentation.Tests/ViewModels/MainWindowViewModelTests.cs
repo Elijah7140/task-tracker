@@ -1,6 +1,7 @@
 #pragma warning disable xUnit1051
 using Microsoft.Extensions.Time.Testing;
 
+using TaskTracker.Core.Items;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.Presentation.Tests.ViewModels;
@@ -41,6 +42,33 @@ public sealed class MainWindowViewModelTests
 
         Assert.Equal(0, dispatcher.PostCount);
         Assert.IsType<HomeViewModel>(shell.CurrentPage);
+    }
+
+    [Fact]
+    public async Task Returning_from_settings_reloads_workspace_urgency_thresholds()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        var item = await store.Items.CreateAsync(project.Id, null, null, "Due soon");
+        var due = DateOnly.FromDateTime(TimeProvider.System.GetUtcNow().UtcDateTime).AddDays(2);
+        await store.Items.EditAsync(item.Id, new ItemEdit(item.Title, null, null, null, null,
+            due, null, null, null));
+        var shell = new MainWindowViewModel(store.Projects, store.Folders,
+            new FakeDialogService(), store.Items, TimeProvider.System, TimeZoneInfo.Utc,
+            settings: store.Settings, lookups: store.Lookups);
+        await shell.OpenProjectAsync(project.Id);
+        var before = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+
+        await shell.OpenAppSettingsAsync(project.Id);
+        var settings = Assert.IsType<AppSettingsViewModel>(shell.CurrentPage);
+        settings.YellowAmount = 1;
+        await settings.SaveAsync();
+        await shell.OpenProjectAsync(project.Id);
+
+        var after = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+        Assert.Equal(TaskTracker.Core.Urgency.Urgency.Approaching, Assert.Single(before.OpenItems).Urgency);
+        Assert.Equal(TaskTracker.Core.Urgency.Urgency.None, Assert.Single(after.OpenItems).Urgency);
     }
 
     private sealed class CountingDispatcher : IUiDispatcher

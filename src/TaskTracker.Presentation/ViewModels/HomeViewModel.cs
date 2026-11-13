@@ -25,6 +25,8 @@ public sealed class HomeViewModel : ViewModelBase
         OpenCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenAsync);
         RenameCommand = new AsyncRelayCommand<ProjectCardViewModel>(RenameAsync);
         DeleteCommand = new AsyncRelayCommand<ProjectCardViewModel>(DeleteAsync);
+        SettingsCommand = new AsyncRelayCommand(() => navigation.OpenAppSettingsAsync());
+        ProjectSettingsCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenProjectSettingsAsync);
     }
 
     public ObservableCollection<ProjectCardViewModel> Cards { get; } = [];
@@ -38,6 +40,10 @@ public sealed class HomeViewModel : ViewModelBase
     public ICommand RenameCommand { get; }
 
     public ICommand DeleteCommand { get; }
+
+    public ICommand SettingsCommand { get; }
+
+    public ICommand ProjectSettingsCommand { get; }
 
     public async Task LoadAsync()
     {
@@ -107,6 +113,14 @@ public sealed class HomeViewModel : ViewModelBase
         catch (DomainRuleException exception)
         {
             await dialogs.ShowMessageAsync("Project action failed", exception.Message);
+        }
+    }
+
+    public async Task OpenProjectSettingsAsync(ProjectCardViewModel? card)
+    {
+        if (card is not null)
+        {
+            await navigation.OpenProjectSettingsAsync(card.Id);
         }
     }
 

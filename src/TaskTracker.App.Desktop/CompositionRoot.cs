@@ -26,6 +26,8 @@ public static class CompositionRoot
         // Views are matched to ViewModels explicitly; see ViewLocator.
         services.AddSingleton(_ => new ViewLocator()
             .Register<HomeViewModel, HomeView>()
+            .Register<AppSettingsViewModel, AppSettingsView>()
+            .Register<ProjectSettingsViewModel, ProjectSettingsView>()
             .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>());
 
         services.AddSingleton<MainWindowViewModel>();

@@ -3,12 +3,14 @@
              x:Class="TaskTracker.App.Desktop.Views.HomeView"
              x:CompileBindings="False">
   <Grid RowDefinitions="Auto,*" Margin="40,32">
-    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,28">
+    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,28" ColumnSpacing="8">
       <StackPanel Spacing="6">
         <TextBlock Text="Projects" FontSize="30" FontWeight="SemiBold" />
         <TextBlock Text="Choose a space to continue your work." Opacity="0.7" />
       </StackPanel>
-      <Button Grid.Column="1" Content="+ New project" Command="{Binding CreateCommand}"
+      <Button Grid.Column="1" Content="⚙ Settings" Command="{Binding SettingsCommand}"
+              Padding="18,10" VerticalAlignment="Center" />
+      <Button Grid.Column="2" Content="+ New project" Command="{Binding CreateCommand}"
               Padding="18,10" VerticalAlignment="Center" />
     </Grid>
     <ScrollViewer Grid.Row="1">
@@ -32,6 +34,8 @@
                     <Button Content="Open" Classes="accent" Command="{Binding $parent[UserControl].DataContext.OpenCommand}"
                             CommandParameter="{Binding}" />
                     <Button Content="Rename" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.RenameCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Content="Settings" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.ProjectSettingsCommand}"
                             CommandParameter="{Binding}" />
                     <Button Content="Delete" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.DeleteCommand}"
                             CommandParameter="{Binding}" />

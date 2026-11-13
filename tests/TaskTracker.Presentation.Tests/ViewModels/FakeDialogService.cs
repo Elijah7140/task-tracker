@@ -14,6 +14,8 @@ internal sealed class FakeDialogService : IDialogService
 
     public List<string> Messages { get; } = [];
 
+    public List<string> ConfirmTitles { get; } = [];
+
     public Task<string?> PromptAsync(string title, string label, string? initialValue = null)
     {
         return Task.FromResult(PromptResult);
@@ -21,6 +23,8 @@ internal sealed class FakeDialogService : IDialogService
 
     public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue")
     {
+        ConfirmTitles.Add(title);
+
         return Task.FromResult(ConfirmResult);
     }
 

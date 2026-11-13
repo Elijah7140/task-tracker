@@ -26,6 +26,7 @@
   <Grid RowDefinitions="Auto,*">
     <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
             Padding="22,16">
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
       <ItemsControl ItemsSource="{Binding Breadcrumbs}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate>
@@ -42,8 +43,11 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      <Button Grid.Column="1" Content="⚙ Settings" Command="{Binding SettingsCommand}" Classes="subtle" />
+      <Button Grid.Column="2" Content="Project settings" Command="{Binding ProjectSettingsCommand}" Classes="subtle" />
+      </Grid>
     </Border>
-    <Grid Grid.Row="1" ColumnDefinitions="230,*,310">
+    <Grid Grid.Row="1" ColumnDefinitions="230,*,350">
       <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
               Padding="16,22">
         <Grid RowDefinitions="Auto,*" RowSpacing="16">
@@ -109,12 +113,12 @@
         </ScrollViewer>
       </Grid>
       <Border Grid.Column="2" BorderThickness="1,0,0,0"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="18,20">
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="16,20,16,16">
         <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
           <TextBlock Text="DETAILS" FontSize="12" FontWeight="SemiBold" Opacity="0.6" />
-          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Visible"
+          <ScrollViewer Grid.Row="1" AllowAutoHide="False" VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Spacing="8" Margin="0,0,8,0">
+            <StackPanel Spacing="8" Margin="0,0,20,0">
               <TextBlock Text="Select an item to see its details." IsVisible="{Binding !HasEditor}"
                          TextWrapping="Wrap" Opacity="0.7" />
               <StackPanel DataContext="{Binding Editor}"
@@ -137,52 +141,61 @@
                         SelectedItem="{Binding SelectedPriorityOption, Mode=TwoWay}"
                         DisplayMemberBinding="{Binding Name}" HorizontalAlignment="Stretch" />
               <TextBlock Text="Due date" />
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+              <Grid ColumnDefinitions="*,32" ColumnSpacing="6">
                 <CalendarDatePicker SelectedDate="{Binding DueDatePickerDate, Mode=TwoWay}"
                                     HorizontalAlignment="Stretch" />
-                <Button Grid.Column="1" Content="Clear" Command="{Binding ClearDueDateCommand}" />
+                <Button Grid.Column="1" Content="✕" ToolTip.Tip="Clear due date" Classes="subtle icon"
+                        Command="{Binding ClearDueDateCommand}" />
               </Grid>
               <TextBlock Text="Due time" />
-              <StackPanel Spacing="4">
-                <TimePicker SelectedTime="{Binding DueTimePickerTime, Mode=TwoWay}"
-                            HorizontalAlignment="Stretch" />
-                <Button Content="Clear time" Command="{Binding ClearDueTimeCommand}"
-                        HorizontalAlignment="Right" />
-              </StackPanel>
+              <Grid ColumnDefinitions="*,32" ColumnSpacing="6">
+                <TimePicker SelectedTime="{Binding DueTimePickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <Button Grid.Column="1" Content="✕" ToolTip.Tip="Clear due time" Classes="subtle icon"
+                        Command="{Binding ClearDueTimeCommand}" />
+              </Grid>
               <TextBlock Text="Scheduled start" />
-              <StackPanel Spacing="4">
-                <CalendarDatePicker SelectedDate="{Binding StartPickerDate, Mode=TwoWay}" />
-                <TimePicker SelectedTime="{Binding StartPickerTime, Mode=TwoWay}"
-                            HorizontalAlignment="Stretch" />
-                <Button Content="Clear start" Command="{Binding ClearStartCommand}"
-                        HorizontalAlignment="Right" />
-              </StackPanel>
+              <Grid ColumnDefinitions="*,32" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
+                <CalendarDatePicker SelectedDate="{Binding StartPickerDate, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <TimePicker Grid.Row="1" SelectedTime="{Binding StartPickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <Button Grid.Column="1" Grid.RowSpan="2" Content="✕" ToolTip.Tip="Clear scheduled start"
+                        Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearStartCommand}" />
+              </Grid>
               <TextBlock Text="Scheduled end" />
-              <StackPanel Spacing="4">
-                <CalendarDatePicker SelectedDate="{Binding EndPickerDate, Mode=TwoWay}" />
-                <TimePicker SelectedTime="{Binding EndPickerTime, Mode=TwoWay}"
-                            HorizontalAlignment="Stretch" />
-                <Button Content="Clear end" Command="{Binding ClearEndCommand}"
-                        HorizontalAlignment="Right" />
-              </StackPanel>
-              <Button Content="Add sub-item" Command="{Binding $parent[UserControl].DataContext.AddSubItemCommand}" />
+              <Grid ColumnDefinitions="*,32" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
+                <CalendarDatePicker SelectedDate="{Binding EndPickerDate, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <TimePicker Grid.Row="1" SelectedTime="{Binding EndPickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <Button Grid.Column="1" Grid.RowSpan="2" Content="✕" ToolTip.Tip="Clear scheduled end"
+                        Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearEndCommand}" />
+              </Grid>
+              <TextBlock Text="Sub-items" FontWeight="SemiBold" Margin="0,12,0,0" />
               <ItemsControl ItemsSource="{Binding $parent[UserControl].DataContext.SelectedSubItems}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Button Content="{Binding Title}" Command="{Binding SelectCommand}"
-                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                    <Button Classes="subtle" Command="{Binding SelectCommand}" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" Padding="6,4">
+                      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                        <CheckBox IsChecked="{Binding IsComplete, Mode=OneWay}" IsHitTestVisible="False"
+                                  Focusable="False" MinWidth="0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                      </Grid>
+                    </Button>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Button Content="Delete item" Command="{Binding $parent[UserControl].DataContext.DeleteItemCommand}" />
+              <Button Content="+ Add sub-item" Classes="subtle" HorizontalAlignment="Left"
+                      Command="{Binding $parent[UserControl].DataContext.AddSubItemCommand}" />
               </StackPanel>
             </StackPanel>
           </ScrollViewer>
-          <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
-                      IsVisible="{Binding HasEditor}">
-            <Button Content="Save" Command="{Binding SaveCommand}" />
-            <Button Content="Revert" Command="{Binding RevertCommand}" />
-          </StackPanel>
+          <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
+                IsVisible="{Binding HasEditor}">
+            <Button Content="Delete item" Classes="subtle danger" Command="{Binding DeleteItemCommand}" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+              <Button Content="Revert" Classes="subtle" Command="{Binding RevertCommand}" />
+              <Button Content="Save" Classes="accent" Command="{Binding SaveCommand}" />
+            </StackPanel>
+          </Grid>
         </Grid>
       </Border>
     </Grid>

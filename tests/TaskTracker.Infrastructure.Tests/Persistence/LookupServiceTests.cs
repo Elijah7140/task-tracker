@@ -61,4 +61,37 @@ public sealed class LookupServiceTests
         Assert.Contains(snapshot.ItemTypes, row => row.Id == type.Id && row.IsArchived);
         Assert.Contains(snapshot.PriorityLevels, row => row.Id == priority.Id && row.IsArchived);
     }
+
+    [Fact]
+    public async Task Adding_or_renaming_to_an_existing_name_is_rejected_ignoring_case()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var writer = store.Open();
+        var service = store.Lookups(writer);
+        var custom = await service.AddItemTypeAsync("Custom");
+
+        var added = await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
+            service.AddItemTypeAsync(" custom "));
+        var renamed = await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
+            service.RenameItemTypeAsync(custom.Id, "Change"));
+
+        Assert.Equal("The name 'custom' is already used by another item type.", added.Message);
+        Assert.Equal("The name 'Change' is already used by another item type.", renamed.Message);
+    }
+
+    [Fact]
+    public async Task Renaming_a_lookup_to_its_own_name_is_allowed()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var writer = store.Open();
+        var service = store.Lookups(writer);
+        var level = await service.AddPriorityLevelAsync("Later");
+
+        await service.RenamePriorityLevelAsync(level.Id, "later");
+        await using var reader = store.Open();
+
+        Assert.Contains(await store.Lookups(reader).PriorityLevelsAsync(), row => row.Name == "later");
+    }
 }

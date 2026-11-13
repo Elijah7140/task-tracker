@@ -151,7 +151,7 @@ public sealed class MainWindowTests
             today.AddDays(2), null, null, null));
         await items.SetCompletedAsync(project.Id, null, finished.Id, true);
         var shell = services.GetRequiredService<MainWindowViewModel>();
-        var window = new MainWindow { DataContext = shell };
+        var window = new MainWindow { DataContext = shell, Height = 640 };
         var application = Avalonia.Application.Current!;
         var originalTheme = application.RequestedThemeVariant;
 
@@ -185,12 +185,13 @@ public sealed class MainWindowTests
         Assert.Equal(3, controls.OfType<TimePicker>().Count());
         SaveScreenshotIfRequested(light!, "workspace-items-light.png");
         var editorScroll = controls.OfType<ScrollViewer>()
-            .Where(scroll => ReferenceEquals(scroll.DataContext, page) && scroll.Bounds.Width < 320)
+            .Where(scroll => ReferenceEquals(scroll.DataContext, page) && scroll.Bounds.Width is > 280 and < 340)
             .OrderByDescending(scroll => scroll.Extent.Height - scroll.Viewport.Height)
             .First();
         editorScroll.Offset = new Avalonia.Vector(0, 500);
         using var editorLight = window.CaptureRenderedFrame();
         Assert.True(editorScroll.Offset.Y > 0);
+        AssertSubItemsAndClearButtons(window, editorScroll);
         SaveScreenshotIfRequested(editorLight!, "workspace-editor-light.png");
         editorScroll.Offset = default;
         application.RequestedThemeVariant = ThemeVariant.Dark;
@@ -238,8 +239,9 @@ public sealed class MainWindowTests
         page.IsCompletedExpanded = true;
         using var frame = window.CaptureRenderedFrame();
         var row = blocked ? Assert.Single(page.CompletedItems) : Assert.Single(page.OpenItems);
-        var checkbox = view.GetVisualDescendants().OfType<CheckBox>()
-            .Single(box => ReferenceEquals(box.DataContext, row));
+        var checkboxes = view.GetVisualDescendants().OfType<CheckBox>()
+            .Where(box => ReferenceEquals(box.DataContext, row)).ToArray();
+        var checkbox = blocked ? checkboxes.Last() : checkboxes.First();
         var center = new Avalonia.Point(checkbox.Bounds.Width / 2, checkbox.Bounds.Height / 2);
         var point = checkbox.TranslatePoint(center, window)!.Value;
 
@@ -256,6 +258,89 @@ public sealed class MainWindowTests
         Assert.Equal(blocked, row.IsComplete);
         Assert.Equal(blocked ? 1 : 0, dialogs.Messages.Count);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Settings_screens_render_in_both_themes()
+    {
+        using var services = await CreateServicesAsync();
+        var projects = services.GetRequiredService<ProjectService>();
+        var settings = services.GetRequiredService<TaskTracker.Core.Settings.SettingsService>();
+        var lookups = services.GetRequiredService<LookupService>();
+        var project = await projects.CreateAsync("Billing DB");
+        var archived = await lookups.AddItemTypeAsync("Legacy");
+        await lookups.ArchiveItemTypeAsync(archived.Id);
+        await settings.SetProjectOverrideAsync(project.Id,
+            TaskTracker.Core.Settings.SettingsCatalogue.UrgencyYellowThreshold, TimeSpan.FromDays(5));
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = shell };
+        var application = Avalonia.Application.Current!;
+        var originalTheme = application.RequestedThemeVariant;
+
+        window.Show();
+        await shell.OpenAppSettingsAsync();
+        using var appLight = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(appLight!, "app-settings-light.png");
+        AssertAppSettingsLayout(window);
+        application.RequestedThemeVariant = ThemeVariant.Dark;
+        using var appDark = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(appDark!, "app-settings-dark.png");
+        application.RequestedThemeVariant = ThemeVariant.Light;
+        await shell.OpenProjectSettingsAsync(project.Id);
+        using var projectLight = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(projectLight!, "project-settings-light.png");
+        AssertProjectSettingsLayout(window);
+        application.RequestedThemeVariant = ThemeVariant.Dark;
+        using var projectDark = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(projectDark!, "project-settings-dark.png");
+        application.RequestedThemeVariant = originalTheme;
+        window.Close();
+
+        Assert.NotNull(appLight);
+        Assert.NotNull(appDark);
+        Assert.NotNull(projectLight);
+        Assert.NotNull(projectDark);
+    }
+
+    private static void AssertAppSettingsLayout(Window window)
+    {
+        var view = window.GetVisualDescendants().OfType<AppSettingsView>().Single();
+        var buttons = view.GetVisualDescendants().OfType<Button>().ToArray();
+
+        Assert.Empty(view.GetVisualDescendants().OfType<ListBox>());
+        Assert.Equal(2, view.GetVisualDescendants().OfType<LookupListView>().Count());
+        Assert.Contains(buttons, button => Equals(button.Content, "Save defaults"));
+        Assert.Contains(buttons, button => Equals(button.Content, "Restore") && button.IsEffectivelyVisible);
+        Assert.Equal(1, view.GetVisualDescendants().OfType<TextBlock>().Count(text => text.Text == "Archived" && text.IsEffectivelyVisible));
+    }
+
+    private static void AssertProjectSettingsLayout(Window window)
+    {
+        var view = window.GetVisualDescendants().OfType<ProjectSettingsView>().Single();
+        var resets = view.GetVisualDescendants().OfType<Button>()
+            .Where(button => Equals(button.Content, "Reset to global"))
+            .ToArray();
+
+        Assert.Equal(3, resets.Length);
+        Assert.Single(resets, button => button.IsVisible);
+    }
+
+    private static void AssertSubItemsAndClearButtons(Window window, ScrollViewer editorScroll)
+    {
+        var controls = window.GetVisualDescendants().OfType<Control>().ToArray();
+        var scrollBar = editorScroll.GetVisualDescendants().OfType<ScrollBar>()
+            .First(bar => bar.Orientation == Avalonia.Layout.Orientation.Vertical && ReferenceEquals(bar.TemplatedParent, editorScroll));
+        var scrollBarLeft = scrollBar.TranslatePoint(default, window)!.Value.X;
+        var clearButtons = controls.OfType<Button>().Where(button => Equals(button.Content, "✕")).ToArray();
+
+        Assert.DoesNotContain(controls.OfType<Button>(), button => Equals(button.Content, "Check query plan"));
+        Assert.Equal(4, clearButtons.Length);
+
+        foreach (var clear in clearButtons)
+        {
+            var right = clear.TranslatePoint(new Point(clear.Bounds.Width, 0), window)!.Value.X;
+            Assert.True(right <= scrollBarLeft, $"Clear button right edge {right} overlaps scrollbar at {scrollBarLeft}.");
+        }
     }
 
     private sealed class CompletionDialogs : IDialogService

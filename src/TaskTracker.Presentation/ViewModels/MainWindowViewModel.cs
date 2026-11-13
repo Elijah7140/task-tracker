@@ -1,6 +1,8 @@
 using TaskTracker.Core;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Settings;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -15,11 +17,13 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     private readonly TimeProvider? clock;
     private readonly TimeZoneInfo? timeZone;
     private readonly IUiDispatcher? dispatcher;
+    private readonly SettingsService? settings;
+    private readonly LookupService? lookups;
     private ViewModelBase? currentPage;
 
     public MainWindowViewModel(ProjectService projectService, FolderService folderService, IDialogService dialogs,
         ItemService? itemService = null, TimeProvider? clock = null, TimeZoneInfo? timeZone = null,
-        IUiDispatcher? dispatcher = null)
+        IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -28,6 +32,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         this.clock = clock;
         this.timeZone = timeZone;
         this.dispatcher = dispatcher;
+        this.settings = settings;
+        this.lookups = lookups;
     }
 
     public string Title => "Task Tracker";
@@ -68,5 +74,32 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
             page.Dispose();
             throw;
         }
+    }
+
+    public async Task OpenAppSettingsAsync(Guid? returnProjectId = null)
+    {
+        if (settings is null)
+        {
+            return;
+        }
+
+        (CurrentPage as IDisposable)?.Dispose();
+        var page = new AppSettingsViewModel(settings, dialogs, this, lookups, returnProjectId);
+        await page.LoadAsync();
+        CurrentPage = page;
+    }
+
+    public async Task OpenProjectSettingsAsync(Guid projectId)
+    {
+        if (settings is null)
+        {
+            return;
+        }
+
+        var project = await projectService.LoadWorkspaceAsync(projectId);
+        (CurrentPage as IDisposable)?.Dispose();
+        var page = new ProjectSettingsViewModel(projectId, settings, dialogs, this);
+        await page.LoadAsync(project.Name);
+        CurrentPage = page;
     }
 }

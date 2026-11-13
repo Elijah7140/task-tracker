@@ -46,6 +46,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
             timeZone ?? TimeZoneInfo.Utc, RefreshUrgency,
             dispatcher ?? new SynchronizationContextDispatcher(SynchronizationContext.Current));
         HomeCommand = new AsyncRelayCommand(GoHomeAsync);
+        SettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
+        ProjectSettingsCommand = new AsyncRelayCommand(OpenProjectSettingsAsync);
         QuickAddCommand = new AsyncRelayCommand(QuickAddAsync);
         AddSubItemCommand = new AsyncRelayCommand(AddSubItemAsync);
         SaveCommand = new AsyncRelayCommand(async () => { await SaveAsync(); });
@@ -69,6 +71,10 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
     internal ItemRowViewModel? SelectedItem => selectedItem;
 
     public ICommand HomeCommand { get; }
+
+    public ICommand SettingsCommand { get; }
+
+    public ICommand ProjectSettingsCommand { get; }
 
     public ObservableCollection<ItemRowViewModel> OpenItems => areaItems.OpenItems;
 
@@ -138,6 +144,22 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         if (await ResolveDraftAsync())
         {
             await navigation.GoHomeAsync();
+        }
+    }
+
+    public async Task OpenSettingsAsync()
+    {
+        if (await ResolveDraftAsync())
+        {
+            await navigation.OpenAppSettingsAsync(projectId);
+        }
+    }
+
+    public async Task OpenProjectSettingsAsync()
+    {
+        if (await ResolveDraftAsync())
+        {
+            await navigation.OpenProjectSettingsAsync(projectId);
         }
     }
 

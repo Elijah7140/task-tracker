@@ -11,6 +11,8 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         DataTemplates.Add(new ViewLocator()
             .Register<HomeViewModel, HomeView>()
+            .Register<AppSettingsViewModel, AppSettingsView>()
+            .Register<ProjectSettingsViewModel, ProjectSettingsView>()
             .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>());
     }
 }

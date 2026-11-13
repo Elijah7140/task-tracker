@@ -34,7 +34,9 @@
             Classes.approaching="{Binding IsApproaching}"
             Classes.immediate="{Binding IsImmediate}"
             CornerRadius="5" Padding="3,2" HorizontalAlignment="Stretch">
-      <Grid ColumnDefinitions="22,26,18,*,54,62,80,78,54" ColumnSpacing="3">
+      <Grid>
+      <Grid ColumnDefinitions="22,26,18,*,54,62,80,78,54" ColumnSpacing="3"
+            IsVisible="{Binding !IsFinished}">
         <ToggleButton Grid.Column="0" Content="{Binding ExpanderGlyph}"
                       IsVisible="{Binding HasOpenChildren}"
                       IsChecked="{Binding IsExpanded, Mode=TwoWay}"
@@ -46,8 +48,9 @@
                    />
         <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent"
                 BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left">
+                HorizontalContentAlignment="Stretch">
           <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                     HorizontalAlignment="Stretch"
                      ToolTip.Tip="{Binding Title}"
                      TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}"
                      FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}"
@@ -63,6 +66,19 @@
         <TextBlock Grid.Column="8" Text="↳ sub" FontSize="11"
                    IsVisible="{Binding HasSource}" ToolTip.Tip="{Binding SourceTitle}"
                    VerticalAlignment="Center" />
+      </Grid>
+      <Grid ColumnDefinitions="22,26,18,*" ColumnSpacing="3" IsVisible="{Binding IsFinished}">
+        <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}"
+                  Command="{Binding ToggleCommand}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding TypeIcon}" VerticalAlignment="Center" />
+        <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent"
+                BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch">
+          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                     HorizontalAlignment="Stretch" ToolTip.Tip="{Binding Title}"
+                     TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}" />
+        </Button>
+      </Grid>
       </Grid>
     </Border>
     <ItemsControl ItemsSource="{Binding Children}" IsVisible="{Binding IsExpanded}"

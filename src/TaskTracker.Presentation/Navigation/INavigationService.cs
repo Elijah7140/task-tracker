@@ -6,4 +6,14 @@ public interface INavigationService
     Task GoHomeAsync();
 
     Task OpenProjectAsync(Guid projectId);
+
+    Task OpenAppSettingsAsync(Guid? returnProjectId = null)
+    {
+        return Task.CompletedTask;
+    }
+
+    Task OpenProjectSettingsAsync(Guid projectId)
+    {
+        return Task.CompletedTask;
+    }
 }
