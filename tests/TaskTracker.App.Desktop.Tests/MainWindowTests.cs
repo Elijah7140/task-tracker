@@ -1,15 +1,23 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+
+using CommunityToolkit.Mvvm.Input;
 
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop;
-
 using TaskTracker.App.Desktop.Views;
+using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 using TaskTracker.Infrastructure.Persistence;
+using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests;
@@ -111,6 +119,187 @@ public sealed class MainWindowTests
         SaveScreenshotIfRequested(frame!, "workspace-dark.png");
         window.Close();
         application.RequestedThemeVariant = originalTheme;
+    }
+
+    [AvaloniaFact]
+    public async Task Workspace_renders_item_urgency_completion_and_editor_in_both_themes()
+    {
+        using var services = await CreateServicesAsync();
+        var projects = services.GetRequiredService<ProjectService>();
+        var items = services.GetRequiredService<TaskTracker.Core.Items.ItemService>();
+        var lookups = services.GetRequiredService<LookupService>();
+        var change = (await lookups.ItemTypesAsync()).Single(type => type.Name == "Change");
+        var high = (await lookups.PriorityLevelsAsync()).Single(level => level.Name == "High");
+        var project = await projects.CreateAsync("Billing DB");
+        var localNow = TimeZoneInfo.ConvertTime(TimeProvider.System.GetUtcNow(), TimeZoneInfo.Local);
+        var today = DateOnly.FromDateTime(localNow.DateTime);
+        var parent = await items.CreateAsync(project.Id, null, null, "Update invoice indexes");
+        var child = await items.CreateAsync(project.Id, null, parent.Id, "Check query plan");
+        var imminent = await items.CreateAsync(project.Id, null, null, "Review migration");
+        var approaching = await items.CreateAsync(project.Id, null, null, "Prepare release notes");
+        await items.CreateAsync(project.Id, null, null, "Plan next quarter");
+        var finished = await items.CreateAsync(project.Id, null, null, "Schema review complete");
+        await items.EditAsync(parent.Id, new ItemEdit(parent.Title, "Review the billing schema",
+            "DB-119", change.Id, high.Id, today.AddDays(10), new TimeOnly(15, 30),
+            today.AddDays(5).ToDateTime(new TimeOnly(9, 0)),
+            today.AddDays(5).ToDateTime(new TimeOnly(10, 0))));
+        await items.EditAsync(child.Id, new ItemEdit(child.Title, null, "DB-120", change.Id, high.Id,
+            today.AddDays(-1), null, null, null));
+        await items.EditAsync(imminent.Id, new ItemEdit(imminent.Title, null, "DB-121", change.Id, high.Id,
+            today, null, null, null));
+        await items.EditAsync(approaching.Id, new ItemEdit(approaching.Title, null, null, null, null,
+            today.AddDays(2), null, null, null));
+        await items.SetCompletedAsync(project.Id, null, finished.Id, true);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = shell };
+        var application = Avalonia.Application.Current!;
+        var originalTheme = application.RequestedThemeVariant;
+
+        window.Show();
+        await shell.OpenProjectAsync(project.Id);
+        var page = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+        var parentRow = page.OpenItems.Single(row => row.Id == parent.Id);
+        parentRow.IsExpanded = true;
+        await page.SelectItemAsync(parentRow);
+        Assert.Equal("Change", Assert.Single(parentRow.Children).TypeName);
+        Assert.Equal("High", Assert.Single(parentRow.Children).PriorityName);
+        Assert.Equal("Overdue", parentRow.UrgencyLabel);
+        Assert.True(parentRow.HasSource);
+        Assert.True(parentRow.IsSelected);
+        Assert.Equal("▾", parentRow.ExpanderGlyph);
+        using var collapsed = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(collapsed!, "workspace-items-collapsed.png");
+        page.IsCompletedExpanded = true;
+        using var light = window.CaptureRenderedFrame();
+        var controls = window.GetVisualDescendants().OfType<Control>().ToArray();
+        Assert.Contains(controls.OfType<TextBlock>(), text => text.Text == "High");
+        Assert.Contains(controls.OfType<TextBlock>(), text => text.Text == "Overdue");
+        Assert.Contains(controls.OfType<TextBlock>(), text => text.Text == "↳ sub");
+        Assert.Contains(controls.OfType<Border>(), border => border.Classes.Contains("selected"));
+        Assert.Contains(controls.OfType<ToggleButton>(), toggle => Equals(toggle.Content, "▾"));
+        var save = controls.OfType<Button>().Single(button => Equals(button.Content, "Save"));
+        var revert = controls.OfType<Button>().Single(button => Equals(button.Content, "Revert"));
+        Assert.True(save.Bounds.Bottom <= window.Bounds.Bottom);
+        Assert.True(revert.Bounds.Bottom <= window.Bounds.Bottom);
+        Assert.Equal(3, controls.OfType<CalendarDatePicker>().Count());
+        Assert.Equal(3, controls.OfType<TimePicker>().Count());
+        SaveScreenshotIfRequested(light!, "workspace-items-light.png");
+        var editorScroll = controls.OfType<ScrollViewer>()
+            .Where(scroll => ReferenceEquals(scroll.DataContext, page) && scroll.Bounds.Width < 320)
+            .OrderByDescending(scroll => scroll.Extent.Height - scroll.Viewport.Height)
+            .First();
+        editorScroll.Offset = new Avalonia.Vector(0, 500);
+        using var editorLight = window.CaptureRenderedFrame();
+        Assert.True(editorScroll.Offset.Y > 0);
+        SaveScreenshotIfRequested(editorLight!, "workspace-editor-light.png");
+        editorScroll.Offset = default;
+        application.RequestedThemeVariant = ThemeVariant.Dark;
+        page.IsCompletedExpanded = false;
+        using var darkCollapsed = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(darkCollapsed!, "workspace-items-collapsed-dark.png");
+        page.IsCompletedExpanded = true;
+        using var dark = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(dark!, "workspace-items-dark.png");
+        editorScroll.Offset = new Avalonia.Vector(0, 500);
+        using var editorDark = window.CaptureRenderedFrame();
+        SaveScreenshotIfRequested(editorDark!, "workspace-editor-dark.png");
+        application.RequestedThemeVariant = originalTheme;
+        window.Close();
+
+        Assert.NotNull(light);
+        Assert.NotNull(dark);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Checkbox_click_restores_persisted_state_when_completion_does_not_change(bool blocked)
+    {
+        using var services = await CreateServicesAsync();
+        var projects = services.GetRequiredService<ProjectService>();
+        var folders = services.GetRequiredService<FolderService>();
+        var items = services.GetRequiredService<ItemService>();
+        var project = await projects.CreateAsync("Billing");
+        var parent = await items.CreateAsync(project.Id, null, null, "Parent");
+        var child = await items.CreateAsync(project.Id, null, parent.Id, "Child");
+
+        if (blocked)
+        {
+            await items.SetCompletedAsync(project.Id, null, child.Id, true);
+        }
+
+        var dialogs = new CompletionDialogs();
+        using var page = new ProjectWorkspaceViewModel(project.Id, projects, folders,
+            dialogs, new TestNavigation(), items);
+        var view = new ProjectWorkspaceView { DataContext = page };
+        var window = new Avalonia.Controls.Window { Content = view, Width = 1200, Height = 800 };
+        window.Show();
+        await page.LoadAsync();
+        page.IsCompletedExpanded = true;
+        using var frame = window.CaptureRenderedFrame();
+        var row = blocked ? Assert.Single(page.CompletedItems) : Assert.Single(page.OpenItems);
+        var checkbox = view.GetVisualDescendants().OfType<CheckBox>()
+            .Single(box => ReferenceEquals(box.DataContext, row));
+        var center = new Avalonia.Point(checkbox.Bounds.Width / 2, checkbox.Bounds.Height / 2);
+        var point = checkbox.TranslatePoint(center, window)!.Value;
+
+        window.MouseDown(point, MouseButton.Left, RawInputModifiers.None);
+        window.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
+        var command = Assert.IsAssignableFrom<IAsyncRelayCommand>(row.ToggleCommand);
+
+        if (command.ExecutionTask is Task execution)
+        {
+            await execution;
+        }
+
+        Assert.Equal(blocked, checkbox.IsChecked);
+        Assert.Equal(blocked, row.IsComplete);
+        Assert.Equal(blocked ? 1 : 0, dialogs.Messages.Count);
+        window.Close();
+    }
+
+    private sealed class CompletionDialogs : IDialogService
+    {
+        public List<string> Messages { get; } = [];
+
+        public Task<string?> PromptAsync(string title, string label, string? initialValue = null)
+        {
+            return Task.FromResult<string?>(null);
+        }
+
+        public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue")
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task<DraftDecision> ResolveDraftAsync()
+        {
+            return Task.FromResult(DraftDecision.Cancel);
+        }
+
+        public Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders)
+        {
+            return Task.FromResult<FolderChoice?>(null);
+        }
+
+        public Task ShowMessageAsync(string title, string message)
+        {
+            Messages.Add(message);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TestNavigation : INavigationService
+    {
+        public Task GoHomeAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task OpenProjectAsync(Guid projectId)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private static async Task<ServiceProvider> CreateServicesAsync()

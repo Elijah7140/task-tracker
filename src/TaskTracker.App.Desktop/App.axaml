@@ -6,4 +6,20 @@
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
+    <Application.Resources>
+      <ResourceDictionary>
+        <ResourceDictionary.ThemeDictionaries>
+          <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="UrgencyApproachingBrush" Color="#FFF0BA" />
+            <SolidColorBrush x:Key="UrgencyImmediateBrush" Color="#FFB8B2" />
+            <SolidColorBrush x:Key="UrgencyForegroundBrush" Color="#181818" />
+          </ResourceDictionary>
+          <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="UrgencyApproachingBrush" Color="#5A4314" />
+            <SolidColorBrush x:Key="UrgencyImmediateBrush" Color="#652A2A" />
+            <SolidColorBrush x:Key="UrgencyForegroundBrush" Color="#FFFFFF" />
+          </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
+      </ResourceDictionary>
+    </Application.Resources>
 </Application>

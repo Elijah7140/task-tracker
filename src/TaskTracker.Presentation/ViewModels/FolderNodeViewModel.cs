@@ -19,7 +19,7 @@ public sealed class FolderNodeViewModel : ViewModelBase
         Name = name;
         Parent = parent;
         this.workspace = workspace;
-        SelectCommand = new RelayCommand(() => workspace.Select(this));
+        SelectCommand = new AsyncRelayCommand(() => workspace.SelectAreaAsync(this));
         NewFolderCommand = new AsyncRelayCommand(() => workspace.CreateFolderAsync(this));
         RenameCommand = new AsyncRelayCommand(() => workspace.RenameFolderAsync(this));
         MoveCommand = new AsyncRelayCommand(() => workspace.MoveFolderAsync(this));
@@ -47,13 +47,7 @@ public sealed class FolderNodeViewModel : ViewModelBase
     public bool IsSelected
     {
         get => isSelected;
-        set
-        {
-            if (SetProperty(ref isSelected, value) && value && workspace.SelectedFolder != this)
-            {
-                workspace.Select(this);
-            }
-        }
+        set => SetProperty(ref isSelected, value);
     }
 
     public ICommand SelectCommand { get; }

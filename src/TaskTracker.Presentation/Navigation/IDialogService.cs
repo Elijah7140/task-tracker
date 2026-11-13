@@ -5,7 +5,9 @@ public interface IDialogService
 {
     Task<string?> PromptAsync(string title, string label, string? initialValue = null);
 
-    Task<bool> ConfirmAsync(string title, string message);
+    Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue");
+
+    Task<DraftDecision> ResolveDraftAsync();
 
     Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders);
 

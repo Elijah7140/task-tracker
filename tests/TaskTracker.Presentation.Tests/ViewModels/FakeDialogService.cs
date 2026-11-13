@@ -8,6 +8,8 @@ internal sealed class FakeDialogService : IDialogService
 
     public bool ConfirmResult { get; set; }
 
+    public DraftDecision DraftResult { get; set; } = DraftDecision.Cancel;
+
     public FolderChoice? FolderResult { get; set; }
 
     public List<string> Messages { get; } = [];
@@ -17,9 +19,14 @@ internal sealed class FakeDialogService : IDialogService
         return Task.FromResult(PromptResult);
     }
 
-    public Task<bool> ConfirmAsync(string title, string message)
+    public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue")
     {
         return Task.FromResult(ConfirmResult);
+    }
+
+    public Task<DraftDecision> ResolveDraftAsync()
+    {
+        return Task.FromResult(DraftResult);
     }
 
     public Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders)

@@ -31,12 +31,34 @@ public sealed class AvaloniaDialogService : IDialogService
         return await window.ShowDialog<string?>(GetOwner());
     }
 
-    public async Task<bool> ConfirmAsync(string title, string message)
+    public async Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue")
     {
         var window = CreateWindow(title, new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        AddButtons(window, "Delete", () => window.Close(true), "Cancel", () => window.Close(false));
+        AddButtons(window, confirmText, () => window.Close(true), "Cancel", () => window.Close(false));
         window.Opened += (_, _) => ((StackPanel)((StackPanel)window.Content!).Children[^1]).Children[^1].Focus();
         return await window.ShowDialog<bool>(GetOwner());
+    }
+
+    public async Task<DraftDecision> ResolveDraftAsync()
+    {
+        var window = CreateWindow("Unsaved changes", new TextBlock { Text = "Save changes before continuing?" });
+        var panel = (StackPanel)window.Content!;
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        foreach (var choice in new[] { DraftDecision.Save, DraftDecision.Discard, DraftDecision.Cancel })
+        {
+            var button = new Button { Content = choice.ToString(), MinWidth = 80 };
+            button.Click += (_, _) => window.Close(choice);
+            buttons.Children.Add(button);
+        }
+
+        panel.Children.Add(buttons);
+        return await window.ShowDialog<DraftDecision>(GetOwner());
     }
 
     public async Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders)

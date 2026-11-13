@@ -14,6 +14,11 @@ public sealed class ItemService(
 {
     public async Task<TodoItem> CreateAsync(Guid projectId, Guid? folderId, Guid? parentId, string title, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(title) || title.Length > 300)
+        {
+            throw new DomainRuleException("Item title is required and must be at most 300 characters.");
+        }
+
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var items = unitOfWork.Items;
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
@@ -222,8 +227,8 @@ public sealed class ItemService(
         var thresholds = new UrgencyThresholds(effective.UrgencyYellowThreshold.Value, effective.UrgencyRedThreshold.Value);
         var roots = tree.Children(null).Select(item => BuildNode(tree, item, thresholds)).ToArray();
         return new AreaSnapshot(projectId, folderId, roots,
-            (await lookups.ItemTypesAsync(cancellationToken)).Where(itemType => !itemType.IsArchived).ToArray(),
-            (await lookups.PriorityLevelsAsync(cancellationToken)).Where(level => !level.IsArchived).ToArray(), effective);
+            await lookups.ItemTypesAsync(cancellationToken),
+            await lookups.PriorityLevelsAsync(cancellationToken), effective);
     }
 
     private void Renumber(ItemTree tree, Guid? parentId)

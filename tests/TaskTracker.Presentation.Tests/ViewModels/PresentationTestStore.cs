@@ -13,11 +13,11 @@ internal sealed class PresentationTestStore : IAsyncDisposable
     private readonly string databasePath = Path.Combine(Path.GetTempPath(), $"tasktracker-vm-{Guid.CreateVersion7()}.db");
     private readonly ServiceProvider services;
 
-    public PresentationTestStore()
+    public PresentationTestStore(TimeProvider? clock = null, TimeZoneInfo? timeZone = null)
     {
         var collection = new ServiceCollection();
-        collection.AddSingleton(TimeProvider.System);
-        collection.AddSingleton(TimeZoneInfo.Utc);
+        collection.AddSingleton(clock ?? TimeProvider.System);
+        collection.AddSingleton(timeZone ?? TimeZoneInfo.Utc);
         collection.AddTaskTrackerCore();
         collection.AddTaskTrackerInfrastructure(databasePath);
         services = collection.BuildServiceProvider();
@@ -28,6 +28,12 @@ internal sealed class PresentationTestStore : IAsyncDisposable
     public FolderService Folders => services.GetRequiredService<FolderService>();
 
     public TaskTracker.Core.Items.ItemService Items => services.GetRequiredService<TaskTracker.Core.Items.ItemService>();
+
+    public TaskTracker.Core.Settings.SettingsService Settings =>
+        services.GetRequiredService<TaskTracker.Core.Settings.SettingsService>();
+
+    public TaskTracker.Core.Lookups.LookupService Lookups =>
+        services.GetRequiredService<TaskTracker.Core.Lookups.LookupService>();
 
     public TaskTracker.Core.Persistence.IUnitOfWorkFactory UnitOfWorkFactory =>
         services.GetRequiredService<TaskTracker.Core.Persistence.IUnitOfWorkFactory>();

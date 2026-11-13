@@ -162,4 +162,23 @@ public sealed class UrgencyCalculatorTests
         Assert.Equal(TimeSpan.FromDays(1), thresholds.Yellow);
         Assert.Equal(UrgencyLevel.Imminent, actual);
     }
+
+    [Fact]
+    public void Loaded_node_rolls_up_urgency_and_names_its_descendant()
+    {
+        var projectId = Guid.NewGuid();
+        var parent = Item(projectId);
+        var child = Item(projectId, parent.Id);
+        Schedule(child, TimeSpan.FromHours(-1));
+        var childNode = new ItemNode(child, UrgencyLevel.None,
+            new DisplayedUrgency(UrgencyLevel.None, null), false, []);
+        var parentNode = new ItemNode(parent, UrgencyLevel.None,
+            new DisplayedUrgency(UrgencyLevel.None, null), false, [childNode]);
+
+        var actual = UrgencyCalculator.CalculateDisplayed(parentNode, Now, TimeZoneInfo.Utc,
+            new UrgencyThresholds(TimeSpan.FromDays(3), TimeSpan.FromDays(1)));
+
+        Assert.Equal(UrgencyLevel.Overdue, actual.Value);
+        Assert.Equal(child.Id, actual.SourceDescendantId);
+    }
 }

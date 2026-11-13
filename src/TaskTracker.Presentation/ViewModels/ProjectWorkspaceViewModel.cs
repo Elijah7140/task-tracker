@@ -4,57 +4,168 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Completion;
+using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>Displays a project folder tree and the selected area.</summary>
-public sealed class ProjectWorkspaceViewModel : ViewModelBase
+public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
 {
     private readonly Guid projectId;
-    private readonly FolderService folders;
     private readonly ProjectService projects;
     private readonly IDialogService dialogs;
     private readonly INavigationService navigation;
-    private FolderNodeViewModel? root;
-    private FolderNodeViewModel? selectedFolder;
+    private readonly ItemService? items;
+    private readonly WorkspaceUrgencyRefresher urgencyRefresher;
+    private readonly ItemEditorCoordinator editorCoordinator;
+    private readonly AreaItemsViewModel areaItems;
+    private readonly FolderTreeViewModel folderTree;
+    private ItemRowViewModel? selectedItem;
+    private ItemEditorViewModel? editor;
+    private AreaSnapshot? areaSnapshot;
+    private string quickAddTitle = string.Empty;
+    private bool isCompletedExpanded;
 
     public ProjectWorkspaceViewModel(Guid projectId, ProjectService projects, FolderService folders,
-        IDialogService dialogs, INavigationService navigation)
+        IDialogService dialogs, INavigationService navigation, ItemService? items = null,
+        TimeProvider? clock = null, TimeZoneInfo? timeZone = null, IUiDispatcher? dispatcher = null)
     {
         this.projectId = projectId;
-        this.folders = folders;
         this.projects = projects;
         this.dialogs = dialogs;
         this.navigation = navigation;
-        HomeCommand = new AsyncRelayCommand(navigation.GoHomeAsync);
+        this.items = items;
+        areaItems = new AreaItemsViewModel(this, projectId, items, dialogs);
+        folderTree = new FolderTreeViewModel(this, projectId, folders, dialogs);
+        editorCoordinator = new ItemEditorCoordinator(dialogs);
+        urgencyRefresher = new WorkspaceUrgencyRefresher(clock ?? TimeProvider.System,
+            timeZone ?? TimeZoneInfo.Utc, RefreshUrgency,
+            dispatcher ?? new SynchronizationContextDispatcher(SynchronizationContext.Current));
+        HomeCommand = new AsyncRelayCommand(GoHomeAsync);
+        QuickAddCommand = new AsyncRelayCommand(QuickAddAsync);
+        AddSubItemCommand = new AsyncRelayCommand(AddSubItemAsync);
+        SaveCommand = new AsyncRelayCommand(async () => { await SaveAsync(); });
+        RevertCommand = new RelayCommand(Revert);
+        DeleteItemCommand = new AsyncRelayCommand(DeleteItemAsync);
+        MoveUpCommand = new AsyncRelayCommand(() => ReorderSelectedAsync(-1));
+        MoveDownCommand = new AsyncRelayCommand(() => ReorderSelectedAsync(1));
+        ToggleSelectedCommand = new AsyncRelayCommand(ToggleSelectedAsync);
     }
 
-    public ObservableCollection<FolderNodeViewModel> FolderRoots { get; } = [];
+    public ObservableCollection<FolderNodeViewModel> FolderRoots => folderTree.Roots;
 
-    public ObservableCollection<BreadcrumbViewModel> Breadcrumbs { get; } = [];
+    public ObservableCollection<BreadcrumbViewModel> Breadcrumbs => folderTree.Breadcrumbs;
 
     public string ProjectName { get; private set; } = string.Empty;
 
-    public string SelectedAreaName => selectedFolder?.Name ?? ProjectName;
+    public string SelectedAreaName => folderTree.SelectedAreaName;
 
-    public FolderNodeViewModel? SelectedFolder => selectedFolder;
+    public FolderNodeViewModel? SelectedFolder => folderTree.Selected;
+
+    internal ItemRowViewModel? SelectedItem => selectedItem;
 
     public ICommand HomeCommand { get; }
 
+    public ObservableCollection<ItemRowViewModel> OpenItems => areaItems.OpenItems;
+
+    public ObservableCollection<ItemRowViewModel> CompletedItems => areaItems.CompletedItems;
+
+    public ObservableCollection<ItemType> ItemTypes { get; } = [];
+
+    public ObservableCollection<LookupOption<ItemType>> TypeOptions { get; } = [];
+
+    public ObservableCollection<PriorityLevel> PriorityLevels { get; } = [];
+
+    public ObservableCollection<LookupOption<PriorityLevel>> PriorityOptions { get; } = [];
+
+    public string CompletedLabel => $"Completed ({CompletedItems.Count})";
+
+    public bool IsCompletedExpanded
+    {
+        get => isCompletedExpanded;
+        set => SetProperty(ref isCompletedExpanded, value);
+    }
+
+    public string QuickAddTitle
+    {
+        get => quickAddTitle;
+        set => SetProperty(ref quickAddTitle, value);
+    }
+
+    public ItemEditorViewModel? Editor
+    {
+        get => editor;
+        private set => SetProperty(ref editor, value);
+    }
+
+    public bool HasEditor => Editor is not null;
+
+    public IReadOnlyList<ItemRowViewModel> SelectedSubItems
+    {
+        get
+        {
+            if (selectedItem is null)
+            {
+                return [];
+            }
+
+            return [.. selectedItem.Children, .. selectedItem.CompletedChildren];
+        }
+    }
+
+    public ICommand QuickAddCommand { get; }
+
+    public ICommand AddSubItemCommand { get; }
+
+    public ICommand SaveCommand { get; }
+
+    public ICommand RevertCommand { get; }
+
+    public ICommand DeleteItemCommand { get; }
+
+    public ICommand MoveUpCommand { get; }
+
+    public ICommand MoveDownCommand { get; }
+
+    public ICommand ToggleSelectedCommand { get; }
+
+    public async Task GoHomeAsync()
+    {
+        if (await ResolveDraftAsync())
+        {
+            await navigation.GoHomeAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        urgencyRefresher.Dispose();
+    }
+
+    /// <summary>Updates displayed row urgency using the Core roll-up.</summary>
+    public void RefreshUrgency()
+    {
+        urgencyRefresher.Refresh(areaSnapshot, OpenItems.Concat(CompletedItems));
+    }
+
     public async Task LoadAsync(Guid? selectedId = null)
     {
-        var expandedIds = root is null
-            ? new HashSet<Guid?>()
-            : AllFolders(root).Where(node => node.IsExpanded).Select(node => node.Id).ToHashSet();
+        if (folderTree.Root is not null && !await ResolveDraftAsync())
+        {
+            return;
+        }
+
         ProjectWorkspaceSnapshot snapshot;
 
         try
         {
             snapshot = await projects.LoadWorkspaceAsync(projectId);
         }
-        catch (DomainRuleException exception) when (root is not null)
+        catch (DomainRuleException exception) when (folderTree.Root is not null)
         {
             await navigation.GoHomeAsync();
             await dialogs.ShowMessageAsync("Project unavailable", exception.Message);
@@ -62,179 +173,189 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase
         }
         ProjectName = snapshot.Name;
         OnPropertyChanged(nameof(ProjectName));
-        root = new FolderNodeViewModel(null, ProjectName, null, this);
-        BuildChildren(root, snapshot.Folders);
-
-        if (expandedIds.Count > 0)
-        {
-            foreach (var node in AllFolders(root))
-            {
-                node.IsExpanded = expandedIds.Contains(node.Id);
-            }
-        }
-
-        FolderRoots.Clear();
-        FolderRoots.Add(root);
-        Select(FindNode(root, selectedId ?? selectedFolder?.Id) ?? root);
+        folderTree.Load(snapshot, selectedId);
+        OnPropertyChanged(nameof(SelectedFolder));
+        OnPropertyChanged(nameof(SelectedAreaName));
+        await LoadItemsAsync();
     }
 
     public void Select(FolderNodeViewModel node)
     {
-        if (selectedFolder is not null)
-        {
-            selectedFolder.IsSelected = false;
-        }
-
-        selectedFolder = node;
-        node.IsSelected = true;
+        folderTree.Select(node);
         OnPropertyChanged(nameof(SelectedFolder));
         OnPropertyChanged(nameof(SelectedAreaName));
-        BuildBreadcrumbs(node);
     }
 
-    public async Task CreateFolderAsync(FolderNodeViewModel parent)
+    public async Task SelectAreaAsync(FolderNodeViewModel node)
     {
-        var name = await dialogs.PromptAsync("New folder", "Folder name");
-
-        if (name is not null)
+        if (!await ResolveDraftAsync())
         {
-            parent.IsExpanded = true;
-            await RunFolderActionAsync(() => folders.CreateAsync(projectId, parent.Id, name));
+            node.IsSelected = false;
+            if (SelectedFolder is not null)
+            {
+                SelectedFolder.IsSelected = true;
+            }
+
+            return;
         }
+
+        Select(node);
+        await LoadItemsAsync();
     }
 
-    public async Task RenameFolderAsync(FolderNodeViewModel node)
+    public async Task LoadItemsAsync(Guid? selectedItemId = null)
     {
-        if (node.Id is not Guid id)
+        if (items is null)
         {
             return;
         }
 
-        var name = await dialogs.PromptAsync("Rename folder", "Folder name", node.Name);
+        var snapshot = await items.LoadAreaAsync(projectId, SelectedFolder?.Id);
+        areaSnapshot = snapshot;
+        ItemTypes.Clear();
+        PriorityLevels.Clear();
+        TypeOptions.Clear();
+        PriorityOptions.Clear();
+        TypeOptions.Add(new LookupOption<ItemType>("None", null));
+        PriorityOptions.Add(new LookupOption<PriorityLevel>("None", null));
 
-        if (name is not null)
+        foreach (var type in snapshot.ItemTypes.Where(type => !type.IsArchived))
         {
-            await RunFolderActionAsync(() => folders.RenameAsync(projectId, id, name));
+            ItemTypes.Add(type);
+            TypeOptions.Add(new LookupOption<ItemType>(type.Name, type));
+        }
+
+        foreach (var level in snapshot.PriorityLevels.Where(level => !level.IsArchived))
+        {
+            PriorityLevels.Add(level);
+            PriorityOptions.Add(new LookupOption<PriorityLevel>(level.Name, level));
+        }
+
+        areaItems.Load(snapshot, this);
+        OnPropertyChanged(nameof(CompletedLabel));
+        SelectLoadedItem(selectedItemId ?? selectedItem?.Id);
+    }
+
+    private IEnumerable<ItemRowViewModel> AllItems()
+    {
+        return areaItems.AllItems();
+    }
+
+    private void SelectLoadedItem(Guid? id)
+    {
+        selectedItem = AllItems().FirstOrDefault(row => row.Id == id);
+        Editor = selectedItem is null ? null : CreateEditor(selectedItem);
+        OnPropertyChanged(nameof(HasEditor));
+        OnPropertyChanged(nameof(SelectedSubItems));
+
+        if (selectedItem is not null)
+        {
+            selectedItem.IsSelected = true;
         }
     }
 
-    public async Task MoveFolderAsync(FolderNodeViewModel node)
+    public async Task SelectItemAsync(ItemRowViewModel row)
     {
-        if (node.Id is not Guid id || root is null)
+        if (selectedItem?.Id == row.Id || !await ResolveDraftAsync())
         {
             return;
         }
 
-        var choices = AllFolders(root)
-            .Select(folder => new FolderChoice(folder.Id, folder.Name, folder.Depth))
-            .ToArray();
-        var destination = await dialogs.PickFolderAsync("Move folder", choices);
-
-        if (destination is not null)
+        if (selectedItem is not null)
         {
-            await RunFolderActionAsync(() => folders.MoveAsync(projectId, id, destination.Id));
-        }
-    }
-
-    public async Task DeleteFolderAsync(FolderNodeViewModel node)
-    {
-        if (node.Id is not Guid id || !await dialogs.ConfirmAsync("Delete folder", $"Delete {node.Name} and its contents?"))
-        {
-            return;
+            selectedItem.IsSelected = false;
         }
 
-        var selectedId = IsAncestorOrSelf(node, selectedFolder) ? node.Parent?.Id : selectedFolder?.Id;
-        await RunFolderActionAsync(() => folders.DeleteAsync(projectId, id), selectedId);
+        selectedItem = AllItems().FirstOrDefault(item => item.Id == row.Id) ?? row;
+        selectedItem.IsSelected = true;
+        Editor = CreateEditor(selectedItem);
+        OnPropertyChanged(nameof(HasEditor));
+        OnPropertyChanged(nameof(SelectedSubItems));
     }
 
-    private async Task RunFolderActionAsync(Func<Task> action, Guid? selectedId = null)
+    internal async Task<bool> ResolveDraftAsync()
     {
+        return await editorCoordinator.ResolveAsync(Editor, selectedItem?.Node.Item, SaveAsync, Revert);
+    }
+
+    public async Task<bool> SaveAsync()
+    {
+        if (items is null || Editor is null)
+        {
+            return true;
+        }
+
         try
         {
-            await action();
-            await LoadAsync(selectedId ?? selectedFolder?.Id);
+            await items.EditAsync(Editor.Id, Editor.ToEdit());
+            await LoadItemsAsync(Editor.Id);
+            return true;
         }
         catch (DomainRuleException exception)
         {
-            await dialogs.ShowMessageAsync("Folder action failed", exception.Message);
+            await dialogs.ShowMessageAsync("Item validation", exception.Message);
+            return false;
         }
     }
 
-    private void BuildChildren(FolderNodeViewModel parent, FolderTree tree)
+    public void Revert()
     {
-        foreach (var folder in tree.Children(parent.Id))
-        {
-            var child = new FolderNodeViewModel(folder.Id, folder.Name, parent, this);
-            parent.Children.Add(child);
-            BuildChildren(child, tree);
-        }
+        Editor = selectedItem is null ? null : CreateEditor(selectedItem);
     }
 
-    private static bool IsAncestorOrSelf(FolderNodeViewModel ancestor, FolderNodeViewModel? node)
+    private ItemEditorViewModel CreateEditor(ItemRowViewModel row)
     {
-        for (var current = node; current is not null; current = current.Parent)
-        {
-            if (current == ancestor)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var draft = editorCoordinator.Create(row, areaSnapshot);
+        draft.InitializeOptions(TypeOptions, PriorityOptions);
+        return draft;
     }
 
-    private static IEnumerable<FolderNodeViewModel> AllFolders(FolderNodeViewModel node)
+    public Task QuickAddAsync()
     {
-        yield return node;
-
-        foreach (var child in node.Children)
-        {
-            foreach (var descendant in AllFolders(child))
-            {
-                yield return descendant;
-            }
-        }
+        return areaItems.QuickAddAsync();
     }
 
-    private static FolderNodeViewModel? FindNode(FolderNodeViewModel node, Guid? id)
+    public Task AddSubItemAsync()
     {
-        if (node.Id == id)
-        {
-            return node;
-        }
-
-        foreach (var child in node.Children)
-        {
-            var found = FindNode(child, id);
-
-            if (found is not null)
-            {
-                return found;
-            }
-        }
-
-        return null;
+        return areaItems.AddSubItemAsync();
     }
 
-    private void BuildBreadcrumbs(FolderNodeViewModel node)
+    public Task ToggleAsync(ItemRowViewModel row)
     {
-        Breadcrumbs.Clear();
-        Breadcrumbs.Add(new BreadcrumbViewModel("Home", navigation.GoHomeAsync));
-        var path = new Stack<FolderNodeViewModel>();
+        return areaItems.ToggleAsync(row);
+    }
 
-        for (var current = node; current is not null; current = current.Parent)
-        {
-            path.Push(current);
-        }
+    public Task ToggleSelectedAsync()
+    {
+        return areaItems.ToggleSelectedAsync();
+    }
 
-        foreach (var segment in path)
-        {
-            var isCurrent = segment == node;
-            Breadcrumbs.Add(new BreadcrumbViewModel(segment.Name, () =>
-            {
-                Select(segment);
-                return Task.CompletedTask;
-            }, isCurrent, true));
-        }
+    public Task DeleteItemAsync()
+    {
+        return areaItems.DeleteItemAsync();
+    }
+
+    public Task ReorderSelectedAsync(int offset)
+    {
+        return areaItems.ReorderSelectedAsync(offset);
+    }
+    public Task CreateFolderAsync(FolderNodeViewModel parent)
+    {
+        return folderTree.CreateAsync(parent);
+    }
+
+    public Task RenameFolderAsync(FolderNodeViewModel node)
+    {
+        return folderTree.RenameAsync(node);
+    }
+
+    public Task MoveFolderAsync(FolderNodeViewModel node)
+    {
+        return folderTree.MoveAsync(node);
+    }
+
+    public Task DeleteFolderAsync(FolderNodeViewModel node)
+    {
+        return folderTree.DeleteAsync(node);
     }
 }

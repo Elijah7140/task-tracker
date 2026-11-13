@@ -58,7 +58,7 @@ public sealed class LookupServiceTests
 
         Assert.Equal(type.Id, saved.ItemTypeId);
         Assert.Equal(priority.Id, saved.PriorityLevelId);
-        Assert.DoesNotContain(snapshot.ItemTypes, row => row.Id == type.Id);
-        Assert.DoesNotContain(snapshot.PriorityLevels, row => row.Id == priority.Id);
+        Assert.Contains(snapshot.ItemTypes, row => row.Id == type.Id && row.IsArchived);
+        Assert.Contains(snapshot.PriorityLevels, row => row.Id == priority.Id && row.IsArchived);
     }
 }

@@ -1,14 +1,28 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:TaskTracker.App.Desktop.Converters"
+             xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
              x:Class="TaskTracker.App.Desktop.Views.ProjectWorkspaceView"
-             x:CompileBindings="False">
+             x:CompileBindings="False" KeyDown="OnFocusKeyDown">
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Ctrl+Shift+N" Command="{Binding AddSubItemCommand}" />
+    <KeyBinding Gesture="Alt+Up" Command="{Binding MoveUpCommand}" />
+    <KeyBinding Gesture="Alt+Down" Command="{Binding MoveDownCommand}" />
+  </UserControl.KeyBindings>
   <UserControl.Styles>
+    <Style Selector="Button.overdue">
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
     <Style Selector="Button.hyperlink">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
     </Style>
   </UserControl.Styles>
+  <UserControl.Resources>
+    <converters:UrgencyBrushConverter x:Key="UrgencyBrush" />
+    <converters:UrgencyForegroundConverter x:Key="UrgencyForeground" />
+  </UserControl.Resources>
   <Grid RowDefinitions="Auto,*">
     <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
             Padding="22,16">
@@ -29,12 +43,13 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </Border>
-    <Grid Grid.Row="1" ColumnDefinitions="250,*,280">
+    <Grid Grid.Row="1" ColumnDefinitions="230,*,310">
       <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
               Padding="16,22">
         <Grid RowDefinitions="Auto,*" RowSpacing="16">
           <TextBlock Text="FOLDERS" FontSize="12" FontWeight="SemiBold" Opacity="0.7" Margin="8,0" />
-          <TreeView Grid.Row="1" ItemsSource="{Binding FolderRoots}" HorizontalAlignment="Stretch">
+          <TreeView Grid.Row="1" ItemsSource="{Binding FolderRoots}" HorizontalAlignment="Stretch"
+                    SelectionChanged="OnFolderSelectionChanged">
             <TreeView.Styles>
               <Style Selector="TreeViewItem">
                 <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
@@ -59,23 +74,116 @@
           </TreeView>
         </Grid>
       </Border>
-      <StackPanel Grid.Column="1" Margin="32,28" Spacing="20">
+      <Grid Grid.Column="1" Margin="24,20" RowDefinitions="Auto,Auto,*" RowSpacing="14">
         <TextBlock Text="{Binding SelectedAreaName}" FontSize="27" FontWeight="SemiBold" />
-        <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                CornerRadius="10" Padding="28" MinHeight="160">
-          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
-            <TextBlock Text="Items arrive in the next slice" FontSize="17" HorizontalAlignment="Center" />
-            <TextBlock Text="This area is ready for its task list." Opacity="0.65"
-                       HorizontalAlignment="Center" />
+        <TextBox x:Name="QuickAddBox" Grid.Row="1" PlaceholderText="Add an item and press Enter"
+                 Text="{Binding QuickAddTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding QuickAddCommand}" />
+          </TextBox.KeyBindings>
+        </TextBox>
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+          <ScrollViewer.KeyBindings>
+            <KeyBinding Gesture="Space" Command="{Binding ToggleSelectedCommand}" />
+            <KeyBinding Gesture="Delete" Command="{Binding DeleteItemCommand}" />
+          </ScrollViewer.KeyBindings>
+          <StackPanel Spacing="12">
+            <ItemsControl ItemsSource="{Binding OpenItems}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <views:ItemBranchView />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Expander Header="{Binding CompletedLabel}" IsExpanded="{Binding IsCompletedExpanded, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+              <ItemsControl ItemsSource="{Binding CompletedItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <views:ItemBranchView />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Expander>
           </StackPanel>
-        </Border>
-      </StackPanel>
+        </ScrollViewer>
+      </Grid>
       <Border Grid.Column="2" BorderThickness="1,0,0,0"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="24,28">
-        <StackPanel Spacing="12">
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="18,20">
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
           <TextBlock Text="DETAILS" FontSize="12" FontWeight="SemiBold" Opacity="0.6" />
-          <TextBlock Text="Select an item to see its details." TextWrapping="Wrap" Opacity="0.7" />
-        </StackPanel>
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Visible"
+                        HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="8" Margin="0,0,8,0">
+              <TextBlock Text="Select an item to see its details." IsVisible="{Binding !HasEditor}"
+                         TextWrapping="Wrap" Opacity="0.7" />
+              <StackPanel DataContext="{Binding Editor}"
+                          IsVisible="{Binding $parent[UserControl].DataContext.HasEditor}" Spacing="8">
+              <TextBlock Text="Title" />
+              <TextBox x:Name="EditorTitleBox" Text="{Binding Title, Mode=TwoWay}" />
+              <TextBlock Text="Description" />
+              <TextBox Text="{Binding Description, Mode=TwoWay}" AcceptsReturn="True" MinHeight="80"
+                       TextWrapping="Wrap" />
+              <TextBlock Text="Ticket number" />
+              <TextBox Text="{Binding TicketNumber, Mode=TwoWay}" />
+              <TextBlock Text="Type" />
+              <TextBlock Text="{Binding ArchivedTypeName}" IsVisible="{Binding HasArchivedType}" Opacity="0.7" />
+              <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.TypeOptions}"
+                        SelectedItem="{Binding SelectedTypeOption, Mode=TwoWay}"
+                        DisplayMemberBinding="{Binding Name}" HorizontalAlignment="Stretch" />
+              <TextBlock Text="Priority" />
+              <TextBlock Text="{Binding ArchivedPriorityName}" IsVisible="{Binding HasArchivedPriority}" Opacity="0.7" />
+              <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.PriorityOptions}"
+                        SelectedItem="{Binding SelectedPriorityOption, Mode=TwoWay}"
+                        DisplayMemberBinding="{Binding Name}" HorizontalAlignment="Stretch" />
+              <TextBlock Text="Due date" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <CalendarDatePicker SelectedDate="{Binding DueDatePickerDate, Mode=TwoWay}"
+                                    HorizontalAlignment="Stretch" />
+                <Button Grid.Column="1" Content="Clear" Command="{Binding ClearDueDateCommand}" />
+              </Grid>
+              <TextBlock Text="Due time" />
+              <StackPanel Spacing="4">
+                <TimePicker SelectedTime="{Binding DueTimePickerTime, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch" />
+                <Button Content="Clear time" Command="{Binding ClearDueTimeCommand}"
+                        HorizontalAlignment="Right" />
+              </StackPanel>
+              <TextBlock Text="Scheduled start" />
+              <StackPanel Spacing="4">
+                <CalendarDatePicker SelectedDate="{Binding StartPickerDate, Mode=TwoWay}" />
+                <TimePicker SelectedTime="{Binding StartPickerTime, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch" />
+                <Button Content="Clear start" Command="{Binding ClearStartCommand}"
+                        HorizontalAlignment="Right" />
+              </StackPanel>
+              <TextBlock Text="Scheduled end" />
+              <StackPanel Spacing="4">
+                <CalendarDatePicker SelectedDate="{Binding EndPickerDate, Mode=TwoWay}" />
+                <TimePicker SelectedTime="{Binding EndPickerTime, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch" />
+                <Button Content="Clear end" Command="{Binding ClearEndCommand}"
+                        HorizontalAlignment="Right" />
+              </StackPanel>
+              <Button Content="Add sub-item" Command="{Binding $parent[UserControl].DataContext.AddSubItemCommand}" />
+              <ItemsControl ItemsSource="{Binding $parent[UserControl].DataContext.SelectedSubItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Content="{Binding Title}" Command="{Binding SelectCommand}"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button Content="Delete item" Command="{Binding $parent[UserControl].DataContext.DeleteItemCommand}" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+          <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
+                      IsVisible="{Binding HasEditor}">
+            <Button Content="Save" Command="{Binding SaveCommand}" />
+            <Button Content="Revert" Command="{Binding RevertCommand}" />
+          </StackPanel>
+        </Grid>
       </Border>
     </Grid>
   </Grid>

@@ -85,7 +85,7 @@ public sealed class HomeViewModel : ViewModelBase
 
     public async Task DeleteAsync(ProjectCardViewModel? card)
     {
-        if (card is null || !await dialogs.ConfirmAsync("Delete project", $"Delete {card.Name} and its contents?"))
+        if (card is null || !await dialogs.ConfirmAsync("Delete project", $"Delete {card.Name} and its contents?", "Delete"))
         {
             return;
         }
