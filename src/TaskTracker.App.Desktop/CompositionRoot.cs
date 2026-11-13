@@ -1,14 +1,17 @@
 using Microsoft.Extensions.DependencyInjection;
 
+using TaskTracker.App.Desktop.Dialogs;
+using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core;
 using TaskTracker.Infrastructure;
 using TaskTracker.Infrastructure.Persistence;
+using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop;
 
 /// <summary>The one place where the application's object graph is wired together.</summary>
-internal static class CompositionRoot
+public static class CompositionRoot
 {
     public static ServiceProvider BuildServices()
     {
@@ -21,9 +24,13 @@ internal static class CompositionRoot
         services.AddTaskTrackerInfrastructure(databasePath);
 
         // Views are matched to ViewModels explicitly; see ViewLocator.
-        services.AddSingleton(_ => new ViewLocator());
+        services.AddSingleton(_ => new ViewLocator()
+            .Register<HomeViewModel, HomeView>()
+            .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>());
 
         services.AddSingleton<MainWindowViewModel>();
+        services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<MainWindowViewModel>());
+        services.AddSingleton<IDialogService, AvaloniaDialogService>();
 
         return services.BuildServiceProvider(new ServiceProviderOptions
         {

@@ -73,7 +73,7 @@ public sealed class FolderServiceTests
         var childBatch = await service.DeleteAsync(project.Id, child.Id, cancellationToken);
         var parentBatch = await service.DeleteAsync(project.Id, parent.Id, cancellationToken);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
             service.RestoreAsync(project.Id, childBatch, cancellationToken));
         await service.RestoreAsync(project.Id, parentBatch, cancellationToken);
         await using var reader = new TaskTrackerDbContext(options);
@@ -98,8 +98,8 @@ public sealed class FolderServiceTests
         var child = await folders.CreateAsync(firstProject.Id, first.Id, "Child");
         var foreign = await folders.CreateAsync(secondProject.Id, null, "Foreign");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => folders.MoveAsync(firstProject.Id, first.Id, child.Id));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => folders.MoveAsync(firstProject.Id, first.Id, foreign.Id));
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => folders.MoveAsync(firstProject.Id, first.Id, child.Id));
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => folders.MoveAsync(firstProject.Id, first.Id, foreign.Id));
         await folders.RenameAsync(firstProject.Id, child.Id, "Renamed");
         await folders.MoveAsync(firstProject.Id, child.Id, second.Id);
         await folders.ReorderAsync(firstProject.Id, null, [second.Id, first.Id]);

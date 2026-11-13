@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\TaskTracker.Presentation\TaskTracker.Presentation.csproj" />
+    <ProjectReference Include="..\..\src\TaskTracker.Infrastructure\TaskTracker.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />

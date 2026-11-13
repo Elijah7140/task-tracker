@@ -70,7 +70,7 @@ public sealed class ItemServiceTests
         var project = await projects.CreateAsync("Original project");
         var item = await store.Items(context).CreateAsync(project.Id, null, null, "Original item");
 
-        await Assert.ThrowsAsync<ArgumentException>(() => store.Items(context).EditAsync(item.Id,
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => store.Items(context).EditAsync(item.Id,
             new ItemEdit("Rejected item", null, null, null, null, null, new TimeOnly(9, 0), null, null)));
         await projects.RenameAsync(project.Id, "Renamed project");
         await using var reader = store.Open();

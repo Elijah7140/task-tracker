@@ -11,6 +11,19 @@ public sealed class ProjectService(
     TimeProvider clock,
     TimeZoneInfo timeZone)
 {
+    /// <summary>
+    /// Loads the project's name and folder tree in one unit of work.
+    /// Throws <see cref="DomainRuleException"/> if the project is missing or deleted.
+    /// </summary>
+    public async Task<ProjectWorkspaceSnapshot> LoadWorkspaceAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Begin();
+        var project = await GetAsync(unitOfWork, id, cancellationToken);
+        var folders = await unitOfWork.Folders.ListAsync(id, false, cancellationToken);
+
+        return new ProjectWorkspaceSnapshot(project.Name, new FolderTree(id, folders));
+    }
+
     public async Task<Project> CreateAsync(string name, CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
@@ -37,7 +50,7 @@ public sealed class ProjectService(
 
         if (ids.Count != rows.Count || ids.ToHashSet().Count != rows.Count || rows.Any(row => !ids.Contains(row.Id)))
         {
-            throw new InvalidOperationException("Order must contain every active project exactly once.");
+            throw new DomainRuleException("Order must contain every active project exactly once.");
         }
 
         for (var index = 0; index < ids.Count; index++)
@@ -129,6 +142,6 @@ public sealed class ProjectService(
     {
         var projects = unitOfWork.Projects;
         return await projects.FindAsync(id, false, cancellationToken)
-            ?? throw new InvalidOperationException("Project is missing or deleted.");
+            ?? throw new DomainRuleException("Project is missing or deleted.");
     }
 }

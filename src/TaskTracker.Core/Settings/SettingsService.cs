@@ -81,7 +81,7 @@ public sealed class SettingsService(
     {
         if (!definition.ProjectOverridable)
         {
-            throw new InvalidOperationException("This setting cannot be overridden.");
+            throw new DomainRuleException("This setting cannot be overridden.");
         }
 
         await using var unitOfWork = unitOfWorkFactory.Begin();
@@ -152,7 +152,7 @@ public sealed class SettingsService(
     {
         if (await unitOfWork.Projects.FindAsync(projectId, false, cancellationToken) is null)
         {
-            throw new InvalidOperationException("Project is missing or deleted.");
+            throw new DomainRuleException("Project is missing or deleted.");
         }
 
         var global = await unitOfWork.Settings.GetGlobalAsync(cancellationToken);
@@ -193,7 +193,7 @@ public sealed class SettingsService(
 
         if (enabledProjects.Count > 0 && !confirmed)
         {
-            throw new InvalidOperationException("Enabling automatic completion requires confirmation.");
+            throw new DomainRuleException("Enabling automatic completion requires confirmation.");
         }
 
         return enabledProjects;
@@ -203,7 +203,7 @@ public sealed class SettingsService(
     {
         if (!SettingsResolver.HasValidThresholds(settings))
         {
-            throw new InvalidOperationException(InvalidThresholdsMessage);
+            throw new DomainRuleException(InvalidThresholdsMessage);
         }
     }
 

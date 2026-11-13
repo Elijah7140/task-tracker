@@ -56,7 +56,7 @@ public sealed class FolderService(
 
         if (ids.Count != siblings.Count || ids.ToHashSet().Count != siblings.Count || siblings.Any(row => !ids.Contains(row.Id)))
         {
-            throw new InvalidOperationException("Order must contain every sibling exactly once.");
+            throw new DomainRuleException("Order must contain every sibling exactly once.");
         }
 
         for (var index = 0; index < ids.Count; index++)
@@ -104,7 +104,7 @@ public sealed class FolderService(
 
         if (branch.Length == 0)
         {
-            throw new InvalidOperationException("Folder deletion batch was not found.");
+            throw new DomainRuleException("Folder deletion batch was not found.");
         }
 
         EnsureNoDeletedParentOutsideBatch(rows, branch);
@@ -127,7 +127,7 @@ public sealed class FolderService(
         {
             if (folder.ParentFolderId is Guid parentId && !branchIds.Contains(parentId) && deletedIds.Contains(parentId))
             {
-                throw new InvalidOperationException("Restore the parent folder first.");
+                throw new DomainRuleException("Restore the parent folder first.");
             }
         }
     }
@@ -178,7 +178,7 @@ public sealed class FolderService(
         var projects = unitOfWork.Projects;
         if (await projects.FindAsync(projectId, false, cancellationToken) is null)
         {
-            throw new InvalidOperationException("Project is missing or deleted.");
+            throw new DomainRuleException("Project is missing or deleted.");
         }
     }
 }

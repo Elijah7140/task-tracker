@@ -23,7 +23,7 @@ public sealed class SettingsServiceTests
             TimeSpan.FromHours(36));
         var batch = await store.Projects(context).DeleteAsync(project.Id);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => settings.SetGlobalAsync(
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => settings.SetGlobalAsync(
             SettingsCatalogue.UrgencyYellowThreshold, TimeSpan.FromHours(30)));
         await store.Projects(context).RestoreAsync(batch);
         await using var reader = store.Open();
@@ -58,7 +58,7 @@ public sealed class SettingsServiceTests
         await items.SetCompletedAsync(project.Id, null, parent.Id, true, cancellationToken: cancellationToken);
 
         var preview = await settings.PreviewGlobalAutoCompleteAsync(cancellationToken);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
             settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, true, cancellationToken: cancellationToken));
         await settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, true, confirmed: true,
             cancellationToken: cancellationToken);
@@ -102,7 +102,7 @@ public sealed class SettingsServiceTests
         var settings = store.Settings(writer);
         await settings.SetProjectOverrideAsync(project.Id, SettingsCatalogue.UrgencyRedThreshold, TimeSpan.FromDays(2));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
             settings.SetGlobalAsync(SettingsCatalogue.UrgencyYellowThreshold, TimeSpan.FromDays(1)));
         await using var reader = store.Open();
         var saved = await store.Settings(reader).GetEffectiveAsync(project.Id);
@@ -133,7 +133,7 @@ public sealed class SettingsServiceTests
         await items.SetCompletedAsync(overridden.Id, null, overriddenParent.Id, true);
 
         var preview = await settings.PreviewGlobalAutoCompleteAsync();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
             settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, true));
         await using var unconfirmed = store.Open();
         Assert.False(await store.Settings(unconfirmed).GetGlobalAsync(SettingsCatalogue.AutoCompleteParents));

@@ -109,10 +109,10 @@ public sealed class ItemTreeTests
         var folder = Folder.Create(projectId, null, "Area", clock);
         var otherArea = new ItemTree(projectId, folder.Id, [], new FolderTree(projectId, [folder]));
 
-        Assert.Throws<InvalidOperationException>(() => tree.Move(root.Id, root.Id, clock));
-        Assert.Throws<InvalidOperationException>(() => tree.Move(root.Id, child.Id, clock));
-        Assert.Throws<InvalidOperationException>(() => tree.MoveTopLevelTo(root.Id, otherProject, clock));
-        Assert.Throws<InvalidOperationException>(() => tree.MoveTopLevelTo(child.Id, otherArea, clock));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => tree.Move(root.Id, root.Id, clock));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => tree.Move(root.Id, child.Id, clock));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => tree.MoveTopLevelTo(root.Id, otherProject, clock));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => tree.MoveTopLevelTo(child.Id, otherArea, clock));
     }
 
     [Fact]
@@ -125,9 +125,9 @@ public sealed class ItemTreeTests
         var folder = Folder.Create(projectId, null, "Area", clock);
         var otherArea = Item(projectId, folder.Id, root.Id);
 
-        Assert.Throws<InvalidOperationException>(() => new ItemTree(projectId, null, [missingParent]));
-        Assert.Throws<InvalidOperationException>(() => new ItemTree(projectId, null, [otherProject]));
-        Assert.Throws<InvalidOperationException>(() => new ItemTree(projectId, null, [root, otherArea]));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => new ItemTree(projectId, null, [missingParent]));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => new ItemTree(projectId, null, [otherProject]));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => new ItemTree(projectId, null, [root, otherArea]));
     }
 
     [Fact]
@@ -138,6 +138,6 @@ public sealed class ItemTreeTests
         var child = Item(projectId, parentId: root.Id);
         typeof(TodoItem).GetProperty(nameof(TodoItem.ParentItemId))!.SetValue(root, child.Id);
 
-        Assert.Throws<InvalidOperationException>(() => new ItemTree(projectId, null, [root, child]));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => new ItemTree(projectId, null, [root, child]));
     }
 }

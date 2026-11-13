@@ -49,7 +49,7 @@ public sealed class LookupServiceTests
         await store.Items(writer).EditAsync(item.Id, new ItemEdit("Task", null, null,
             type.Id, priority.Id, null, null, null, null));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => lookups.ArchiveItemTypeAsync(BuiltInLookups.ChangeId));
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => lookups.ArchiveItemTypeAsync(BuiltInLookups.ChangeId));
         await lookups.ArchiveItemTypeAsync(type.Id);
         await lookups.ArchivePriorityLevelAsync(priority.Id);
         await using var reader = store.Open();

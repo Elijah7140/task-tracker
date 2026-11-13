@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TaskTracker.App.Desktop.Views.HomeView"
+             x:CompileBindings="False">
+  <Grid RowDefinitions="Auto,*" Margin="40,32">
+    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,28">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Projects" FontSize="30" FontWeight="SemiBold" />
+        <TextBlock Text="Choose a space to continue your work." Opacity="0.7" />
+      </StackPanel>
+      <Button Grid.Column="1" Content="+ New project" Command="{Binding CreateCommand}"
+              Padding="18,10" VerticalAlignment="Center" />
+    </Grid>
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Spacing="12">
+        <TextBlock Text="No projects yet. Create one to get started." IsVisible="{Binding IsEmpty}"
+                   FontSize="16" Opacity="0.7" Margin="0,32" HorizontalAlignment="Center" />
+        <ItemsControl ItemsSource="{Binding Cards}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      CornerRadius="10" Padding="20" Margin="0,0,0,12" Focusable="True"
+                      PointerPressed="OnCardPointerPressed" KeyDown="OnCardKeyDown">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                  <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" />
+                  <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="18" Margin="0,8,0,0">
+                    <TextBlock Text="{Binding OpenCount, StringFormat='{}{0} open'}" Opacity="0.7" />
+                    <TextBlock Text="{Binding OverdueCount, StringFormat='{}{0} overdue'}" Opacity="0.7" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Grid.RowSpan="2" Orientation="Horizontal" Spacing="8"
+                              VerticalAlignment="Center">
+                    <Button Content="Open" Classes="accent" Command="{Binding $parent[UserControl].DataContext.OpenCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Content="Rename" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.RenameCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Content="Delete" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.DeleteCommand}"
+                            CommandParameter="{Binding}" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

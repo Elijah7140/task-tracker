@@ -99,7 +99,7 @@ public sealed class LookupService(IUnitOfWorkFactory unitOfWorkFactory)
     {
         if (rows.Count != ids.Count || ids.ToHashSet().Count != rows.Count || rows.Any(row => !ids.Contains(row.Id)))
         {
-            throw new InvalidOperationException("Order must contain every lookup exactly once.");
+            throw new DomainRuleException("Order must contain every lookup exactly once.");
         }
 
         for (var index = 0; index < ids.Count; index++)

@@ -1,8 +1,11 @@
+
 namespace TaskTracker.Core.Projects;
 
 /// <summary>A project containing folders and items.</summary>
 public sealed class Project
 {
+    public const int NameMaxLength = 300;
+
     private Project()
     {
     }
@@ -81,9 +84,9 @@ public sealed class Project
 
     private static string ValidateName(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Length > 300)
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > NameMaxLength)
         {
-            throw new ArgumentException("Name must be 1 to 300 characters.", nameof(name));
+            throw new DomainRuleException("Name must be 1 to 300 characters.");
         }
 
         return name.Trim();

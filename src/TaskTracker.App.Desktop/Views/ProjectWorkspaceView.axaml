@@ -1,0 +1,82 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TaskTracker.App.Desktop.Views.ProjectWorkspaceView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <Style Selector="Button.hyperlink">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+    </Style>
+  </UserControl.Styles>
+  <Grid RowDefinitions="Auto,*">
+    <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            Padding="22,16">
+      <ItemsControl ItemsSource="{Binding Breadcrumbs}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="›" VerticalAlignment="Center" Opacity="0.55" IsVisible="{Binding HasSeparator}" />
+              <Button Content="{Binding Name}" Command="{Binding NavigateCommand}" Padding="2,3"
+                      Classes="hyperlink" IsVisible="{Binding !IsCurrent}" />
+              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"
+                         IsVisible="{Binding IsCurrent}" />
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Border>
+    <Grid Grid.Row="1" ColumnDefinitions="250,*,280">
+      <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              Padding="16,22">
+        <Grid RowDefinitions="Auto,*" RowSpacing="16">
+          <TextBlock Text="FOLDERS" FontSize="12" FontWeight="SemiBold" Opacity="0.7" Margin="8,0" />
+          <TreeView Grid.Row="1" ItemsSource="{Binding FolderRoots}" HorizontalAlignment="Stretch">
+            <TreeView.Styles>
+              <Style Selector="TreeViewItem">
+                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+              </Style>
+            </TreeView.Styles>
+            <TreeView.ItemTemplate>
+              <TreeDataTemplate ItemsSource="{Binding Children}">
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Padding="4,6">
+                  <TextBlock.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="New folder" Command="{Binding NewFolderCommand}" />
+                      <MenuItem Header="Rename" Command="{Binding RenameCommand}" IsVisible="{Binding !IsRoot}" />
+                      <MenuItem Header="Move" Command="{Binding MoveCommand}" IsVisible="{Binding !IsRoot}" />
+                      <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding !IsRoot}" />
+                    </ContextMenu>
+                  </TextBlock.ContextMenu>
+                </TextBlock>
+              </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+          </TreeView>
+        </Grid>
+      </Border>
+      <StackPanel Grid.Column="1" Margin="32,28" Spacing="20">
+        <TextBlock Text="{Binding SelectedAreaName}" FontSize="27" FontWeight="SemiBold" />
+        <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                CornerRadius="10" Padding="28" MinHeight="160">
+          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+            <TextBlock Text="Items arrive in the next slice" FontSize="17" HorizontalAlignment="Center" />
+            <TextBlock Text="This area is ready for its task list." Opacity="0.65"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+      <Border Grid.Column="2" BorderThickness="1,0,0,0"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="24,28">
+        <StackPanel Spacing="12">
+          <TextBlock Text="DETAILS" FontSize="12" FontWeight="SemiBold" Opacity="0.6" />
+          <TextBlock Text="Select an item to see its details." TextWrapping="Wrap" Opacity="0.7" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

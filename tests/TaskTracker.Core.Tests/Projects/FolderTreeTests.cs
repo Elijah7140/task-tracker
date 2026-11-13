@@ -16,7 +16,7 @@ public sealed class FolderTreeTests
         var child = Folder.Create(projectId, root.Id, "Child", clock);
         var tree = new FolderTree(projectId, [root, child]);
 
-        Assert.Throws<InvalidOperationException>(() => tree.Move(root.Id, child.Id, clock));
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => tree.Move(root.Id, child.Id, clock));
     }
 
     [Fact]

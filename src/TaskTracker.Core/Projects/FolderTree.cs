@@ -1,3 +1,4 @@
+
 namespace TaskTracker.Core.Projects;
 
 /// <summary>Validates and navigates the active folders of one project.</summary>
@@ -36,7 +37,7 @@ public sealed class FolderTree
         {
             if (!seen.Add(parentId))
             {
-                throw new InvalidOperationException("Folder cycle detected.");
+                throw new DomainRuleException("Folder cycle detected.");
             }
 
             current = Get(parentId);
@@ -55,7 +56,7 @@ public sealed class FolderTree
     {
         if (!folders.TryGetValue(id, out var folder))
         {
-            throw new InvalidOperationException("Folder is missing or deleted.");
+            throw new DomainRuleException("Folder is missing or deleted.");
         }
 
         return folder;
@@ -65,7 +66,7 @@ public sealed class FolderTree
     {
         if (folder.ProjectId != ProjectId || folder.DeletedAtUtc is not null)
         {
-            throw new InvalidOperationException("Folder must be active and in this project.");
+            throw new DomainRuleException("Folder must be active and in this project.");
         }
 
         if (folder.ParentFolderId is Guid parentId)
@@ -75,7 +76,7 @@ public sealed class FolderTree
 
         if (!folders.TryAdd(folder.Id, folder))
         {
-            throw new InvalidOperationException("Duplicate folder.");
+            throw new DomainRuleException("Duplicate folder.");
         }
     }
 
@@ -101,7 +102,7 @@ public sealed class FolderTree
 
             if (newParentId == id || Descendants(id).Any(descendant => descendant.Id == newParentId))
             {
-                throw new InvalidOperationException("Folder move would create a cycle.");
+                throw new DomainRuleException("Folder move would create a cycle.");
             }
         }
 
@@ -112,12 +113,12 @@ public sealed class FolderTree
     {
         if (folder.ProjectId != ProjectId)
         {
-            throw new InvalidOperationException("Folder belongs to another project.");
+            throw new DomainRuleException("Folder belongs to another project.");
         }
 
         if (folder.ParentFolderId is Guid parentId && !folders.ContainsKey(parentId))
         {
-            throw new InvalidOperationException("Folder parent is missing or deleted.");
+            throw new DomainRuleException("Folder parent is missing or deleted.");
         }
 
         Ancestors(folder.Id);
