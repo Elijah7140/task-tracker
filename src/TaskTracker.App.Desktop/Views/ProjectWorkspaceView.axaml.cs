@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 
 using TaskTracker.Presentation.ViewModels;
 
@@ -11,6 +12,16 @@ public sealed partial class ProjectWorkspaceView : UserControl
     public ProjectWorkspaceView()
     {
         InitializeComponent();
+    }
+
+    /// <summary>
+    /// Puts keyboard focus in the quick-add box when the workspace opens. Without a focused
+    /// element inside the view, its key bindings (Ctrl+N, Space, Delete…) never fire.
+    /// </summary>
+    protected override void OnLoaded(RoutedEventArgs eventArgs)
+    {
+        base.OnLoaded(eventArgs);
+        QuickAddBox.Focus();
     }
 
     private async void OnFolderSelectionChanged(object? sender, SelectionChangedEventArgs eventArgs)

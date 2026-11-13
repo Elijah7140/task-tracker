@@ -90,6 +90,9 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
 
     public string CompletedLabel => $"Completed ({CompletedItems.Count})";
 
+    /// <summary>False when the area has no finished items, so the empty Completed section is hidden.</summary>
+    public bool HasCompletedItems => CompletedItems.Count > 0;
+
     public bool IsCompletedExpanded
     {
         get => isCompletedExpanded;
@@ -255,6 +258,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
 
         areaItems.Load(snapshot, this);
         OnPropertyChanged(nameof(CompletedLabel));
+        OnPropertyChanged(nameof(HasCompletedItems));
         SelectLoadedItem(selectedItemId ?? selectedItem?.Id);
     }
 

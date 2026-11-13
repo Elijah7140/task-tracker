@@ -91,7 +91,8 @@
             <KeyBinding Gesture="Space" Command="{Binding ToggleSelectedCommand}" />
             <KeyBinding Gesture="Delete" Command="{Binding DeleteItemCommand}" />
           </ScrollViewer.KeyBindings>
-          <StackPanel Spacing="12">
+          <!-- Shared size scope: item rows size their detail columns together, so they align. -->
+          <StackPanel Spacing="12" Grid.IsSharedSizeScope="True">
             <ItemsControl ItemsSource="{Binding OpenItems}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
@@ -100,6 +101,7 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
             <Expander Header="{Binding CompletedLabel}" IsExpanded="{Binding IsCompletedExpanded, Mode=TwoWay}"
+                      IsVisible="{Binding HasCompletedItems}"
                       HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
               <ItemsControl ItemsSource="{Binding CompletedItems}">
                 <ItemsControl.ItemTemplate>
