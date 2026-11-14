@@ -1,4 +1,5 @@
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Search;
 
 namespace TaskTracker.Core.Fields;
 
@@ -32,7 +33,8 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         await EnsureProjectAsync(work, projectId, cancellationToken);
         var fields = await work.Fields.DefinitionsAsync(cancellationToken);
         var order = fields.Count(field => field.ProjectId == projectId);
-        var field = FieldDefinition.Create(name, type, projectId, order, fields.Select(row => row.Key));
+        var usedKeys = fields.Select(row => row.Key).Concat(BuiltInSearchKeys.All);
+        var field = FieldDefinition.Create(name, type, projectId, order, usedKeys);
         EnsureUniqueName(fields, field);
         work.Fields.Add(field);
         await work.SaveChangesAsync(cancellationToken);

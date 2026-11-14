@@ -42,6 +42,9 @@ and ICU library on the path when present).
   or changed screen gets a reviewed snapshot baseline; interactive controls get an
   `AutomationProperties.AutomationId`. A bug found by hand gets a regression test.
 - Do not commit; the project lead reviews and commits.
+- A migration that makes EF rebuild `TodoItem` must recreate the `TodoItemSearch`
+  triggers and reconcile `TodoItemSearchRow`/`TodoItemSearch`; the schema test catches
+  a missing trigger.
 
 ## Application operations
 

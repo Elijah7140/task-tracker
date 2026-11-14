@@ -9,9 +9,8 @@ internal sealed class TestUnitOfWorkFactory(TaskTrackerDbContext database) : IUn
 {
     public IUnitOfWork Begin()
     {
-        var options = new DbContextOptionsBuilder<TaskTrackerDbContext>()
-            .UseSqlite(database.Database.GetDbConnection())
-            .Options;
+        var options = TaskTrackerSqliteOptions.Configure(
+            new DbContextOptionsBuilder<TaskTrackerDbContext>(), database.Database.GetDbConnection()).Options;
         return new EfUnitOfWork(new TaskTrackerDbContext(options));
     }
 }

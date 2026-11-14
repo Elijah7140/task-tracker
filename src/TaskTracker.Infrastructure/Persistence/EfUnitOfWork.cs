@@ -1,4 +1,5 @@
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Search;
 
 namespace TaskTracker.Infrastructure.Persistence;
 
@@ -16,6 +17,7 @@ public sealed class EfUnitOfWork : IUnitOfWork
         Lookups = new EfLookupRepository(database);
         Fields = new EfFieldRepository(database);
         Settings = new EfSettingsStore(database);
+        Search = new SqlItemSearch(database);
     }
 
     public IProjectRepository Projects { get; }
@@ -29,6 +31,8 @@ public sealed class EfUnitOfWork : IUnitOfWork
     public IFieldRepository Fields { get; }
 
     public ISettingsStore Settings { get; }
+
+    public IItemSearch Search { get; }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {

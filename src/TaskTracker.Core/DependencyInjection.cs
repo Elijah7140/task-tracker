@@ -4,6 +4,7 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
 
 namespace TaskTracker.Core;
@@ -20,6 +21,9 @@ public static class DependencyInjection
         services.AddSingleton<FieldService>();
         services.AddSingleton<LookupService>();
         services.AddSingleton<SettingsService>();
+        services.AddSingleton<IFieldRegistry, FieldRegistry>();
+        services.AddSingleton<ItemQueryValidator>();
+        services.AddSingleton<ItemSearchService>();
         return services;
     }
 }

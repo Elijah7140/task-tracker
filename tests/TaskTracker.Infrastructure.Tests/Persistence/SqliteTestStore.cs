@@ -26,9 +26,8 @@ internal sealed class SqliteTestStore : IAsyncDisposable
 
     public TaskTrackerDbContext Open()
     {
-        var options = new DbContextOptionsBuilder<TaskTrackerDbContext>()
-            .UseSqlite(connection)
-            .Options;
+        var options = TaskTrackerSqliteOptions.Configure(
+            new DbContextOptionsBuilder<TaskTrackerDbContext>(), connection).Options;
         return new TaskTrackerDbContext(options);
     }
 
