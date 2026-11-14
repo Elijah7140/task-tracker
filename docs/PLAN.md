@@ -304,8 +304,8 @@ tooltip naming it, so the user knows the parent's own deadline isn't the cause.
 
 ### 6.4 Moving and ordering
 
-- Items reorder among siblings by drag-and-drop or Alt+↑/↓ (`SortOrder`, renumbered
-  among siblings on each move; sibling counts are small).
+- Items reorder among siblings by Alt+↑/↓ (`SortOrder`, renumbered among siblings on
+  each move; sibling counts are small). Drag-and-drop is on the roadmap (§10).
 - Moving a top-level item to another area **in the same project** moves its whole
   subtree (invariant 3). Moving between projects is out of scope for v1; if added later
   it must handle project-scoped custom fields.
@@ -534,6 +534,18 @@ When one of these is picked up, its agreed design replaces the sections it confl
   free text, or either? Which line formats does the parser handle (bullets, numbers,
   `[ ]`/`[x]`, blank and indented lines), and is the original description kept? Which
   done/not-done marker format on export? How do nested sub-items export?
+
+**Drag-and-drop items** (added 14 Nov 2026).
+
+- Drag a row up or down to change its order among its siblings.
+- Drop it onto another item to make it a sub-item, or drag it out of a parent to
+  promote it.
+- Drop it onto a folder in the folder tree (or sidebar) to move it, with its whole
+  subtree, to that area (list).
+- The rules in §6.4 and §6.1 still apply; the view only translates a drop into the
+  existing reorder, move and move-to-area operations (§4).
+- Needs a drop indicator, a keyboard path for every drop, and headless drag tests
+  (§11.1).
 
 ### 10.2 Other ideas
 
