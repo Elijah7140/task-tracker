@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
@@ -18,6 +19,12 @@ public sealed class TaskTrackerDbContext(DbContextOptions<TaskTrackerDbContext> 
     public DbSet<ItemType> ItemTypes => Set<ItemType>();
 
     public DbSet<PriorityLevel> PriorityLevels => Set<PriorityLevel>();
+
+    public DbSet<FieldDefinition> FieldDefinitions => Set<FieldDefinition>();
+
+    public DbSet<FieldChoice> FieldChoices => Set<FieldChoice>();
+
+    public DbSet<ItemFieldValue> ItemFieldValues => Set<ItemFieldValue>();
 
     public DbSet<GlobalSettingRow> GlobalSettings => Set<GlobalSettingRow>();
 

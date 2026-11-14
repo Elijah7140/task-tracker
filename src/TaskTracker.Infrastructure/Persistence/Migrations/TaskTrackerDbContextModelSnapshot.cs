@@ -17,6 +17,110 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
+            modelBuilder.Entity("TaskTracker.Core.Fields.FieldChoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FieldDefinitionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("FieldChoice", (string)null);
+                });
+
+            modelBuilder.Entity("TaskTracker.Core.Fields.FieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("FieldDefinition", (string)null);
+                });
+
+            modelBuilder.Entity("TaskTracker.Core.Fields.ItemFieldValue", b =>
+                {
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FieldDefinitionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("BoolValue")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("ChoiceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("DateValue")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("NumberValue")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("TextValue")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ItemId", "FieldDefinitionId");
+
+                    b.HasIndex("FieldDefinitionId", "ChoiceId");
+
+                    b.HasIndex("FieldDefinitionId", "DateValue");
+
+                    b.HasIndex("FieldDefinitionId", "NumberValue");
+
+                    b.HasIndex("FieldDefinitionId", "TextValue");
+
+                    b.ToTable("ItemFieldValue", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemFieldValue_ExactlyOne", "(TextValue IS NOT NULL) + (NumberValue IS NOT NULL) + (DateValue IS NOT NULL) + (BoolValue IS NOT NULL) + (ChoiceId IS NOT NULL) = 1");
+                        });
+                });
+
             modelBuilder.Entity("TaskTracker.Core.Items.TodoItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -333,6 +437,44 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
                     b.HasKey("ProjectId", "Key");
 
                     b.ToTable("ProjectSetting", (string)null);
+                });
+
+            modelBuilder.Entity("TaskTracker.Core.Fields.FieldChoice", b =>
+                {
+                    b.HasOne("TaskTracker.Core.Fields.FieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("FieldDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TaskTracker.Core.Fields.FieldDefinition", b =>
+                {
+                    b.HasOne("TaskTracker.Core.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("TaskTracker.Core.Fields.ItemFieldValue", b =>
+                {
+                    b.HasOne("TaskTracker.Core.Fields.FieldDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("FieldDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TaskTracker.Core.Items.TodoItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskTracker.Core.Fields.FieldChoice", null)
+                        .WithMany()
+                        .HasForeignKey("FieldDefinitionId", "ChoiceId")
+                        .HasPrincipalKey("FieldDefinitionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("TaskTracker.Core.Items.TodoItem", b =>

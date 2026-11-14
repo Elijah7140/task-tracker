@@ -1,4 +1,5 @@
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
@@ -10,8 +11,11 @@ namespace TaskTracker.Core.Items;
 public sealed class ItemService(
     IUnitOfWorkFactory unitOfWorkFactory,
     TimeProvider clock,
-    TimeZoneInfo timeZone)
+    TimeZoneInfo timeZone,
+    FieldWriteGate? writeGate = null)
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     public async Task<TodoItem> CreateAsync(Guid projectId, Guid? folderId, Guid? parentId, string title, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(title) || title.Length > 300)
@@ -38,6 +42,144 @@ public sealed class ItemService(
         ValidateEdit(edit);
         ApplyEdit(item, edit);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Loads the custom values for one active item.</summary>
+    public async Task<IReadOnlyList<ItemFieldValue>> LoadFieldValuesAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var work = unitOfWorkFactory.Begin();
+        _ = await work.Items.FindAsync(id, cancellationToken)
+            ?? throw new DomainRuleException("Item is missing or deleted.");
+        return await work.Fields.ValuesAsync(id, cancellationToken);
+    }
+
+    /// <summary>Edits built-in fields and only the listed custom fields in one save; blank values remove their rows.</summary>
+    public async Task EditAsync(Guid id, ItemEdit edit, IReadOnlyList<FieldValueInput> values,
+        CancellationToken cancellationToken = default)
+    {
+        using var lease = await gate.EnterAsync(cancellationToken);
+        values = values.Select(Normalize).ToArray();
+        await using var work = unitOfWorkFactory.Begin();
+        var item = await work.Items.FindAsync(id, cancellationToken)
+            ?? throw new DomainRuleException("Item is missing or deleted.");
+        ValidateEdit(edit);
+        await ApplyValueChangesAsync(work, item, values, cancellationToken);
+        ApplyEdit(item, edit);
+        await work.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task ApplyValueChangesAsync(IUnitOfWork work, TodoItem item,
+        IReadOnlyList<FieldValueInput> inputs, CancellationToken cancellationToken)
+    {
+        ValidateDistinctFields(inputs);
+        var definitions = await work.Fields.DefinitionsAsync(cancellationToken);
+        var existing = await work.Fields.ValuesAsync(item.Id, cancellationToken);
+
+        foreach (var input in inputs)
+        {
+            await ValidateValueAsync(work, item, definitions, existing, input, cancellationToken);
+        }
+
+        foreach (var input in inputs)
+        {
+            var old = existing.SingleOrDefault(value => value.FieldDefinitionId == input.FieldDefinitionId);
+            ApplyValueChange(work.Fields, item.Id, old, input);
+        }
+    }
+
+    private static void ValidateDistinctFields(IReadOnlyList<FieldValueInput> inputs)
+    {
+        if (inputs.Select(input => input.FieldDefinitionId).Distinct().Count() != inputs.Count)
+        {
+            throw new DomainRuleException("Each field may appear only once.");
+        }
+    }
+
+    private static void ApplyValueChange(IFieldRepository repository, Guid itemId,
+        ItemFieldValue? old, FieldValueInput input)
+    {
+        if (!HasValue(input))
+        {
+            if (old is not null)
+            {
+                repository.Remove(old);
+            }
+
+            return;
+        }
+
+        if (old is null)
+        {
+            repository.Add(ItemFieldValue.Create(itemId, input));
+            return;
+        }
+
+        old.Replace(input);
+    }
+
+    private static async Task ValidateValueAsync(IUnitOfWork work, TodoItem item,
+        IReadOnlyList<FieldDefinition> definitions, IReadOnlyList<ItemFieldValue> existing,
+        FieldValueInput input, CancellationToken cancellationToken)
+    {
+        var field = definitions.SingleOrDefault(row => row.Id == input.FieldDefinitionId)
+            ?? throw new DomainRuleException("Field was not found.");
+
+        if (field.ProjectId is not null && field.ProjectId != item.ProjectId)
+        {
+            throw new DomainRuleException("Field does not belong to the item's project.");
+        }
+
+        if (!HasValue(input))
+        {
+            return;
+        }
+
+        if (IsUnchanged(existing, input))
+        {
+            return;
+        }
+
+        var choice = await FindChoiceAsync(work.Fields, field.Id, input.ChoiceId, cancellationToken);
+        FieldValueValidator.Validate(item.ProjectId, field, input, choice);
+    }
+
+    private static bool IsUnchanged(IReadOnlyList<ItemFieldValue> existing, FieldValueInput input)
+    {
+        var old = existing.SingleOrDefault(row => row.FieldDefinitionId == input.FieldDefinitionId);
+        return SameValue(old, input);
+    }
+
+    private static async Task<FieldChoice?> FindChoiceAsync(IFieldRepository repository, Guid fieldId,
+        Guid? choiceId, CancellationToken cancellationToken)
+    {
+        if (choiceId is null)
+        {
+            return null;
+        }
+
+        var choices = await repository.ChoicesAsync(fieldId, cancellationToken);
+        return choices.SingleOrDefault(choice => choice.Id == choiceId);
+    }
+
+    private static bool HasValue(FieldValueInput input)
+    {
+        return !string.IsNullOrWhiteSpace(input.TextValue) || input.NumberValue is not null ||
+            input.DateValue is not null || input.BoolValue is not null || input.ChoiceId is not null;
+    }
+
+    private static FieldValueInput Normalize(FieldValueInput input)
+    {
+        return input with
+        {
+            TextValue = string.IsNullOrWhiteSpace(input.TextValue) ? null : input.TextValue.Trim()
+        };
+    }
+
+    private static bool SameValue(ItemFieldValue? old, FieldValueInput input)
+    {
+        return old is not null && old.TextValue == input.TextValue?.Trim() &&
+            old.NumberValue == input.NumberValue && old.DateValue == input.DateValue &&
+            old.BoolValue == input.BoolValue && old.ChoiceId == input.ChoiceId;
     }
 
     private static void ValidateEdit(ItemEdit edit)
