@@ -41,6 +41,44 @@ internal sealed class FakeNavigationService : INavigationService
         return Task.CompletedTask;
     }
 
+    public bool OpenedCalendar { get; private set; }
+
+    public bool ReturnedFromCalendar { get; private set; }
+
+    public Guid? OpenedCalendarItemId { get; private set; }
+
+    public int CalendarItemRequests { get; private set; }
+
+    /// <summary>When set, calendar item requests stay pending until the test completes it.</summary>
+    public TaskCompletionSource<SearchOpenOutcome>? CalendarItemGate { get; set; }
+
+    public SearchOpenOutcome CalendarItemOutcome { get; set; } = SearchOpenOutcome.Opened;
+
+    public Task OpenCalendarAsync()
+    {
+        OpenedCalendar = true;
+        return Task.CompletedTask;
+    }
+
+    public Task ReturnFromCalendarAsync()
+    {
+        ReturnedFromCalendar = true;
+        return Task.CompletedTask;
+    }
+
+    public async Task<SearchOpenOutcome> OpenCalendarItemAsync(Guid itemId)
+    {
+        OpenedCalendarItemId = itemId;
+        CalendarItemRequests++;
+
+        if (CalendarItemGate is not null)
+        {
+            return await CalendarItemGate.Task;
+        }
+
+        return CalendarItemOutcome;
+    }
+
     public Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result)
     {
         OpenedResult = result;

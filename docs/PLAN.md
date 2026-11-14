@@ -495,6 +495,17 @@ parses into an `ItemQuery`, and saved searches.
 - `TodoItem` has no catch-all "extra data" blob that search would have to unpick later.
 - Adding the Phase 3 tables is an additive migration; no v1 table changes.
 
+### 7.4 Calendar (Phase 5)
+
+- A due date produces an all-day entry, or a timed entry when DueTime is set. A schedule produces a separate block; a missing end, or an end that is not after the start (a zero-length schedule), makes a 30-minute block. Both entries appear when both fields are set, including on sub-items.
+- Completed entries are hidden by default; Include completed shows them muted and checked. Deleted items, folders, and projects are excluded.
+- Month shows six weeks starting on the culture's first day of week. Days outside the month are dimmed. All-day entries precede timed entries; after three entries, +N more opens that day in Week.
+- Week has seven columns, an all-day row, and a 00:00–24:00 time grid at 48 pixels per hour. It opens scrolled to 07:00. Timed due entries are markers; scheduled blocks scale with duration and split width when overlapping. The all-day row grows to hold every all-day entry of the week, and entries fill their day column. Within a day entries are ordered all-day first, then by start, then by title (culture-aware, ignoring case), then by item id.
+- Today comes from the injected TimeProvider and explicit local time zone. Previous, Today, Next, Month and Week control the period. PageUp/PageDown change periods; Ctrl+Shift+M/W switch views.
+- The scope is All projects from Home or This project from a workspace. Include completed is available in either scope.
+- Home, workspace, and Ctrl+Shift+C open the calendar. Back or Escape (with no modifiers) restores the previous page. Search and Calendar never stack: opening one from the other disposes it and keeps the original page as the single return target, so Back lands on that page and activating an entry or result asks that page's unsaved-changes guard once. An entry activation still pending when the calendar is left is dropped. Activating an entry opens its current workspace folder and selects it, subject to the unsaved-changes guard. A deleted item reloads the calendar and reports “This item no longer exists”. Month navigation moves from the first day of the month.
+- Entries use their own urgency, refreshed each minute, and show it as a label (Approaching, Imminent, Overdue) with a bold title when overdue, never by colour alone; tooltips show type and priority. Drag-to-reschedule is reserved for Phase 5b.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -512,11 +523,14 @@ parses into an `ItemQuery`, and saved searches.
 3. **App Settings** — global auto-complete and urgency thresholds; manage item types and
    priority levels (add, rename, drag to reorder, archive).
 4. **Project Settings** — per-project overrides (§6.5).
+5. **Calendar** — scoped month and week views of due dates and scheduled blocks; activating an entry opens its item (§7.4).
 
 ### Keyboard
 
 Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
-Delete delete (with confirm), Alt+↑/↓ reorder, Ctrl+F search (Phase 4).
+Delete delete (with confirm), Alt+↑/↓ reorder, Ctrl+F search (Phase 4),
+Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
+Ctrl+Shift+M/W month/week calendar view.
 
 ## 9. Delivery phases
 

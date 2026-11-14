@@ -1,3 +1,4 @@
+using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
@@ -31,6 +32,8 @@ internal sealed class SearchTestUnitOfWork : IUnitOfWork, IUnitOfWorkFactory
     public ISettingsStore Settings => throw new NotSupportedException();
 
     public IItemSearch Search => throw new NotSupportedException();
+
+    public ICalendarRepository Calendar => throw new NotSupportedException();
 
     public IUnitOfWork Begin()
     {

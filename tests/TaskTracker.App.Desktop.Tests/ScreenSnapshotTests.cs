@@ -26,6 +26,131 @@ public sealed class ScreenSnapshotTests
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Calendar_month_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedCalendarAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        var page = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        page.IncludeCompleted = true;
+        await page.LoadAsync();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-month-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Calendar_week_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedCalendarAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        var page = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        page.IncludeCompleted = true;
+        await page.SetWeekAsync(true);
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-week-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Calendar_month_at_minimum_size_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedCalendarAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark, 600, 800);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-narrow-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Calendar_week_at_minimum_size_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedCalendarAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark, 600, 800);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        var page = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        page.IncludeCompleted = true;
+        await page.SetWeekAsync(true);
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-week-narrow-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    private static async Task SeedCalendarAsync(IServiceProvider services)
+    {
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
+        var items = services.GetRequiredService<ItemService>();
+        var today = new DateOnly(2026, 11, 13);
+        var first = await items.CreateAsync(project.Id, null, null, "Review invoice index");
+        var second = await items.CreateAsync(project.Id, null, null, "Discuss rollout");
+        var third = await items.CreateAsync(project.Id, null, null, "Send notes");
+        var fourth = await items.CreateAsync(project.Id, null, null, "Overdue migration");
+        var finished = await items.CreateAsync(project.Id, null, null, "Finished review");
+        await items.EditAsync(first.Id, new ItemEdit(first.Title, null, null, null, null,
+            today, null, new DateTime(2026, 11, 13, 9, 0, 0), new DateTime(2026, 11, 13, 11, 0, 0)));
+        await items.EditAsync(second.Id, new ItemEdit(second.Title, null, null, null, null,
+            null, null, new DateTime(2026, 11, 13, 9, 30, 0), new DateTime(2026, 11, 13, 10, 30, 0)));
+        await items.EditAsync(third.Id, new ItemEdit(third.Title, null, null, null, null,
+            today, new TimeOnly(14, 0), null, null));
+        await items.EditAsync(fourth.Id, new ItemEdit(fourth.Title, null, null, null, null,
+            today.AddDays(-1), null, null, null));
+        await items.EditAsync(finished.Id, new ItemEdit(finished.Title, null, null, null, null,
+            today, null, null, null));
+        await items.SetCompletedAsync(project.Id, null, finished.Id, true);
+        await SeedBusyDayAsync(items, project.Id, today);
+    }
+
+    /// <summary>
+    /// Adds a workshop block that a timed due entry overlaps, two more all-day entries so one day
+    /// has more than three, and an entry that is only approaching its deadline.
+    /// </summary>
+    private static async Task SeedBusyDayAsync(ItemService items, Guid projectId, DateOnly today)
+    {
+        var workshop = await items.CreateAsync(projectId, null, null, "Team workshop");
+        var archive = await items.CreateAsync(projectId, null, null, "Archive logs");
+        var docs = await items.CreateAsync(projectId, null, null, "Update docs");
+        var retro = await items.CreateAsync(projectId, null, null, "Plan retro");
+        await items.EditAsync(workshop.Id, new ItemEdit(workshop.Title, null, null, null, null,
+            null, null, new DateTime(2026, 11, 13, 14, 0, 0), new DateTime(2026, 11, 13, 16, 0, 0)));
+        await items.EditAsync(archive.Id, new ItemEdit(archive.Title, null, null, null, null,
+            today, null, null, null));
+        await items.EditAsync(docs.Id, new ItemEdit(docs.Title, null, null, null, null,
+            today, null, null, null));
+        await items.EditAsync(retro.Id, new ItemEdit(retro.Title, null, null, null, null,
+            today.AddDays(1), null, null, null));
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Search_with_filters_and_results_matches_approved_image(bool dark)
     {
         using var services = await TestServices.CreateAsync();

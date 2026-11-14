@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 
+using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
@@ -17,6 +18,7 @@ public static class DependencyInjection
         services.AddSingleton<ProjectService>();
         services.AddSingleton<FolderService>();
         services.AddSingleton<ItemService>();
+        services.AddSingleton<CalendarService>();
         services.AddSingleton(FieldWriteGate.Shared);
         services.AddSingleton<FieldService>();
         services.AddSingleton<LookupService>();

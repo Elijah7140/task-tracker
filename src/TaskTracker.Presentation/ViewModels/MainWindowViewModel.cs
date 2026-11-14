@@ -3,6 +3,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
@@ -29,14 +30,19 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     private readonly ICustomFieldInputLoader? fieldLoader;
     private readonly IItemSearchService? search;
     private readonly IFieldRegistry? registry;
+    private readonly CalendarService? calendar;
     private ViewModelBase? searchReturnPage;
+    private ViewModelBase? calendarReturnPage;
     private bool isOpeningSearch;
+    private bool isOpeningCalendar;
     private ViewModelBase? currentPage;
+    private int pageVersion;
 
     public MainWindowViewModel(ProjectService projectService, FolderService folderService, IDialogService dialogs,
         ItemService? itemService = null, TimeProvider? clock = null, TimeZoneInfo? timeZone = null,
         IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null,
-        FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null)
+        FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null,
+        CalendarService? calendar = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -50,24 +56,35 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         this.fields = fields;
         this.search = search;
         this.registry = registry;
+        this.calendar = calendar;
         fieldLoader = CreateFieldLoader(fields, itemService);
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
+        CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
     }
 
     public string Title => "Task Tracker";
 
     public ICommand SearchCommand { get; }
 
+    public ICommand CalendarCommand { get; }
+
     public ViewModelBase? CurrentPage
     {
         get => currentPage;
-        private set => SetProperty(ref currentPage, value);
+        private set
+        {
+            if (SetProperty(ref currentPage, value))
+            {
+                pageVersion++;
+            }
+        }
     }
 
     public async Task GoHomeAsync()
     {
         DiscardSearchReturnPage();
-        (CurrentPage as IDisposable)?.Dispose();
+        DiscardCalendarReturnPage();
+        DisposeCurrentPage();
         var page = new HomeViewModel(projectService, dialogs, this);
         await page.LoadAsync();
         CurrentPage = page;
@@ -120,20 +137,100 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     /// <inheritdoc />
     public async Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result)
     {
-        var location = await FindItemLocationAsync(result.ItemId);
+        return await OpenItemFromTransientPageAsync(result.ItemId, searchReturnPage);
+    }
+
+    /// <inheritdoc />
+    public async Task<SearchOpenOutcome> OpenCalendarItemAsync(Guid itemId)
+    {
+        return await OpenItemFromTransientPageAsync(itemId, calendarReturnPage);
+    }
+
+    /// <summary>
+    /// Opens an item from the search or calendar page. <paramref name="previous"/> is the page the
+    /// transient page was opened from; it is asked before it is thrown away. When the user
+    /// navigates elsewhere while a lookup or the question is pending, nothing is opened.
+    /// </summary>
+    private async Task<SearchOpenOutcome> OpenItemFromTransientPageAsync(Guid itemId, ViewModelBase? previous)
+    {
+        var version = pageVersion;
+        var location = await FindItemLocationAsync(itemId);
+
+        if (version != pageVersion)
+        {
+            return SearchOpenOutcome.Cancelled;
+        }
 
         if (location is null)
         {
             return SearchOpenOutcome.ItemMissing;
         }
 
-        if (searchReturnPage is IUnsavedChangesGuard guard && !await guard.ConfirmLeaveAsync())
+        if (previous is IUnsavedChangesGuard guard && !await guard.ConfirmLeaveAsync())
         {
             return SearchOpenOutcome.Cancelled;
         }
 
-        await OpenWorkspaceAsync(location.ProjectId, location.FolderId, result.ItemId);
+        if (version != pageVersion)
+        {
+            return SearchOpenOutcome.Cancelled;
+        }
+
+        await OpenWorkspaceAsync(location.ProjectId, location.FolderId, itemId);
         return SearchOpenOutcome.Opened;
+    }
+
+    /// <inheritdoc />
+    public async Task OpenCalendarAsync()
+    {
+        if (calendar is null || clock is null || timeZone is null || isOpeningCalendar
+            || CurrentPage is CalendarViewModel)
+        {
+            return;
+        }
+
+        isOpeningCalendar = true;
+
+        try
+        {
+            var version = pageVersion;
+            var origin = PageBehind(CurrentPage);
+            var projectId = (origin as ProjectWorkspaceViewModel)?.ProjectId;
+            var page = new CalendarViewModel(calendar, this, clock, timeZone, projectId,
+                dispatcher: dispatcher);
+            await page.LoadAsync();
+
+            if (version != pageVersion)
+            {
+                page.Dispose();
+                return;
+            }
+
+            ShowCalendarPage(origin, page);
+        }
+        finally
+        {
+            isOpeningCalendar = false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task ReturnFromCalendarAsync()
+    {
+        if (CurrentPage is not CalendarViewModel page)
+        {
+            return;
+        }
+
+        if (calendarReturnPage is null)
+        {
+            await GoHomeAsync();
+            return;
+        }
+
+        page.Dispose();
+        CurrentPage = calendarReturnPage;
+        calendarReturnPage = null;
     }
 
     /// <summary>Tells the user about a failure no screen handled, instead of crashing the app.</summary>
@@ -149,7 +246,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
             return;
         }
 
-        (CurrentPage as IDisposable)?.Dispose();
+        DisposeCurrentPage();
         var page = new AppSettingsViewModel(settings, dialogs, this, lookups, returnProjectId, fields);
         await page.LoadAsync();
         CurrentPage = page;
@@ -163,7 +260,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         }
 
         var project = await projectService.LoadWorkspaceAsync(projectId);
-        (CurrentPage as IDisposable)?.Dispose();
+        DisposeCurrentPage();
         var page = new ProjectSettingsViewModel(projectId, settings, dialogs, this, fields);
         await page.LoadAsync(project.Name);
         CurrentPage = page;
@@ -171,13 +268,66 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
 
     private async Task ShowSearchPageAsync()
     {
-        var previous = CurrentPage;
-        var workspace = previous as ProjectWorkspaceViewModel;
+        var version = pageVersion;
+        var origin = PageBehind(CurrentPage);
+        var workspace = origin as ProjectWorkspaceViewModel;
         var page = new SearchViewModel(search!, registry!, projectService, this,
             workspace?.ProjectId, workspace?.SelectedFolder?.Id, lookups);
         await page.LoadAsync();
-        searchReturnPage = previous;
+
+        if (version != pageVersion)
+        {
+            page.Dispose();
+            return;
+        }
+
+        ShowSearchPage(origin, page);
+    }
+
+    /// <summary>
+    /// The page a search or calendar page was opened from, or the page itself for any other page.
+    /// Search and calendar never stack: opening one from the other keeps the original page as the
+    /// single return target, so every unsaved-changes guard sits directly behind the page on screen.
+    /// </summary>
+    private ViewModelBase? PageBehind(ViewModelBase? page)
+    {
+        return page switch
+        {
+            SearchViewModel => searchReturnPage,
+            CalendarViewModel => calendarReturnPage,
+            _ => page
+        };
+    }
+
+    private void ShowSearchPage(ViewModelBase? origin, SearchViewModel page)
+    {
+        if (CurrentPage is CalendarViewModel calendarPage)
+        {
+            calendarPage.Dispose();
+            calendarReturnPage = null;
+        }
+
+        searchReturnPage = origin;
         CurrentPage = page;
+    }
+
+    private void ShowCalendarPage(ViewModelBase? origin, CalendarViewModel page)
+    {
+        if (CurrentPage is SearchViewModel searchPage)
+        {
+            searchPage.Dispose();
+            searchReturnPage = null;
+        }
+
+        calendarReturnPage = origin;
+        CurrentPage = page;
+    }
+
+    /// <summary>Disposes the page on screen and marks any navigation still waiting on it as stale.</summary>
+    private void DisposeCurrentPage()
+    {
+        pageVersion++;
+        (CurrentPage as IDisposable)?.Dispose();
     }
 
     private async Task<ItemLocation?> FindItemLocationAsync(Guid itemId)
@@ -193,7 +343,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     private async Task OpenWorkspaceAsync(Guid projectId, Guid? folderId, Guid? itemId)
     {
         DiscardSearchReturnPage();
-        (CurrentPage as IDisposable)?.Dispose();
+        DiscardCalendarReturnPage();
+        DisposeCurrentPage();
         var page = new ProjectWorkspaceViewModel(projectId, projectService, folderService, dialogs, this,
             itemService, clock, timeZone, dispatcher, fieldLoader);
 
@@ -219,6 +370,12 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     {
         (searchReturnPage as IDisposable)?.Dispose();
         searchReturnPage = null;
+    }
+
+    private void DiscardCalendarReturnPage()
+    {
+        (calendarReturnPage as IDisposable)?.Dispose();
+        calendarReturnPage = null;
     }
 
     private static ICustomFieldInputLoader? CreateFieldLoader(FieldService? fields, ItemService? items)

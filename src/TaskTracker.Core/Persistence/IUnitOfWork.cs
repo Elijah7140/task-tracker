@@ -1,3 +1,4 @@
+using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Search;
 
 namespace TaskTracker.Core.Persistence;
@@ -18,6 +19,8 @@ public interface IUnitOfWork : IAsyncDisposable
     ISettingsStore Settings { get; }
 
     IItemSearch Search { get; }
+
+    ICalendarRepository Calendar { get; }
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

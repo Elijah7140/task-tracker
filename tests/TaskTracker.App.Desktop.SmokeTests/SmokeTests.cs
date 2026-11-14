@@ -19,6 +19,38 @@ public sealed class SmokeTests
     private static readonly DateTime ReviewDate = new(2026, 11, 20);
 
     [Fact]
+    public void Calendar_shows_due_and_scheduled_items_and_opens_one()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            OpenProject(session);
+            AddItem(session, "Calendar due item");
+            session.FindNamed("ItemTitleButton", "Calendar due item").Click();
+            ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(ReviewDate));
+            session.Press(VirtualKeyShort.TAB);
+            session.Find("EditorSaveButton").AsButton().Invoke();
+
+            AddItem(session, "Calendar scheduled item");
+            session.FindNamed("ItemTitleButton", "Calendar scheduled item").Click();
+            ReplaceText(session, PickerEdit(session, "EditorStartDatePicker"), FormatDate(ReviewDate));
+            session.Press(VirtualKeyShort.TAB);
+            session.Find("EditorSaveButton").AsButton().Invoke();
+
+            session.Find("WorkspaceCalendarButton").AsButton().Invoke();
+            session.SelectByName("CalendarScopeComboBox", "This project");
+            session.FindText("Calendar due item");
+            session.FindText("00:00 Calendar scheduled item");
+            session.Find("CalendarWeekButton").AsButton().Invoke();
+            session.Find("CalendarNextButton").AsButton().Invoke();
+            session.FindText("Calendar due item");
+            session.FindText("Calendar scheduled item");
+            session.FindNamed("CalendarEntryButton", "Calendar due item").AsButton().Invoke();
+            Assert.Equal("Calendar due item", session.Find("EditorTitleBox").AsTextBox().Text);
+        });
+    }
+
+    [Fact]
     public void Search_matches_builtin_priority_and_custom_number_then_opens_result()
     {
         Run(session =>
@@ -275,7 +307,12 @@ public sealed class SmokeTests
     /// <summary>The text box inside the editor's custom date picker.</summary>
     private static AutomationElement DatePickerEdit(SmokeSession session)
     {
-        var picker = session.Find("EditorCustomDatePicker");
+        return PickerEdit(session, "EditorCustomDatePicker");
+    }
+
+    private static AutomationElement PickerEdit(SmokeSession session, string automationId)
+    {
+        var picker = session.Find(automationId);
 
         return picker.FindFirstDescendant(query => query.ByControlType(ControlType.Edit))
             ?? throw new InvalidOperationException("The date picker has no text box.");

@@ -1,3 +1,4 @@
+using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Search;
 
@@ -18,6 +19,7 @@ public sealed class EfUnitOfWork : IUnitOfWork
         Fields = new EfFieldRepository(database);
         Settings = new EfSettingsStore(database);
         Search = new SqlItemSearch(database);
+        Calendar = new EfCalendarRepository(database);
     }
 
     public IProjectRepository Projects { get; }
@@ -33,6 +35,8 @@ public sealed class EfUnitOfWork : IUnitOfWork
     public ISettingsStore Settings { get; }
 
     public IItemSearch Search { get; }
+
+    public ICalendarRepository Calendar { get; }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
