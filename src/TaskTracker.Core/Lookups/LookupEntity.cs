@@ -23,7 +23,7 @@ public abstract class LookupEntity
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length > 300)
         {
-            throw new ArgumentException("Name must be 1 to 300 characters.", nameof(name));
+            throw new DomainRuleException("Name must be 1 to 300 characters.");
         }
 
         Name = name.Trim();
@@ -43,7 +43,7 @@ public abstract class LookupEntity
     {
         if (this is ItemType && IsBuiltIn)
         {
-            throw new InvalidOperationException("Built-in item types cannot be archived.");
+            throw new DomainRuleException("Built-in item types cannot be archived.");
         }
 
         IsArchived = true;

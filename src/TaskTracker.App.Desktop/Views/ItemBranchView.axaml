@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
+             xmlns:converters="clr-namespace:TaskTracker.App.Desktop.Converters"
+             x:Class="TaskTracker.App.Desktop.Views.ItemBranchView"
+             x:CompileBindings="False" HorizontalAlignment="Stretch">
+  <UserControl.Styles>
+    <Style Selector="Border.itemRow">
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="4,1,1,1" />
+    </Style>
+    <Style Selector="Border.itemRow.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="4,1,1,1" />
+    </Style>
+    <Style Selector="Border.itemRow.approaching">
+      <Setter Property="Background" Value="{DynamicResource UrgencyApproachingBrush}" />
+    </Style>
+    <Style Selector="Border.itemRow.immediate">
+      <Setter Property="Background" Value="{DynamicResource UrgencyImmediateBrush}" />
+    </Style>
+    <Style Selector="Border.itemRow.approaching TextBlock, Border.itemRow.immediate TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource UrgencyForegroundBrush}" />
+    </Style>
+  </UserControl.Styles>
+  <UserControl.Resources>
+    <converters:UrgencyBrushConverter x:Key="UrgencyBrush" />
+    <converters:UrgencyForegroundConverter x:Key="UrgencyForeground" />
+    <converters:CompletionDecorationsConverter x:Key="CompletionDecorations" />
+    <converters:UrgencyWeightConverter x:Key="UrgencyWeight" />
+  </UserControl.Resources>
+  <StackPanel Spacing="3" HorizontalAlignment="Stretch">
+    <Border Classes="itemRow" Classes.selected="{Binding IsSelected}"
+            Classes.approaching="{Binding IsApproaching}"
+            Classes.immediate="{Binding IsImmediate}"
+            CornerRadius="5" Padding="3,2" HorizontalAlignment="Stretch">
+      <Grid>
+      <!-- Detail columns share their width across all rows (scope set in ProjectWorkspaceView),
+           so they align without reserving space for values no row has. -->
+      <Grid ColumnSpacing="5" IsVisible="{Binding !IsFinished}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="22" />
+          <ColumnDefinition Width="26" />
+          <ColumnDefinition Width="18" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" SharedSizeGroup="Ticket" />
+          <ColumnDefinition Width="Auto" SharedSizeGroup="Priority" />
+          <ColumnDefinition Width="Auto" SharedSizeGroup="Deadline" />
+          <ColumnDefinition Width="Auto" SharedSizeGroup="Urgency" />
+          <ColumnDefinition Width="Auto" SharedSizeGroup="Source" />
+        </Grid.ColumnDefinitions>
+        <ToggleButton Grid.Column="0" Content="{Binding ExpanderGlyph}"
+                      AutomationProperties.AutomationId="ItemExpandButton"
+                      IsVisible="{Binding HasOpenChildren}"
+                      IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                      Width="23" Padding="0" />
+        <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}" AutomationProperties.AutomationId="ItemCompleteCheckBox"
+                  Command="{Binding ToggleCommand}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding TypeIcon}" ToolTip.Tip="{Binding TypeName}"
+                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                   />
+        <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
+                BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch">
+          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                     HorizontalAlignment="Stretch"
+                     ToolTip.Tip="{Binding Title}"
+                     TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}"
+                     FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}"
+                     />
+        </Button>
+        <TextBlock Grid.Column="4" Text="{Binding TicketNumber}" TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding TicketNumber}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="5" Text="{Binding PriorityName}" TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding PriorityName}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="6" Text="{Binding Deadline}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="7" Text="{Binding UrgencyLabel}" VerticalAlignment="Center"
+                   FontWeight="SemiBold" FontSize="11" />
+        <TextBlock Grid.Column="8" Text="↳ sub" FontSize="11"
+                   IsVisible="{Binding HasSource}" ToolTip.Tip="{Binding SourceTitle}"
+                   VerticalAlignment="Center" />
+      </Grid>
+      <Grid ColumnDefinitions="22,26,18,*" ColumnSpacing="3" IsVisible="{Binding IsFinished}">
+        <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}" AutomationProperties.AutomationId="ItemCompleteCheckBox"
+                  Command="{Binding ToggleCommand}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding TypeIcon}" VerticalAlignment="Center" />
+        <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
+                BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch">
+          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                     HorizontalAlignment="Stretch" ToolTip.Tip="{Binding Title}"
+                     TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}" />
+        </Button>
+      </Grid>
+      </Grid>
+    </Border>
+    <ItemsControl ItemsSource="{Binding Children}" IsVisible="{Binding IsExpanded}"
+                  Margin="18,0,0,0" HorizontalAlignment="Stretch">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate><views:ItemBranchView /></DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Expander Header="{Binding CompletedLabel}" IsVisible="{Binding HasCompletedChildren}"
+              AutomationProperties.AutomationId="CompletedSubItemsExpander"
+              IsExpanded="{Binding IsCompletedExpanded, Mode=TwoWay}"
+              Margin="18,0,0,0" HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Stretch">
+      <ItemsControl ItemsSource="{Binding CompletedChildren}" HorizontalAlignment="Stretch">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate><views:ItemBranchView /></DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Expander>
+  </StackPanel>
+</UserControl>

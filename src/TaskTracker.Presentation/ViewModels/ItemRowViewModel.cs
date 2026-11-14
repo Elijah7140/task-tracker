@@ -1,0 +1,152 @@
+using System.Collections.ObjectModel;
+using System.Windows.Input;
+
+using CommunityToolkit.Mvvm.Input;
+
+using TaskTracker.Core.Items;
+using TaskTracker.Core.Urgency;
+
+namespace TaskTracker.Presentation.ViewModels;
+
+/// <summary>One item row and its open and finished children.</summary>
+public sealed class ItemRowViewModel : ViewModelBase
+{
+    private readonly ProjectWorkspaceViewModel workspace;
+    private bool isExpanded;
+    private bool isCompletedExpanded;
+    private bool isSelected;
+    private Urgency urgency;
+    private string? sourceTitle;
+
+    public ItemRowViewModel(ItemNode node, ProjectWorkspaceViewModel workspace)
+    {
+        Node = node;
+        urgency = node.DisplayedUrgency.Value;
+        this.workspace = workspace;
+        ToggleCommand = new AsyncRelayCommand(() => workspace.ToggleAsync(this));
+        SelectCommand = new AsyncRelayCommand(() => workspace.SelectItemAsync(this));
+    }
+
+    public ItemNode Node { get; }
+
+    public Guid Id => Node.Item.Id;
+
+    public Guid? ParentId => Node.Item.ParentItemId;
+
+    public string Title => Node.Item.Title;
+
+    public string? TicketNumber => Node.Item.TicketNumber;
+
+    public bool IsComplete => Node.Item.CompletedAtUtc is not null;
+
+    public bool IsFinished => Node.IsFinished;
+
+    public Urgency Urgency
+    {
+        get => urgency;
+        private set
+        {
+            if (SetProperty(ref urgency, value))
+            {
+                OnPropertyChanged(nameof(UrgencyLabel));
+                OnPropertyChanged(nameof(IsOverdue));
+                OnPropertyChanged(nameof(IsUrgent));
+                OnPropertyChanged(nameof(IsApproaching));
+                OnPropertyChanged(nameof(IsImmediate));
+            }
+        }
+    }
+
+    public string UrgencyLabel => Urgency == Urgency.None ? string.Empty : Urgency.ToString();
+
+    public bool IsOverdue => Urgency == Urgency.Overdue;
+
+    public bool IsUrgent => Urgency != Urgency.None;
+
+    public bool IsApproaching => Urgency == Urgency.Approaching;
+
+    public bool IsImmediate => Urgency is Urgency.Imminent or Urgency.Overdue;
+
+    public string? SourceTitle
+    {
+        get => sourceTitle;
+        set
+        {
+            if (SetProperty(ref sourceTitle, value))
+            {
+                OnPropertyChanged(nameof(HasSource));
+            }
+        }
+    }
+
+    public bool HasSource => SourceTitle is not null;
+
+    public string? TypeName { get; set; }
+
+    public string TypeIcon => TypeName switch
+    {
+        "Change" => "✎",
+        "Error" => "!",
+        "Discussion" => "☷",
+        null => "•",
+        _ => "◆"
+    };
+
+    public string? PriorityName { get; set; }
+
+    public string Deadline => Node.Item.DueDate?.ToString("d") ?? Node.Item.ScheduledStart?.ToString("g") ?? string.Empty;
+
+    public ObservableCollection<ItemRowViewModel> Children { get; } = [];
+
+    public ObservableCollection<ItemRowViewModel> CompletedChildren { get; } = [];
+
+    public int CompletedCount => CompletedChildren.Count;
+
+    public bool HasOpenChildren => Children.Count > 0;
+
+    public string CompletedLabel => $"{CompletedCount} completed";
+
+    public bool HasCompletedChildren => CompletedCount > 0;
+
+    public bool IsExpanded
+    {
+        get => isExpanded;
+        set
+        {
+            if (SetProperty(ref isExpanded, value))
+            {
+                OnPropertyChanged(nameof(ExpanderGlyph));
+            }
+        }
+    }
+
+    public string ExpanderGlyph => IsExpanded ? "▾" : "▸";
+
+    public bool IsCompletedExpanded
+    {
+        get => isCompletedExpanded;
+        set => SetProperty(ref isCompletedExpanded, value);
+    }
+
+    public bool IsSelected
+    {
+        get => isSelected;
+        set => SetProperty(ref isSelected, value);
+    }
+
+    public ICommand ToggleCommand { get; }
+
+    public ICommand SelectCommand { get; }
+
+    public void UpdateUrgency(Urgency value, string? source)
+    {
+        Urgency = value;
+        SourceTitle = source;
+    }
+
+    /// <summary>Restores a checkbox after a completion action was canceled or blocked.</summary>
+    public void RefreshCompletionState()
+    {
+        OnPropertyChanged(nameof(IsComplete));
+    }
+}

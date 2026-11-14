@@ -470,7 +470,7 @@ Each phase ends with a working build, passing tests, and a short demo.
 |-------|-------------|---------------|
 | **0. Foundation** | Solution, projects, `.editorconfig`, analyzers, central package versions, CI (GitHub Actions matrix: `windows-latest` + `ubuntu-latest`, build + test), README with build steps | Empty Avalonia window launches; all tests run |
 | **1. Core + data** | Entities, hierarchy invariants, EF mappings, first migration, repositories, `CompletionService`, `UrgencyCalculator` (incl. roll-up), floating-time helper, two-level settings service, seed item types and priority levels, DB backup before migrating | Domain rules in §5.1, §5.4, §6.1, §6.3, §6.5 covered by unit tests; database behaviour (§5.2 constraints, §5.3 delete/restore and query filters, transactional moves) covered by SQLite integration tests |
-| **2. Main UI** | Home, project workspace, folder tree, item list with sub-items, completed sections, detail editor, urgency colors, app and project settings, delete with confirm, keyboard shortcuts | R1–R15 usable end to end; ViewModel tests pass with no UI framework |
+| **2. Main UI** | Home, project workspace, folder tree, item list with sub-items, completed sections, detail editor, urgency colors, app and project settings, delete with confirm, keyboard shortcuts | R1–R15 usable end to end; ViewModel tests pass with no UI framework; every layer of the §11.1 testing standard passes |
 | **3. Custom metadata** | §7.1 tables (additive migration), field manager (global + per-project), custom fields in item editor | Users can add a field of each type and fill it in |
 | **4. Search** | §7.2 query model, FTS5, filter-builder UI, results across a project or all projects | Search by any built-in or custom field with the operator semantics in §7.2 |
 | **5. Calendar** | Month/week view of deadlines and scheduled items; click-through to the item | See §10 |
@@ -502,6 +502,30 @@ Phases 0–2 are v1.
 - Public types and non-obvious methods get XML doc comments; no comments that restate code.
 - Every migration is reviewed and committed; the DB file is backed up before applying one.
 
+### 11.1 Testing standard
+
+Every phase is tested at these layers. Most coverage sits in the cheap layers; the
+expensive ones stay small.
+
+| Layer | Project | What it covers | When it runs |
+|-------|---------|----------------|--------------|
+| Unit | `Core.Tests` | Domain rules, services with fake repositories and clock | Every build, CI on both OSes |
+| Database integration | `Infrastructure.Tests` | Real SQLite (in-memory connection) | Every build, CI on both OSes |
+| ViewModel | `Presentation.Tests` | Commands, prompts, state, navigation, with fake dialogs | Every build, CI on both OSes |
+| Headless interaction | `App.Desktop.Tests` | Real views on Avalonia's headless platform, driven by simulated keyboard and mouse input: every keyboard shortcut, focus on page open, every click path that bindings or code-behind handle (checkboxes, context menus, buttons, dialogs with Enter/Escape) | Every build, CI on both OSes |
+| Snapshot baselines | `App.Desktop.Tests` | Approved images of each key screen and dialog in light and dark; a change fails the test until the new image is reviewed and approved | Every build, CI on both OSes |
+| End-to-end smoke | `App.Desktop.SmokeTests` (Windows) | The real app on a real desktop through UI Automation (FlaUI), using stable `AutomationProperties.AutomationId`s; 5–10 core scenarios | Before each phase sign-off, on the Windows machine |
+| Owner review | — | A short hands-on pass by the owner | End of each phase, before merge |
+
+Rules:
+
+- A new keyboard shortcut, gesture or dialog ships with a headless interaction test.
+- A new or changed screen ships with an updated, reviewed snapshot baseline.
+- Snapshot and interaction tests are deterministic: fixed clock and time zone, embedded
+  Inter font, fixed window size, temp database.
+- A bug found by hand gets a regression test at the lowest layer that can catch it.
+- A phase is done when every layer above passes and the owner has signed off.
+
 ## 12. Owner decisions (13 Nov 2026)
 
 1. **UI: Avalonia from the start.** The owner wants to learn it; cross-platform comes free.
@@ -513,6 +537,8 @@ Phases 0–2 are v1.
 5. **Item types:** more to come; user-addable in App Settings.
 6. **Build/test machines:** develop and test on Linux (Avalonia runs there); a Windows
    machine will be added to the T3 Code machine set for Windows testing, plus CI on both OSes.
+7. **Testing standard:** the layered approach in §11.1 (headless interaction tests, snapshot
+   baselines, a Windows end-to-end smoke suite, owner review) is the standard for every phase.
 
 ## Appendix A. Review log
 

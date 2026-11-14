@@ -13,6 +13,6 @@ public sealed class LookupEntityTests
         priority.Archive();
 
         Assert.True(priority.IsArchived);
-        Assert.Throws<InvalidOperationException>(() => itemType.Archive());
+        Assert.Throws<TaskTracker.Core.DomainRuleException>(() => itemType.Archive());
     }
 }

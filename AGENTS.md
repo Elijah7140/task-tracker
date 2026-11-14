@@ -37,6 +37,10 @@ and ICU library on the path when present).
   Arrange / act / assert separated by blank lines. Test names read as sentences
   (`Completing_last_open_sub_item_completes_parent`). Database behaviour is tested
   against real SQLite (in-memory connection), never the EF in-memory provider.
+- UI changes follow the testing standard in §11.1: a new shortcut, gesture or dialog
+  gets a headless interaction test (simulated input, not a direct command call); a new
+  or changed screen gets a reviewed snapshot baseline; interactive controls get an
+  `AutomationProperties.AutomationId`. A bug found by hand gets a regression test.
 - Do not commit; the project lead reviews and commits.
 
 ## Application operations

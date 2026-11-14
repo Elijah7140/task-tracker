@@ -5,5 +5,75 @@
     <!-- "Default" follows the OS light/dark setting. -->
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="TextBlock.cardTitle">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+        <Style Selector="Button.subtle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.subtle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+        </Style>
+        <Style Selector="Button.subtle:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+        </Style>
+        <Style Selector="Button.subtle:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.icon">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="MinWidth" Value="30" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+        </Style>
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+        </Style>
+        <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+        </Style>
     </Application.Styles>
+    <Application.Resources>
+      <ResourceDictionary>
+        <StreamGeometry x:Key="IconMoveUp">M12 4 L4 12 L5.4 13.4 L11 7.8 V20 H13 V7.8 L18.6 13.4 L20 12 Z</StreamGeometry>
+        <StreamGeometry x:Key="IconMoveDown">M12 20 L20 12 L18.6 10.6 L13 16.2 V4 H11 V16.2 L5.4 10.6 L4 12 Z</StreamGeometry>
+        <StreamGeometry x:Key="IconRename">M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z</StreamGeometry>
+        <StreamGeometry x:Key="IconArchive">M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z</StreamGeometry>
+        <ResourceDictionary.ThemeDictionaries>
+          <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="UrgencyApproachingBrush" Color="#FFF0BA" />
+            <SolidColorBrush x:Key="UrgencyImmediateBrush" Color="#FFB8B2" />
+            <SolidColorBrush x:Key="UrgencyForegroundBrush" Color="#181818" />
+            <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#F7F7F8" />
+            <SolidColorBrush x:Key="AppCardBorderBrush" Color="#DCDCE0" />
+            <SolidColorBrush x:Key="AppDangerBrush" Color="#C42B1C" />
+          </ResourceDictionary>
+          <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="UrgencyApproachingBrush" Color="#5A4314" />
+            <SolidColorBrush x:Key="UrgencyImmediateBrush" Color="#652A2A" />
+            <SolidColorBrush x:Key="UrgencyForegroundBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#2A2A2D" />
+            <SolidColorBrush x:Key="AppCardBorderBrush" Color="#434348" />
+            <SolidColorBrush x:Key="AppDangerBrush" Color="#FF8F8F" />
+          </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
+      </ResourceDictionary>
+    </Application.Resources>
 </Application>

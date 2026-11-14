@@ -58,6 +58,27 @@ public static class UrgencyCalculator
         return new DisplayedUrgency(best, source);
     }
 
+    /// <summary>Calculates rolled-up urgency from an already loaded area node.</summary>
+    public static DisplayedUrgency CalculateDisplayed(ItemNode node, DateTime nowUtc,
+        TimeZoneInfo zone, UrgencyThresholds thresholds)
+    {
+        var best = Calculate(node.Item, nowUtc, zone, thresholds);
+        Guid? source = null;
+
+        foreach (var child in node.Children)
+        {
+            var candidate = CalculateDisplayed(child, nowUtc, zone, thresholds);
+
+            if (candidate.Value > best)
+            {
+                best = candidate.Value;
+                source = candidate.SourceDescendantId ?? child.Item.Id;
+            }
+        }
+
+        return new DisplayedUrgency(best, source);
+    }
+
     private static DateTime? EffectiveDeadline(TodoItem item, TimeZoneInfo zone)
     {
         if (item.DueDate is DateOnly dueDate)

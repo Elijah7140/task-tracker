@@ -20,7 +20,7 @@ public sealed class ItemTree
         if (folderId is Guid folderIdValue &&
             (folders is null || folders.ProjectId != projectId || folders.Get(folderIdValue).Id != folderIdValue))
         {
-            throw new InvalidOperationException("Area folder is missing or belongs to another project.");
+            throw new DomainRuleException("Area folder is missing or belongs to another project.");
         }
 
         items = rows.ToDictionary(item => item.Id);
@@ -41,7 +41,7 @@ public sealed class ItemTree
     {
         if (!items.TryGetValue(id, out var item) || item.DeletedAtUtc is not null)
         {
-            throw new InvalidOperationException("Item is missing or deleted.");
+            throw new DomainRuleException("Item is missing or deleted.");
         }
 
         return item;
@@ -62,7 +62,7 @@ public sealed class ItemTree
         {
             if (!seen.Add(parentId))
             {
-                throw new InvalidOperationException("Item cycle detected.");
+                throw new DomainRuleException("Item cycle detected.");
             }
 
             current = Get(parentId);
@@ -81,14 +81,14 @@ public sealed class ItemTree
     {
         if (item.DeletedAtUtc is not null)
         {
-            throw new InvalidOperationException("Cannot add a deleted item as active.");
+            throw new DomainRuleException("Cannot add a deleted item as active.");
         }
 
         ValidateRow(item);
 
         if (!items.TryAdd(item.Id, item))
         {
-            throw new InvalidOperationException("Duplicate item.");
+            throw new DomainRuleException("Duplicate item.");
         }
     }
 
@@ -102,7 +102,7 @@ public sealed class ItemTree
 
             if (newParentId == id || WalkAll(id).Any(descendant => descendant.Id == newParentId))
             {
-                throw new InvalidOperationException("Item move would create a cycle.");
+                throw new DomainRuleException("Item move would create a cycle.");
             }
         }
 
@@ -116,14 +116,14 @@ public sealed class ItemTree
 
         if (root.ParentItemId is not null || destination.ProjectId != ProjectId)
         {
-            throw new InvalidOperationException("Only a top-level item can move to another area in the same project.");
+            throw new DomainRuleException("Only a top-level item can move to another area in the same project.");
         }
 
         var branch = new[] { root }.Concat(WalkAll(id)).ToArray();
 
         if (branch.Any(item => destination.items.ContainsKey(item.Id)))
         {
-            throw new InvalidOperationException("Destination contains an item in the branch.");
+            throw new DomainRuleException("Destination contains an item in the branch.");
         }
 
         foreach (var item in branch)
@@ -152,7 +152,7 @@ public sealed class ItemTree
         {
             if (!ReferenceEquals(existing, item) || item.DeletedAtUtc is not null)
             {
-                throw new InvalidOperationException("Restored item does not match the loaded row.");
+                throw new DomainRuleException("Restored item does not match the loaded row.");
             }
 
             ValidateRow(item);
@@ -166,7 +166,7 @@ public sealed class ItemTree
     {
         if (item.ProjectId != ProjectId || item.FolderId != FolderId)
         {
-            throw new InvalidOperationException("Item belongs to another area.");
+            throw new DomainRuleException("Item belongs to another area.");
         }
 
         if (item.ParentItemId is Guid parentId)
@@ -174,7 +174,7 @@ public sealed class ItemTree
             if (!items.TryGetValue(parentId, out var parent) ||
                 (item.DeletedAtUtc is null && parent.DeletedAtUtc is not null))
             {
-                throw new InvalidOperationException("Item parent is missing or deleted.");
+                throw new DomainRuleException("Item parent is missing or deleted.");
             }
         }
 
@@ -190,7 +190,7 @@ public sealed class ItemTree
         {
             if (!seen.Add(parentId))
             {
-                throw new InvalidOperationException("Item cycle detected.");
+                throw new DomainRuleException("Item cycle detected.");
             }
 
             current = items[parentId];

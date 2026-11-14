@@ -14,6 +14,11 @@ public sealed class ItemService(
 {
     public async Task<TodoItem> CreateAsync(Guid projectId, Guid? folderId, Guid? parentId, string title, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(title) || title.Length > 300)
+        {
+            throw new DomainRuleException("Item title is required and must be at most 300 characters.");
+        }
+
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var items = unitOfWork.Items;
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
@@ -29,7 +34,7 @@ public sealed class ItemService(
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var item = await unitOfWork.Items.FindAsync(id, cancellationToken)
-            ?? throw new InvalidOperationException("Item is missing or deleted.");
+            ?? throw new DomainRuleException("Item is missing or deleted.");
         ValidateEdit(edit);
         ApplyEdit(item, edit);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -39,23 +44,23 @@ public sealed class ItemService(
     {
         if (string.IsNullOrWhiteSpace(edit.Title) || edit.Title.Trim().Length > 300)
         {
-            throw new ArgumentException("Item title is required and must be at most 300 characters.");
+            throw new DomainRuleException("Item title is required and must be at most 300 characters.");
         }
 
         if (edit.TicketNumber?.Length > 100 || (edit.DueDate is null && edit.DueTime is not null))
         {
-            throw new ArgumentException("Item edit has invalid ticket or due fields.");
+            throw new DomainRuleException("Item edit has invalid ticket or due fields.");
         }
 
         if (edit.ScheduledEnd is not null &&
             (edit.ScheduledStart is null || edit.ScheduledEnd < edit.ScheduledStart))
         {
-            throw new ArgumentException("Scheduled end requires an earlier start.");
+            throw new DomainRuleException("Scheduled end requires an earlier start.");
         }
 
         if (edit.ScheduledStart?.Kind == DateTimeKind.Utc || edit.ScheduledEnd?.Kind == DateTimeKind.Utc)
         {
-            throw new ArgumentException("Scheduled times must be floating local values.");
+            throw new DomainRuleException("Scheduled times must be floating local values.");
         }
     }
 
@@ -110,7 +115,7 @@ public sealed class ItemService(
 
         if (branch.Length == 0)
         {
-            throw new InvalidOperationException("Item deletion batch was not found.");
+            throw new DomainRuleException("Item deletion batch was not found.");
         }
 
         foreach (var item in branch)
@@ -161,7 +166,7 @@ public sealed class ItemService(
 
         if (index == 0)
         {
-            throw new InvalidOperationException("The first sibling cannot be indented.");
+            throw new DomainRuleException("The first sibling cannot be indented.");
         }
 
         await MoveWithinTreeAsync(unitOfWork, tree, id, siblings[index - 1].Id, cancellationToken);
@@ -172,7 +177,7 @@ public sealed class ItemService(
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var parentId = tree.Get(id).ParentItemId
-            ?? throw new InvalidOperationException("A top-level item cannot be outdented.");
+            ?? throw new DomainRuleException("A top-level item cannot be outdented.");
         var grandparentId = tree.Get(parentId).ParentItemId;
         await MoveWithinTreeAsync(unitOfWork, tree, id, grandparentId, cancellationToken);
     }
@@ -201,7 +206,7 @@ public sealed class ItemService(
 
         if (ids.Count != siblings.Count || ids.ToHashSet().Count != siblings.Count || siblings.Any(item => !ids.Contains(item.Id)))
         {
-            throw new InvalidOperationException("Order must contain every sibling exactly once.");
+            throw new DomainRuleException("Order must contain every sibling exactly once.");
         }
 
         for (var index = 0; index < ids.Count; index++)
@@ -222,8 +227,8 @@ public sealed class ItemService(
         var thresholds = new UrgencyThresholds(effective.UrgencyYellowThreshold.Value, effective.UrgencyRedThreshold.Value);
         var roots = tree.Children(null).Select(item => BuildNode(tree, item, thresholds)).ToArray();
         return new AreaSnapshot(projectId, folderId, roots,
-            (await lookups.ItemTypesAsync(cancellationToken)).Where(itemType => !itemType.IsArchived).ToArray(),
-            (await lookups.PriorityLevelsAsync(cancellationToken)).Where(level => !level.IsArchived).ToArray(), effective);
+            await lookups.ItemTypesAsync(cancellationToken),
+            await lookups.PriorityLevelsAsync(cancellationToken), effective);
     }
 
     private void Renumber(ItemTree tree, Guid? parentId)
@@ -252,7 +257,7 @@ public sealed class ItemService(
         var items = unitOfWork.Items;
         if (await projects.FindAsync(projectId, false, cancellationToken) is null)
         {
-            throw new InvalidOperationException("Project is missing or deleted.");
+            throw new DomainRuleException("Project is missing or deleted.");
         }
 
         var folderTree = new FolderTree(projectId, await folders.ListAsync(projectId, true, cancellationToken));

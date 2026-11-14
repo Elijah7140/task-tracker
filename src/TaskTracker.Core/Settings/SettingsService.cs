@@ -1,5 +1,6 @@
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Projects;
 
 namespace TaskTracker.Core.Settings;
 
@@ -73,6 +74,82 @@ public sealed class SettingsService(
     }
 
     /// <summary>
+    /// Saves auto-complete and both urgency thresholds globally as one operation: every project is
+    /// validated first, then the values, any completion reconciliation and one save commit together.
+    /// Throws if auto-complete turns on for some project and <paramref name="confirmed"/> is false.
+    /// </summary>
+    public async Task SaveGlobalAsync(bool autoCompleteParents, TimeSpan yellow, TimeSpan red,
+        bool confirmed = false, CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Begin();
+        var store = unitOfWork.Settings;
+        var proposed = new Dictionary<string, string>(await store.GetGlobalAsync(cancellationToken));
+        Propose(proposed, SettingsCatalogue.AutoCompleteParents, autoCompleteParents);
+        Propose(proposed, SettingsCatalogue.UrgencyYellowThreshold, yellow);
+        Propose(proposed, SettingsCatalogue.UrgencyRedThreshold, red);
+
+        var enabledProjects = await ValidateChangeAsync(unitOfWork, proposed, proposedProject: null, confirmed, cancellationToken);
+        await StoreGlobalAsync(store, SettingsCatalogue.AutoCompleteParents, proposed, cancellationToken);
+        await StoreGlobalAsync(store, SettingsCatalogue.UrgencyYellowThreshold, proposed, cancellationToken);
+        await StoreGlobalAsync(store, SettingsCatalogue.UrgencyRedThreshold, proposed, cancellationToken);
+        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+    }
+
+    /// <summary>
+    /// Saves a project's auto-complete and urgency overrides as one operation; a null value means
+    /// the project inherits the global value. Same validation and confirmation rules as
+    /// <see cref="SaveGlobalAsync"/>, applied to that project.
+    /// </summary>
+    public async Task SaveProjectAsync(Guid projectId, bool? autoCompleteParents, TimeSpan? yellow, TimeSpan? red,
+        bool confirmed = false, CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Begin();
+        var store = unitOfWork.Settings;
+        var proposed = new Dictionary<string, string>(await store.GetProjectAsync(projectId, cancellationToken));
+        ProposeOverride(proposed, SettingsCatalogue.AutoCompleteParents, autoCompleteParents);
+        ProposeOverride(proposed, SettingsCatalogue.UrgencyYellowThreshold, yellow);
+        ProposeOverride(proposed, SettingsCatalogue.UrgencyRedThreshold, red);
+
+        var enabledProjects = await ValidateProjectChangeAsync(unitOfWork, projectId, proposed, confirmed, cancellationToken);
+        await StoreProjectAsync(store, projectId, SettingsCatalogue.AutoCompleteParents, proposed, cancellationToken);
+        await StoreProjectAsync(store, projectId, SettingsCatalogue.UrgencyYellowThreshold, proposed, cancellationToken);
+        await StoreProjectAsync(store, projectId, SettingsCatalogue.UrgencyRedThreshold, proposed, cancellationToken);
+        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+    }
+
+    private static void Propose<T>(Dictionary<string, string> proposed, SettingDefinition<T> definition, T value)
+    {
+        proposed[definition.Key] = definition.Format(value);
+    }
+
+    private static void ProposeOverride<T>(Dictionary<string, string> proposed,
+        SettingDefinition<T> definition, T? value) where T : struct
+    {
+        if (value is null)
+        {
+            proposed.Remove(definition.Key);
+        }
+        else
+        {
+            Propose(proposed, definition, value.Value);
+        }
+    }
+
+    private static Task StoreGlobalAsync<T>(ISettingsStore store, SettingDefinition<T> definition,
+        IReadOnlyDictionary<string, string> proposed, CancellationToken cancellationToken)
+    {
+        return store.SetGlobalAsync(definition.Key, proposed[definition.Key], cancellationToken);
+    }
+
+    private static Task StoreProjectAsync<T>(ISettingsStore store, Guid projectId, SettingDefinition<T> definition,
+        IReadOnlyDictionary<string, string> proposed, CancellationToken cancellationToken)
+    {
+        proposed.TryGetValue(definition.Key, out var text);
+
+        return store.SetProjectAsync(projectId, definition.Key, text, cancellationToken);
+    }
+
+    /// <summary>
     /// Overrides a setting for one project. Same validation and confirmation rules as
     /// <see cref="SetGlobalAsync{T}"/>, applied to that project.
     /// </summary>
@@ -81,7 +158,7 @@ public sealed class SettingsService(
     {
         if (!definition.ProjectOverridable)
         {
-            throw new InvalidOperationException("This setting cannot be overridden.");
+            throw new DomainRuleException("This setting cannot be overridden.");
         }
 
         await using var unitOfWork = unitOfWorkFactory.Begin();
@@ -152,7 +229,7 @@ public sealed class SettingsService(
     {
         if (await unitOfWork.Projects.FindAsync(projectId, false, cancellationToken) is null)
         {
-            throw new InvalidOperationException("Project is missing or deleted.");
+            throw new DomainRuleException("Project is missing or deleted.");
         }
 
         var global = await unitOfWork.Settings.GetGlobalAsync(cancellationToken);
@@ -171,7 +248,7 @@ public sealed class SettingsService(
         bool confirmed,
         CancellationToken cancellationToken)
     {
-        EnsureValidThresholds(SettingsResolver.Resolve(proposedGlobal, new Dictionary<string, string>()));
+        EnsureValidGlobalThresholds(proposedGlobal);
 
         var currentGlobal = await unitOfWork.Settings.GetGlobalAsync(cancellationToken);
         var enabledProjects = new List<Guid>();
@@ -183,7 +260,7 @@ public sealed class SettingsService(
             var current = SettingsResolver.Resolve(currentGlobal, currentOverrides);
             var next = SettingsResolver.Resolve(proposedGlobal, proposedOverrides);
 
-            EnsureValidThresholds(next);
+            EnsureValidProjectThresholds(project, next, edited: proposedProject?.Id == project.Id);
 
             if (project.DeletedAtUtc is null && !current.AutoCompleteParents.Value && next.AutoCompleteParents.Value)
             {
@@ -193,18 +270,57 @@ public sealed class SettingsService(
 
         if (enabledProjects.Count > 0 && !confirmed)
         {
-            throw new InvalidOperationException("Enabling automatic completion requires confirmation.");
+            throw new DomainRuleException("Enabling automatic completion requires confirmation.");
         }
 
         return enabledProjects;
     }
 
-    private static void EnsureValidThresholds(EffectiveSettings settings)
+    private static void EnsureValidGlobalThresholds(IReadOnlyDictionary<string, string> proposedGlobal)
     {
-        if (!SettingsResolver.HasValidThresholds(settings))
+        var effective = SettingsResolver.Resolve(proposedGlobal, new Dictionary<string, string>());
+
+        if (!SettingsResolver.HasValidThresholds(effective))
         {
-            throw new InvalidOperationException(InvalidThresholdsMessage);
+            throw new DomainRuleException(InvalidThresholdsMessage);
         }
+    }
+
+    private static void EnsureValidProjectThresholds(Project project, EffectiveSettings next, bool edited)
+    {
+        if (SettingsResolver.HasValidThresholds(next))
+        {
+            return;
+        }
+
+        throw new DomainRuleException(edited ? InvalidThresholdsMessage : DescribeConflict(project.Name, next));
+    }
+
+    private static string DescribeConflict(string projectName, EffectiveSettings next)
+    {
+        var yellow = next.UrgencyYellowThreshold;
+        var red = next.UrgencyRedThreshold;
+
+        if (yellow.Source == SettingSource.Project && red.Source != SettingSource.Project)
+        {
+            return $"Project '{projectName}' overrides the yellow threshold to {DescribeDuration(yellow.Value)}, " +
+                "so the red threshold can't exceed it.";
+        }
+
+        if (red.Source == SettingSource.Project && yellow.Source != SettingSource.Project)
+        {
+            return $"Project '{projectName}' overrides the red threshold to {DescribeDuration(red.Value)}, " +
+                "so the yellow threshold can't be lower than it.";
+        }
+
+        return $"Project '{projectName}' would be left with invalid thresholds. {InvalidThresholdsMessage}";
+    }
+
+    private static string DescribeDuration(TimeSpan value)
+    {
+        return value.TotalHours >= 24 && value.TotalHours % 24 == 0
+            ? $"{value.TotalDays:0.##} days"
+            : $"{value.TotalHours:0.##} hours";
     }
 
     private async Task ReconcileAndSaveAsync(IUnitOfWork unitOfWork, IReadOnlyList<Guid> enabledProjects, CancellationToken cancellationToken)

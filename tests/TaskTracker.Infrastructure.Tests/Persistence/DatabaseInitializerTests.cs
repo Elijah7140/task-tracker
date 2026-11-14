@@ -55,7 +55,7 @@ public sealed class DatabaseInitializerTests
         }
         finally
         {
-            Directory.Delete(folder, true);
+            DeleteTestFolder(folder);
         }
     }
 
@@ -83,7 +83,7 @@ public sealed class DatabaseInitializerTests
         }
         finally
         {
-            Directory.Delete(folder, true);
+            DeleteTestFolder(folder);
         }
     }
 
@@ -109,7 +109,7 @@ public sealed class DatabaseInitializerTests
         }
         finally
         {
-            Directory.Delete(folder, true);
+            DeleteTestFolder(folder);
         }
     }
 
@@ -138,7 +138,7 @@ public sealed class DatabaseInitializerTests
         }
         finally
         {
-            Directory.Delete(folder, true);
+            DeleteTestFolder(folder);
         }
     }
 
@@ -171,7 +171,17 @@ public sealed class DatabaseInitializerTests
         }
         finally
         {
-            Directory.Delete(folder, true);
+            DeleteTestFolder(folder);
         }
+    }
+
+    /// <summary>
+    /// Pooled SQLite connections keep their files open after dispose; Windows refuses to delete
+    /// open files, so release the pool before removing the folder.
+    /// </summary>
+    private static void DeleteTestFolder(string folder)
+    {
+        SqliteConnection.ClearAllPools();
+        Directory.Delete(folder, true);
     }
 }

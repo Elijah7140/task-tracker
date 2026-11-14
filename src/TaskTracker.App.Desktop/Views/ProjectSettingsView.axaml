@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TaskTracker.App.Desktop.Views.ProjectSettingsView"
+             x:CompileBindings="False">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="32,24" Spacing="16" MaxWidth="880" HorizontalAlignment="Stretch">
+      <Button Content="← Back to project" Command="{Binding BackCommand}" Classes="subtle" HorizontalAlignment="Left" AutomationProperties.AutomationId="ProjectSettingsBackButton" />
+      <StackPanel Spacing="2">
+        <TextBlock Text="Project Settings" FontSize="30" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding ProjectName}" FontSize="18" Opacity="0.7" />
+      </StackPanel>
+
+      <Border Classes="card">
+        <StackPanel Spacing="16">
+          <StackPanel Spacing="2">
+            <TextBlock Text="Overrides" Classes="cardTitle" />
+            <TextBlock Text="Tick Override to use a value for this project instead of the global default."
+                       Classes="caption" />
+          </StackPanel>
+          <Grid ColumnDefinitions="210,100,190,150,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="12">
+            <TextBlock Grid.Row="0" Text="Automatic parent completion" VerticalAlignment="Center" />
+            <CheckBox Grid.Row="0" Grid.Column="1" Content="Override" IsChecked="{Binding OverrideAutoComplete, Mode=TwoWay}" AutomationProperties.AutomationId="ProjectAutoCompleteOverrideCheckBox" />
+            <CheckBox Grid.Row="0" Grid.Column="2" Content="On" IsChecked="{Binding AutoCompleteParents, Mode=TwoWay}"
+                      IsEnabled="{Binding OverrideAutoComplete}" AutomationProperties.AutomationId="ProjectAutoCompleteCheckBox" />
+            <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding AutoSource}" Classes="caption" VerticalAlignment="Center" />
+            <Button Grid.Row="0" Grid.Column="4" Content="Reset to global" Classes="subtle"
+                    Command="{Binding ResetAutoCommand}" IsVisible="{Binding OverrideAutoComplete}" AutomationProperties.AutomationId="ProjectAutoCompleteResetButton" />
+
+            <TextBlock Grid.Row="1" Text="Yellow urgency threshold" VerticalAlignment="Center" />
+            <CheckBox Grid.Row="1" Grid.Column="1" Content="Override" IsChecked="{Binding OverrideYellow, Mode=TwoWay}" AutomationProperties.AutomationId="ProjectYellowOverrideCheckBox" />
+            <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="8">
+              <NumericUpDown Value="{Binding YellowDays, Mode=TwoWay}" Minimum="0" Width="120"
+                             IsEnabled="{Binding OverrideYellow}" AutomationProperties.AutomationId="ProjectYellowThresholdBox" />
+              <TextBlock Text="days" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding YellowSource}" Classes="caption" VerticalAlignment="Center" />
+            <Button Grid.Row="1" Grid.Column="4" Content="Reset to global" Classes="subtle"
+                    Command="{Binding ResetYellowCommand}" IsVisible="{Binding OverrideYellow}" AutomationProperties.AutomationId="ProjectYellowResetButton" />
+
+            <TextBlock Grid.Row="2" Text="Red urgency threshold" VerticalAlignment="Center" />
+            <CheckBox Grid.Row="2" Grid.Column="1" Content="Override" IsChecked="{Binding OverrideRed, Mode=TwoWay}" AutomationProperties.AutomationId="ProjectRedOverrideCheckBox" />
+            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Spacing="8">
+              <NumericUpDown Value="{Binding RedHours, Mode=TwoWay}" Minimum="0" Width="120"
+                             IsEnabled="{Binding OverrideRed}" AutomationProperties.AutomationId="ProjectRedThresholdBox" />
+              <TextBlock Text="hours" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding RedSource}" Classes="caption" VerticalAlignment="Center" />
+            <Button Grid.Row="2" Grid.Column="4" Content="Reset to global" Classes="subtle"
+                    Command="{Binding ResetRedCommand}" IsVisible="{Binding OverrideRed}" AutomationProperties.AutomationId="ProjectRedResetButton" />
+          </Grid>
+          <TextBlock Text="{Binding Error}" TextWrapping="Wrap"
+                     IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                     Foreground="{DynamicResource AppDangerBrush}" />
+          <Button Content="Save" Classes="accent" Command="{Binding SaveCommand}"
+                  IsEnabled="{Binding CanSave}" HorizontalAlignment="Left" AutomationProperties.AutomationId="ProjectSettingsSaveButton" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

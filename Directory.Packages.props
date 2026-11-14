@@ -24,5 +24,7 @@
     <!-- Tests -->
     <!-- Pinned to 3.x: Avalonia.Headless.XUnit 12.1 is built against xunit v3.2. -->
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="FlaUI.Core" Version="5.0.0" />
+    <PackageVersion Include="FlaUI.UIA3" Version="5.0.0" />
   </ItemGroup>
 </Project>
