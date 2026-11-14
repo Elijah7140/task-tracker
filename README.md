@@ -33,3 +33,16 @@ for a launch check. The default is `LocalApplicationData/TaskTracker/tasktracker
 | `tests/*` | One test project per source project. UI tests use Avalonia's headless platform. |
 
 Set `TASKTRACKER_SCREENSHOT_DIR` when running the UI tests to save rendered screenshots.
+
+## Windows desktop smoke tests
+
+On an interactive Windows desktop, build the solution and run the UI Automation smoke suite:
+
+```powershell
+dotnet build
+$env:TASKTRACKER_SMOKE = '1'
+dotnet test --project tests/TaskTracker.App.Desktop.SmokeTests
+```
+
+The smoke scenarios are skipped without `TASKTRACKER_SMOKE=1`. Failure screenshots are
+saved in the smoke project's `bin/<Configuration>/net10.0-windows/Failures` directory.

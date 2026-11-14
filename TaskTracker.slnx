@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/TaskTracker.App.Desktop.Tests/TaskTracker.App.Desktop.Tests.csproj" />
+    <Project Path="tests/TaskTracker.App.Desktop.SmokeTests/TaskTracker.App.Desktop.SmokeTests.csproj" />
     <Project Path="tests/TaskTracker.Core.Tests/TaskTracker.Core.Tests.csproj" />
     <Project Path="tests/TaskTracker.Infrastructure.Tests/TaskTracker.Infrastructure.Tests.csproj" />
     <Project Path="tests/TaskTracker.Presentation.Tests/TaskTracker.Presentation.Tests.csproj" />

@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
@@ -23,6 +24,7 @@ public sealed class AvaloniaDialogService : IDialogService
     public async Task<string?> PromptAsync(string title, string label, string? initialValue = null)
     {
         var input = new TextBox { Text = initialValue ?? string.Empty, MinWidth = 320 };
+        AutomationProperties.SetAutomationId(input, "DialogInput");
         var validation = new TextBlock { Foreground = Avalonia.Media.Brushes.IndianRed };
         var window = CreateWindow(title, new TextBlock { Text = label }, input, validation);
         var save = AddButtons(window, "Save", () => window.Close(input.Text?.Trim()), "Cancel", () => window.Close(null));
@@ -68,6 +70,7 @@ public sealed class AvaloniaDialogService : IDialogService
                 IsCancel = choice == DraftDecision.Cancel
             };
             button.Click += (_, _) => window.Close(choice);
+            AutomationProperties.SetAutomationId(button, $"Draft{choice}Button");
             buttons.Children.Add(button);
         }
 
@@ -85,6 +88,7 @@ public sealed class AvaloniaDialogService : IDialogService
             ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<FolderChoice>((choice, _) =>
                 new TextBlock { Text = new string(' ', choice.Depth * 3) + choice.Name })
         };
+        AutomationProperties.SetAutomationId(picker, "DialogFolderPicker");
         var window = CreateWindow(title, new TextBlock { Text = "Move into" }, picker);
         AddButtons(window, "Move", () => window.Close(picker.SelectedItem as FolderChoice),
             "Cancel", () => window.Close(null));
@@ -130,12 +134,14 @@ public sealed class AvaloniaDialogService : IDialogService
             HorizontalAlignment = HorizontalAlignment.Right
         };
         var primary = new Button { Content = primaryText, MinWidth = 80, IsDefault = true };
+        AutomationProperties.SetAutomationId(primary, "DialogConfirmButton");
         primary.Click += (_, _) => primaryAction();
         buttons.Children.Add(primary);
 
         if (secondaryText is not null && secondaryAction is not null)
         {
             var secondary = new Button { Content = secondaryText, MinWidth = 80, IsCancel = true };
+            AutomationProperties.SetAutomationId(secondary, "DialogCancelButton");
             secondary.Click += (_, _) => secondaryAction();
             buttons.Children.Add(secondary);
         }

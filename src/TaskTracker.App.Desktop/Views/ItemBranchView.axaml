@@ -50,15 +50,16 @@
           <ColumnDefinition Width="Auto" SharedSizeGroup="Source" />
         </Grid.ColumnDefinitions>
         <ToggleButton Grid.Column="0" Content="{Binding ExpanderGlyph}"
+                      AutomationProperties.AutomationId="ItemExpandButton"
                       IsVisible="{Binding HasOpenChildren}"
                       IsChecked="{Binding IsExpanded, Mode=TwoWay}"
                       Width="23" Padding="0" />
-        <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}"
+        <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}" AutomationProperties.AutomationId="ItemCompleteCheckBox"
                   Command="{Binding ToggleCommand}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{Binding TypeIcon}" ToolTip.Tip="{Binding TypeName}"
                    VerticalAlignment="Center" HorizontalAlignment="Center"
                    />
-        <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent"
+        <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
                 BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Stretch">
           <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
@@ -80,10 +81,10 @@
                    VerticalAlignment="Center" />
       </Grid>
       <Grid ColumnDefinitions="22,26,18,*" ColumnSpacing="3" IsVisible="{Binding IsFinished}">
-        <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}"
+        <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}" AutomationProperties.AutomationId="ItemCompleteCheckBox"
                   Command="{Binding ToggleCommand}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{Binding TypeIcon}" VerticalAlignment="Center" />
-        <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent"
+        <Button Grid.Column="3" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
                 BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Stretch">
           <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
@@ -100,6 +101,7 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
     <Expander Header="{Binding CompletedLabel}" IsVisible="{Binding HasCompletedChildren}"
+              AutomationProperties.AutomationId="CompletedSubItemsExpander"
               IsExpanded="{Binding IsCompletedExpanded, Mode=TwoWay}"
               Margin="18,0,0,0" HorizontalAlignment="Stretch"
               HorizontalContentAlignment="Stretch">

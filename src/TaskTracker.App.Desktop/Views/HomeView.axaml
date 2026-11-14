@@ -8,9 +8,9 @@
         <TextBlock Text="Projects" FontSize="30" FontWeight="SemiBold" />
         <TextBlock Text="Choose a space to continue your work." Opacity="0.7" />
       </StackPanel>
-      <Button Grid.Column="1" Content="⚙ Settings" Command="{Binding SettingsCommand}"
+      <Button Grid.Column="1" Content="⚙ Settings" Command="{Binding SettingsCommand}" AutomationProperties.AutomationId="AppSettingsButton"
               Padding="18,10" VerticalAlignment="Center" />
-      <Button Grid.Column="2" Content="+ New project" Command="{Binding CreateCommand}"
+      <Button Grid.Column="2" Content="+ New project" Command="{Binding CreateCommand}" AutomationProperties.AutomationId="NewProjectButton"
               Padding="18,10" VerticalAlignment="Center" />
     </Grid>
     <ScrollViewer Grid.Row="1">
@@ -23,7 +23,7 @@
               <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                       Background="Transparent"
                       CornerRadius="10" Padding="20" Margin="0,0,0,12" Focusable="True"
-                      PointerPressed="OnCardPointerPressed" KeyDown="OnCardKeyDown">
+                      PointerPressed="OnCardPointerPressed" KeyDown="OnCardKeyDown" AutomationProperties.AutomationId="ProjectCard">
                 <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                   <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" />
                   <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="18" Margin="0,8,0,0">
@@ -32,13 +32,13 @@
                   </StackPanel>
                   <StackPanel Grid.Column="1" Grid.RowSpan="2" Orientation="Horizontal" Spacing="8"
                               VerticalAlignment="Center">
-                    <Button Content="Open" Classes="accent" Command="{Binding $parent[UserControl].DataContext.OpenCommand}"
+                    <Button Content="Open" Classes="accent" Command="{Binding $parent[UserControl].DataContext.OpenCommand}" AutomationProperties.AutomationId="OpenProjectButton"
                             CommandParameter="{Binding}" />
-                    <Button Content="Rename" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.RenameCommand}"
+                    <Button Content="Rename" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.RenameCommand}" AutomationProperties.AutomationId="RenameProjectButton"
                             CommandParameter="{Binding}" />
-                    <Button Content="Settings" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.ProjectSettingsCommand}"
+                    <Button Content="Settings" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.ProjectSettingsCommand}" AutomationProperties.AutomationId="ProjectSettingsButton"
                             CommandParameter="{Binding}" />
-                    <Button Content="Delete" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.DeleteCommand}"
+                    <Button Content="Delete" Classes="subtle" Command="{Binding $parent[UserControl].DataContext.DeleteCommand}" AutomationProperties.AutomationId="DeleteProjectButton"
                             CommandParameter="{Binding}" />
                   </StackPanel>
                 </Grid>
