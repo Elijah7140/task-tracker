@@ -109,6 +109,11 @@ public sealed class ScreenSnapshotTests
         var lookups = services.GetRequiredService<LookupService>();
         var change = (await lookups.ItemTypesAsync()).Single(type => type.Name == "Change");
         var high = (await lookups.PriorityLevelsAsync()).Single(level => level.Name == "High");
+        // The selected item fills every date and time field: empty pickers show today's date
+        // and AM/PM, which would make the image depend on when the test runs.
+        await items.EditAsync(parent.Id, new ItemEdit(parent.Title, null, null, null, null,
+            new DateOnly(2026, 11, 20), new TimeOnly(9, 30),
+            new DateTime(2026, 11, 16, 9, 0, 0), new DateTime(2026, 11, 16, 11, 0, 0)));
         await items.EditAsync(child.Id, new ItemEdit(child.Title, null, "DB-120", change.Id,
             high.Id, new DateOnly(2026, 11, 12), null, null, null));
         await items.EditAsync(immediate.Id, new ItemEdit(immediate.Title, null, "DB-121", change.Id,
