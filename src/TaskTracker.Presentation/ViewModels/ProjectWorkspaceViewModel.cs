@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Input;
 
 using CommunityToolkit.Mvvm.Input;
@@ -20,6 +21,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
     private readonly IDialogService dialogs;
     private readonly INavigationService navigation;
     private readonly ItemService? items;
+    private readonly ICustomFieldInputLoader? fieldLoader;
+    private readonly AsyncRelayCommand saveCommand;
     private readonly WorkspaceUrgencyRefresher urgencyRefresher;
     private readonly ItemEditorCoordinator editorCoordinator;
     private readonly AreaItemsViewModel areaItems;
@@ -29,16 +32,19 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
     private AreaSnapshot? areaSnapshot;
     private string quickAddTitle = string.Empty;
     private bool isCompletedExpanded;
+    private int selectionVersion;
 
     public ProjectWorkspaceViewModel(Guid projectId, ProjectService projects, FolderService folders,
         IDialogService dialogs, INavigationService navigation, ItemService? items = null,
-        TimeProvider? clock = null, TimeZoneInfo? timeZone = null, IUiDispatcher? dispatcher = null)
+        TimeProvider? clock = null, TimeZoneInfo? timeZone = null, IUiDispatcher? dispatcher = null,
+        ICustomFieldInputLoader? fieldLoader = null)
     {
         this.projectId = projectId;
         this.projects = projects;
         this.dialogs = dialogs;
         this.navigation = navigation;
         this.items = items;
+        this.fieldLoader = fieldLoader;
         areaItems = new AreaItemsViewModel(this, projectId, items, dialogs);
         folderTree = new FolderTreeViewModel(this, projectId, folders, dialogs);
         editorCoordinator = new ItemEditorCoordinator(dialogs);
@@ -50,7 +56,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         ProjectSettingsCommand = new AsyncRelayCommand(OpenProjectSettingsAsync);
         QuickAddCommand = new AsyncRelayCommand(QuickAddAsync);
         AddSubItemCommand = new AsyncRelayCommand(AddSubItemAsync);
-        SaveCommand = new AsyncRelayCommand(async () => { await SaveAsync(); });
+        saveCommand = new AsyncRelayCommand(SaveFromCommandAsync, CanSave);
         RevertCommand = new RelayCommand(Revert);
         DeleteItemCommand = new AsyncRelayCommand(DeleteItemAsync);
         MoveUpCommand = new AsyncRelayCommand(() => ReorderSelectedAsync(-1));
@@ -108,7 +114,15 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
     public ItemEditorViewModel? Editor
     {
         get => editor;
-        private set => SetProperty(ref editor, value);
+        private set
+        {
+            var previous = editor;
+
+            if (SetProperty(ref editor, value))
+            {
+                ReplaceEditorSubscription(previous, value);
+            }
+        }
     }
 
     public bool HasEditor => Editor is not null;
@@ -130,7 +144,11 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
 
     public ICommand AddSubItemCommand { get; }
 
-    public ICommand SaveCommand { get; }
+    /// <summary>Saves the draft; disabled while a custom value cannot be parsed.</summary>
+    public ICommand SaveCommand
+    {
+        get { return saveCommand; }
+    }
 
     public ICommand RevertCommand { get; }
 
@@ -259,7 +277,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         areaItems.Load(snapshot, this);
         OnPropertyChanged(nameof(CompletedLabel));
         OnPropertyChanged(nameof(HasCompletedItems));
-        SelectLoadedItem(selectedItemId ?? selectedItem?.Id);
+        await SelectLoadedItemAsync(selectedItemId ?? selectedItem?.Id);
     }
 
     private IEnumerable<ItemRowViewModel> AllItems()
@@ -267,17 +285,11 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         return areaItems.AllItems();
     }
 
-    private void SelectLoadedItem(Guid? id)
+    private async Task SelectLoadedItemAsync(Guid? id)
     {
-        selectedItem = AllItems().FirstOrDefault(row => row.Id == id);
-        Editor = selectedItem is null ? null : CreateEditor(selectedItem);
-        OnPropertyChanged(nameof(HasEditor));
-        OnPropertyChanged(nameof(SelectedSubItems));
+        var row = AllItems().FirstOrDefault(candidate => candidate.Id == id);
 
-        if (selectedItem is not null)
-        {
-            selectedItem.IsSelected = true;
-        }
+        await SelectRowAsync(row);
     }
 
     public async Task SelectItemAsync(ItemRowViewModel row)
@@ -287,16 +299,40 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        var current = AllItems().FirstOrDefault(item => item.Id == row.Id) ?? row;
+
+        await SelectRowAsync(current);
+    }
+
+    /// <summary>
+    /// Makes the row the selected item. The editor, including its custom fields, is built first
+    /// and the selection changes in one step afterwards. If another selection started while the
+    /// editor was loading, this result is stale and is dropped, so the latest selection wins.
+    /// </summary>
+    private async Task SelectRowAsync(ItemRowViewModel? row)
+    {
+        var version = ++selectionVersion;
+        var draft = row is null ? null : await CreateEditorAsync(row);
+
+        if (version != selectionVersion)
+        {
+            return;
+        }
+
         if (selectedItem is not null)
         {
             selectedItem.IsSelected = false;
         }
 
-        selectedItem = AllItems().FirstOrDefault(item => item.Id == row.Id) ?? row;
-        selectedItem.IsSelected = true;
-        Editor = CreateEditor(selectedItem);
+        selectedItem = row;
+        Editor = draft;
         OnPropertyChanged(nameof(HasEditor));
         OnPropertyChanged(nameof(SelectedSubItems));
+
+        if (row is not null)
+        {
+            row.IsSelected = true;
+        }
     }
 
     internal async Task<bool> ResolveDraftAsync()
@@ -311,9 +347,15 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
             return true;
         }
 
+        if (!Editor.CustomFieldsValid)
+        {
+            await dialogs.ShowMessageAsync("Item validation", "Fix the custom field values marked in red first.");
+            return false;
+        }
+
         try
         {
-            await items.EditAsync(Editor.Id, Editor.ToEdit());
+            await items.EditAsync(Editor.Id, Editor.ToEdit(), Editor.ChangedCustomFields);
             await LoadItemsAsync(Editor.Id);
             return true;
         }
@@ -324,9 +366,61 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>Throws away the draft, custom values included, and shows the stored item again.</summary>
     public void Revert()
     {
+        var previous = Editor;
         Editor = selectedItem is null ? null : CreateEditor(selectedItem);
+
+        if (previous is not null && Editor is not null)
+        {
+            Editor.TakeRevertedCustomFields(previous);
+        }
+    }
+
+    private async Task SaveFromCommandAsync()
+    {
+        await SaveAsync();
+    }
+
+    private bool CanSave()
+    {
+        return Editor is null || Editor.CustomFieldsValid;
+    }
+
+    private void ReplaceEditorSubscription(ItemEditorViewModel? previous, ItemEditorViewModel? current)
+    {
+        if (previous is not null)
+        {
+            previous.PropertyChanged -= OnEditorChanged;
+        }
+
+        if (current is not null)
+        {
+            current.PropertyChanged += OnEditorChanged;
+        }
+
+        saveCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnEditorChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ItemEditorViewModel.CustomFieldsValid))
+        {
+            saveCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private async Task<ItemEditorViewModel> CreateEditorAsync(ItemRowViewModel row)
+    {
+        var draft = CreateEditor(row);
+
+        if (fieldLoader is not null)
+        {
+            draft.LoadCustomFields(await fieldLoader.LoadAsync(projectId, draft.Id));
+        }
+
+        return draft;
     }
 
     private ItemEditorViewModel CreateEditor(ItemRowViewModel row)

@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:TaskTracker.Presentation.ViewModels;assembly=TaskTracker.Presentation"
+             x:Class="TaskTracker.App.Desktop.Views.CustomFieldsView"
+             x:CompileBindings="False">
+  <StackPanel Spacing="8">
+    <StackPanel Spacing="8" IsVisible="{Binding HasCustomFields}">
+      <TextBlock Text="Custom fields" FontWeight="SemiBold" Margin="0,12,0,0" />
+      <ItemsControl ItemsSource="{Binding CustomFields}">
+        <ItemsControl.DataTemplates>
+          <DataTemplate DataType="vm:TextFieldInputViewModel">
+            <StackPanel Spacing="4" Margin="0,0,0,8">
+              <TextBlock Text="{Binding Name}" />
+              <TextBox Text="{Binding Text, Mode=TwoWay}" AutomationProperties.Name="{Binding Name}"
+                       AutomationProperties.AutomationId="EditorCustomTextBox" />
+            </StackPanel>
+          </DataTemplate>
+          <DataTemplate DataType="vm:NumberFieldInputViewModel">
+            <StackPanel Spacing="4" Margin="0,0,0,8">
+              <TextBlock Text="{Binding Name}" />
+              <TextBox Text="{Binding Text, Mode=TwoWay}" AutomationProperties.Name="{Binding Name}"
+                       AutomationProperties.AutomationId="EditorCustomNumberBox" />
+              <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{DynamicResource AppDangerBrush}"
+                         IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                         AutomationProperties.AutomationId="EditorCustomNumberError" />
+            </StackPanel>
+          </DataTemplate>
+          <DataTemplate DataType="vm:DateFieldInputViewModel">
+            <StackPanel Spacing="4" Margin="0,0,0,8">
+              <TextBlock Text="{Binding Name}" />
+              <Grid ColumnDefinitions="*,32" ColumnSpacing="6">
+                <CalendarDatePicker SelectedDate="{Binding Date, Mode=TwoWay}" HorizontalAlignment="Stretch"
+                                    AutomationProperties.Name="{Binding Name}"
+                                    AutomationProperties.AutomationId="EditorCustomDatePicker" />
+                <Button Grid.Column="1" Content="✕" ToolTip.Tip="Clear date" Classes="subtle icon"
+                        Command="{Binding ClearCommand}" AutomationProperties.AutomationId="EditorCustomClearDateButton" />
+              </Grid>
+            </StackPanel>
+          </DataTemplate>
+          <DataTemplate DataType="vm:BooleanFieldInputViewModel">
+            <StackPanel Spacing="4" Margin="0,0,0,8">
+              <TextBlock Text="{Binding Name}" />
+              <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Name}"
+                        AutomationProperties.AutomationId="EditorCustomBooleanBox" />
+            </StackPanel>
+          </DataTemplate>
+          <DataTemplate DataType="vm:ChoiceFieldInputViewModel">
+            <StackPanel Spacing="4" Margin="0,0,0,8">
+              <TextBlock Text="{Binding Name}" />
+              <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding Name}"
+                        AutomationProperties.AutomationId="EditorCustomChoiceBox" />
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.DataTemplates>
+      </ItemsControl>
+    </StackPanel>
+    <StackPanel Spacing="4" IsVisible="{Binding HasArchivedFields}">
+      <TextBlock Text="Archived fields" FontSize="12" FontWeight="SemiBold" Opacity="0.7" />
+      <ItemsControl ItemsSource="{Binding ArchivedFields}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,2">
+              <TextBlock Text="{Binding Name}" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="1" Text="{Binding DisplayValue}" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

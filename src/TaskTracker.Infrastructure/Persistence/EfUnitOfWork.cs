@@ -14,6 +14,7 @@ public sealed class EfUnitOfWork : IUnitOfWork
         Folders = new EfFolderRepository(database);
         Items = new EfItemRepository(database);
         Lookups = new EfLookupRepository(database);
+        Fields = new EfFieldRepository(database);
         Settings = new EfSettingsStore(database);
     }
 
@@ -24,6 +25,8 @@ public sealed class EfUnitOfWork : IUnitOfWork
     public IItemRepository Items { get; }
 
     public ILookupRepository Lookups { get; }
+
+    public IFieldRepository Fields { get; }
 
     public ISettingsStore Settings { get; }
 

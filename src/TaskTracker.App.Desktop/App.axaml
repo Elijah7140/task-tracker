@@ -55,6 +55,7 @@
         <StreamGeometry x:Key="IconMoveUp">M12 4 L4 12 L5.4 13.4 L11 7.8 V20 H13 V7.8 L18.6 13.4 L20 12 Z</StreamGeometry>
         <StreamGeometry x:Key="IconMoveDown">M12 20 L20 12 L18.6 10.6 L13 16.2 V4 H11 V16.2 L5.4 10.6 L4 12 Z</StreamGeometry>
         <StreamGeometry x:Key="IconRename">M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z</StreamGeometry>
+        <StreamGeometry x:Key="IconUnarchive">M20.55 5.22l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.15.55L3.46 5.22C3.17 5.57 3 6.01 3 6.5V19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.49-.17-.93-.45-1.28zM12 9.5l5.5 5.5H14v2h-4v-2H6.5L12 9.5zM5.12 5l.82-1h12l.93 1H5.12z</StreamGeometry>
         <StreamGeometry x:Key="IconArchive">M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z</StreamGeometry>
         <ResourceDictionary.ThemeDictionaries>
           <ResourceDictionary x:Key="Light">

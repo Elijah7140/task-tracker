@@ -3,6 +3,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Settings;
 using TaskTracker.Presentation.Navigation;
 
@@ -34,12 +35,16 @@ public sealed class ProjectSettingsViewModel : ViewModelBase
     private Overrides saved;
 
     public ProjectSettingsViewModel(Guid projectId, SettingsService settings,
-        IDialogService dialogs, INavigationService navigation)
+        IDialogService dialogs, INavigationService navigation, FieldService? fields = null)
     {
         this.projectId = projectId;
         this.settings = settings;
         this.dialogs = dialogs;
         this.navigation = navigation;
+        if (fields is not null)
+        {
+            CustomFields = new FieldManagerViewModel(fields, dialogs, projectId);
+        }
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         BackCommand = new AsyncRelayCommand(BackAsync);
         resetAutoCommand = new RelayCommand(() => OverrideAutoComplete = false, () => OverrideAutoComplete);
@@ -157,6 +162,8 @@ public sealed class ProjectSettingsViewModel : ViewModelBase
 
     public ICommand BackCommand { get; }
 
+    public FieldManagerViewModel? CustomFields { get; }
+
     /// <summary>Unticks the override and shows the global value; takes effect only when saved.</summary>
     public ICommand ResetAutoCommand => resetAutoCommand;
 
@@ -182,6 +189,10 @@ public sealed class ProjectSettingsViewModel : ViewModelBase
         RedHours = effective.UrgencyRedThreshold.Value.TotalHours;
         saved = CurrentOverrides();
         Validate();
+        if (CustomFields is not null)
+        {
+            await CustomFields.LoadAsync();
+        }
     }
 
     public async Task SaveAsync()

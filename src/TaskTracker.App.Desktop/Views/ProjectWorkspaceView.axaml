@@ -118,7 +118,7 @@
               BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="16,20,16,16">
         <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
           <TextBlock Text="DETAILS" FontSize="12" FontWeight="SemiBold" Opacity="0.6" />
-          <ScrollViewer Grid.Row="1" AllowAutoHide="False" VerticalScrollBarVisibility="Auto"
+          <ScrollViewer x:Name="EditorScrollViewer" Grid.Row="1" AllowAutoHide="False" VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8" Margin="0,0,20,0">
               <TextBlock Text="Select an item to see its details." IsVisible="{Binding !HasEditor}"
@@ -169,6 +169,7 @@
                 <Button Grid.Column="1" Grid.RowSpan="2" Content="✕" ToolTip.Tip="Clear scheduled end"
                         Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearEndCommand}" AutomationProperties.AutomationId="EditorClearEndButton" />
               </Grid>
+              <views:CustomFieldsView />
               <TextBlock Text="Sub-items" FontWeight="SemiBold" Margin="0,12,0,0" />
               <ItemsControl ItemsSource="{Binding $parent[UserControl].DataContext.SelectedSubItems}">
                 <ItemsControl.ItemTemplate>

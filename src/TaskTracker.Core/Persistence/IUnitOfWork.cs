@@ -11,6 +11,8 @@ public interface IUnitOfWork : IAsyncDisposable
 
     ILookupRepository Lookups { get; }
 
+    IFieldRepository Fields { get; }
+
     ISettingsStore Settings { get; }
 
     Task SaveChangesAsync(CancellationToken cancellationToken);

@@ -35,6 +35,7 @@
         <views:LookupListView DataContext="{Binding ItemTypes}" Width="432" Margin="0,0,16,16" />
         <views:LookupListView DataContext="{Binding PriorityLevels}" Width="432" Margin="0,0,0,16" />
       </WrapPanel>
+      <views:FieldManagerView DataContext="{Binding CustomFields}" />
     </StackPanel>
   </ScrollViewer>
 </UserControl>

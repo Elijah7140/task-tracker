@@ -2,7 +2,9 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
+using TaskTracker.Core;
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Urgency;
@@ -335,4 +337,201 @@ public sealed class ItemServiceTests
         Assert.Equal(0, saved.Single(row => row.Id == second.Id).SortOrder);
         Assert.Equal(1, saved.Single(row => row.Id == first.Id).SortOrder);
     }
+    [Fact]
+    public async Task Failed_custom_value_keeps_built_in_edit_unsaved()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var field = await store.Fields(context).CreateAsync("Number", FieldDataType.Number, null);
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Original");
+        var edit = new ItemEdit("Changed", null, null, null, null, null, null, null, null);
+
+        await Assert.ThrowsAsync<DomainRuleException>(() => store.Items(context).EditAsync(item.Id,
+            edit, [new FieldValueInput(field.Id, NumberValue: double.NaN)]));
+        await using var reader = store.Open();
+
+        Assert.Equal("Original", (await reader.TodoItems.SingleAsync(row => row.Id == item.Id)).Title);
+        Assert.Empty(await reader.ItemFieldValues.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Archived_choice_keeps_its_value_through_an_item_edit()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var fields = store.Fields(context);
+        var field = await fields.CreateAsync("Status", FieldDataType.Choice, null);
+        var choice = await fields.AddChoiceAsync(field.Id, "Ready");
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Original");
+        var input = new FieldValueInput(field.Id, ChoiceId: choice.Id);
+        var edit = new ItemEdit("Original", null, null, null, null, null, null, null, null);
+        await store.Items(context).EditAsync(item.Id, edit, [input]);
+        await fields.ArchiveChoiceAsync(field.Id, choice.Id);
+
+        await store.Items(context).EditAsync(item.Id, edit with { Title = "Changed" }, [input]);
+        await using var reader = store.Open();
+
+        Assert.Equal(choice.Id, (await reader.ItemFieldValues.SingleAsync()).ChoiceId);
+    }
+
+    [Fact]
+    public async Task Project_field_cannot_be_set_on_another_projects_item()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var first = await store.Projects(context).CreateAsync("First");
+        var second = await store.Projects(context).CreateAsync("Second");
+        var field = await store.Fields(context).CreateAsync("Local", FieldDataType.Text, first.Id);
+        var item = await store.Items(context).CreateAsync(second.Id, null, null, "Item");
+        var edit = new ItemEdit("Item", null, null, null, null, null, null, null, null);
+
+        await Assert.ThrowsAsync<DomainRuleException>(() => store.Items(context).EditAsync(item.Id,
+            edit, [new FieldValueInput(field.Id, TextValue: "value")]));
+    }
+
+    [Fact]
+    public async Task Soft_deleted_item_retains_its_custom_value()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var field = await store.Fields(context).CreateAsync("Field", FieldDataType.Text, null);
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Item");
+        var edit = new ItemEdit("Item", null, null, null, null, null, null, null, null);
+        await store.Items(context).EditAsync(item.Id, edit, [new FieldValueInput(field.Id, TextValue: "value")]);
+
+        await store.Items(context).DeleteAsync(project.Id, null, item.Id);
+        await using var reader = store.Open();
+
+        Assert.Equal("value", (await reader.ItemFieldValues.SingleAsync()).TextValue);
+    }
+
+    [Fact]
+    public async Task Partial_edit_preserves_omitted_archived_fields_and_removes_blank_text()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var fields = store.Fields(context);
+        var archived = await fields.CreateAsync("Archived", FieldDataType.Text, null);
+        var edited = await fields.CreateAsync("Edited", FieldDataType.Text, null);
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Item");
+        var edit = new ItemEdit("Item", null, null, null, null, null, null, null, null);
+        await store.Items(context).EditAsync(item.Id, edit,
+            [new FieldValueInput(archived.Id, TextValue: "keep"), new FieldValueInput(edited.Id, TextValue: " trim ")]);
+        await fields.ArchiveAsync(archived.Id);
+
+        await store.Items(context).EditAsync(item.Id, edit with { Title = "Changed" },
+            [new FieldValueInput(edited.Id, TextValue: " ")]);
+        await using var reader = store.Open();
+
+        Assert.Equal("keep", (await reader.ItemFieldValues.SingleAsync()).TextValue);
+        Assert.Equal(archived.Id, (await reader.ItemFieldValues.SingleAsync()).FieldDefinitionId);
+    }
+
+    [Fact]
+    public async Task Every_custom_data_type_saves_and_reloads()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var fields = store.Fields(context);
+        var text = await fields.CreateAsync("Text", FieldDataType.Text, null);
+        var number = await fields.CreateAsync("Number", FieldDataType.Number, null);
+        var date = await fields.CreateAsync("Date", FieldDataType.Date, null);
+        var boolean = await fields.CreateAsync("Boolean", FieldDataType.Boolean, null);
+        var choiceField = await fields.CreateAsync("Choice", FieldDataType.Choice, null);
+        var choice = await fields.AddChoiceAsync(choiceField.Id, "Ready");
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Item");
+        var edit = new ItemEdit("Item", null, null, null, null, null, null, null, null);
+
+        await store.Items(context).EditAsync(item.Id, edit,
+            [new FieldValueInput(text.Id, TextValue: " trimmed "),
+             new FieldValueInput(number.Id, NumberValue: 1.5),
+             new FieldValueInput(date.Id, DateValue: new DateOnly(2026, 11, 13)),
+             new FieldValueInput(boolean.Id, BoolValue: false),
+             new FieldValueInput(choiceField.Id, ChoiceId: choice.Id)]);
+        await using var reader = store.Open();
+        var values = await reader.ItemFieldValues.ToListAsync();
+
+        Assert.Equal("trimmed", values.Single(value => value.FieldDefinitionId == text.Id).TextValue);
+        Assert.Equal(1.5, values.Single(value => value.FieldDefinitionId == number.Id).NumberValue);
+        Assert.Equal(new DateOnly(2026, 11, 13), values.Single(value => value.FieldDefinitionId == date.Id).DateValue);
+        Assert.False(values.Single(value => value.FieldDefinitionId == boolean.Id).BoolValue);
+        Assert.Equal(choice.Id, values.Single(value => value.FieldDefinitionId == choiceField.Id).ChoiceId);
+    }
+
+    [Fact]
+    public async Task Restore_preserves_custom_values_and_type_stays_locked_while_deleted()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var fields = store.Fields(context);
+        var field = await fields.CreateAsync("Field", FieldDataType.Text, null);
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Item");
+        var edit = new ItemEdit("Item", null, null, null, null, null, null, null, null);
+        await store.Items(context).EditAsync(item.Id, edit, [new FieldValueInput(field.Id, TextValue: "value")]);
+
+        var batch = await store.Items(context).DeleteAsync(project.Id, null, item.Id);
+        await Assert.ThrowsAsync<DomainRuleException>(() => fields.ChangeTypeAsync(field.Id, FieldDataType.Date));
+        await store.Items(context).RestoreAsync(project.Id, null, batch);
+        await using var reader = store.Open();
+
+        Assert.Equal("value", (await reader.ItemFieldValues.SingleAsync()).TextValue);
+        Assert.Null((await reader.TodoItems.SingleAsync(row => row.Id == item.Id)).DeletedAtUtc);
+    }
+
+    [Fact]
+    public async Task Failed_edit_does_not_leak_into_next_successful_operation()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var field = await store.Fields(context).CreateAsync("Number", FieldDataType.Number, null);
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Original");
+        var edit = new ItemEdit("Failed", null, null, null, null, null, null, null, null);
+
+        await Assert.ThrowsAsync<DomainRuleException>(() => store.Items(context).EditAsync(item.Id,
+            edit, [new FieldValueInput(field.Id, NumberValue: double.NaN)]));
+        await store.Items(context).CreateAsync(project.Id, null, null, "Later");
+        await using var reader = store.Open();
+
+        Assert.Equal("Original", (await reader.TodoItems.SingleAsync(row => row.Id == item.Id)).Title);
+        Assert.Empty(await reader.ItemFieldValues.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Custom_value_edit_waits_for_the_field_write_gate()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var item = await store.Items(context).CreateAsync(project.Id, null, null, "Item");
+        var gate = new FieldWriteGate();
+        var service = new ItemService(new TestUnitOfWorkFactory(context), store.Clock, TimeZoneInfo.Utc, gate);
+        var edit = new ItemEdit("Changed", null, null, null, null, null, null, null, null);
+        var firstLease = await gate.EnterAsync();
+
+        var pending = service.EditAsync(item.Id, edit, []);
+
+        Assert.False(pending.IsCompleted);
+        firstLease.Dispose();
+        await pending;
+        await using var reader = store.Open();
+
+        Assert.Equal("Changed", (await reader.TodoItems.SingleAsync(row => row.Id == item.Id)).Title);
+    }
+
 }

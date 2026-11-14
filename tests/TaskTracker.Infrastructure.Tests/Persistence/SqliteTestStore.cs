@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
@@ -49,6 +50,11 @@ internal sealed class SqliteTestStore : IAsyncDisposable
     public LookupService Lookups(TaskTrackerDbContext database)
     {
         return new LookupService(new TestUnitOfWorkFactory(database));
+    }
+
+    public FieldService Fields(TaskTrackerDbContext database)
+    {
+        return new FieldService(new TestUnitOfWorkFactory(database));
     }
 
     public SettingsService Settings(TaskTrackerDbContext database)

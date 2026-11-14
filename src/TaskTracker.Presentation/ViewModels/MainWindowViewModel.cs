@@ -1,4 +1,5 @@
 using TaskTracker.Core;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
@@ -19,11 +20,14 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     private readonly IUiDispatcher? dispatcher;
     private readonly SettingsService? settings;
     private readonly LookupService? lookups;
+    private readonly FieldService? fields;
+    private readonly ICustomFieldInputLoader? fieldLoader;
     private ViewModelBase? currentPage;
 
     public MainWindowViewModel(ProjectService projectService, FolderService folderService, IDialogService dialogs,
         ItemService? itemService = null, TimeProvider? clock = null, TimeZoneInfo? timeZone = null,
-        IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null)
+        IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null,
+        FieldService? fields = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -34,6 +38,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         this.dispatcher = dispatcher;
         this.settings = settings;
         this.lookups = lookups;
+        this.fields = fields;
+        fieldLoader = CreateFieldLoader(fields, itemService);
     }
 
     public string Title => "Task Tracker";
@@ -56,7 +62,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     {
         (CurrentPage as IDisposable)?.Dispose();
         var page = new ProjectWorkspaceViewModel(projectId, projectService, folderService, dialogs, this,
-            itemService, clock, timeZone, dispatcher);
+            itemService, clock, timeZone, dispatcher, fieldLoader);
 
         try
         {
@@ -84,7 +90,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         }
 
         (CurrentPage as IDisposable)?.Dispose();
-        var page = new AppSettingsViewModel(settings, dialogs, this, lookups, returnProjectId);
+        var page = new AppSettingsViewModel(settings, dialogs, this, lookups, returnProjectId, fields);
         await page.LoadAsync();
         CurrentPage = page;
     }
@@ -98,8 +104,18 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
 
         var project = await projectService.LoadWorkspaceAsync(projectId);
         (CurrentPage as IDisposable)?.Dispose();
-        var page = new ProjectSettingsViewModel(projectId, settings, dialogs, this);
+        var page = new ProjectSettingsViewModel(projectId, settings, dialogs, this, fields);
         await page.LoadAsync(project.Name);
         CurrentPage = page;
+    }
+
+    private static ICustomFieldInputLoader? CreateFieldLoader(FieldService? fields, ItemService? items)
+    {
+        if (fields is null || items is null)
+        {
+            return null;
+        }
+
+        return new CustomFieldInputLoader(fields, items);
     }
 }

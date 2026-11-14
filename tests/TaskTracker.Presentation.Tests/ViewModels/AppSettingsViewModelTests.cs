@@ -1,4 +1,5 @@
 #pragma warning disable xUnit1051
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Settings;
 using TaskTracker.Presentation.ViewModels;
 
@@ -209,5 +210,33 @@ public sealed class AppSettingsViewModelTests
         Assert.Equal("Discard unsaved settings?", Assert.Single(dialogs.ConfirmTitles));
         Assert.Equal(discard, navigation.WentHome);
         Assert.Equal(TimeSpan.FromDays(3), await store.Settings.GetGlobalAsync(SettingsCatalogue.UrgencyYellowThreshold));
+    }
+
+    [Fact]
+    public async Task Loading_the_page_loads_the_global_custom_fields()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        await store.Fields.CreateAsync("Effort", FieldDataType.Number, null);
+        await store.Fields.CreateAsync("Project note", FieldDataType.Text, project.Id);
+        var page = new AppSettingsViewModel(store.Settings, new FakeDialogService(),
+            new FakeNavigationService(), fields: store.Fields);
+
+        await page.LoadAsync();
+
+        Assert.Equal(["Effort"], page.CustomFields!.Rows.Select(row => row.Name));
+    }
+
+    [Fact]
+    public async Task Without_a_field_service_the_page_has_no_custom_field_manager()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var page = new AppSettingsViewModel(store.Settings, new FakeDialogService(), new FakeNavigationService());
+
+        await page.LoadAsync();
+
+        Assert.Null(page.CustomFields);
     }
 }

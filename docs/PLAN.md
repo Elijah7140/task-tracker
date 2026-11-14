@@ -375,6 +375,21 @@ Removing a choice archives it; items keep their value.
 - A field's `DataType` cannot change once any value exists; create a new field instead.
 - Indexes on `(FieldDefinitionId, TextValue)`, `(FieldDefinitionId, NumberValue)`,
   `(FieldDefinitionId, DateValue)`, `(FieldDefinitionId, ChoiceId)`.
+- Keys are creation-time lowercase slugs of display names, globally unique with numeric
+  collision suffixes, and never change on rename; the database has a unique key index.
+- Display names are required and trimmed, and are case-insensitively unique among active
+  fields visible together (global plus project fields).
+- Fields archive instead of deleting; unarchive rechecks name uniqueness, and archived
+  fields retain existing values.
+- A field's type changes only before any value exists.
+- Choice labels are required and trimmed, unique case-insensitively among active choices;
+  choices can be renamed, reordered, archived and restored without removing item values.
+- Numbers must be finite; text is trimmed, blank text removes the value, and null removes
+  the value.
+- Effective fields list active global fields first, then active project fields, each in
+  sort order; settings can also list archived fields.
+- An item edit updates only the custom fields supplied by the editor; omitted fields keep
+  their existing values. A blank or null supplied value removes that field's row.
 
 Why typed columns instead of a JSON blob: range queries ("severity ≥ 3",
 "reviewed before 2026-12-01") stay indexable and plain SQL.
