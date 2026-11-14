@@ -304,8 +304,8 @@ tooltip naming it, so the user knows the parent's own deadline isn't the cause.
 
 ### 6.4 Moving and ordering
 
-- Items reorder among siblings by drag-and-drop or Alt+↑/↓ (`SortOrder`, renumbered
-  among siblings on each move; sibling counts are small).
+- Items reorder among siblings by Alt+↑/↓ (`SortOrder`, renumbered among siblings on
+  each move; sibling counts are small). Drag-and-drop is on the roadmap (§10).
 - Moving a top-level item to another area **in the same project** moves its whole
   subtree (invariant 3). Moving between projects is out of scope for v1; if added later
   it must handle project-scoped custom fields.
@@ -496,6 +496,12 @@ Phases 0–2 are v1.
 
 - **Calendar view** (Phase 5): month and week grids; due dates as all-day or timed
   entries, scheduled items as blocks; drag to reschedule.
+- **Drag-and-drop items** in the item tree: drag a row up or down to change its order
+  among siblings; onto another item to make it a sub-item (or out of a parent to promote
+  it); onto a folder in the left tree to move it to that area (list) with its subtree.
+  The rules in §6.4 and §6.1 still apply; the view only translates a drop into the
+  existing reorder/move/move-to-area operations (§4). Needs a drop indicator, a
+  keyboard-equivalent path for every drop, and headless drag tests (§11.1).
 - Trash view with restore (data model already supports it, §5.3).
 - Reminders / OS notifications for approaching deadlines.
 - Recurring items.
