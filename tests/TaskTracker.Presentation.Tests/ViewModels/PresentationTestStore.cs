@@ -35,6 +35,9 @@ internal sealed class PresentationTestStore : IAsyncDisposable
     public TaskTracker.Core.Lookups.LookupService Lookups =>
         services.GetRequiredService<TaskTracker.Core.Lookups.LookupService>();
 
+    public TaskTracker.Core.Fields.FieldService Fields =>
+        services.GetRequiredService<TaskTracker.Core.Fields.FieldService>();
+
     public TaskTracker.Core.Persistence.IUnitOfWorkFactory UnitOfWorkFactory =>
         services.GetRequiredService<TaskTracker.Core.Persistence.IUnitOfWorkFactory>();
 

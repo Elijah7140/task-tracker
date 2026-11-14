@@ -3,6 +3,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Settings;
 using TaskTracker.Presentation.Navigation;
@@ -28,7 +29,8 @@ public sealed class AppSettingsViewModel : ViewModelBase
     private GlobalDefaults saved;
 
     public AppSettingsViewModel(SettingsService settings, IDialogService dialogs,
-        INavigationService navigation, LookupService? lookups = null, Guid? returnProjectId = null)
+        INavigationService navigation, LookupService? lookups = null, Guid? returnProjectId = null,
+        FieldService? fields = null)
     {
         this.settings = settings;
         this.dialogs = dialogs;
@@ -39,6 +41,11 @@ public sealed class AppSettingsViewModel : ViewModelBase
         {
             ItemTypes = new LookupListViewModel(lookups, dialogs, true);
             PriorityLevels = new LookupListViewModel(lookups, dialogs, false);
+        }
+
+        if (fields is not null)
+        {
+            CustomFields = new FieldManagerViewModel(fields, dialogs, null);
         }
 
         SaveCommand = new AsyncRelayCommand(SaveAsync);
@@ -112,6 +119,8 @@ public sealed class AppSettingsViewModel : ViewModelBase
 
     public LookupListViewModel? PriorityLevels { get; }
 
+    public FieldManagerViewModel? CustomFields { get; }
+
     public ICommand SaveCommand { get; }
 
     public ICommand BackCommand { get; }
@@ -134,6 +143,11 @@ public sealed class AppSettingsViewModel : ViewModelBase
         if (PriorityLevels is not null)
         {
             await PriorityLevels.LoadAsync();
+        }
+
+        if (CustomFields is not null)
+        {
+            await CustomFields.LoadAsync();
         }
     }
 

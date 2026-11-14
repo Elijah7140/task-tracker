@@ -1,6 +1,7 @@
 #pragma warning disable xUnit1051
 using CommunityToolkit.Mvvm.Input;
 
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
 using TaskTracker.Presentation.ViewModels;
@@ -231,6 +232,23 @@ public sealed class ProjectSettingsViewModelTests
 
         Assert.Equal("Discard unsaved settings?", Assert.Single(dialogs.ConfirmTitles));
         Assert.Equal(discard ? project.Id : (Guid?)null, navigation.OpenedProjectId);
+    }
+
+    [Fact]
+    public async Task Loading_the_page_loads_project_fields_and_lists_global_fields_as_inherited()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        await store.Fields.CreateAsync("Effort", FieldDataType.Number, null);
+        await store.Fields.CreateAsync("Project note", FieldDataType.Text, project.Id);
+        var page = new ProjectSettingsViewModel(project.Id, store.Settings, new FakeDialogService(),
+            new FakeNavigationService(), store.Fields);
+
+        await page.LoadAsync(project.Name);
+
+        Assert.Equal(["Project note"], page.CustomFields!.Rows.Select(row => row.Name));
+        Assert.Equal(["Effort"], page.CustomFields.Inherited.Select(row => row.Name));
     }
 
     private static async Task<ProjectSettingsViewModel> LoadPageAsync(PresentationTestStore store,

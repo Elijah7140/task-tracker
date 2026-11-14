@@ -1,8 +1,11 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Input;
 
 using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 
@@ -58,6 +61,93 @@ public sealed class ItemEditorViewModel : ViewModelBase
     }
 
     public Guid Id { get; }
+
+    /// <summary>The inputs for the item's active custom fields, in display order.</summary>
+    public ObservableCollection<CustomFieldInputViewModel> CustomFields { get; } = [];
+
+    /// <summary>Read-only values of archived fields the item still holds; never sent on save.</summary>
+    public ObservableCollection<CustomFieldInputViewModel> ArchivedFields { get; } = [];
+
+    /// <summary>True when the item has at least one active custom field, so the section is worth showing.</summary>
+    public bool HasCustomFields
+    {
+        get { return CustomFields.Count > 0; }
+    }
+
+    /// <summary>True when the item still holds a value for an archived field.</summary>
+    public bool HasArchivedFields
+    {
+        get { return ArchivedFields.Count > 0; }
+    }
+
+    /// <summary>False while any custom value cannot be parsed, which blocks saving.</summary>
+    public bool CustomFieldsValid
+    {
+        get { return CustomFields.All(input => input.Error is null); }
+    }
+
+    /// <summary>Only the active custom fields whose draft differs from the stored value.</summary>
+    public IReadOnlyList<FieldValueInput> ChangedCustomFields
+    {
+        get { return CustomFields.Where(input => input.IsDirty).Select(input => input.ToInput()).ToList(); }
+    }
+
+    /// <summary>Replaces the custom-field inputs, splitting archived fields from active ones.</summary>
+    public void LoadCustomFields(IEnumerable<CustomFieldInputViewModel> inputs)
+    {
+        var replacements = inputs.ToList();
+
+        foreach (var input in CustomFields)
+        {
+            input.PropertyChanged -= OnCustomFieldChanged;
+        }
+
+        CustomFields.Clear();
+        ArchivedFields.Clear();
+
+        foreach (var input in replacements)
+        {
+            AddCustomField(input);
+        }
+
+        OnPropertyChanged(nameof(HasCustomFields));
+        OnPropertyChanged(nameof(HasArchivedFields));
+        OnPropertyChanged(nameof(CustomFieldsValid));
+    }
+
+    /// <summary>Takes over the inputs of a draft being discarded, restoring their stored values.</summary>
+    public void TakeRevertedCustomFields(ItemEditorViewModel discarded)
+    {
+        var inputs = discarded.CustomFields.Concat(discarded.ArchivedFields).ToList();
+        discarded.LoadCustomFields([]);
+
+        foreach (var input in inputs)
+        {
+            input.Revert();
+        }
+
+        LoadCustomFields(inputs);
+    }
+
+    private void AddCustomField(CustomFieldInputViewModel input)
+    {
+        if (input.IsArchived)
+        {
+            ArchivedFields.Add(input);
+            return;
+        }
+
+        CustomFields.Add(input);
+        input.PropertyChanged += OnCustomFieldChanged;
+    }
+
+    private void OnCustomFieldChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CustomFieldInputViewModel.Error))
+        {
+            OnPropertyChanged(nameof(CustomFieldsValid));
+        }
+    }
 
     public string Title
     {
@@ -310,12 +400,19 @@ public sealed class ItemEditorViewModel : ViewModelBase
             date, time, start, end);
     }
 
-    /// <summary>Compares the parsed draft with the persisted item.</summary>
+    /// <summary>Compares the draft, custom fields included, with the persisted item.</summary>
     public bool IsDirty(TodoItem item)
     {
-        return ToEdit() != new ItemEdit(item.Title, item.Description, item.TicketNumber,
+        if (CustomFields.Any(input => input.IsDirty))
+        {
+            return true;
+        }
+
+        var stored = new ItemEdit(item.Title, item.Description, item.TicketNumber,
             item.ItemTypeId, item.PriorityLevelId, item.DueDate, item.DueTime,
             item.ScheduledStart, item.ScheduledEnd);
+
+        return ToEdit() != stored;
     }
 
     private static DateOnly? ParseDate(string text)

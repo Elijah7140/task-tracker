@@ -82,12 +82,29 @@ public sealed class SmokeSession : IDisposable
             ?? throw new InvalidOperationException($"Text {name} was not found.");
     }
 
-    /// <summary>Types into a control after focusing it.</summary>
+    /// <summary>
+    /// Types into a text box and checks the result. Desktop notifications can steal focus
+    /// mid-typing, so a box whose text doesn't match is cleared and typed again.
+    /// </summary>
     public void TypeInto(string automationId, string value)
     {
-        var element = Find(automationId);
-        element.Focus();
+        var box = Find(automationId).AsTextBox();
+        var typed = Retry.WhileFalse(() => TryType(box, value), TimeSpan.FromSeconds(10)).Result;
+
+        if (!typed)
+        {
+            throw new InvalidOperationException($"Could not type '{value}' into {automationId}.");
+        }
+    }
+
+    private static bool TryType(TextBox box, string value)
+    {
+        box.Focus();
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+        Keyboard.Type(VirtualKeyShort.DELETE);
         Keyboard.Type(value);
+        Wait.UntilInputIsProcessed();
+        return box.Text == value;
     }
 
     /// <summary>Sends a complete key press and release.</summary>
