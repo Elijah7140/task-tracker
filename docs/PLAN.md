@@ -494,6 +494,49 @@ Phases 0–2 are v1.
 
 ## 10. Roadmap (after v1)
 
+### 10.1 Requested by the owner (13 Nov 2026)
+
+When one of these is picked up, its agreed design replaces the sections it conflicts with.
+
+**UI pass: modern, Notion-like look.** The current UI needs a full visual pass.
+
+- Rounded corners on controls and surfaces throughout; a modern, clean style like Notion.
+- A Notion-style sidebar for navigation.
+- Circles, not square checkboxes, to show completion.
+- Urgency/severity as a subtle indicator (dot, pill or edge accent), not a background
+  color across the whole row.
+- Sized for 1080p and 1440p displays (density, font scale, spacing).
+- No long form with one field per row. Quick add by typing into an empty line at the
+  end of the list and pressing Enter; right-click → Edit opens a floating panel for the
+  item's metadata.
+- Conflicts with §8 (checkbox, urgency background, quick-add box at top, right-hand
+  detail pane) and §6.3 (pale row backgrounds).
+
+**Tickets as a separate item kind.**
+
+- Two kinds of item: **ToDo** (general, as today) and **Ticket** (a ToDo header with
+  ticket-specific metadata and features). A ticket's sub-items are ordinary ToDo items.
+- Ticket fields: ticket number, title, description. They are usually copied in from
+  another system, so pasting them in must be low-friction.
+- Paste in: the description is parsed so that each line becomes its own ToDo sub-item.
+- Export to clipboard: copy ticket number, copy title, copy description. Copy
+  description rebuilds the text from the sub-items, one per line, in two forms: with a
+  done/not-done marker on each line, and plain with no markers.
+- Child tickets: a ticket can link child tickets, which sit under the parent ticket
+  the way sub-items sit under a todo item.
+- New item status **Pending**, with a note of what the item is waiting on: a person or
+  another ticket.
+- Touches §5 (`TodoItem` already has `TicketNumber`; `ItemType` is a lookup list, so
+  "ticket" may need to be a real kind rather than an item type), §6.1 (completion
+  roll-up with child tickets and Pending) and §6.3 (does Pending affect urgency?).
+- Open questions: Is Pending a third state beside Open and Completed, and does it block
+  a parent's auto-completion? Is "waiting on a ticket" a link to a ticket in this app,
+  free text, or either? Which line formats does the parser handle (bullets, numbers,
+  `[ ]`/`[x]`, blank and indented lines), and is the original description kept? Which
+  done/not-done marker format on export? How do nested sub-items export?
+
+### 10.2 Other ideas
+
 - **Calendar view** (Phase 5): month and week grids; due dates as all-day or timed
   entries, scheduled items as blocks; drag to reschedule.
 - Trash view with restore (data model already supports it, §5.3).
