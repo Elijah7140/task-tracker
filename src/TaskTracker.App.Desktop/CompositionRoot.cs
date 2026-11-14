@@ -13,15 +13,20 @@ namespace TaskTracker.App.Desktop;
 /// <summary>The one place where the application's object graph is wired together.</summary>
 public static class CompositionRoot
 {
-    public static ServiceProvider BuildServices()
+    /// <summary>Builds application services, allowing deterministic test dependencies.</summary>
+    public static ServiceProvider BuildServices(
+        TimeProvider? clock = null,
+        TimeZoneInfo? timeZone = null,
+        string? databasePath = null,
+        IDialogService? dialogs = null)
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton(TimeProvider.System);
-        services.AddSingleton(TimeZoneInfo.Local);
+        services.AddSingleton(clock ?? TimeProvider.System);
+        services.AddSingleton(timeZone ?? TimeZoneInfo.Local);
         services.AddTaskTrackerCore();
-        var databasePath = Environment.GetEnvironmentVariable("TASKTRACKER_DB_PATH") ?? DatabaseInitializer.DefaultPath;
-        services.AddTaskTrackerInfrastructure(databasePath);
+        var path = databasePath ?? Environment.GetEnvironmentVariable("TASKTRACKER_DB_PATH") ?? DatabaseInitializer.DefaultPath;
+        services.AddTaskTrackerInfrastructure(path);
 
         // Views are matched to ViewModels explicitly; see ViewLocator.
         services.AddSingleton(_ => new ViewLocator()
@@ -32,7 +37,7 @@ public static class CompositionRoot
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<MainWindowViewModel>());
-        services.AddSingleton<IDialogService, AvaloniaDialogService>();
+        services.AddSingleton<IDialogService>(dialogs ?? new AvaloniaDialogService());
 
         return services.BuildServiceProvider(new ServiceProviderOptions
         {

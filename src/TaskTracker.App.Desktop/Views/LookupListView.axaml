@@ -28,7 +28,7 @@
                   <PathIcon Data="{StaticResource IconRename}" Width="14" Height="14" />
                 </Button>
                 <Button Grid.Column="4" Classes="subtle icon" ToolTip.Tip="{Binding ArchiveTooltip}"
-                        ToolTip.ShowOnDisabled="True"
+                        ToolTip.ShowOnDisabled="True" IsEnabled="{Binding CanArchive}"
                         Command="{Binding $parent[UserControl].DataContext.ArchiveCommand}" CommandParameter="{Binding}">
                   <PathIcon Data="{StaticResource IconArchive}" Width="14" Height="14" />
                 </Button>

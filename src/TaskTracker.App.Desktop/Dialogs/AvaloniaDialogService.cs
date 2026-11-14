@@ -12,6 +12,14 @@ namespace TaskTracker.App.Desktop.Dialogs;
 /// <summary>Shows modal input and message windows owned by the main window.</summary>
 public sealed class AvaloniaDialogService : IDialogService
 {
+    private readonly Window? owner;
+
+    /// <summary>Uses the supplied owner for dialogs, or the desktop main window.</summary>
+    public AvaloniaDialogService(Window? owner = null)
+    {
+        this.owner = owner;
+    }
+
     public async Task<string?> PromptAsync(string title, string label, string? initialValue = null)
     {
         var input = new TextBox { Text = initialValue ?? string.Empty, MinWidth = 320 };
@@ -35,7 +43,7 @@ public sealed class AvaloniaDialogService : IDialogService
     {
         var window = CreateWindow(title, new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
         AddButtons(window, confirmText, () => window.Close(true), "Cancel", () => window.Close(false));
-        window.Opened += (_, _) => ((StackPanel)((StackPanel)window.Content!).Children[^1]).Children[^1].Focus();
+        window.Opened += (_, _) => ((StackPanel)((StackPanel)window.Content!).Children[^1]).Children[0].Focus();
         return await window.ShowDialog<bool>(GetOwner());
     }
 
@@ -52,7 +60,13 @@ public sealed class AvaloniaDialogService : IDialogService
 
         foreach (var choice in new[] { DraftDecision.Save, DraftDecision.Discard, DraftDecision.Cancel })
         {
-            var button = new Button { Content = choice.ToString(), MinWidth = 80 };
+            var button = new Button
+            {
+                Content = choice.ToString(),
+                MinWidth = 80,
+                IsDefault = choice == DraftDecision.Save,
+                IsCancel = choice == DraftDecision.Cancel
+            };
             button.Click += (_, _) => window.Close(choice);
             buttons.Children.Add(button);
         }
@@ -80,7 +94,8 @@ public sealed class AvaloniaDialogService : IDialogService
     public async Task ShowMessageAsync(string title, string message)
     {
         var window = CreateWindow(title, new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        AddButtons(window, "OK", () => window.Close(), null, null);
+        var button = AddButtons(window, "OK", () => window.Close(), null, null);
+        button.IsCancel = true;
         await window.ShowDialog(GetOwner());
     }
 
@@ -140,9 +155,9 @@ public sealed class AvaloniaDialogService : IDialogService
         save.IsEnabled = validation.Text.Length == 0;
     }
 
-    private static Window GetOwner()
+    private Window GetOwner()
     {
         var lifetime = Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
-        return lifetime?.MainWindow ?? throw new InvalidOperationException("Main window is unavailable.");
+        return owner ?? lifetime?.MainWindow ?? throw new InvalidOperationException("Main window is unavailable.");
     }
 }

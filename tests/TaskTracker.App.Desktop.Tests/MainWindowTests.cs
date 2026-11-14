@@ -27,7 +27,7 @@ public sealed class MainWindowTests
     [AvaloniaFact]
     public async Task Home_renders_project_cards()
     {
-        using var services = await CreateServicesAsync();
+        using var services = await TestServices.CreateAsync();
         var projects = services.GetRequiredService<ProjectService>();
         await projects.CreateAsync("Billing DB");
         await projects.CreateAsync("Website refresh");
@@ -41,14 +41,14 @@ public sealed class MainWindowTests
         Assert.Equal("Task Tracker", window.Title);
         Assert.NotNull(frame);
         Assert.NotEmpty(window.GetVisualDescendants().OfType<HomeView>());
-        SaveScreenshotIfRequested(frame!, "home.png");
+        TestScreenshots.SaveIfRequested(frame!, "home.png");
         window.Close();
     }
 
     [AvaloniaFact]
     public async Task Workspace_renders_nested_folders()
     {
-        using var services = await CreateServicesAsync();
+        using var services = await TestServices.CreateAsync();
         var projects = services.GetRequiredService<ProjectService>();
         var folders = services.GetRequiredService<FolderService>();
         var project = await projects.CreateAsync("Billing DB");
@@ -65,14 +65,14 @@ public sealed class MainWindowTests
 
         Assert.NotNull(frame);
         Assert.NotEmpty(window.GetVisualDescendants().OfType<ProjectWorkspaceView>());
-        SaveScreenshotIfRequested(frame!, "workspace.png");
+        TestScreenshots.SaveIfRequested(frame!, "workspace.png");
         window.Close();
     }
 
     [AvaloniaFact]
     public async Task Tall_folder_tree_scrolls_inside_the_workspace()
     {
-        using var services = await CreateServicesAsync();
+        using var services = await TestServices.CreateAsync();
         var projects = services.GetRequiredService<ProjectService>();
         var folders = services.GetRequiredService<FolderService>();
         var project = await projects.CreateAsync("Many folders");
@@ -90,14 +90,14 @@ public sealed class MainWindowTests
         using var frame = window.CaptureRenderedFrame();
 
         Assert.NotNull(frame);
-        SaveScreenshotIfRequested(frame!, "tall-tree.png");
+        TestScreenshots.SaveIfRequested(frame!, "tall-tree.png");
         window.Close();
     }
 
     [AvaloniaFact]
     public async Task Dark_workspace_renders_nested_selection()
     {
-        using var services = await CreateServicesAsync();
+        using var services = await TestServices.CreateAsync();
         var projects = services.GetRequiredService<ProjectService>();
         var folders = services.GetRequiredService<FolderService>();
         var project = await projects.CreateAsync("Billing DB");
@@ -116,7 +116,7 @@ public sealed class MainWindowTests
         using var frame = window.CaptureRenderedFrame();
 
         Assert.NotNull(frame);
-        SaveScreenshotIfRequested(frame!, "workspace-dark.png");
+        TestScreenshots.SaveIfRequested(frame!, "workspace-dark.png");
         window.Close();
         application.RequestedThemeVariant = originalTheme;
     }
@@ -124,14 +124,14 @@ public sealed class MainWindowTests
     [AvaloniaFact]
     public async Task Workspace_renders_item_urgency_completion_and_editor_in_both_themes()
     {
-        using var services = await CreateServicesAsync();
+        using var services = await TestServices.CreateAsync();
         var projects = services.GetRequiredService<ProjectService>();
         var items = services.GetRequiredService<TaskTracker.Core.Items.ItemService>();
         var lookups = services.GetRequiredService<LookupService>();
         var change = (await lookups.ItemTypesAsync()).Single(type => type.Name == "Change");
         var high = (await lookups.PriorityLevelsAsync()).Single(level => level.Name == "High");
         var project = await projects.CreateAsync("Billing DB");
-        var localNow = TimeZoneInfo.ConvertTime(TimeProvider.System.GetUtcNow(), TimeZoneInfo.Local);
+        var localNow = TimeZoneInfo.ConvertTime(TestServices.Clock.GetUtcNow(), TestServices.TimeZone);
         var today = DateOnly.FromDateTime(localNow.DateTime);
         var parent = await items.CreateAsync(project.Id, null, null, "Update invoice indexes");
         var child = await items.CreateAsync(project.Id, null, parent.Id, "Check query plan");
@@ -168,7 +168,7 @@ public sealed class MainWindowTests
         Assert.True(parentRow.IsSelected);
         Assert.Equal("▾", parentRow.ExpanderGlyph);
         using var collapsed = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(collapsed!, "workspace-items-collapsed.png");
+        TestScreenshots.SaveIfRequested(collapsed!, "workspace-items-collapsed.png");
         page.IsCompletedExpanded = true;
         using var light = window.CaptureRenderedFrame();
         var controls = window.GetVisualDescendants().OfType<Control>().ToArray();
@@ -183,7 +183,7 @@ public sealed class MainWindowTests
         Assert.True(revert.Bounds.Bottom <= window.Bounds.Bottom);
         Assert.Equal(3, controls.OfType<CalendarDatePicker>().Count());
         Assert.Equal(3, controls.OfType<TimePicker>().Count());
-        SaveScreenshotIfRequested(light!, "workspace-items-light.png");
+        TestScreenshots.SaveIfRequested(light!, "workspace-items-light.png");
         var editorScroll = controls.OfType<ScrollViewer>()
             .Where(scroll => ReferenceEquals(scroll.DataContext, page) && scroll.Bounds.Width is > 280 and < 340)
             .OrderByDescending(scroll => scroll.Extent.Height - scroll.Viewport.Height)
@@ -192,18 +192,18 @@ public sealed class MainWindowTests
         using var editorLight = window.CaptureRenderedFrame();
         Assert.True(editorScroll.Offset.Y > 0);
         AssertSubItemsAndClearButtons(window, editorScroll);
-        SaveScreenshotIfRequested(editorLight!, "workspace-editor-light.png");
+        TestScreenshots.SaveIfRequested(editorLight!, "workspace-editor-light.png");
         editorScroll.Offset = default;
         application.RequestedThemeVariant = ThemeVariant.Dark;
         page.IsCompletedExpanded = false;
         using var darkCollapsed = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(darkCollapsed!, "workspace-items-collapsed-dark.png");
+        TestScreenshots.SaveIfRequested(darkCollapsed!, "workspace-items-collapsed-dark.png");
         page.IsCompletedExpanded = true;
         using var dark = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(dark!, "workspace-items-dark.png");
+        TestScreenshots.SaveIfRequested(dark!, "workspace-items-dark.png");
         editorScroll.Offset = new Avalonia.Vector(0, 500);
         using var editorDark = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(editorDark!, "workspace-editor-dark.png");
+        TestScreenshots.SaveIfRequested(editorDark!, "workspace-editor-dark.png");
         application.RequestedThemeVariant = originalTheme;
         window.Close();
 
@@ -216,7 +216,7 @@ public sealed class MainWindowTests
     [InlineData(true)]
     public async Task Checkbox_click_restores_persisted_state_when_completion_does_not_change(bool blocked)
     {
-        using var services = await CreateServicesAsync();
+        using var services = await TestServices.CreateAsync();
         var projects = services.GetRequiredService<ProjectService>();
         var folders = services.GetRequiredService<FolderService>();
         var items = services.GetRequiredService<ItemService>();
@@ -263,7 +263,7 @@ public sealed class MainWindowTests
     [AvaloniaFact]
     public async Task Settings_screens_render_in_both_themes()
     {
-        using var services = await CreateServicesAsync();
+        using var services = await TestServices.CreateAsync();
         var projects = services.GetRequiredService<ProjectService>();
         var settings = services.GetRequiredService<TaskTracker.Core.Settings.SettingsService>();
         var lookups = services.GetRequiredService<LookupService>();
@@ -280,19 +280,19 @@ public sealed class MainWindowTests
         window.Show();
         await shell.OpenAppSettingsAsync();
         using var appLight = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(appLight!, "app-settings-light.png");
+        TestScreenshots.SaveIfRequested(appLight!, "app-settings-light.png");
         AssertAppSettingsLayout(window);
         application.RequestedThemeVariant = ThemeVariant.Dark;
         using var appDark = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(appDark!, "app-settings-dark.png");
+        TestScreenshots.SaveIfRequested(appDark!, "app-settings-dark.png");
         application.RequestedThemeVariant = ThemeVariant.Light;
         await shell.OpenProjectSettingsAsync(project.Id);
         using var projectLight = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(projectLight!, "project-settings-light.png");
+        TestScreenshots.SaveIfRequested(projectLight!, "project-settings-light.png");
         AssertProjectSettingsLayout(window);
         application.RequestedThemeVariant = ThemeVariant.Dark;
         using var projectDark = window.CaptureRenderedFrame();
-        SaveScreenshotIfRequested(projectDark!, "project-settings-dark.png");
+        TestScreenshots.SaveIfRequested(projectDark!, "project-settings-dark.png");
         application.RequestedThemeVariant = originalTheme;
         window.Close();
 
@@ -387,24 +387,4 @@ public sealed class MainWindowTests
         }
     }
 
-    private static async Task<ServiceProvider> CreateServicesAsync()
-    {
-        var databasePath = Path.Combine(Path.GetTempPath(), $"tasktracker-screenshot-{Guid.CreateVersion7()}.db");
-        Environment.SetEnvironmentVariable("TASKTRACKER_DB_PATH", databasePath);
-        var services = CompositionRoot.BuildServices();
-        using var scope = services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
-        return services;
-    }
-
-    /// <summary>Writes the frame to $TASKTRACKER_SCREENSHOT_DIR when that variable is set.</summary>
-    private static void SaveScreenshotIfRequested(Avalonia.Media.Imaging.Bitmap frame, string fileName)
-    {
-        var directory = Environment.GetEnvironmentVariable("TASKTRACKER_SCREENSHOT_DIR");
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-            frame.Save(Path.Combine(directory, fileName), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
-        }
-    }
 }

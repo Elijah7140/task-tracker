@@ -20,3 +20,11 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
       - run: dotnet test --no-build --configuration Release
+      # Snapshot tests write *.received.png when an image differs or a baseline is missing.
+      - name: Upload received snapshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: received-snapshots-${{ matrix.os }}
+          path: tests/**/Snapshots/*.received.png
+          if-no-files-found: ignore

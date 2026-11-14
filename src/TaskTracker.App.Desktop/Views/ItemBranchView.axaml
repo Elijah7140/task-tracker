@@ -37,7 +37,7 @@
       <Grid>
       <!-- Detail columns share their width across all rows (scope set in ProjectWorkspaceView),
            so they align without reserving space for values no row has. -->
-      <Grid ColumnSpacing="12" IsVisible="{Binding !IsFinished}">
+      <Grid ColumnSpacing="5" IsVisible="{Binding !IsFinished}">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="22" />
           <ColumnDefinition Width="26" />

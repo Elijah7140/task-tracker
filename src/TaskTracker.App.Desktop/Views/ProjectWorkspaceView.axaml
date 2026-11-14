@@ -47,7 +47,7 @@
       <Button Grid.Column="2" Content="Project settings" Command="{Binding ProjectSettingsCommand}" Classes="subtle" />
       </Grid>
     </Border>
-    <Grid Grid.Row="1" ColumnDefinitions="230,*,350">
+    <Grid Grid.Row="1" ColumnDefinitions="230,*,320">
       <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
               Padding="16,22">
         <Grid RowDefinitions="Auto,*" RowSpacing="16">
@@ -59,20 +59,19 @@
                 <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                 <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
                 <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="ContextMenu">
+                  <ContextMenu>
+                    <MenuItem Header="New folder" Command="{Binding NewFolderCommand}" />
+                    <MenuItem Header="Rename" Command="{Binding RenameCommand}" IsVisible="{Binding !IsRoot}" />
+                    <MenuItem Header="Move" Command="{Binding MoveCommand}" IsVisible="{Binding !IsRoot}" />
+                    <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding !IsRoot}" />
+                  </ContextMenu>
+                </Setter>
               </Style>
             </TreeView.Styles>
             <TreeView.ItemTemplate>
               <TreeDataTemplate ItemsSource="{Binding Children}">
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Padding="4,6">
-                  <TextBlock.ContextMenu>
-                    <ContextMenu>
-                      <MenuItem Header="New folder" Command="{Binding NewFolderCommand}" />
-                      <MenuItem Header="Rename" Command="{Binding RenameCommand}" IsVisible="{Binding !IsRoot}" />
-                      <MenuItem Header="Move" Command="{Binding MoveCommand}" IsVisible="{Binding !IsRoot}" />
-                      <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding !IsRoot}" />
-                    </ContextMenu>
-                  </TextBlock.ContextMenu>
-                </TextBlock>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Padding="4,6" />
               </TreeDataTemplate>
             </TreeView.ItemTemplate>
           </TreeView>
@@ -151,21 +150,21 @@
               </Grid>
               <TextBlock Text="Due time" />
               <Grid ColumnDefinitions="*,32" ColumnSpacing="6">
-                <TimePicker SelectedTime="{Binding DueTimePickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <TimePicker SelectedTime="{Binding DueTimePickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" MinWidth="0" />
                 <Button Grid.Column="1" Content="✕" ToolTip.Tip="Clear due time" Classes="subtle icon"
                         Command="{Binding ClearDueTimeCommand}" />
               </Grid>
               <TextBlock Text="Scheduled start" />
               <Grid ColumnDefinitions="*,32" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
                 <CalendarDatePicker SelectedDate="{Binding StartPickerDate, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-                <TimePicker Grid.Row="1" SelectedTime="{Binding StartPickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <TimePicker Grid.Row="1" SelectedTime="{Binding StartPickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" MinWidth="0" />
                 <Button Grid.Column="1" Grid.RowSpan="2" Content="✕" ToolTip.Tip="Clear scheduled start"
                         Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearStartCommand}" />
               </Grid>
               <TextBlock Text="Scheduled end" />
               <Grid ColumnDefinitions="*,32" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="4">
                 <CalendarDatePicker SelectedDate="{Binding EndPickerDate, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-                <TimePicker Grid.Row="1" SelectedTime="{Binding EndPickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                <TimePicker Grid.Row="1" SelectedTime="{Binding EndPickerTime, Mode=TwoWay}" HorizontalAlignment="Stretch" MinWidth="0" />
                 <Button Grid.Column="1" Grid.RowSpan="2" Content="✕" ToolTip.Tip="Clear scheduled end"
                         Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearEndCommand}" />
               </Grid>
