@@ -14,7 +14,7 @@ using TaskTracker.Presentation.Navigation;
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>Displays a project folder tree and the selected area.</summary>
-public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
+public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUnsavedChangesGuard
 {
     private readonly Guid projectId;
     private readonly ProjectService projects;
@@ -53,6 +53,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
             dispatcher ?? new SynchronizationContextDispatcher(SynchronizationContext.Current));
         HomeCommand = new AsyncRelayCommand(GoHomeAsync);
         SettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
+        SearchCommand = new AsyncRelayCommand(navigation.OpenSearchAsync);
         ProjectSettingsCommand = new AsyncRelayCommand(OpenProjectSettingsAsync);
         QuickAddCommand = new AsyncRelayCommand(QuickAddAsync);
         AddSubItemCommand = new AsyncRelayCommand(AddSubItemAsync);
@@ -70,6 +71,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
 
     public string ProjectName { get; private set; } = string.Empty;
 
+    public Guid ProjectId => projectId;
+
     public string SelectedAreaName => folderTree.SelectedAreaName;
 
     public FolderNodeViewModel? SelectedFolder => folderTree.Selected;
@@ -79,6 +82,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
     public ICommand HomeCommand { get; }
 
     public ICommand SettingsCommand { get; }
+
+    public ICommand SearchCommand { get; }
 
     public ICommand ProjectSettingsCommand { get; }
 
@@ -195,11 +200,16 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         urgencyRefresher.Refresh(areaSnapshot, OpenItems.Concat(CompletedItems));
     }
 
-    public async Task LoadAsync(Guid? selectedId = null)
+    /// <summary>
+    /// Loads the project, selecting a folder and optionally an item that is revealed in the tree.
+    /// Returns false when nothing was loaded: the user cancelled leaving an unsaved draft,
+    /// or the project is gone and the shell went Home.
+    /// </summary>
+    public async Task<bool> LoadAsync(Guid? selectedFolderId = null, Guid? selectedItemId = null)
     {
         if (folderTree.Root is not null && !await ResolveDraftAsync())
         {
-            return;
+            return false;
         }
 
         ProjectWorkspaceSnapshot snapshot;
@@ -212,14 +222,17 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         {
             await navigation.GoHomeAsync();
             await dialogs.ShowMessageAsync("Project unavailable", exception.Message);
-            return;
+            return false;
         }
+
         ProjectName = snapshot.Name;
         OnPropertyChanged(nameof(ProjectName));
-        folderTree.Load(snapshot, selectedId);
+        folderTree.Load(snapshot, selectedFolderId);
         OnPropertyChanged(nameof(SelectedFolder));
         OnPropertyChanged(nameof(SelectedAreaName));
-        await LoadItemsAsync();
+        await LoadItemsAsync(selectedItemId);
+        RevealItem(selectedItemId);
+        return true;
     }
 
     public void Select(FolderNodeViewModel node)
@@ -280,6 +293,36 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         await SelectLoadedItemAsync(selectedItemId ?? selectedItem?.Id);
     }
 
+    /// <summary>Expands the ancestors of an item, and the Completed sections that hold it.</summary>
+    private void RevealItem(Guid? itemId)
+    {
+        var row = FindRow(itemId);
+
+        while (row is not null)
+        {
+            var parent = FindRow(row.ParentId);
+            ExpandContainerOf(row, parent);
+            row = parent;
+        }
+    }
+
+    private void ExpandContainerOf(ItemRowViewModel row, ItemRowViewModel? parent)
+    {
+        if (parent is null)
+        {
+            IsCompletedExpanded |= CompletedItems.Contains(row);
+            return;
+        }
+
+        parent.IsExpanded = true;
+        parent.IsCompletedExpanded |= parent.CompletedChildren.Contains(row);
+    }
+
+    private ItemRowViewModel? FindRow(Guid? id)
+    {
+        return AllItems().FirstOrDefault(candidate => candidate.Id == id);
+    }
+
     private IEnumerable<ItemRowViewModel> AllItems()
     {
         return areaItems.AllItems();
@@ -333,6 +376,12 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable
         {
             row.IsSelected = true;
         }
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ConfirmLeaveAsync()
+    {
+        return ResolveDraftAsync();
     }
 
     internal async Task<bool> ResolveDraftAsync()

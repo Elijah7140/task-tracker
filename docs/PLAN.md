@@ -482,6 +482,10 @@ All search code is tested against real SQLite.
   Unicode-folded title, and item ID. Filtering, ordering, projection and `limit + 1`
   happen in SQL.
 
+- The search screen keeps its originating page for Back/Escape. Its scope starts at all projects
+  from Home, the project from a workspace root, or the selected folder from a workspace folder.
+  Changing scope removes filters whose fields are unavailable in the new scope.
+
 **Later:** a text syntax (`type:error priority>=high due<2026-12-01 "deadlock"`) that
 parses into an `ItemQuery`, and saved searches.
 

@@ -33,7 +33,8 @@ public static class CompositionRoot
             .Register<HomeViewModel, HomeView>()
             .Register<AppSettingsViewModel, AppSettingsView>()
             .Register<ProjectSettingsViewModel, ProjectSettingsView>()
-            .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>());
+            .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>()
+            .Register<SearchViewModel, SearchView>());
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<MainWindowViewModel>());

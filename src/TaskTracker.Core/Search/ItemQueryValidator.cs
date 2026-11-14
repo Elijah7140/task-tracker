@@ -64,6 +64,11 @@ public sealed class ItemQueryValidator(IUnitOfWorkFactory factory)
     {
         var operation = filter.Operator;
 
+        if (!SearchOperators.For(field).Contains(operation))
+        {
+            throw new DomainRuleException($"Invalid operator for search field '{field.Key}'.");
+        }
+
         if (operation is FilterOperator.IsEmpty or FilterOperator.IsNotEmpty)
         {
             if (filter.Value is not null)
@@ -84,17 +89,13 @@ public sealed class ItemQueryValidator(IUnitOfWorkFactory factory)
 
     private static bool HasValidValue(SearchableField field, FieldFilter filter)
     {
-        var operation = filter.Operator;
-
         return field.DataType switch
         {
-            FieldDataType.Text => operation is FilterOperator.Equals or FilterOperator.NotEquals or FilterOperator.Contains
-                && filter.Value is FilterValue.Text { Value: not null },
-            FieldDataType.Number => ValidateOrdered(operation, filter.Value, true),
-            FieldDataType.Date => ValidateOrdered(operation, filter.Value, false),
-            FieldDataType.Boolean => operation is FilterOperator.Equals or FilterOperator.NotEquals
-                && filter.Value is FilterValue.Bool,
-            FieldDataType.Choice => ValidateChoiceOperator(field, operation, filter.Value),
+            FieldDataType.Text => filter.Value is FilterValue.Text { Value: not null },
+            FieldDataType.Number => ValidateOrdered(filter.Operator, filter.Value, true),
+            FieldDataType.Date => ValidateOrdered(filter.Operator, filter.Value, false),
+            FieldDataType.Boolean => filter.Value is FilterValue.Bool,
+            FieldDataType.Choice => ValidateChoiceValue(field, filter),
             _ => false
         };
     }
@@ -137,34 +138,43 @@ public sealed class ItemQueryValidator(IUnitOfWorkFactory factory)
 
     private static bool ValidateOrdered(FilterOperator operation, FilterValue? value, bool number)
     {
-        if (operation is FilterOperator.Between)
+        var isRange = operation is FilterOperator.Between;
+
+        if (number)
         {
-            return number
-                ? value is FilterValue.NumberRange range && double.IsFinite(range.Min)
-                    && double.IsFinite(range.Max) && range.Min <= range.Max
-                : value is FilterValue.DateRange dates && dates.Min <= dates.Max;
+            return isRange ? IsValidNumberRange(value) : IsFiniteNumber(value);
         }
 
-        if (operation is not (FilterOperator.Equals or FilterOperator.NotEquals
-            or FilterOperator.GreaterThan or FilterOperator.LessThan))
+        return isRange ? IsValidDateRange(value) : value is FilterValue.Date;
+    }
+
+    private static bool IsFiniteNumber(FilterValue? value)
+    {
+        return value is FilterValue.Number numeric && double.IsFinite(numeric.Value);
+    }
+
+    private static bool IsValidNumberRange(FilterValue? value)
+    {
+        if (value is not FilterValue.NumberRange range)
         {
             return false;
         }
 
-        return number ? value is FilterValue.Number numeric && double.IsFinite(numeric.Value)
-            : value is FilterValue.Date;
+        return double.IsFinite(range.Min) && double.IsFinite(range.Max) && range.Min <= range.Max;
     }
 
-    private static bool ValidateChoiceOperator(SearchableField field, FilterOperator operation, FilterValue? value)
+    private static bool IsValidDateRange(FilterValue? value)
     {
-        if (field.Key == "priority" && field.IsBuiltIn && operation == FilterOperator.Between)
+        return value is FilterValue.DateRange dates && dates.Min <= dates.Max;
+    }
+
+    private static bool ValidateChoiceValue(SearchableField field, FieldFilter filter)
+    {
+        if (field.Key == "priority" && field.IsBuiltIn && filter.Operator == FilterOperator.Between)
         {
-            return value is FilterValue.ChoiceRange;
+            return filter.Value is FilterValue.ChoiceRange;
         }
 
-        var allowed = operation is FilterOperator.Equals or FilterOperator.NotEquals;
-        allowed |= field.Key == "priority" && field.IsBuiltIn
-            && operation is FilterOperator.GreaterThan or FilterOperator.LessThan;
-        return allowed && value is FilterValue.Choice;
+        return filter.Value is FilterValue.Choice;
     }
 }

@@ -16,6 +16,7 @@ using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Search;
 using TaskTracker.Infrastructure.Persistence;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
@@ -384,6 +385,21 @@ public sealed class MainWindowTests
         public Task OpenProjectAsync(Guid projectId)
         {
             return Task.CompletedTask;
+        }
+
+        public Task OpenSearchAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ReturnFromSearchAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result)
+        {
+            return Task.FromResult(SearchOpenOutcome.Opened);
         }
     }
 

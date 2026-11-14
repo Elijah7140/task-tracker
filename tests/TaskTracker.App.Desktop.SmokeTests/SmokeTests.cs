@@ -19,6 +19,50 @@ public sealed class SmokeTests
     private static readonly DateTime ReviewDate = new(2026, 11, 20);
 
     [Fact]
+    public void Search_matches_builtin_priority_and_custom_number_then_opens_result()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            CreateProject(session);
+            session.Find("AppSettingsButton").Click();
+            AddField(session, "Effort", FieldDataType.Number);
+            session.Find("AppSettingsBackButton").AsButton().Invoke();
+            session.WaitUntil(() => session.HasControl("OpenProjectButton"), "home after settings");
+            session.Find("OpenProjectButton").AsButton().Invoke();
+            CreateFolderAndSelectIt(session, "Smoke Folder");
+            AddItemWithPriorityAndEffort(session, "Priority match", "High", "2");
+            AddItemWithPriorityAndEffort(session, "Effort match", "Low", "10");
+
+            session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
+            session.Find("HomeSearchButton").AsButton().Invoke();
+            AddSearchFilter(session, "Priority", "is");
+            session.SelectByName("FilterValueChoiceComboBox", "High");
+            session.Find("SearchButton").AsButton().Invoke();
+            session.FindText("Priority match");
+            Assert.False(session.HasText("Effort match"));
+
+            session.Find("RemoveFilterButton").AsButton().Invoke();
+            AddSearchFilter(session, "Effort", "greater than");
+            session.TypeInto("FilterValueNumberBox", "5");
+            session.Find("SearchButton").AsButton().Invoke();
+            session.WaitUntil(() => session.HasText("Effort match") && !session.HasText("Priority match"),
+                "the custom number result to replace the priority result");
+            var resultRow = session.FindNamed("SearchResultRow", "Effort match");
+            session.Window.Focus();
+            resultRow.Focus();
+            session.WaitUntil(() => resultRow.Properties.HasKeyboardFocus.Value,
+                "the search result to have keyboard focus");
+            session.Press(VirtualKeyShort.RETURN);
+
+            session.FindNamed("BreadcrumbButton", "Smoke Project");
+            session.FindText("Smoke Folder");
+            session.FindNamed("ItemTitleButton", "Effort match");
+            Assert.Equal("Effort match", session.Find("EditorTitleBox").AsTextBox().Text);
+        });
+    }
+
+    [Fact]
     public void Custom_fields_of_each_type_persist_after_reopening_the_project()
     {
         Run(session =>
@@ -91,19 +135,7 @@ public sealed class SmokeTests
         Run(session =>
         {
             OpenProject(session);
-            var root = session.Find("FolderTree").FindFirstDescendant(query => query.ByName("Smoke Project"));
-            Assert.NotNull(root);
-
-            root.RightClick();
-            session.Find("NewFolderMenuItem").Click();
-            session.TypeInto("DialogInput", "Smoke Folder");
-            session.Press(VirtualKeyShort.RETURN);
-            session.WaitUntil(() => session.Find("FolderTree").FindFirstDescendant(
-                query => query.ByName("Smoke Folder")) is not null, "the new folder");
-            var folder = session.Find("FolderTree").FindFirstDescendant(query => query.ByName("Smoke Folder"));
-            Assert.NotNull(folder);
-
-            folder.Click();
+            CreateFolderAndSelectIt(session, "Smoke Folder");
             AddItem(session, "Folder item");
 
             Assert.NotNull(session.FindNamed("ItemTitleButton", "Folder item"));
@@ -299,6 +331,41 @@ public sealed class SmokeTests
         }
     }
 
+    private static void CreateFolderAndSelectIt(SmokeSession session, string name)
+    {
+        var projectName = "Smoke Project";
+        var root = session.Find("FolderTree").FindFirstDescendant(query => query.ByName(projectName));
+        Assert.NotNull(root);
+        root.RightClick();
+        session.Find("NewFolderMenuItem").Click();
+        session.TypeInto("DialogInput", name);
+        session.Press(VirtualKeyShort.RETURN);
+        session.WaitUntil(() => session.Find("FolderTree").FindFirstDescendant(
+            query => query.ByName(name)) is not null, "the new folder");
+        var folder = session.Find("FolderTree").FindFirstDescendant(query => query.ByName(name));
+        Assert.NotNull(folder);
+        folder.Click();
+    }
+
+    private static void AddItemWithPriorityAndEffort(SmokeSession session, string title, string priority, string effort)
+    {
+        AddItem(session, title);
+        session.FindNamed("ItemTitleButton", title).Click();
+        session.SelectByName("EditorPriorityBox", priority);
+        session.TypeInto("EditorCustomNumberBox", effort);
+        var editorBeforeSave = session.Find("EditorCustomNumberBox").Properties.RuntimeId.Value;
+        session.Find("EditorSaveButton").AsButton().Invoke();
+        session.WaitUntil(() => NumberEditorWasReplaced(session, editorBeforeSave),
+            $"{title} to finish saving");
+    }
+
+    private static void AddSearchFilter(SmokeSession session, string fieldName, string operatorName)
+    {
+        session.Find("AddFilterButton").AsButton().Invoke();
+        session.SelectByName("FilterFieldComboBox", fieldName);
+        session.SelectByName("FilterOperatorComboBox", operatorName);
+    }
+
     private static void FillCustomFields(SmokeSession session)
     {
         ReplaceText(session, "EditorCustomTextBox", "Review database");
@@ -327,6 +394,13 @@ public sealed class SmokeTests
         var current = session.Window.FindFirstDescendant(query => query.ByAutomationId("EditorCustomTextBox"));
         var runtimeId = current?.Properties.RuntimeId.ValueOrDefault;
 
+        return runtimeId is not null && !previousRuntimeId.SequenceEqual(runtimeId);
+    }
+
+    private static bool NumberEditorWasReplaced(SmokeSession session, int[] previousRuntimeId)
+    {
+        var current = session.Window.FindFirstDescendant(query => query.ByAutomationId("EditorCustomNumberBox"));
+        var runtimeId = current?.Properties.RuntimeId.ValueOrDefault;
         return runtimeId is not null && !previousRuntimeId.SequenceEqual(runtimeId);
     }
 

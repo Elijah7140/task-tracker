@@ -26,6 +26,7 @@ public sealed class HomeViewModel : ViewModelBase
         RenameCommand = new AsyncRelayCommand<ProjectCardViewModel>(RenameAsync);
         DeleteCommand = new AsyncRelayCommand<ProjectCardViewModel>(DeleteAsync);
         SettingsCommand = new AsyncRelayCommand(() => navigation.OpenAppSettingsAsync());
+        SearchCommand = new AsyncRelayCommand(navigation.OpenSearchAsync);
         ProjectSettingsCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenProjectSettingsAsync);
     }
 
@@ -42,6 +43,8 @@ public sealed class HomeViewModel : ViewModelBase
     public ICommand DeleteCommand { get; }
 
     public ICommand SettingsCommand { get; }
+
+    public ICommand SearchCommand { get; }
 
     public ICommand ProjectSettingsCommand { get; }
 

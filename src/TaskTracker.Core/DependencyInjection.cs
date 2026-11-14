@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddSingleton<IFieldRegistry, FieldRegistry>();
         services.AddSingleton<ItemQueryValidator>();
         services.AddSingleton<ItemSearchService>();
+        services.AddSingleton<IItemSearchService>(provider => provider.GetRequiredService<ItemSearchService>());
         return services;
     }
 }

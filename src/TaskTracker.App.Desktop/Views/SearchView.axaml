@@ -1,0 +1,124 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TaskTracker.App.Desktop.Views.SearchView"
+             x:CompileBindings="False">
+  <UserControl.Resources>
+    <DataTemplate x:Key="FieldItemTemplate">
+      <TextBlock Text="{Binding DisplayName}" />
+    </DataTemplate>
+    <DataTemplate x:Key="LabelItemTemplate">
+      <TextBlock Text="{Binding Label}" />
+    </DataTemplate>
+  </UserControl.Resources>
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="32" RowSpacing="16">
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+      <Button Content="← Back" Command="{Binding BackCommand}" AutomationProperties.AutomationId="SearchBackButton" />
+      <TextBlock Grid.Column="1" Text="Search" FontSize="30" FontWeight="SemiBold" VerticalAlignment="Center" />
+      <Button Grid.Column="2" Content="Search" Classes="accent" Command="{Binding SearchCommand}"
+              IsEnabled="{Binding CanSearch}" AutomationProperties.AutomationId="SearchButton" />
+    </Grid>
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
+      <TextBox x:Name="SearchTextBox" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               PlaceholderText="Title, description, or ticket" AutomationProperties.AutomationId="SearchTextBox">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+        </TextBox.KeyBindings>
+      </TextBox>
+      <ComboBox Grid.Column="1" Width="150" ItemsSource="{Binding ScopeOptions}"
+                SelectedItem="{Binding SelectedScope, Mode=TwoWay}"
+                ItemTemplate="{StaticResource LabelItemTemplate}"
+                AutomationProperties.AutomationId="SearchScopeComboBox" />
+      <CheckBox Grid.Column="2" Content="Include subfolders" IsChecked="{Binding IncludeSubfolders, Mode=TwoWay}"
+                IsVisible="{Binding IsFolderScope}" AutomationProperties.AutomationId="IncludeSubfoldersCheckBox" />
+      <CheckBox Grid.Column="3" Content="Include completed" IsChecked="{Binding IncludeCompleted, Mode=TwoWay}"
+                AutomationProperties.AutomationId="IncludeCompletedCheckBox" />
+    </Grid>
+    <ScrollViewer Grid.Row="2" MaxHeight="210" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="8">
+        <Button Content="+ Add filter" Command="{Binding AddFilterCommand}" HorizontalAlignment="Left"
+                AutomationProperties.AutomationId="AddFilterButton" />
+        <ItemsControl ItemsSource="{Binding Filters}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <WrapPanel Orientation="Horizontal" Margin="0,4">
+                <ComboBox Width="170" Margin="0,0,8,4" ItemsSource="{Binding Fields}" SelectedItem="{Binding SelectedField, Mode=TwoWay}"
+                          ItemTemplate="{StaticResource FieldItemTemplate}"
+                          AutomationProperties.AutomationId="FilterFieldComboBox" />
+                <ComboBox Width="155" Margin="0,0,8,4" ItemsSource="{Binding Operators}" SelectedItem="{Binding SelectedOperator, Mode=TwoWay}"
+                          ItemTemplate="{StaticResource LabelItemTemplate}"
+                          AutomationProperties.AutomationId="FilterOperatorComboBox" />
+                <TextBox Width="170" Margin="0,0,8,4" Text="{Binding FirstText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         IsVisible="{Binding IsText}" AutomationProperties.AutomationId="FilterValueTextBox" />
+                <TextBox Width="120" Margin="0,0,8,4" Text="{Binding FirstText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         IsVisible="{Binding IsNumber}" AutomationProperties.AutomationId="FilterValueNumberBox" />
+                <TextBox Width="120" Margin="0,0,8,4" Text="{Binding SecondText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         IsVisible="{Binding IsSecondNumber}" AutomationProperties.AutomationId="FilterValueSecondNumberBox" />
+                <DatePicker Width="220" Margin="0,0,8,4" SelectedDate="{Binding FirstDate, Mode=TwoWay}" IsVisible="{Binding IsDate}"
+                            AutomationProperties.AutomationId="FilterValueDatePicker" />
+                <DatePicker Width="220" Margin="0,0,8,4" SelectedDate="{Binding SecondDate, Mode=TwoWay}" IsVisible="{Binding IsSecondDate}"
+                            AutomationProperties.AutomationId="FilterValueSecondDatePicker" />
+                <ComboBox Width="160" Margin="0,0,8,4" ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                          ItemTemplate="{StaticResource LabelItemTemplate}" IsVisible="{Binding IsChoice}"
+                          AutomationProperties.AutomationId="FilterValueChoiceComboBox" />
+                <ComboBox Width="160" Margin="0,0,8,4" ItemsSource="{Binding Choices}" SelectedItem="{Binding SecondChoice, Mode=TwoWay}"
+                          ItemTemplate="{StaticResource LabelItemTemplate}" IsVisible="{Binding IsSecondChoice}"
+                          AutomationProperties.AutomationId="FilterValueSecondChoiceComboBox" />
+                <ComboBox Width="100" Margin="0,0,8,4" ItemsSource="{Binding BooleanChoices}" SelectedItem="{Binding SelectedBooleanChoice, Mode=TwoWay}"
+                          IsVisible="{Binding IsBoolean}" AutomationProperties.AutomationId="FilterValueBooleanComboBox" />
+                <TextBlock Margin="0,0,8,4" Text="{Binding ValueError}" Foreground="{DynamicResource AppDangerBrush}"
+                           VerticalAlignment="Center" AutomationProperties.AutomationId="FilterValueError" />
+                <Button Content="Remove" Command="{Binding RemoveCommand}" AutomationProperties.AutomationId="RemoveFilterButton" />
+              </WrapPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+    <Grid Grid.Row="3" RowDefinitions="Auto,Auto,*" RowSpacing="4">
+      <TextBlock Text="{Binding Error}" Foreground="{DynamicResource AppDangerBrush}" TextWrapping="Wrap"
+                 AutomationProperties.AutomationId="SearchErrorText" />
+      <!-- The header and the row template use the same column widths so the columns line up. -->
+      <Grid Grid.Row="1" ColumnDefinitions="24,2*,60,1.5*,60,65,150" ColumnSpacing="8" Margin="8,0"
+            AutomationProperties.AutomationId="SearchResultsHeader">
+        <TextBlock Text="✓" FontWeight="SemiBold" />
+        <TextBlock Grid.Column="1" Text="Title" FontWeight="SemiBold" />
+        <TextBlock Grid.Column="2" Text="Ticket" FontWeight="SemiBold" />
+        <TextBlock Grid.Column="3" Text="Location" FontWeight="SemiBold" />
+        <TextBlock Grid.Column="4" Text="Type" FontWeight="SemiBold" />
+        <TextBlock Grid.Column="5" Text="Priority" FontWeight="SemiBold" />
+        <TextBlock Grid.Column="6" Text="Due" FontWeight="SemiBold" />
+      </Grid>
+      <ListBox Grid.Row="2" x:Name="SearchResultsList" ItemsSource="{Binding Results}"
+               AutomationProperties.AutomationId="SearchResultsList">
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="AutomationProperties.AutomationId" Value="SearchResultRow" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+          </Style>
+        </ListBox.Styles>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="24,2*,60,1.5*,60,65,150" ColumnSpacing="8">
+              <TextBlock Text="{Binding CompletedMark}" />
+              <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="2" Text="{Binding Ticket}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="3" Text="{Binding Location}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="4" Text="{Binding Type}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="5" Text="{Binding Priority}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="6" Text="{Binding Due}" TextTrimming="CharacterEllipsis" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <TextBlock Grid.Row="2" Text="No items match" IsVisible="{Binding ShowEmpty}" HorizontalAlignment="Center"
+                 VerticalAlignment="Center" FontSize="18" />
+    </Grid>
+    <StackPanel Grid.Row="4">
+      <TextBlock Text="Searching…" IsVisible="{Binding IsBusy}" />
+      <TextBlock Text="{Binding HasMoreMessage}" IsVisible="{Binding HasMore}"
+                 AutomationProperties.AutomationId="SearchHasMoreNote" />
+    </StackPanel>
+  </Grid>
+</UserControl>
