@@ -49,8 +49,11 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
     public SearchViewModel(IItemSearchService search, IFieldRegistry registry, ProjectService projects,
         INavigationService navigation, Guid? projectId, Guid? folderId, LookupService? lookups,
         int resultLimit = DefaultResultLimit, ItemQueryParser? parser = null,
-        SavedSearchService? savedSearchService = null, IDialogService? dialogs = null)
+        SavedSearchService? savedSearchService = null, IDialogService? dialogs = null,
+        TransferServices? transfer = null)
     {
+        exportServices = transfer;
+        exportDialogs = dialogs;
         this.parser = parser;
         this.search = search;
         this.registry = registry;
@@ -66,6 +69,8 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
         SavedSearches = CreateSavedSearchList(savedSearchService, dialogs);
         BackCommand = new AsyncRelayCommand(navigation.ReturnFromSearchAsync);
         OpenResultCommand = new AsyncRelayCommand<SearchResultViewModel>(OpenResultAsync);
+        ExportResultsCommand = new AsyncRelayCommand(ExportResultsAsync, () => CanExportResults);
+        Results.CollectionChanged += OnResultsChanged;
     }
 
     /// <summary>All projects, plus This project and This folder when opened from a workspace.</summary>
@@ -347,11 +352,13 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
 
     private async Task SearchAndShowAsync(int version, CancellationToken cancellationToken)
     {
-        var result = await search.SearchAsync(CreateQuery(), resultLimit, cancellationToken);
+        var query = CreateQuery();
+        var result = await search.SearchAsync(query, resultLimit, cancellationToken);
         var rows = await resultFactory.CreateAsync(result.Items, cancellationToken);
 
         if (IsCurrentSearch(version))
         {
+            lastQuery = query;
             ApplyResults(rows, result.HasMore);
         }
     }

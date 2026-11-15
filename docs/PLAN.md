@@ -748,11 +748,107 @@ through the existing unsaved-changes guard.
 "Save or discard your item edits before undoing or redoing." The draft is untouched. (Reloading
 under a draft would either lose it or ask a question the user did not trigger.)
 
+### 7.9 Import and export
+
+`DataTransferService` (Core, `Transfer`) exports and imports; every public operation is one unit of work.
+
+**JSON export (full fidelity).** One versioned document: `{"format":"task-tracker","version":1,"exportedAtUtc":...,"scope":"all"|"project",...}`,
+camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\u` escapes). Content, in order:
+`itemTypes`, `priorityLevels` (each with `id`, `name`, colour/icon key, built-in and archived flags, sort order, archived ones included),
+`fields` (global and project definitions with `key`, `displayName`, `dataType`, `projectId`, archived flag, sort order and their
+`choices` with ids, labels, order and archived flag), `globalSettings` (reference only), `projects`, `savedSearches`.
+A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
+`dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `scheduledStart`/`scheduledEnd` as floating local values **without offset**
+(`2026-11-21T09:00:00`, §5.4), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
+`fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
+Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
+culture throughout.
+
+- **Scope.** The whole database, or one project: then only that project, the lookups and global fields its items use, its own
+  fields, its overrides and the saved searches scoped to it or its folders. Global settings are exported for the whole database only.
+- **Soft-deleted rows are excluded** (projects, folders, items, and the custom values and saved searches that point into them).
+  There is no "include trash" option: the trash is for restoring, an export is for the live data.
+
+**JSON import** reads a file produced by export and adds it as **new data**; nothing existing is overwritten.
+
+- *Validation first, in memory:* `format` must be `task-tracker`; a `version` above 1 is refused with "written by a newer version"
+  (older or missing versions are refused too); then required fields, unique ids, references (parents, folders, lookups, field keys,
+  choices, saved-search scopes), the §5.1 hierarchy invariants (parent in the same project, sub-item in its parent's folder, no
+  cycles, folder parents in the same project), the date rules (due time needs a due date, end needs a start and is not before it,
+  floating times carry no `Z` or offset, UTC times end with `Z`) and the §7.1 value rules (exactly one value matching the field type,
+  choice belongs to the field, project field only on that project's items, finite numbers, no blank text, one value per field per
+  item). All problems are reported together, each with a JSON path (`$.projects[0].items[3].dueDate`).
+- *Matching and creating:* projects always get new ids; a project whose name exists gets " (imported)", " (imported 2)", ... Item types
+  and priority levels match by name ignoring case, otherwise are created after the existing ones (archived flags kept). A global field
+  matches an existing global field by key ignoring case (a different data type is an error); otherwise it is created, keeping its key
+  when free. Project fields are always created (key numbered and display name suffixed " (imported)" if taken). Choices of a matched
+  field match by label, missing ones are created. Folders, items, sub-items and values are recreated with new ids, keeping sort orders,
+  completion and timestamps. Project overrides are imported; **global settings in the file are ignored**. If an override would leave
+  the project with invalid thresholds against this database's global settings, the import is refused.
+- *Saved searches* are created as new ones (name clashes suffixed like projects), pointing at the new project and folder ids. The
+  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. A saved search that names a project
+  field whose key had to be renumbered is stale and shows the usual "can't be run" message.
+- *Completion (§6.1)*: where the project's effective auto-complete setting is on, imported trees are reconciled before saving.
+- *All or nothing:* one unit of work, one save. A failure leaves nothing tracked or stored. Imports are **not undoable** (no undo step
+  is recorded). The UI asks for confirmation first and `IDatabaseBackup` (the SQLite backup API, as used before migrations) copies
+  the database immediately before the save; its path is reported. Import backups (`tasktracker-import-<stamp>.db.bak`) and migration
+  backups (`tasktracker-<stamp>.db.bak`) are separate pools of the five newest each, so imports never evict the pre-migration copy.
+  Failing to delete an old backup after a successful copy is traced and ignored; a backup that cannot be made stops the import
+  (an `IOException` the UI shows) before anything is saved.
+- *Robustness:* a `null` where a list needs an object (`"projects":[null]`, and likewise items, folders, fields, choices, item
+  types, priority levels, field values, saved searches) is reported as `$.projects[0]: must be an object`. A leading byte order mark
+  is accepted. Lengths use the domain's rule exactly: names, titles, labels and ticket numbers are measured **after trimming**
+  (`TodoItem.TitleMaxLength` and friends), so a value that the importer accepts can never fail later without a path.
+
+**CSV export** writes a project's items (all of them, in screen order: root, then folders, sub-items under their parent) or the
+current search results (all matches, not just the first 200, in result order) as a flat table, UTF-8 **with BOM** (for Excel),
+RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
+quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Due date, Due time, Scheduled start, Scheduled end,
+Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, then one column per custom field by
+display name (active fields, and archived ones that have a value; fields sharing a name share a column). A custom field whose
+display name equals a fixed header (any case: Type, Priority, Ticket, ...) is written as "Type (field)" so headers never repeat; an
+import maps that header back to the field. Dates and numbers are ISO and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the
+culture.
+
+**Formula injection.** Excel runs a cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return as a formula. An export
+therefore puts an apostrophe in front of any text cell (title, description, ticket, type, priority, project, folder path, parent
+title, text field values, choice labels) whose text, ignoring leading apostrophes, starts like that: `=SUM(A1)` becomes `'=SUM(A1)`,
+and `'=x` becomes `''=x`. An import removes exactly one leading apostrophe from a text cell when what follows (ignoring further
+apostrophes) starts like a formula, so exported files round-trip unchanged and a hand-typed `'note` keeps its apostrophe. Numbers and
+dates are never altered.
+
+**Reading files.** Import files must be UTF-8 (a BOM is fine). Decoding is strict: another encoding is refused with "This file isn't
+UTF-8. Re-save it as 'CSV UTF-8' and try again" (UTF-8 text for JSON) instead of importing garbled text. Files over 50 MB are refused
+with a message before they are read.
+
+**CSV import** targets a chosen project and optionally one of its folders (default: the root). Headers match by name ignoring case.
+`Project`, `Folder path` and `Parent title` are recognised but ignored: **every row becomes a top-level item** at the end of the area
+(sub-items are not rebuilt; the simple rule beats guessing among equal titles). Other unknown columns are reported and ignored.
+Type and priority match by name; an unknown or archived name is an **error** (it never creates a lookup, so typos do not create junk)
+and the message lists the valid names. Custom fields match by display name among the project's active fields; values follow §7.1:
+number with a dot (a decimal comma is refused with a hint), `yyyy-MM-dd` date, yes/no, choice by label, blank cell = no value.
+`Completed` = yes without `Completed at` completes now; `Completed at` needs `Z`. Rows with fewer cells than the header are padded;
+more is an error. Row numbers count like a spreadsheet (header = row 1) and appear in every error (`Row 4, Type`).
+The **preview** (`PreviewCsvAsync`, no writes) reports row count, columns used, unknown and ignored columns, the first five rows and
+every error; nothing is imported while there is an error. Commit re-checks the file and creates all rows in one save, after a backup.
+
+**UI.** Home has an Import / Export menu: Export everything (JSON), Export project (JSON), Export project (CSV), Import JSON, Import
+CSV into project. A project is chosen from a list, a folder from the usual folder list (only when the project has folders), the file
+through the platform file picker (`IFilePickerService`, implemented with Avalonia's `StorageProvider`; no Avalonia types in
+Presentation). Cancelling any picker or confirmation does nothing. A JSON import first shows the validation errors, or asks
+"Import N projects ...? ... can't be undone ... a backup is saved first". The CSV preview is a dialog with an Import button only when
+it has no errors; its rows with errors are marked. Home reloads after an import and shows a status line. Reading, checking, exporting and importing run
+off the UI thread; while one runs, the menu and every command are disabled (a second click is ignored) and a progress bar shows.
+The Search page's "Export results (CSV)" re-runs the last search without the 200-row limit. For end-to-end tests only,
+`CompositionRoot` swaps in a picker that answers with a fixed path, and only when **both** `TASKTRACKER_TEST_FILE_PATH` and
+`TASKTRACKER_SMOKE=1` are set (README.md); the real picker never reads those variables.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
 
-1. **Home** — project cards (name, open count, overdue count). New project button.
+1. **Home** — project cards (name, open count, overdue count). New project button. An **Import / Export** menu
+   (§7.9) and a status line for its last result. The **Search** page has an "Export results (CSV)" button.
 2. **Project workspace** — three panes:
    - **Left:** folder tree (project root at top). Right-click: new folder, rename, move, delete.
    - **Center:** the selected area's items.
@@ -811,7 +907,7 @@ Phases 0–2 are v1.
 - Markdown descriptions; attachments/links.
 - ~~Saved searches and the text query syntax~~ (done, §7.7).
 - ~~Undo/redo for recent actions~~ (done, §7.8).
-- Import/export (JSON, CSV).
+- ~~Import/export (JSON, CSV)~~ (done, §7.9).
 - Packaged installers per OS (MSIX/Velopack on Windows, .app on macOS, AppImage on Linux).
 - Mobile or browser head (Avalonia supports both) reusing the Presentation project.
 - Optional sync/shared database (adds time-zone ids, §5.4).

@@ -20,7 +20,7 @@ public sealed class SmokeSession : IDisposable
     private readonly Process process;
 
     /// <summary>Starts the app with a fresh database and waits for its main window.</summary>
-    public SmokeSession()
+    public SmokeSession(IReadOnlyDictionary<string, string>? environment = null)
     {
         databasePath = Path.Combine(Path.GetTempPath(), $"tasktracker-smoke-{Guid.NewGuid():N}.db");
         Application? startedApplication = null;
@@ -32,6 +32,12 @@ public sealed class SmokeSession : IDisposable
         {
             var startInfo = new ProcessStartInfo(FindExecutable());
             startInfo.Environment["TASKTRACKER_DB_PATH"] = databasePath;
+
+            foreach (var variable in environment ?? new Dictionary<string, string>())
+            {
+                startInfo.Environment[variable.Key] = variable.Value;
+            }
+
             startedApplication = Application.Launch(startInfo);
             startedProcess = Process.GetProcessById(startedApplication.ProcessId);
             startedAutomation = new UIA3Automation();

@@ -3,6 +3,9 @@ namespace TaskTracker.Core.Fields;
 /// <summary>A stable option for a choice field.</summary>
 public sealed class FieldChoice
 {
+    /// <summary>The longest label a choice may have, once trimmed.</summary>
+    public const int LabelMaxLength = 300;
+
     private FieldChoice()
     {
     }
@@ -50,9 +53,9 @@ public sealed class FieldChoice
 
     private static string Normalize(string label)
     {
-        if (string.IsNullOrWhiteSpace(label) || label.Trim().Length > 300)
+        if (string.IsNullOrWhiteSpace(label) || label.Trim().Length > LabelMaxLength)
         {
-            throw new DomainRuleException("Choice label must be 1 to 300 characters.");
+            throw new DomainRuleException($"Choice label must be 1 to {LabelMaxLength} characters.");
         }
 
         return label.Trim();

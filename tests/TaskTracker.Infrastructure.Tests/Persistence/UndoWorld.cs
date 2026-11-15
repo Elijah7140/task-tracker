@@ -8,6 +8,7 @@ using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Transfer;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
 using TaskTracker.Infrastructure.Persistence;
@@ -54,6 +55,8 @@ internal sealed class UndoWorld : IAsyncDisposable
 
     public ItemSearchService Search { get; private set; } = null!;
 
+    public DataTransferService Transfer { get; private set; } = null!;
+
     public TaskTrackerDbContext OpenContext()
     {
         return store.Open();
@@ -82,6 +85,7 @@ internal sealed class UndoWorld : IAsyncDisposable
         CalendarQueries = new CalendarService(units);
         Trash = new TrashService(units, store.Clock);
         Search = new ItemSearchService(units, new ItemQueryValidator(units));
+        Transfer = new DataTransferService(units, store.Clock, new TaskTracker.Infrastructure.Tests.Transfer.RecordingDatabaseBackup());
     }
 
     public async Task<TodoItem> ReadItemAsync(Guid id)

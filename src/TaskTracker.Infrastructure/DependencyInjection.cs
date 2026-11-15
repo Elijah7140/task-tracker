@@ -14,6 +14,8 @@ public static class DependencyInjection
         services.AddDbContextFactory<TaskTrackerDbContext>(options =>
             TaskTrackerSqliteOptions.Configure(options, $"Data Source={databasePath}"));
         services.AddSingleton<IUnitOfWorkFactory, EfUnitOfWorkFactory>();
+        services.AddSingleton<IDatabaseBackup>(provider => new SqliteDatabaseBackup(
+            databasePath, provider.GetRequiredService<TimeProvider>(), BackupPool.Import));
         services.AddScoped(provider => new DatabaseInitializer(
             provider.GetRequiredService<TaskTrackerDbContext>(),
             databasePath,

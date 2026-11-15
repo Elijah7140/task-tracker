@@ -1,4 +1,5 @@
 using TaskTracker.Presentation.Navigation;
+using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.Presentation.Tests.ViewModels;
 
@@ -26,7 +27,19 @@ internal sealed class GatedConfirmDialogService : IDialogService
         throw new NotSupportedException();
     }
 
-    public Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders)
+    public Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders,
+        string label = "Move into", string confirmText = "Move")
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<int?> ChooseAsync(string title, string label, IReadOnlyList<string> options,
+        string confirmText = "Choose")
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<bool> ShowImportPreviewAsync(CsvImportPreviewViewModel preview)
     {
         throw new NotSupportedException();
     }

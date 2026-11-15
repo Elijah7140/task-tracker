@@ -39,6 +39,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private readonly ITrashService? trash;
     private readonly SavedSearchService? savedSearches;
     private readonly ItemQueryParser? queryParser;
+    private readonly TransferServices? transfer;
     private ViewModelBase? transientReturnPage;
     private bool returnPageIsStale;
     private bool isOpeningSearch;
@@ -53,7 +54,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null,
         CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null,
         ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null,
-        UndoHistory? undoHistory = null)
+        UndoHistory? undoHistory = null, TransferServices? transfer = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -72,6 +73,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         this.trash = trash;
         this.savedSearches = savedSearches;
         this.queryParser = queryParser;
+        this.transfer = transfer;
         Undo = undoHistory is null ? null : new UndoCoordinator(undoHistory, this);
         fieldLoader = CreateFieldLoader(fields, itemService);
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
@@ -156,7 +158,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         DiscardTransientReturnPage();
         DisposeCurrentPage();
         var version = pageVersion;
-        var page = new HomeViewModel(projectService, dialogs, this, savedSearches);
+        var page = new HomeViewModel(projectService, dialogs, this, savedSearches, transfer);
         await page.LoadAsync();
         ShowIfCurrent(page, version);
     }
@@ -395,7 +397,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private SearchViewModel CreateSearchPage(Guid? projectId, Guid? folderId)
     {
         return new SearchViewModel(search!, registry!, projectService, this, projectId, folderId, lookups,
-            parser: queryParser, savedSearchService: savedSearches, dialogs: dialogs);
+            parser: queryParser, savedSearchService: savedSearches, dialogs: dialogs,
+            transfer: transfer);
     }
 
     private async Task ShowSavedSearchPageAsync(Guid savedSearchId)

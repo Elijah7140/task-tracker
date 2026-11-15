@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace TaskTracker.Infrastructure.Persistence;
@@ -26,53 +25,9 @@ public sealed class DatabaseInitializer(
 
         if (databaseExisted && hasPendingMigrations)
         {
-            Backup(folder);
+            new SqliteDatabaseBackup(databasePath, clock).CreateBackup();
         }
 
         await database.Database.MigrateAsync(cancellationToken);
-    }
-
-    private void Backup(string folder)
-    {
-        var stamp = clock.GetUtcNow().ToString("yyyyMMddHHmmssfffffff", System.Globalization.CultureInfo.InvariantCulture);
-        var backupPath = Path.Combine(folder, $"tasktracker-{stamp}.db.bak");
-        CopyDatabase(backupPath);
-        DeleteOldBackups(folder);
-    }
-
-    /// <summary>
-    /// Copies the database with SQLite's backup API. The connections are not pooled, so neither
-    /// file stays open afterwards (Windows would otherwise keep the backup file locked).
-    /// </summary>
-    private void CopyDatabase(string backupPath)
-    {
-        using var source = OpenUnpooled(databasePath, SqliteOpenMode.ReadOnly);
-        using var destination = OpenUnpooled(backupPath, SqliteOpenMode.ReadWriteCreate);
-        source.BackupDatabase(destination);
-    }
-
-    private static SqliteConnection OpenUnpooled(string path, SqliteOpenMode mode)
-    {
-        var connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = path,
-            Mode = mode,
-            Pooling = false,
-        };
-        var connection = new SqliteConnection(connectionString.ToString());
-        connection.Open();
-        return connection;
-    }
-
-    private static void DeleteOldBackups(string folder)
-    {
-        var backups = Directory.GetFiles(folder, "tasktracker-*.db.bak")
-            .OrderByDescending(path => path)
-            .Skip(5);
-
-        foreach (var oldBackup in backups)
-        {
-            File.Delete(oldBackup);
-        }
     }
 }

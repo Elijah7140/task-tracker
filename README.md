@@ -46,3 +46,11 @@ dotnet test --project tests/TaskTracker.App.Desktop.SmokeTests
 
 The smoke scenarios are skipped without `TASKTRACKER_SMOKE=1`. Failure screenshots are
 saved in the smoke project's `bin/<Configuration>/net10.0-windows/Failures` directory.
+
+### Test-only file picker hook
+
+The import/export smoke scenario cannot drive the native Windows file dialog reliably, so the app has a
+test-only hook: when **both** `TASKTRACKER_TEST_FILE_PATH` (a file path) **and** `TASKTRACKER_SMOKE=1` are set,
+`CompositionRoot` replaces the file dialogs with a picker that answers every save and open with that one path
+and shows nothing. With either variable missing the real dialogs are used, so a normal run can never silently
+overwrite or read that file. Do not set these variables outside the smoke tests.

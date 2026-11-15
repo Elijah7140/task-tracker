@@ -19,7 +19,7 @@ public sealed class ItemService(
 
     public async Task<TodoItem> CreateAsync(Guid projectId, Guid? folderId, Guid? parentId, string title, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(title) || title.Length > 300)
+        if (!TodoItem.IsTitleValid(title))
         {
             throw new DomainRuleException("Item title is required and must be at most 300 characters.");
         }
@@ -199,12 +199,12 @@ public sealed class ItemService(
 
     private static void ValidateEdit(ItemEdit edit)
     {
-        if (string.IsNullOrWhiteSpace(edit.Title) || edit.Title.Trim().Length > 300)
+        if (!TodoItem.IsTitleValid(edit.Title))
         {
             throw new DomainRuleException("Item title is required and must be at most 300 characters.");
         }
 
-        if (edit.TicketNumber?.Length > 100 || (edit.DueDate is null && edit.DueTime is not null))
+        if (!TodoItem.IsTicketNumberValid(edit.TicketNumber) || (edit.DueDate is null && edit.DueTime is not null))
         {
             throw new DomainRuleException("Item edit has invalid ticket or due fields.");
         }

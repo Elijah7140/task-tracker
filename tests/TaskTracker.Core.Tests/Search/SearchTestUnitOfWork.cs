@@ -145,6 +145,17 @@ internal sealed class SearchTestUnitOfWork : IUnitOfWork, IUnitOfWorkFactory
             return Task.FromResult(false);
         }
 
+        public Task<IReadOnlyList<FieldChoice>> AllChoicesAsync(CancellationToken cancellationToken)
+        {
+            IReadOnlyList<FieldChoice> choices = store.ChoiceRows.OrderBy(choice => choice.SortOrder).ToList();
+            return Task.FromResult(choices);
+        }
+
+        public Task<IReadOnlyList<ItemFieldValue>> ValuesForProjectAsync(Guid projectId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<ItemFieldValue>>([]);
+        }
+
         public void Add(FieldDefinition field)
         {
             store.Definitions.Add(field);

@@ -11,10 +11,12 @@
     </DataTemplate>
   </UserControl.Resources>
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="32" RowSpacing="16">
-    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
       <Button Content="← Back" Command="{Binding BackCommand}" AutomationProperties.AutomationId="SearchBackButton" />
       <TextBlock Grid.Column="1" Text="Search" FontSize="30" FontWeight="SemiBold" VerticalAlignment="Center" />
-      <Button Grid.Column="2" Content="Search" Classes="accent" Command="{Binding SearchCommand}"
+      <Button Grid.Column="2" Content="Export results (CSV)" Command="{Binding ExportResultsCommand}"
+              IsVisible="{Binding HasExportSupport}" AutomationProperties.AutomationId="ExportResultsButton" />
+      <Button Grid.Column="3" Content="Search" Classes="accent" Command="{Binding SearchCommand}"
               IsEnabled="{Binding CanSearch}" AutomationProperties.AutomationId="SearchButton" />
     </Grid>
     <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="12">
@@ -171,6 +173,9 @@
     </Grid>
     <StackPanel Grid.Row="5">
       <TextBlock Text="Searching…" IsVisible="{Binding IsBusy}" />
+      <TextBlock Text="{Binding ExportStatus}" TextWrapping="Wrap"
+                 IsVisible="{Binding ExportStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                 AutomationProperties.AutomationId="ExportResultsStatusText" />
       <TextBlock Text="{Binding HasMoreMessage}" IsVisible="{Binding HasMore}"
                  AutomationProperties.AutomationId="SearchHasMoreNote" />
     </StackPanel>

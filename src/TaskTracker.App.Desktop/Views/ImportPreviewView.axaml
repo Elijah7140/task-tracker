@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TaskTracker.App.Desktop.Views.ImportPreviewView"
+             x:CompileBindings="False">
+  <StackPanel Spacing="10">
+    <TextBlock Text="{Binding Heading}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"
+               AutomationProperties.AutomationId="ImportPreviewHeading" />
+    <TextBlock Text="{Binding Target}" Opacity="0.7" />
+    <TextBlock Text="{Binding RowSummary}" FontWeight="SemiBold" AutomationProperties.AutomationId="ImportPreviewRowCount" />
+    <TextBlock Text="{Binding ColumnsText}" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding UnknownColumnsText}" TextWrapping="Wrap" Opacity="0.8"
+               IsVisible="{Binding UnknownColumnsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+               AutomationProperties.AutomationId="ImportPreviewUnknownColumns" />
+    <TextBlock Text="{Binding IgnoredColumnsText}" TextWrapping="Wrap" Opacity="0.8"
+               IsVisible="{Binding IgnoredColumnsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+    <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" CornerRadius="6" Padding="8">
+      <StackPanel Spacing="4">
+        <Grid ColumnDefinitions="48,*,90,80,100,64" ColumnSpacing="8" Opacity="0.7">
+          <TextBlock Text="Row" />
+          <TextBlock Grid.Column="1" Text="Title" />
+          <TextBlock Grid.Column="2" Text="Type" />
+          <TextBlock Grid.Column="3" Text="Priority" />
+          <TextBlock Grid.Column="4" Text="Due date" />
+        </Grid>
+        <ItemsControl ItemsSource="{Binding SampleRows}" AutomationProperties.AutomationId="ImportPreviewRows">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="48,*,90,80,100,64" ColumnSpacing="8">
+                <TextBlock Text="{Binding RowNumber}" />
+                <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding Type}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="3" Text="{Binding Priority}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="4" Text="{Binding DueDate}" />
+                <TextBlock Grid.Column="5" Text="⚠ Error" IsVisible="{Binding HasError}"
+                           Foreground="{DynamicResource AppDangerBrush}" FontWeight="SemiBold"
+                           AutomationProperties.AutomationId="ImportPreviewRowError" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontWeight="SemiBold"
+               AutomationProperties.AutomationId="ImportPreviewStatus" />
+    <ItemsControl ItemsSource="{Binding IssueLines}" IsVisible="{Binding HasIssues}"
+                  AutomationProperties.AutomationId="ImportPreviewIssues">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="{DynamicResource AppDangerBrush}" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

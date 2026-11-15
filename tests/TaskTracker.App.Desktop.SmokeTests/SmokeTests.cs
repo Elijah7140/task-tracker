@@ -208,6 +208,48 @@ public sealed class SmokeTests
         });
     }
 
+    /// <summary>
+    /// Uses the test-only TASKTRACKER_TEST_FILE_PATH hook, which makes the file pickers return a fixed
+    /// path instead of opening the native Windows dialog (which UI Automation cannot drive reliably).
+    /// </summary>
+    [Fact]
+    public void A_project_exported_to_json_imports_back_as_a_second_project_with_its_items()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"tasktracker-smoke-{Guid.NewGuid():N}.json");
+        var environment = new Dictionary<string, string>
+        {
+            ["TASKTRACKER_TEST_FILE_PATH"] = path,
+            ["TASKTRACKER_SMOKE"] = "1"
+        };
+
+        try
+        {
+            Run(session =>
+            {
+                session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+                OpenProject(session);
+                AddItem(session, "Exported item");
+                session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
+
+                ChooseImportExportMenuItem(session, "ExportProjectJsonMenuItem");
+                session.Press(VirtualKeyShort.RETURN);
+                session.WaitUntil(() => File.Exists(path), "the export file to be written");
+                session.WaitUntil(() => session.Find("TransferStatusText").Name.StartsWith("Exported"),
+                    "the export status");
+
+                ChooseImportExportMenuItem(session, "ImportJsonMenuItem");
+                session.Press(VirtualKeyShort.RETURN);
+                session.FindText("Smoke Project (imported)");
+                session.FindNamed("ProjectCard", "Smoke Project (imported)").DoubleClick();
+                session.FindNamed("ItemTitleButton", "Exported item");
+            }, environment);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void Query_syntax_search_can_be_saved_and_reopened_from_home()
     {
@@ -423,14 +465,14 @@ public sealed class SmokeTests
         });
     }
 
-    private static void Run(Action<SmokeSession> scenario)
+    private static void Run(Action<SmokeSession> scenario, IReadOnlyDictionary<string, string>? environment = null)
     {
         if (Environment.GetEnvironmentVariable("TASKTRACKER_SMOKE") != "1")
         {
             Assert.Skip("Set TASKTRACKER_SMOKE=1 on an interactive Windows desktop.");
         }
 
-        using var session = new SmokeSession();
+        using var session = new SmokeSession(environment);
 
         try
         {
@@ -464,6 +506,12 @@ public sealed class SmokeTests
             .FirstOrDefault(candidate => candidate.Name == day.ToString("yyyy-MM-dd"));
         var entry = cell?.FindFirstDescendant(query => query.ByAutomationId("CalendarEntryButton"));
         return entry is not null && entry.Name == title;
+    }
+
+    private static void ChooseImportExportMenuItem(SmokeSession session, string menuItemId)
+    {
+        session.Find("ImportExportButton").Click();
+        session.Find(menuItemId).Click();
     }
 
     private static void CreateProject(SmokeSession session)

@@ -13,6 +13,12 @@ public interface IFieldRepository
 
     Task<bool> HasValuesAsync(Guid fieldId, CancellationToken cancellationToken);
 
+    /// <summary>Every choice of every field, archived ones included, ordered by sort order.</summary>
+    Task<IReadOnlyList<FieldChoice>> AllChoicesAsync(CancellationToken cancellationToken);
+
+    /// <summary>The custom values of the active items of one project.</summary>
+    Task<IReadOnlyList<ItemFieldValue>> ValuesForProjectAsync(Guid projectId, CancellationToken cancellationToken);
+
     void Add(FieldDefinition field);
 
     void Add(FieldChoice choice);
