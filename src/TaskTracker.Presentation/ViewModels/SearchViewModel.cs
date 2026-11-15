@@ -31,6 +31,7 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? searchCancellation;
     private CancellationTokenSource? scopeCancellation;
     private bool disposed;
+    private bool isOpeningResult;
     private SearchScopeOption selectedScope;
     private string text = string.Empty;
     private string? error;
@@ -118,7 +119,13 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
     public bool IsBusy
     {
         get => isBusy;
-        private set => SetProperty(ref isBusy, value);
+        private set
+        {
+            if (SetProperty(ref isBusy, value))
+            {
+                OnPropertyChanged(nameof(ShowEmpty));
+            }
+        }
     }
 
     /// <summary>True when every filter row is complete and valid.</summary>
@@ -162,35 +169,18 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         }
 
         var version = ++searchVersion;
-        searchCancellation?.Cancel();
-        var cancellation = new CancellationTokenSource();
-        searchCancellation = cancellation;
+        var cancellation = ReplaceCancellation(ref searchCancellation);
         BeginSearch();
 
         try
         {
-            await SearchAndShowAsync(version, cancellation.Token);
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            if (!disposed && version == searchVersion)
-            {
-                ShowError(exception);
-            }
+            await TrySearchAsync(version, cancellation);
         }
         finally
         {
-            if (ReferenceEquals(searchCancellation, cancellation))
-            {
-                searchCancellation = null;
-            }
+            ReleaseCancellation(ref searchCancellation, cancellation);
 
-            cancellation.Dispose();
-
-            if (!disposed && version == searchVersion)
+            if (IsCurrentSearch(version))
             {
                 EndSearch();
             }
@@ -198,14 +188,18 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Opens the item behind a result. When it was deleted meanwhile, the page stays and says so.
+    /// Opens the item behind a result. Only one activation runs at a time, and an answer that
+    /// arrives after the page was left is ignored. When the item was deleted meanwhile, the page
+    /// stays and says so.
     /// </summary>
     public async Task OpenResultAsync(SearchResultViewModel? row)
     {
-        if (disposed || row is null)
+        if (disposed || row is null || isOpeningResult)
         {
             return;
         }
+
+        isOpeningResult = true;
 
         try
         {
@@ -222,6 +216,10 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
             {
                 ShowError(exception);
             }
+        }
+        finally
+        {
+            isOpeningResult = false;
         }
     }
 
@@ -277,12 +275,60 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(CanSearch));
     }
 
+    private async Task TrySearchAsync(int version, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await SearchAndShowAsync(version, cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (IsCurrentSearch(version))
+            {
+                ShowError(exception);
+            }
+        }
+    }
+
+    private bool IsCurrentSearch(int version)
+    {
+        return !disposed && version == searchVersion;
+    }
+
+    private bool IsCurrentScope(int version)
+    {
+        return !disposed && version == scopeVersion;
+    }
+
+    /// <summary>Cancels the work in <paramref name="slot"/> and puts a fresh source in its place.</summary>
+    private static CancellationTokenSource ReplaceCancellation(ref CancellationTokenSource? slot)
+    {
+        slot?.Cancel();
+        var replacement = new CancellationTokenSource();
+        slot = replacement;
+        return replacement;
+    }
+
+    /// <summary>Empties the slot when it still holds the finished source, then disposes that source.</summary>
+    private static void ReleaseCancellation(ref CancellationTokenSource? slot, CancellationTokenSource finished)
+    {
+        if (ReferenceEquals(slot, finished))
+        {
+            slot = null;
+        }
+
+        finished.Dispose();
+    }
+
     private async Task SearchAndShowAsync(int version, CancellationToken cancellationToken)
     {
         var result = await search.SearchAsync(CreateQuery(), resultLimit, cancellationToken);
         var rows = await resultFactory.CreateAsync(result.Items, cancellationToken);
 
-        if (!disposed && version == searchVersion)
+        if (IsCurrentSearch(version))
         {
             ApplyResults(rows, result.HasMore);
         }
@@ -299,6 +345,7 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
 
         HasMore = moreAvailable;
         hasSearched = true;
+        OnPropertyChanged(nameof(ShowEmpty));
     }
 
     private void ShowError(Exception exception)
@@ -352,15 +399,25 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         }
 
         var version = ++scopeVersion;
-        scopeCancellation?.Cancel();
-        var cancellation = new CancellationTokenSource();
-        scopeCancellation = cancellation;
+        var cancellation = ReplaceCancellation(ref scopeCancellation);
 
+        try
+        {
+            await TryLoadFieldsAsync(version, cancellation);
+        }
+        finally
+        {
+            ReleaseCancellation(ref scopeCancellation, cancellation);
+        }
+    }
+
+    private async Task TryLoadFieldsAsync(int version, CancellationTokenSource cancellation)
+    {
         try
         {
             var available = await registry.GetFieldsAsync(CurrentScope(), cancellation.Token);
 
-            if (!disposed && version == scopeVersion)
+            if (IsCurrentScope(version))
             {
                 ApplyFields(available);
             }
@@ -370,19 +427,10 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         }
         catch (Exception exception)
         {
-            if (!disposed && version == scopeVersion)
+            if (IsCurrentScope(version))
             {
                 ShowError(exception);
             }
-        }
-        finally
-        {
-            if (ReferenceEquals(scopeCancellation, cancellation))
-            {
-                scopeCancellation = null;
-            }
-
-            cancellation.Dispose();
         }
     }
 

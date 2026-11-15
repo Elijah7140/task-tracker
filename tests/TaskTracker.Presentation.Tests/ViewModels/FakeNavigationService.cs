@@ -79,9 +79,21 @@ internal sealed class FakeNavigationService : INavigationService
         return CalendarItemOutcome;
     }
 
-    public Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result)
+    public int ResultRequests { get; private set; }
+
+    /// <summary>When set, search result requests stay pending until the test completes it.</summary>
+    public TaskCompletionSource<SearchOpenOutcome>? ResultGate { get; set; }
+
+    public async Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result)
     {
         OpenedResult = result;
-        return Task.FromResult(ResultOutcome);
+        ResultRequests++;
+
+        if (ResultGate is not null)
+        {
+            return await ResultGate.Task;
+        }
+
+        return ResultOutcome;
     }
 }

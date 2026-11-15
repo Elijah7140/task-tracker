@@ -24,8 +24,8 @@ public sealed class SearchFilterRowViewModel : ViewModelBase, IDisposable
     private SearchChoice? secondChoice;
     private string firstText = string.Empty;
     private string secondText = string.Empty;
-    private DateTimeOffset? firstDate;
-    private DateTimeOffset? secondDate;
+    private DateTime? firstDate;
+    private DateTime? secondDate;
     private bool booleanValue;
 
     /// <summary>Creates a blank row; failures while loading choices go to <paramref name="reportError"/>.</summary>
@@ -102,13 +102,13 @@ public sealed class SearchFilterRowViewModel : ViewModelBase, IDisposable
         set => SetValue(ref secondText, value);
     }
 
-    public DateTimeOffset? FirstDate
+    public DateTime? FirstDate
     {
         get => firstDate;
         set => SetValue(ref firstDate, value);
     }
 
-    public DateTimeOffset? SecondDate
+    public DateTime? SecondDate
     {
         get => secondDate;
         set => SetValue(ref secondDate, value);
@@ -331,24 +331,24 @@ public sealed class SearchFilterRowViewModel : ViewModelBase, IDisposable
 
     private FilterValue? DateValue()
     {
-        if (FirstDate is not DateTimeOffset first)
+        if (FirstDate is not DateTime first)
         {
             return null;
         }
 
-        var start = DateOnly.FromDateTime(first.DateTime);
+        var start = DateOnly.FromDateTime(first);
 
         if (!IsBetween)
         {
             return new FilterValue.Date(start);
         }
 
-        if (SecondDate is not DateTimeOffset second)
+        if (SecondDate is not DateTime second)
         {
             return null;
         }
 
-        return new FilterValue.DateRange(start, DateOnly.FromDateTime(second.DateTime));
+        return new FilterValue.DateRange(start, DateOnly.FromDateTime(second));
     }
 
     private FilterValue? ChoiceValue()
@@ -409,9 +409,21 @@ public sealed class SearchFilterRowViewModel : ViewModelBase, IDisposable
 
         try
         {
+            await TryFillChoicesAsync(field, version, cancellation);
+        }
+        finally
+        {
+            ReleaseChoicesCancellation(cancellation);
+        }
+    }
+
+    private async Task TryFillChoicesAsync(SearchableField field, int version, CancellationTokenSource cancellation)
+    {
+        try
+        {
             var choices = await registry.GetChoicesAsync(field, cancellation.Token);
 
-            if (!disposed && version == choicesVersion)
+            if (IsCurrentChoiceLoad(version))
             {
                 AddChoices(choices);
             }
@@ -421,20 +433,26 @@ public sealed class SearchFilterRowViewModel : ViewModelBase, IDisposable
         }
         catch (Exception exception)
         {
-            if (!disposed && version == choicesVersion)
+            if (IsCurrentChoiceLoad(version))
             {
                 reportError(exception);
             }
         }
-        finally
-        {
-            if (ReferenceEquals(choicesCancellation, cancellation))
-            {
-                choicesCancellation = null;
-            }
+    }
 
-            cancellation.Dispose();
+    private bool IsCurrentChoiceLoad(int version)
+    {
+        return !disposed && version == choicesVersion;
+    }
+
+    private void ReleaseChoicesCancellation(CancellationTokenSource finished)
+    {
+        if (ReferenceEquals(choicesCancellation, finished))
+        {
+            choicesCancellation = null;
         }
+
+        finished.Dispose();
     }
 
     private void AddChoices(IReadOnlyList<SearchChoice> choices)

@@ -9,11 +9,15 @@ using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Views;
+using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
+using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Settings;
+using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests.Views;
@@ -485,6 +489,294 @@ public sealed class SearchViewTests
         var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
         Assert.Equal(item.Id, workspace.Editor?.Id);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Double_clicking_empty_space_below_the_results_opens_nothing()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        await services.GetRequiredService<ItemService>().CreateAsync(project.Id, null, null, "Review invoice");
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        await SearchByTypingAsync(window, page, "invoice");
+        var list = HeadlessInput.Find<ListBox>(window, "SearchResultsList");
+        var row = HeadlessInput.Find<ListBoxItem>(window, "SearchResultRow");
+        HeadlessInput.Click(window, row);
+        Assert.Same(page.Results.Single(), list.SelectedItem);
+        var emptySpace = HeadlessInput.PointIn(window, list, list.Bounds.Width / 2, list.Bounds.Height - 10);
+        Assert.True(emptySpace.Y > HeadlessInput.PointIn(window, row, 0, row.Bounds.Height).Y);
+
+        DoubleClick(window, emptySpace, MouseButton.Left);
+        await Task.Delay(100);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(page, shell.CurrentPage);
+        Assert.Null(page.Error);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Double_clicking_a_result_with_the_right_mouse_button_opens_nothing()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        await services.GetRequiredService<ItemService>().CreateAsync(project.Id, null, null, "Review invoice");
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        await SearchByTypingAsync(window, page, "invoice");
+        var row = HeadlessInput.Find<ListBoxItem>(window, "SearchResultRow");
+
+        DoubleClick(window, HeadlessInput.CentreOf(window, row), MouseButton.Right);
+        await Task.Delay(100);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(page, shell.CurrentPage);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Double_clicking_a_row_opens_that_rows_item_not_the_previously_selected_one()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        var items = services.GetRequiredService<ItemService>();
+        await items.CreateAsync(project.Id, null, null, "Review invoice");
+        var second = await items.CreateAsync(project.Id, null, null, "Review receipts");
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        await SearchByTypingAsync(window, page, "Review");
+        HeadlessInput.Click(window, HeadlessInput.FindNamed<ListBoxItem>(window, "SearchResultRow", "Review invoice"));
+        var receipts = HeadlessInput.FindNamed<ListBoxItem>(window, "SearchResultRow", "Review receipts");
+
+        DoubleClick(window, HeadlessInput.CentreOf(window, receipts), MouseButton.Left);
+        await WaitUntilAsync(() => shell.CurrentPage is not SearchViewModel);
+
+        Assert.Equal(second.Id, Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage).Editor?.Id);
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Leaving_search_with_Escape_while_a_result_is_opening_keeps_the_restored_page(bool useDoubleClick)
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        await services.GetRequiredService<ItemService>().CreateAsync(project.Id, null, null, "Review invoice");
+        var delay = new DelayedItemLookupUnitOfWorkFactory(services.GetRequiredService<IUnitOfWorkFactory>());
+        var shell = ShowShellWithDelayedLookup(window, services, delay);
+        await shell.OpenProjectAsync(project.Id);
+        var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        await SearchByTypingAsync(window, page, "invoice");
+        delay.Hold();
+
+        ActivateFirstResult(window, useDoubleClick);
+        await WaitUntilAsync(() => delay.LookupsStarted == 1);
+        HeadlessInput.Press(window, Key.Escape);
+        Assert.Same(workspace, shell.CurrentPage);
+        delay.Release();
+        await WaitUntilAsync(() => delay.LookupsFinished == 1);
+        await Task.Delay(100);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(workspace, shell.CurrentPage);
+        Assert.Null(workspace.Editor);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Activating_a_result_twice_while_it_opens_looks_the_item_up_once()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        await services.GetRequiredService<ItemService>().CreateAsync(project.Id, null, null, "Review invoice");
+        var delay = new DelayedItemLookupUnitOfWorkFactory(services.GetRequiredService<IUnitOfWorkFactory>());
+        var shell = ShowShellWithDelayedLookup(window, services, delay);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        await SearchByTypingAsync(window, page, "invoice");
+        delay.Hold();
+
+        OpenFirstResultWithEnter(window);
+        HeadlessInput.Press(window, Key.Enter);
+        HeadlessInput.Press(window, Key.Enter);
+        await WaitUntilAsync(() => delay.LookupsStarted == 1);
+        await Task.Delay(100);
+        var lookupsWhileWaiting = delay.LookupsStarted;
+        delay.Release();
+        await WaitUntilAsync(() => shell.CurrentPage is ProjectWorkspaceViewModel);
+
+        Assert.Equal(1, lookupsWhileWaiting);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Typing_a_due_date_range_shows_the_second_date_and_finds_only_items_inside_it()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        await CreateItemDueAsync(services, project.Id, "Before range", new DateOnly(2026, 11, 14));
+        await CreateItemDueAsync(services, project.Id, "First day", new DateOnly(2026, 11, 15));
+        await CreateItemDueAsync(services, project.Id, "Last day", new DateOnly(2026, 12, 15));
+        await CreateItemDueAsync(services, project.Id, "After range", new DateOnly(2026, 12, 16));
+        await services.GetRequiredService<ItemService>().CreateAsync(project.Id, null, null, "No due date");
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AddFilterButton"));
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(window, "FilterFieldComboBox"), "Due Date");
+        Assert.Empty(HeadlessInput.FindAll<CalendarDatePicker>(window, "FilterValueSecondDatePicker"));
+
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(window, "FilterOperatorComboBox"), "between");
+        TypeDate(window, "FilterValueDatePicker", "11/15/2026");
+        TypeDate(window, "FilterValueSecondDatePicker", "12/15/2026");
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "SearchButton"));
+        await WaitUntilAsync(() => page.Results.Count > 0);
+
+        Assert.Equal(["First day", "Last day"], page.Results.Select(result => result.Title).Order());
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Typing_a_due_date_range_backwards_shows_the_message_and_disables_search()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AddFilterButton"));
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(window, "FilterFieldComboBox"), "Due Date");
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(window, "FilterOperatorComboBox"), "between");
+
+        TypeDate(window, "FilterValueDatePicker", "12/15/2026");
+        TypeDate(window, "FilterValueSecondDatePicker", "11/15/2026");
+
+        Assert.Equal("The first value must not be after the second.",
+            HeadlessInput.Find<TextBlock>(window, "FilterValueError").Text);
+        Assert.False(HeadlessInput.Find<Button>(window, "SearchButton").IsEnabled);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Switching_a_row_to_a_Boolean_field_and_to_is_empty_swaps_the_value_editor()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AddFilterButton"));
+        var fieldBox = HeadlessInput.Find<ComboBox>(window, "FilterFieldComboBox");
+        HeadlessInput.ChooseItem(window, fieldBox, "Title");
+        Assert.Single(HeadlessInput.FindAll<TextBox>(window, "FilterValueTextBox"));
+        Assert.Empty(HeadlessInput.FindAll<ComboBox>(window, "FilterValueBooleanComboBox"));
+
+        HeadlessInput.ChooseItem(window, fieldBox, "Completed");
+
+        Assert.Empty(HeadlessInput.FindAll<TextBox>(window, "FilterValueTextBox"));
+        Assert.Single(HeadlessInput.FindAll<ComboBox>(window, "FilterValueBooleanComboBox"));
+        var operatorBox = HeadlessInput.Find<ComboBox>(window, "FilterOperatorComboBox");
+        HeadlessInput.ChooseItem(window, operatorBox, "is empty");
+        Assert.Empty(HeadlessInput.FindAll<ComboBox>(window, "FilterValueBooleanComboBox"));
+        HeadlessInput.ChooseItem(window, operatorBox, "is");
+        Assert.Single(HeadlessInput.FindAll<ComboBox>(window, "FilterValueBooleanComboBox"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Choosing_is_empty_on_a_text_field_hides_the_text_box_and_keeps_search_enabled()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AddFilterButton"));
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(window, "FilterFieldComboBox"), "Ticket Number");
+        Assert.False(HeadlessInput.Find<Button>(window, "SearchButton").IsEnabled);
+
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(window, "FilterOperatorComboBox"), "is empty");
+
+        Assert.Empty(HeadlessInput.FindAll<TextBox>(window, "FilterValueTextBox"));
+        Assert.True(HeadlessInput.Find<Button>(window, "SearchButton").IsEnabled);
+        window.Close();
+    }
+
+    private static void DoubleClick(MainWindow window, Point point, MouseButton button)
+    {
+        for (var click = 0; click < 2; click++)
+        {
+            window.MouseDown(point, button, RawInputModifiers.None);
+            window.MouseUp(point, button, RawInputModifiers.None);
+        }
+
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void ActivateFirstResult(MainWindow window, bool useDoubleClick)
+    {
+        if (useDoubleClick)
+        {
+            var row = HeadlessInput.Find<ListBoxItem>(window, "SearchResultRow");
+            DoubleClick(window, HeadlessInput.CentreOf(window, row), MouseButton.Left);
+            return;
+        }
+
+        OpenFirstResultWithEnter(window);
+    }
+
+    private static void TypeDate(MainWindow window, string pickerId, string text)
+    {
+        var picker = HeadlessInput.Find<CalendarDatePicker>(window, pickerId);
+        HeadlessInput.TypeInto(window, picker.GetVisualDescendants().OfType<TextBox>().First(), text);
+        HeadlessInput.Press(window, Key.Enter);
+    }
+
+    private static async Task CreateItemDueAsync(IServiceProvider services, Guid projectId, string title, DateOnly due)
+    {
+        var items = services.GetRequiredService<ItemService>();
+        var item = await items.CreateAsync(projectId, null, null, title);
+        await items.EditAsync(item.Id, new ItemEdit(title, null, null, null, null, due, null, null, null));
+    }
+
+    /// <summary>A shell like the real one, except that item location lookups can be held back by <paramref name="delay"/>.</summary>
+    private static MainWindowViewModel ShowShellWithDelayedLookup(
+        MainWindow window, IServiceProvider services, DelayedItemLookupUnitOfWorkFactory delay)
+    {
+        var clock = services.GetRequiredService<TimeProvider>();
+        var timeZone = services.GetRequiredService<TimeZoneInfo>();
+        var items = new ItemService(delay, clock, timeZone);
+        var shell = new MainWindowViewModel(
+            services.GetRequiredService<ProjectService>(), services.GetRequiredService<FolderService>(),
+            services.GetRequiredService<IDialogService>(), items, clock, timeZone,
+            settings: services.GetRequiredService<SettingsService>(),
+            lookups: services.GetRequiredService<LookupService>(),
+            fields: services.GetRequiredService<FieldService>(),
+            search: services.GetRequiredService<IItemSearchService>(),
+            registry: services.GetRequiredService<IFieldRegistry>(),
+            calendar: services.GetRequiredService<CalendarService>(),
+            rescheduler: services.GetRequiredService<ICalendarRescheduler>());
+        window.DataContext = shell;
+        window.Show();
+        return shell;
     }
 
     private static MainWindowViewModel ShowShell(MainWindow window, IServiceProvider services)

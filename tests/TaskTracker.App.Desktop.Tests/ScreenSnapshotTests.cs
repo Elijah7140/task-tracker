@@ -593,8 +593,8 @@ public sealed class ScreenSnapshotTests
         var row = page.Filters[^1];
         row.SelectedField = row.Fields.Single(field => field.Key == "due");
         row.SelectedOperator = row.Operators.Single(option => option.Operator == FilterOperator.Between);
-        row.FirstDate = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        row.SecondDate = new DateTimeOffset(second.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        row.FirstDate = first.ToDateTime(TimeOnly.MinValue);
+        row.SecondDate = second.ToDateTime(TimeOnly.MinValue);
     }
 
     private static void AddTitleContainsFilter(SearchViewModel page, string text)

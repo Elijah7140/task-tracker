@@ -49,9 +49,22 @@
         <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
         </Style>
+        <!-- Fluent's picker button draws today's day number on its icon, which changes every day; a static icon keeps the UI and its snapshots stable. -->
+        <Style Selector="CalendarDatePicker /template/ Button#PART_Button">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="18" Height="18">
+                            <Path Data="{DynamicResource IconCalendar}" Fill="{TemplateBinding Foreground}" />
+                        </Viewbox>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
     </Application.Styles>
     <Application.Resources>
       <ResourceDictionary>
+        <StreamGeometry x:Key="IconCalendar">M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z</StreamGeometry>
         <StreamGeometry x:Key="IconMoveUp">M12 4 L4 12 L5.4 13.4 L11 7.8 V20 H13 V7.8 L18.6 13.4 L20 12 Z</StreamGeometry>
         <StreamGeometry x:Key="IconMoveDown">M12 20 L20 12 L18.6 10.6 L13 16.2 V4 H11 V16.2 L5.4 10.6 L4 12 Z</StreamGeometry>
         <StreamGeometry x:Key="IconRename">M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z</StreamGeometry>
