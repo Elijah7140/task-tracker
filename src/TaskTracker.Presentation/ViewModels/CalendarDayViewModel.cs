@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>One visible calendar day and its entries.</summary>
@@ -6,6 +8,9 @@ public sealed class CalendarDayViewModel
     public required DateOnly Date { get; init; }
 
     public required string Label { get; init; }
+
+    /// <summary>The date as yyyy-MM-dd; names the day's drop areas for UI automation.</summary>
+    public string IsoDate => Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     public required bool IsOutsideMonth { get; init; }
 

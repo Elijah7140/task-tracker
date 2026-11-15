@@ -4,6 +4,7 @@ using System.Windows.Input;
 
 using CommunityToolkit.Mvvm.Input;
 
+using TaskTracker.Core;
 using TaskTracker.Core.Calendar;
 using TaskTracker.Presentation.Navigation;
 
@@ -25,6 +26,7 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
     private const int WeekDayCount = 7;
 
     private readonly ICalendarService service;
+    private readonly ICalendarRescheduler rescheduler;
     private readonly INavigationService navigation;
     private readonly TimeProvider clock;
     private readonly TimeZoneInfo zone;
@@ -41,12 +43,16 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
     private string? error;
     private int loadVersion;
     private bool isOpeningEntry;
+    private bool isMovingEntry;
+    private CalendarMoveRequest? pendingMove;
     private bool disposed;
 
-    public CalendarViewModel(ICalendarService service, INavigationService navigation, TimeProvider clock,
-        TimeZoneInfo zone, Guid? projectId, CultureInfo? culture = null, IUiDispatcher? dispatcher = null)
+    public CalendarViewModel(ICalendarService service, ICalendarRescheduler rescheduler,
+        INavigationService navigation, TimeProvider clock, TimeZoneInfo zone, Guid? projectId,
+        CultureInfo? culture = null, IUiDispatcher? dispatcher = null)
     {
         this.service = service;
+        this.rescheduler = rescheduler;
         this.navigation = navigation;
         this.clock = clock;
         this.zone = zone;
@@ -90,6 +96,12 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
 
     /// <summary>Opens the workspace of an entry's item.</summary>
     public ICommand OpenEntryCommand { get; }
+
+    /// <summary>
+    /// Raised after a keyboard move has reloaded the calendar, so the view can focus the moved
+    /// entry again; the reload replaced every entry control.
+    /// </summary>
+    public event EventHandler<CalendarFocusRequest>? FocusEntryRequested;
 
     public bool IsWeek => isWeek;
 
@@ -229,6 +241,37 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Applies a drop: saves the change it asks for, then reloads. A drop that changes nothing saves
+    /// nothing. A rule failure (for example a deleted item) reloads and then shows the reason.
+    /// While a move is saving, a newer one waits and runs afterwards; the returned task of a waiting
+    /// move completes at once, and the task of the move that is running completes after them all.
+    /// </summary>
+    public Task MoveEntryAsync(CalendarEntryViewModel? occurrence, CalendarDropTarget target)
+    {
+        if (occurrence is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunMoveAsync(CalendarMoveRequest.ForDrop(occurrence, target));
+    }
+
+    /// <summary>
+    /// The keyboard equivalent of a drop: moves the entry by whole days and/or minutes, then asks the
+    /// view to focus the entry again. All-day entries ignore minute steps. Steps that arrive while a
+    /// move is saving are added together and applied to the reloaded entry.
+    /// </summary>
+    public Task MoveEntryByAsync(CalendarEntryViewModel? occurrence, int dayDelta, int minuteDelta)
+    {
+        if (occurrence is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunMoveAsync(CalendarMoveRequest.ForStep(occurrence, dayDelta, minuteDelta));
+    }
+
     public void Dispose()
     {
         disposed = true;
@@ -302,14 +345,139 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
         load.Cancellation.Dispose();
     }
 
-    private async Task ReloadAndReportMissingItemAsync()
+    private async Task RunMoveAsync(CalendarMoveRequest request)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        pendingMove = pendingMove is null ? request : pendingMove.Merge(request);
+
+        if (isMovingEntry)
+        {
+            return;
+        }
+
+        isMovingEntry = true;
+
+        try
+        {
+            await ApplyPendingMovesAsync();
+        }
+        finally
+        {
+            isMovingEntry = false;
+        }
+    }
+
+    private async Task ApplyPendingMovesAsync()
+    {
+        while (pendingMove is CalendarMoveRequest next && !disposed)
+        {
+            pendingMove = null;
+            await ApplyMoveAsync(next);
+        }
+    }
+
+    /// <summary>Plans, saves and reloads one move. Every failure is shown; none escapes to the caller.</summary>
+    private async Task ApplyMoveAsync(CalendarMoveRequest request)
+    {
+        try
+        {
+            var occurrence = CurrentOccurrenceOf(request);
+            var move = PlanMove(request, occurrence);
+
+            if (move.IsNone)
+            {
+                return;
+            }
+
+            await SaveMoveAsync(occurrence.Entry.ItemId, move);
+            await LoadAsync();
+            RequestFocus(request, occurrence, move);
+        }
+        catch (DomainRuleException exception)
+        {
+            pendingMove = null;
+            await ReloadAndReportAsync(exception.Message);
+        }
+        catch (Exception exception)
+        {
+            pendingMove = null;
+            ReportFailure(exception);
+        }
+    }
+
+    /// <summary>
+    /// The entry of the request as the latest load shows it, preferring the same day. When the entry is
+    /// no longer shown, the occurrence the gesture started on is used so the service can report why.
+    /// </summary>
+    private CalendarEntryViewModel CurrentOccurrenceOf(CalendarMoveRequest request)
+    {
+        var matches = Days.SelectMany(day => day.Entries)
+            .Where(candidate => KeyOf(candidate) == request.Key)
+            .ToArray();
+        var sameDay = matches.FirstOrDefault(candidate => candidate.Day == request.Occurrence.Day);
+        return sameDay ?? matches.FirstOrDefault() ?? request.Occurrence;
+    }
+
+    private static CalendarEntryKey KeyOf(CalendarEntryViewModel occurrence)
+    {
+        return new CalendarEntryKey(occurrence.Entry.ItemId, occurrence.Entry.Kind);
+    }
+
+    private static CalendarMove PlanMove(CalendarMoveRequest request, CalendarEntryViewModel occurrence)
+    {
+        var target = request.TargetFor(occurrence);
+
+        if (target is null)
+        {
+            return CalendarMove.None;
+        }
+
+        return CalendarReschedule.Plan(occurrence, target.Value);
+    }
+
+    private Task SaveMoveAsync(Guid itemId, CalendarMove move)
+    {
+        if (move.Kind == CalendarMoveKind.Due)
+        {
+            return rescheduler.MoveDueAsync(itemId, move.Date, move.Time);
+        }
+
+        return rescheduler.MoveScheduleAsync(itemId, move.Start);
+    }
+
+    private void RequestFocus(CalendarMoveRequest request, CalendarEntryViewModel occurrence, CalendarMove move)
+    {
+        if (request.RestoreFocus && !disposed)
+        {
+            FocusEntryRequested?.Invoke(this, new CalendarFocusRequest(KeyOf(occurrence), move.TargetDay));
+        }
+    }
+
+    private void ReportFailure(Exception exception)
+    {
+        if (!disposed)
+        {
+            Error = $"Something went wrong: {exception.Message}";
+        }
+    }
+
+    private async Task ReloadAndReportAsync(string message)
     {
         await LoadAsync();
 
         if (!disposed)
         {
-            Error = MissingItemMessage;
+            Error = message;
         }
+    }
+
+    private Task ReloadAndReportMissingItemAsync()
+    {
+        return ReloadAndReportAsync(MissingItemMessage);
     }
 
     private void ShowDays(CalendarQuery query, IReadOnlyList<CalendarEntry> entries)

@@ -18,7 +18,8 @@ internal static class SearchTestShell
         return new MainWindowViewModel(store.Projects, store.Folders, dialogs ?? new FakeDialogService(),
             store.Items, clock ?? TimeProvider.System, timeZone ?? TimeZoneInfo.Utc, settings: store.Settings,
             lookups: store.Lookups, fields: store.Fields, search: search, registry: registry,
-            calendar: calendar ?? new CalendarService(store.UnitOfWorkFactory));
+            calendar: calendar ?? new CalendarService(store.UnitOfWorkFactory),
+            rescheduler: new CalendarRescheduleService(store.UnitOfWorkFactory, clock ?? TimeProvider.System));
     }
 
     internal static SearchViewModel CreatePage(PresentationTestStore store, IItemSearchService search,

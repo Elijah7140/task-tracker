@@ -25,9 +25,7 @@ public sealed class CalendarEntryViewModel : ViewModelBase
     {
         get
         {
-            var hours = Start?.Hour ?? 0;
-            var minutes = Start?.Minute ?? 0;
-            return hours * CalendarMetrics.HourHeight + minutes * CalendarMetrics.PixelsPerMinute;
+            return CalendarMetrics.OffsetOf(Start ?? TimeOnly.MinValue);
         }
     }
 

@@ -31,6 +31,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     private readonly IItemSearchService? search;
     private readonly IFieldRegistry? registry;
     private readonly CalendarService? calendar;
+    private readonly ICalendarRescheduler? rescheduler;
     private ViewModelBase? searchReturnPage;
     private ViewModelBase? calendarReturnPage;
     private bool isOpeningSearch;
@@ -42,7 +43,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         ItemService? itemService = null, TimeProvider? clock = null, TimeZoneInfo? timeZone = null,
         IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null,
         FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null,
-        CalendarService? calendar = null)
+        CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -57,6 +58,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         this.search = search;
         this.registry = registry;
         this.calendar = calendar;
+        this.rescheduler = rescheduler;
         fieldLoader = CreateFieldLoader(fields, itemService);
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
@@ -183,7 +185,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     /// <inheritdoc />
     public async Task OpenCalendarAsync()
     {
-        if (calendar is null || clock is null || timeZone is null || isOpeningCalendar
+        if (calendar is null || rescheduler is null || clock is null || timeZone is null || isOpeningCalendar
             || CurrentPage is CalendarViewModel)
         {
             return;
@@ -196,7 +198,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
             var version = pageVersion;
             var origin = PageBehind(CurrentPage);
             var projectId = (origin as ProjectWorkspaceViewModel)?.ProjectId;
-            var page = new CalendarViewModel(calendar, this, clock, timeZone, projectId,
+            var page = new CalendarViewModel(calendar, rescheduler, this, clock, timeZone, projectId,
                 dispatcher: dispatcher);
             await page.LoadAsync();
 

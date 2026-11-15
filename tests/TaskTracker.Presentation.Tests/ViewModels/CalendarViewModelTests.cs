@@ -138,8 +138,9 @@ public sealed class CalendarViewModelTests
     {
         var service = new RecordingCalendarService();
         var projectId = Guid.NewGuid();
-        using var page = new CalendarViewModel(service, new FakeNavigationService(),
-            new FakeTimeProvider(NoonOnTheThirteenth), TimeZoneInfo.Utc, projectId, English, new ImmediateDispatcher());
+        using var page = new CalendarViewModel(service, new RecordingCalendarRescheduler(),
+            new FakeNavigationService(), new FakeTimeProvider(NoonOnTheThirteenth), TimeZoneInfo.Utc, projectId,
+            English, new ImmediateDispatcher());
 
         await page.LoadAsync();
         var scoped = service.Queries[^1].ProjectId;
@@ -177,7 +178,8 @@ public sealed class CalendarViewModelTests
         var zone = TimeZoneInfo.CreateCustomTimeZone("Test+10", TimeSpan.FromHours(10), "Test+10", "Test+10");
         var service = new RecordingCalendarService();
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 13, 13, 30, 0, TimeSpan.Zero));
-        using var page = new CalendarViewModel(service, new FakeNavigationService(), clock, zone, null,
+        using var page = new CalendarViewModel(service, new RecordingCalendarRescheduler(),
+            new FakeNavigationService(), clock, zone, null,
             English, new ImmediateDispatcher());
         await page.LoadAsync();
         Assert.Equal(new DateOnly(2026, 11, 13), Assert.Single(page.Days, day => day.IsToday).Date);
@@ -308,9 +310,11 @@ public sealed class CalendarViewModelTests
     }
 
     private static CalendarViewModel CreatePage(ICalendarService service, CultureInfo? culture = null,
-        FakeTimeProvider? clock = null, FakeNavigationService? navigation = null)
+        FakeTimeProvider? clock = null, FakeNavigationService? navigation = null,
+        ICalendarRescheduler? rescheduler = null)
     {
-        return new CalendarViewModel(service, navigation ?? new FakeNavigationService(),
+        return new CalendarViewModel(service, rescheduler ?? new RecordingCalendarRescheduler(),
+            navigation ?? new FakeNavigationService(),
             clock ?? new FakeTimeProvider(NoonOnTheThirteenth), TimeZoneInfo.Utc, null,
             culture ?? English, new ImmediateDispatcher());
     }

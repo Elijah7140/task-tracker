@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
+using Avalonia.Threading;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -101,6 +102,87 @@ public sealed class ScreenSnapshotTests
 
         Assert.NotNull(frame);
         SnapshotComparer.AssertMatches(frame, $"calendar-week-narrow-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Calendar_week_mid_drag_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedCalendarAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        var page = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        await page.SetWeekAsync(true);
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        var block = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "Discuss rollout");
+        var column = HeadlessInput.FindNamed<Grid>(window, "CalendarTimeColumn", "2026-11-14");
+        var grabOffset = 12.0;
+        var dropY = CalendarMetrics.OffsetOf(new TimeOnly(11, 30)) + grabOffset;
+
+        HeadlessInput.PressMouse(window, HeadlessInput.PointIn(window, block, block.Bounds.Width / 2, grabOffset));
+        HeadlessInput.MoveMouse(window, HeadlessInput.PointIn(window, column, column.Bounds.Width / 2, dropY));
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-week-drag-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Calendar_month_mid_drag_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedCalendarAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        var entry = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "Review invoice index");
+        var targetCell = HeadlessInput.FindNamed<Border>(window, "CalendarDayCell", "2026-11-17");
+
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, entry));
+        HeadlessInput.MoveMouse(window, HeadlessInput.CentreOf(window, targetCell));
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-month-drag-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Calendar_week_all_day_drop_outline_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedCalendarAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        var page = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        await page.SetWeekAsync(true);
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        var entry = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "Archive logs");
+        var cell = HeadlessInput.FindNamed<Border>(window, "CalendarAllDayCell", "2026-11-14");
+
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, entry));
+        HeadlessInput.MoveMouse(window, HeadlessInput.CentreOf(window, cell));
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-week-allday-drag-{ThemeName(dark)}");
         window.Close();
     }
 

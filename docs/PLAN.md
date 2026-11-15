@@ -504,7 +504,18 @@ parses into an `ItemQuery`, and saved searches.
 - Today comes from the injected TimeProvider and explicit local time zone. Previous, Today, Next, Month and Week control the period. PageUp/PageDown change periods; Ctrl+Shift+M/W switch views.
 - The scope is All projects from Home or This project from a workspace. Include completed is available in either scope.
 - Home, workspace, and Ctrl+Shift+C open the calendar. Back or Escape (with no modifiers) restores the previous page. Search and Calendar never stack: opening one from the other disposes it and keeps the original page as the single return target, so Back lands on that page and activating an entry or result asks that page's unsaved-changes guard once. An entry activation still pending when the calendar is left is dropped. Activating an entry opens its current workspace folder and selects it, subject to the unsaved-changes guard. A deleted item reloads the calendar and reports “This item no longer exists”. Month navigation moves from the first day of the month.
-- Entries use their own urgency, refreshed each minute, and show it as a label (Approaching, Imminent, Overdue) with a bold title when overdue, never by colour alone; tooltips show type and priority. Drag-to-reschedule is reserved for Phase 5b.
+- Entries use their own urgency, refreshed each minute, and show it as a label (Approaching, Imminent, Overdue) with a bold title when overdue, never by colour alone; tooltips show type and priority.
+- Drag to reschedule (Phase 5b). Pointer and keyboard use the same rules, planned in Presentation (`CalendarReschedule`, `CalendarDropMapper`) and saved by `ICalendarRescheduler` (`MoveDueAsync`, `MoveScheduleAsync`; one unit of work each, deleted items fail with a rule error):
+  - A press that moves less than 4 pixels is a click and still opens the item. Past that the entry is dragged; Escape cancels, and releasing outside every day area saves nothing. A drop that lands on the same slot is a no-op and does not save. Completed entries can be dragged too.
+  - Month: dropping on another day cell sets a due entry's date and keeps its DueTime; a scheduled entry's start moves to the same time on that day, keeping its length (a schedule without an end stays without one). The cell is outlined while the pointer is over it.
+  - Week all-day row: a due entry changes date; a timed due entry also loses its DueTime. A scheduled block cannot be dropped there (ignored, no indicator).
+  - Week time grid: a due entry (all-day or timed) takes the dropped day and time; a block's start becomes the dropped time and its length is kept. A ghost block with the time shows the snapped position. The drop position uses where the block was grabbed, so it does not jump (an all-day entry is placed by the pointer itself).
+  - Times snap to 15 minutes and are clamped to 00:00–23:45 so the start stays on the dropped day. A block that crosses midnight moves as a whole, whichever day of it is dragged.
+  - Keyboard: with an entry focused, Alt+←/→ moves it one day and Alt+↑/↓ moves a timed due entry or scheduled block 15 minutes (month and week). Alt+↑/↓ does nothing for an all-day entry. A time between quarter hours first lands on the next quarter in the direction of the key (10:07 goes to 10:15 with Alt+↓ and to 10:00 with Alt+↑). Timed entries stop at 00:00 and 23:45 instead of crossing midnight.
+  - Focus stays on the moved entry after the reload. If it is no longer shown, focus goes to its day's "+N more" button, or to Previous or Next when the entry left the visible period; the period itself does not move.
+  - While a move is saving, newer key steps on the same entry are added together and a newer drop replaces a waiting one; the waiting move is planned against the entry as reloaded, so a held key keeps moving it and a reload between pointer press and drop never uses stale values. A failed move discards the waiting ones.
+  - Pointer details: only the left button drags. A press that did not start on an entry (including "+N more" and scrollbars) never drags; a hover after a lost button release does not drag; releasing another button mid-drag does not drop; scrolling the week grid during a drag updates the ghost time.
+  - After a move the calendar reloads and urgency is recomputed. A rule failure (for example the item was deleted) reloads and shows its message inline. Dragging does not auto-scroll the week grid.
 
 ## 8. User interface (Avalonia)
 
@@ -530,7 +541,9 @@ parses into an `ItemQuery`, and saved searches.
 Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
 Delete delete (with confirm), Alt+↑/↓ reorder, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
-Ctrl+Shift+M/W month/week calendar view.
+Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
+and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where
+Alt+↑/↓ reorders items, so the two never clash.
 
 ## 9. Delivery phases
 
@@ -543,7 +556,7 @@ Each phase ends with a working build, passing tests, and a short demo.
 | **2. Main UI** | Home, project workspace, folder tree, item list with sub-items, completed sections, detail editor, urgency colors, app and project settings, delete with confirm, keyboard shortcuts | R1–R15 usable end to end; ViewModel tests pass with no UI framework; every layer of the §11.1 testing standard passes |
 | **3. Custom metadata** | §7.1 tables (additive migration), field manager (global + per-project), custom fields in item editor | Users can add a field of each type and fill it in |
 | **4. Search** | §7.2 query model, FTS5, filter-builder UI, results across a project or all projects | Search by any built-in or custom field with the operator semantics in §7.2 |
-| **5. Calendar** | Month/week view of deadlines and scheduled items; click-through to the item | See §10 |
+| **5. Calendar** | Month/week view of deadlines and scheduled items; click-through to the item; drag (or Alt+arrows) to reschedule | See §10 |
 
 Phases 0–2 are v1.
 

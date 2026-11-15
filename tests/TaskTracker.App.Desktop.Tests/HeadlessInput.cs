@@ -23,6 +23,69 @@ public static class HeadlessInput
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>The window position of a point inside a control, measured from the control's top-left corner.</summary>
+    public static Point PointIn(Window window, Control control, double x, double y)
+    {
+        return control.TranslatePoint(new Point(x, y), window)!.Value;
+    }
+
+    /// <summary>The window position of a control's centre.</summary>
+    public static Point CentreOf(Window window, Control control)
+    {
+        return PointIn(window, control, control.Bounds.Width / 2, control.Bounds.Height / 2);
+    }
+
+    /// <summary>Presses a mouse button (the left one by default) at a window position without releasing it.</summary>
+    public static void PressMouse(Window window, Point point, MouseButton button = MouseButton.Left,
+        RawInputModifiers held = RawInputModifiers.None)
+    {
+        window.MouseDown(point, button, held);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Moves the mouse to a window position; by default the left button counts as held down.</summary>
+    public static void MoveMouse(Window window, Point point,
+        RawInputModifiers held = RawInputModifiers.LeftMouseButton)
+    {
+        window.MouseMove(point, held);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Releases a mouse button (the left one by default) at a window position.</summary>
+    public static void ReleaseMouse(Window window, Point point, MouseButton button = MouseButton.Left,
+        RawInputModifiers held = RawInputModifiers.None)
+    {
+        window.MouseUp(point, button, held);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Presses at one position, moves in several steps, and releases at another.</summary>
+    public static void Drag(Window window, Point from, Point to)
+    {
+        const int steps = 5;
+        PressMouse(window, from);
+
+        for (var step = 1; step <= steps; step++)
+        {
+            var fraction = (double)step / steps;
+            MoveMouse(window, from + (to - from) * fraction);
+        }
+
+        ReleaseMouse(window, to);
+    }
+
+    /// <summary>Lets background work finish, pumping the UI thread, until the condition holds.</summary>
+    public static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 300 && !condition(); attempt++)
+        {
+            await Task.Delay(10);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Assert.True(condition(), "The condition was not met in time.");
+    }
+
     /// <summary>Clicks a text box to focus it, then types the text.</summary>
     public static void TypeInto(Window window, Control textBox, string text)
     {

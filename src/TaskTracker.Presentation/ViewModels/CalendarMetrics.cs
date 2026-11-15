@@ -25,11 +25,26 @@ public static class CalendarMetrics
     /// <summary>Scroll offset that shows <see cref="MorningHour"/> at the top.</summary>
     public const double MorningOffset = MorningHour * HourHeight;
 
+    /// <summary>Dropped entries snap to this many minutes in the week time grid.</summary>
+    public const int SnapMinutes = 15;
+
+    /// <summary>Latest start a dropped entry can have: 23:45, so it stays within its day.</summary>
+    public const int LastSnapMinute = 24 * 60 - SnapMinutes;
+
+    /// <summary>The pointer must travel this many pixels before a press becomes a drag.</summary>
+    public const double DragThreshold = 4;
+
     /// <summary>Entries a month cell lists before it shows "+N more".</summary>
     public const int MaxVisibleMonthEntries = 3;
 
     /// <summary>Row labels of the time grid, "00:00" to "23:00".</summary>
     public static IReadOnlyList<string> HourLabels { get; } = CreateHourLabels();
+
+    /// <summary>Vertical offset of a time of day in the week time grid.</summary>
+    public static double OffsetOf(TimeOnly time)
+    {
+        return time.Hour * HourHeight + time.Minute * PixelsPerMinute;
+    }
 
     private static string[] CreateHourLabels()
     {

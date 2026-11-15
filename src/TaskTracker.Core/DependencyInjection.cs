@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddSingleton<FolderService>();
         services.AddSingleton<ItemService>();
         services.AddSingleton<CalendarService>();
+        services.AddSingleton<ICalendarRescheduler, CalendarRescheduleService>();
         services.AddSingleton(FieldWriteGate.Shared);
         services.AddSingleton<FieldService>();
         services.AddSingleton<LookupService>();
