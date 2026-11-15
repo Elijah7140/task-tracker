@@ -19,11 +19,17 @@ public sealed class TrashBatchViewModelTests
     {
         var batch = TrashBatches.Item("Item");
 
+        var localTime = new DateTime(2026, 11, 13, 14, 0, 0);
+
         var english = new TrashBatchViewModel(batch, TwoHoursAhead, English);
         var german = new TrashBatchViewModel(batch, TwoHoursAhead, German);
 
-        Assert.Equal("11/13/2026 2:00 PM", english.DeletedText);
-        Assert.Equal("13.11.2026 14:00", german.DeletedText);
+        // Expected text comes from the same culture: Linux ICU puts a narrow no-break
+        // space before "PM", so a hard-coded string would only pass on Windows.
+        Assert.Equal(localTime.ToString("g", English), english.DeletedText);
+        Assert.Equal(localTime.ToString("g", German), german.DeletedText);
+        Assert.Contains("2:00", english.DeletedText);
+        Assert.Contains("14:00", german.DeletedText);
     }
 
     [Fact]
