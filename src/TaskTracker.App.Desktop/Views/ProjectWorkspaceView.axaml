@@ -30,7 +30,7 @@
   <Grid RowDefinitions="Auto,*">
     <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
             Padding="22,16">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="12">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12">
       <ItemsControl ItemsSource="{Binding Breadcrumbs}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate>
@@ -51,6 +51,7 @@
       <Button Grid.Column="2" Content="Project settings" Command="{Binding ProjectSettingsCommand}" Classes="subtle" AutomationProperties.AutomationId="WorkspaceProjectSettingsButton" />
       <Button Grid.Column="3" Content="Search" Command="{Binding SearchCommand}" Classes="subtle" AutomationProperties.AutomationId="WorkspaceSearchButton" />
       <Button Grid.Column="4" Content="Calendar" Command="{Binding CalendarCommand}" Classes="subtle" AutomationProperties.AutomationId="WorkspaceCalendarButton" />
+      <Button Grid.Column="5" Content="Trash" Command="{Binding TrashCommand}" Classes="subtle" AutomationProperties.AutomationId="WorkspaceTrashButton" />
       </Grid>
     </Border>
     <Grid Grid.Row="1" ColumnDefinitions="230,*,320">

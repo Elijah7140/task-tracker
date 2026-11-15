@@ -1,5 +1,6 @@
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Trash;
 
 namespace TaskTracker.Core.Persistence;
 
@@ -21,6 +22,8 @@ public interface IUnitOfWork : IAsyncDisposable
     IItemSearch Search { get; }
 
     ICalendarRepository Calendar { get; }
+
+    ITrashRepository Trash { get; }
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

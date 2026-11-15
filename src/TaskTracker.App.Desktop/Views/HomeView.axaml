@@ -3,7 +3,7 @@
              x:Class="TaskTracker.App.Desktop.Views.HomeView"
              x:CompileBindings="False">
   <Grid RowDefinitions="Auto,*" Margin="40,32">
-    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,28" ColumnSpacing="8">
+    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,28" ColumnSpacing="8">
       <StackPanel Spacing="6">
         <TextBlock Text="Projects" FontSize="30" FontWeight="SemiBold" />
         <TextBlock Text="Choose a space to continue your work." Opacity="0.7" />
@@ -14,7 +14,9 @@
               Padding="18,10" VerticalAlignment="Center" />
       <Button Grid.Column="3" Content="Calendar" Command="{Binding CalendarCommand}" AutomationProperties.AutomationId="HomeCalendarButton"
               Padding="18,10" VerticalAlignment="Center" />
-      <Button Grid.Column="4" Content="+ New project" Command="{Binding CreateCommand}" AutomationProperties.AutomationId="NewProjectButton"
+      <Button Grid.Column="4" Content="Trash" Command="{Binding TrashCommand}" AutomationProperties.AutomationId="HomeTrashButton"
+              Padding="18,10" VerticalAlignment="Center" />
+      <Button Grid.Column="5" Content="+ New project" Command="{Binding CreateCommand}" AutomationProperties.AutomationId="NewProjectButton"
               Padding="18,10" VerticalAlignment="Center" />
     </Grid>
     <ScrollViewer Grid.Row="1">

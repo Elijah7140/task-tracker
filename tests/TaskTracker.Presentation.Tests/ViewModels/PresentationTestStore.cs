@@ -27,6 +27,9 @@ internal sealed class PresentationTestStore : IAsyncDisposable
 
     public FolderService Folders => services.GetRequiredService<FolderService>();
 
+    public TaskTracker.Core.Trash.TrashService Trash =>
+        services.GetRequiredService<TaskTracker.Core.Trash.TrashService>();
+
     public TaskTracker.Core.Items.ItemService Items => services.GetRequiredService<TaskTracker.Core.Items.ItemService>();
 
     public TaskTracker.Core.Settings.SettingsService Settings =>

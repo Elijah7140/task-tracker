@@ -41,11 +41,16 @@ public sealed class AvaloniaDialogService : IDialogService
         return await window.ShowDialog<string?>(GetOwner());
     }
 
-    public async Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue")
+    public async Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue",
+        bool cancelIsDefault = false)
     {
         var window = CreateWindow(title, new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        AddButtons(window, confirmText, () => window.Close(true), "Cancel", () => window.Close(false));
-        window.Opened += (_, _) => ((StackPanel)((StackPanel)window.Content!).Children[^1]).Children[0].Focus();
+        var confirm = AddButtons(window, confirmText, () => window.Close(true), "Cancel", () => window.Close(false));
+        var cancel = (Button)((StackPanel)((StackPanel)window.Content!).Children[^1]).Children[1];
+        var focused = cancelIsDefault ? cancel : confirm;
+        confirm.IsDefault = !cancelIsDefault;
+        cancel.IsDefault = cancelIsDefault;
+        window.Opened += (_, _) => focused.Focus();
         return await window.ShowDialog<bool>(GetOwner());
     }
 

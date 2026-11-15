@@ -17,7 +17,8 @@ public sealed partial class MainWindow : Window
             .Register<ProjectSettingsViewModel, ProjectSettingsView>()
             .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>()
             .Register<SearchViewModel, SearchView>()
-            .Register<CalendarViewModel, CalendarView>());
+            .Register<CalendarViewModel, CalendarView>()
+            .Register<TrashViewModel, TrashView>());
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
     }
@@ -79,6 +80,11 @@ public sealed partial class MainWindow : Window
             args.Handled = true;
             await shell.OpenCalendarAsync();
         }
+        else if (IsTrashShortcut(args))
+        {
+            args.Handled = true;
+            await shell.OpenTrashAsync();
+        }
         else if (shell.CurrentPage is CalendarViewModel calendar)
         {
             await HandleCalendarKeyAsync(shell, calendar, args);
@@ -87,6 +93,11 @@ public sealed partial class MainWindow : Window
         {
             args.Handled = true;
             await shell.ReturnFromSearchAsync();
+        }
+        else if (args.Key == Key.Escape && args.KeyModifiers == KeyModifiers.None && shell.CurrentPage is TrashViewModel)
+        {
+            args.Handled = true;
+            await shell.ReturnFromTrashAsync();
         }
     }
 
@@ -123,6 +134,11 @@ public sealed partial class MainWindow : Window
     private static bool IsCalendarShortcut(KeyEventArgs args)
     {
         return args.Key == Key.C && args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift);
+    }
+
+    private static bool IsTrashShortcut(KeyEventArgs args)
+    {
+        return args.Key == Key.T && args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift);
     }
 
     private static bool IsSearchShortcut(KeyEventArgs args)

@@ -2,6 +2,7 @@ using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Trash;
 
 namespace TaskTracker.Presentation.Tests.ViewModels;
 
@@ -53,6 +54,8 @@ internal sealed class GatedWorkspaceUnitOfWorkFactory(IUnitOfWorkFactory inner) 
         public IItemSearch Search => unit.Search;
 
         public ICalendarRepository Calendar => unit.Calendar;
+
+        public ITrashRepository Trash => unit.Trash;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {

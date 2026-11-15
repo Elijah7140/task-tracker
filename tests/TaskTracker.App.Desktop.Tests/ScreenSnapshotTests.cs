@@ -14,6 +14,7 @@ using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Trash;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
@@ -740,6 +741,70 @@ public sealed class ScreenSnapshotTests
         row.SelectedField = row.Fields.Single(field => field.Key == fieldKey);
         row.SelectedOperator = row.Operators.Single(option => option.Operator == operation);
         return row;
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Trash_with_several_batches_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await TrashTestData.SeedAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenTrashAsync();
+        var page = Assert.IsType<TrashViewModel>(shell.CurrentPage);
+        Assert.Equal(4, page.Batches.Count);
+        Dispatcher.UIThread.RunJobs();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"trash-batches-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Trash_with_an_inline_error_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await TrashTestData.SeedAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenTrashAsync();
+        var page = Assert.IsType<TrashViewModel>(shell.CurrentPage);
+        var staleRow = page.Batches.Single(row => row.Title == TrashTestData.DeletedItemName);
+        await services.GetRequiredService<TrashService>().PurgeAsync(staleRow.BatchId);
+        await page.RestoreAsync(staleRow);
+        Assert.NotNull(page.Error);
+        Assert.Equal(3, page.Batches.Count);
+        Dispatcher.UIThread.RunJobs();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"trash-error-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Empty_trash_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenTrashAsync();
+        Dispatcher.UIThread.RunJobs();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"trash-empty-{ThemeName(dark)}");
+        window.Close();
     }
 
     private static MainWindow OpenWindow(MainWindowViewModel shell, bool dark, int height = 800, int width = 1200)

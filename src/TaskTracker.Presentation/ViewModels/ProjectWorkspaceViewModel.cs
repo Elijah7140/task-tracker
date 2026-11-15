@@ -58,6 +58,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         SettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
         SearchCommand = new AsyncRelayCommand(navigation.OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(navigation.OpenCalendarAsync);
+        TrashCommand = new AsyncRelayCommand(navigation.OpenTrashAsync);
         ProjectSettingsCommand = new AsyncRelayCommand(OpenProjectSettingsAsync);
         QuickAddCommand = new AsyncRelayCommand(QuickAddAsync);
         AddSubItemCommand = new AsyncRelayCommand(AddSubItemAsync);
@@ -93,6 +94,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public ICommand SearchCommand { get; }
 
     public ICommand CalendarCommand { get; }
+
+    public ICommand TrashCommand { get; }
 
     public ICommand ProjectSettingsCommand { get; }
 

@@ -41,6 +41,22 @@ internal sealed class FakeNavigationService : INavigationService
         return Task.CompletedTask;
     }
 
+    public bool OpenedTrash { get; private set; }
+
+    public bool ReturnedFromTrash { get; private set; }
+
+    public Task OpenTrashAsync()
+    {
+        OpenedTrash = true;
+        return Task.CompletedTask;
+    }
+
+    public Task ReturnFromTrashAsync()
+    {
+        ReturnedFromTrash = true;
+        return Task.CompletedTask;
+    }
+
     public bool OpenedCalendar { get; private set; }
 
     public bool ReturnedFromCalendar { get; private set; }

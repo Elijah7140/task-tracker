@@ -10,6 +10,7 @@ using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Trash;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -32,10 +33,12 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     private readonly IFieldRegistry? registry;
     private readonly CalendarService? calendar;
     private readonly ICalendarRescheduler? rescheduler;
-    private ViewModelBase? searchReturnPage;
-    private ViewModelBase? calendarReturnPage;
+    private readonly ITrashService? trash;
+    private ViewModelBase? transientReturnPage;
+    private bool returnPageIsStale;
     private bool isOpeningSearch;
     private bool isOpeningCalendar;
+    private bool isOpeningTrash;
     private ViewModelBase? currentPage;
     private int pageVersion;
 
@@ -43,7 +46,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         ItemService? itemService = null, TimeProvider? clock = null, TimeZoneInfo? timeZone = null,
         IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null,
         FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null,
-        CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null)
+        CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null,
+        ITrashService? trash = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -59,9 +63,11 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         this.registry = registry;
         this.calendar = calendar;
         this.rescheduler = rescheduler;
+        this.trash = trash;
         fieldLoader = CreateFieldLoader(fields, itemService);
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
+        TrashCommand = new AsyncRelayCommand(OpenTrashAsync);
     }
 
     public string Title => "Task Tracker";
@@ -69,6 +75,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     public ICommand SearchCommand { get; }
 
     public ICommand CalendarCommand { get; }
+
+    public ICommand TrashCommand { get; }
 
     public ViewModelBase? CurrentPage
     {
@@ -84,8 +92,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
 
     public async Task GoHomeAsync()
     {
-        DiscardSearchReturnPage();
-        DiscardCalendarReturnPage();
+        DiscardTransientReturnPage();
         DisposeCurrentPage();
         var version = pageVersion;
         var page = new HomeViewModel(projectService, dialogs, this);
@@ -121,32 +128,22 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     /// <inheritdoc />
     public async Task ReturnFromSearchAsync()
     {
-        if (CurrentPage is not SearchViewModel searchPage)
+        if (CurrentPage is SearchViewModel)
         {
-            return;
+            await ReturnFromTransientPageAsync();
         }
-
-        if (searchReturnPage is null)
-        {
-            await GoHomeAsync();
-            return;
-        }
-
-        searchPage.Dispose();
-        CurrentPage = searchReturnPage;
-        searchReturnPage = null;
     }
 
     /// <inheritdoc />
     public async Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result)
     {
-        return await OpenItemFromTransientPageAsync(result.ItemId, searchReturnPage);
+        return await OpenItemFromTransientPageAsync(result.ItemId, transientReturnPage);
     }
 
     /// <inheritdoc />
     public async Task<SearchOpenOutcome> OpenCalendarItemAsync(Guid itemId)
     {
-        return await OpenItemFromTransientPageAsync(itemId, calendarReturnPage);
+        return await OpenItemFromTransientPageAsync(itemId, transientReturnPage);
     }
 
     /// <summary>
@@ -209,7 +206,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
                 return;
             }
 
-            ShowCalendarPage(origin, page);
+            ShowTransientPage(origin, page);
         }
         finally
         {
@@ -220,20 +217,46 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     /// <inheritdoc />
     public async Task ReturnFromCalendarAsync()
     {
-        if (CurrentPage is not CalendarViewModel page)
+        if (CurrentPage is CalendarViewModel)
+        {
+            await ReturnFromTransientPageAsync();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task OpenTrashAsync()
+    {
+        if (trash is null || timeZone is null || isOpeningTrash || CurrentPage is TrashViewModel)
         {
             return;
         }
 
-        if (calendarReturnPage is null)
+        isOpeningTrash = true;
+
+        try
         {
-            await GoHomeAsync();
+            await ShowTrashPageAsync(trash, timeZone);
+        }
+        finally
+        {
+            isOpeningTrash = false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task ReturnFromTrashAsync()
+    {
+        if (CurrentPage is not TrashViewModel page)
+        {
             return;
         }
 
-        page.Dispose();
-        CurrentPage = calendarReturnPage;
-        calendarReturnPage = null;
+        if (page.IsWorking)
+        {
+            return;
+        }
+
+        await ReturnFromTransientPageAsync();
     }
 
     /// <summary>Tells the user about a failure no screen handled, instead of crashing the app.</summary>
@@ -286,46 +309,125 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
             return;
         }
 
-        ShowSearchPage(origin, page);
+        ShowTransientPage(origin, page);
+    }
+
+    private async Task ShowTrashPageAsync(ITrashService trashService, TimeZoneInfo zone)
+    {
+        var version = pageVersion;
+        var origin = PageBehind(CurrentPage);
+        var projectId = (origin as ProjectWorkspaceViewModel)?.ProjectId;
+        var page = new TrashViewModel(trashService, dialogs, this, zone, projectId);
+        await page.LoadAsync();
+
+        if (version != pageVersion)
+        {
+            page.Dispose();
+            return;
+        }
+
+        ShowTransientPage(origin, page);
     }
 
     /// <summary>
-    /// The page a search or calendar page was opened from, or the page itself for any other page.
-    /// Search and calendar never stack: opening one from the other keeps the original page as the
-    /// single return target, so every unsaved-changes guard sits directly behind the page on screen.
+    /// Brings the page behind a transient page up to date after a restore: Home recounts its
+    /// projects and a workspace reloads, which asks its unsaved-changes guard once. Returns false
+    /// when the transient page should stay on screen: the user cancelled that question, or
+    /// navigation moved elsewhere meanwhile.
+    /// </summary>
+    private async Task<bool> RefreshPageBehindAsync(ViewModelBase leavingPage)
+    {
+        var version = pageVersion;
+        var reloaded = await ReloadPageBehindAsync();
+
+        if (!reloaded)
+        {
+            return false;
+        }
+
+        var navigatedAway = version != pageVersion || !ReferenceEquals(CurrentPage, leavingPage);
+        return !navigatedAway;
+    }
+
+    private async Task<bool> ReloadPageBehindAsync()
+    {
+        if (transientReturnPage is HomeViewModel home)
+        {
+            await home.LoadAsync();
+            return true;
+        }
+
+        if (transientReturnPage is ProjectWorkspaceViewModel workspace)
+        {
+            return await workspace.LoadAsync(workspace.SelectedFolder?.Id, workspace.SelectedItem?.Id);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True when something was restored while the page behind the transient page was out of sight,
+    /// either from the trash on screen or from a trash page that was replaced by search or the calendar.
+    /// </summary>
+    private bool ReturnPageIsOutOfDate()
+    {
+        return returnPageIsStale || CurrentPage is TrashViewModel { MayHaveRestored: true };
+    }
+
+    /// <summary>
+    /// The page a search, calendar or trash page was opened from, or the page itself for any
+    /// other page. These pages never stack: opening one from another keeps the original page as
+    /// the single return target, so every unsaved-changes guard sits directly behind the page on screen.
     /// </summary>
     private ViewModelBase? PageBehind(ViewModelBase? page)
     {
-        return page switch
-        {
-            SearchViewModel => searchReturnPage,
-            CalendarViewModel => calendarReturnPage,
-            _ => page
-        };
+        return IsTransientPage(page) ? transientReturnPage : page;
     }
 
-    private void ShowSearchPage(ViewModelBase? origin, SearchViewModel page)
+    private static bool IsTransientPage(ViewModelBase? page)
     {
-        if (CurrentPage is CalendarViewModel calendarPage)
+        return page is SearchViewModel or CalendarViewModel or TrashViewModel;
+    }
+
+    private void ShowTransientPage(ViewModelBase? origin, ViewModelBase page)
+    {
+        if (IsTransientPage(CurrentPage))
         {
-            calendarPage.Dispose();
-            calendarReturnPage = null;
+            returnPageIsStale |= CurrentPage is TrashViewModel { MayHaveRestored: true };
+            (CurrentPage as IDisposable)?.Dispose();
+        }
+        else
+        {
+            returnPageIsStale = false;
         }
 
-        searchReturnPage = origin;
+        transientReturnPage = origin;
         CurrentPage = page;
     }
 
-    private void ShowCalendarPage(ViewModelBase? origin, CalendarViewModel page)
+    /// <summary>Leaves the search, calendar or trash page for the page it was opened from, or Home when there is none.</summary>
+    private async Task ReturnFromTransientPageAsync()
     {
-        if (CurrentPage is SearchViewModel searchPage)
+        if (transientReturnPage is null)
         {
-            searchPage.Dispose();
-            searchReturnPage = null;
+            await GoHomeAsync();
+            return;
         }
 
-        calendarReturnPage = origin;
-        CurrentPage = page;
+        if (ReturnPageIsOutOfDate())
+        {
+            var refreshed = await RefreshPageBehindAsync(CurrentPage!);
+
+            if (!refreshed)
+            {
+                return;
+            }
+        }
+
+        (CurrentPage as IDisposable)?.Dispose();
+        CurrentPage = transientReturnPage;
+        transientReturnPage = null;
+        returnPageIsStale = false;
     }
 
     /// <summary>Disposes the page on screen and marks any navigation still waiting on it as stale.</summary>
@@ -351,8 +453,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     /// </summary>
     private async Task<bool> OpenWorkspaceAsync(Guid projectId, Guid? folderId, Guid? itemId)
     {
-        DiscardSearchReturnPage();
-        DiscardCalendarReturnPage();
+        DiscardTransientReturnPage();
         DisposeCurrentPage();
         var version = pageVersion;
         var page = new ProjectWorkspaceViewModel(projectId, projectService, folderService, dialogs, this,
@@ -403,16 +504,11 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         return true;
     }
 
-    private void DiscardSearchReturnPage()
+    private void DiscardTransientReturnPage()
     {
-        (searchReturnPage as IDisposable)?.Dispose();
-        searchReturnPage = null;
-    }
-
-    private void DiscardCalendarReturnPage()
-    {
-        (calendarReturnPage as IDisposable)?.Dispose();
-        calendarReturnPage = null;
+        (transientReturnPage as IDisposable)?.Dispose();
+        transientReturnPage = null;
+        returnPageIsStale = false;
     }
 
     private static ICustomFieldInputLoader? CreateFieldLoader(FieldService? fields, ItemService? items)
