@@ -31,8 +31,11 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     private ItemEditorViewModel? editor;
     private AreaSnapshot? areaSnapshot;
     private string quickAddTitle = string.Empty;
+    private string? itemMoveError;
     private bool isCompletedExpanded;
     private int selectionVersion;
+    private int areaVersion;
+    private bool isMoveRunning;
 
     public ProjectWorkspaceViewModel(Guid projectId, ProjectService projects, FolderService folders,
         IDialogService dialogs, INavigationService navigation, ItemService? items = null,
@@ -63,6 +66,9 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         DeleteItemCommand = new AsyncRelayCommand(DeleteItemAsync);
         MoveUpCommand = new AsyncRelayCommand(() => ReorderSelectedAsync(-1));
         MoveDownCommand = new AsyncRelayCommand(() => ReorderSelectedAsync(1));
+        IndentCommand = new AsyncRelayCommand(IndentSelectedAsync);
+        OutdentCommand = new AsyncRelayCommand(OutdentSelectedAsync);
+        MoveItemToAreaCommand = new AsyncRelayCommand(MoveSelectedToAreaAsync);
         ToggleSelectedCommand = new AsyncRelayCommand(ToggleSelectedAsync);
     }
 
@@ -119,6 +125,23 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         set => SetProperty(ref quickAddTitle, value);
     }
 
+    public string? ItemMoveError
+    {
+        get => itemMoveError;
+        private set
+        {
+            if (SetProperty(ref itemMoveError, value))
+            {
+                OnPropertyChanged(nameof(HasItemMoveError));
+            }
+        }
+    }
+
+    public bool HasItemMoveError => ItemMoveError is not null;
+
+    /// <summary>Raised after a move reloads the item tree so the view can restore row focus.</summary>
+    public event Action? ItemMoveCompleted;
+
     public ItemEditorViewModel? Editor
     {
         get => editor;
@@ -165,6 +188,12 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public ICommand MoveUpCommand { get; }
 
     public ICommand MoveDownCommand { get; }
+
+    public ICommand IndentCommand { get; }
+
+    public ICommand OutdentCommand { get; }
+
+    public ICommand MoveItemToAreaCommand { get; }
 
     public ICommand ToggleSelectedCommand { get; }
 
@@ -231,6 +260,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         ProjectName = snapshot.Name;
         OnPropertyChanged(nameof(ProjectName));
         folderTree.Load(snapshot, selectedFolderId);
+        areaVersion++;
         OnPropertyChanged(nameof(SelectedFolder));
         OnPropertyChanged(nameof(SelectedAreaName));
         await LoadItemsAsync(selectedItemId);
@@ -241,6 +271,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public void Select(FolderNodeViewModel node)
     {
         folderTree.Select(node);
+        areaVersion++;
         OnPropertyChanged(nameof(SelectedFolder));
         OnPropertyChanged(nameof(SelectedAreaName));
     }
@@ -270,6 +301,12 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         }
 
         var snapshot = await items.LoadAreaAsync(projectId, SelectedFolder?.Id);
+        ApplyAreaSnapshot(snapshot);
+        await SelectLoadedItemAsync(selectedItemId ?? selectedItem?.Id);
+    }
+
+    private void ApplyAreaSnapshot(AreaSnapshot snapshot)
+    {
         areaSnapshot = snapshot;
         ItemTypes.Clear();
         PriorityLevels.Clear();
@@ -293,7 +330,6 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         areaItems.Load(snapshot, this);
         OnPropertyChanged(nameof(CompletedLabel));
         OnPropertyChanged(nameof(HasCompletedItems));
-        await SelectLoadedItemAsync(selectedItemId ?? selectedItem?.Id);
     }
 
     /// <summary>Expands the ancestors of an item, and the Completed sections that hold it.</summary>
@@ -511,6 +547,304 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     {
         return areaItems.ReorderSelectedAsync(offset);
     }
+
+    /// <summary>Places a dragged row before, after, or inside a row in the current area.</summary>
+    public Task DropItemAsync(Guid sourceId, Guid targetId, ItemDropPosition position)
+    {
+        return RunItemMoveAsync(sourceId,
+            (service, origin) => SaveDropAsync(service, origin, sourceId, targetId, position));
+    }
+
+    /// <summary>True when a drop at that row position would be accepted and change the order or parent.</summary>
+    public bool CanDropItem(Guid sourceId, Guid targetId, ItemDropPosition position)
+    {
+        return ItemDropMapper.Map(AllItems().ToArray(), sourceId, targetId, position) is not null;
+    }
+
+    /// <summary>Promotes a dragged sub-item to the end of the area's top-level list.</summary>
+    public Task DropItemAtRootEndAsync(Guid sourceId)
+    {
+        if (FindRow(sourceId) is not { ParentId: not null })
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunItemMoveAsync(sourceId, (service, origin) => SaveRootEndDropAsync(service, origin, sourceId));
+    }
+
+    public async Task IndentSelectedAsync()
+    {
+        if (selectedItem is null)
+        {
+            return;
+        }
+
+        var id = selectedItem.Id;
+        await RunItemMoveAsync(id, (service, origin) => SaveIndentAsync(service, origin, id));
+    }
+
+    public async Task OutdentSelectedAsync()
+    {
+        if (selectedItem is null)
+        {
+            return;
+        }
+
+        var id = selectedItem.Id;
+        await RunItemMoveAsync(id, (service, origin) => SaveOutdentAsync(service, origin, id));
+    }
+
+    public async Task MoveSelectedToAreaAsync()
+    {
+        if (selectedItem is null || selectedItem.ParentId is not null)
+        {
+            return;
+        }
+
+        var choices = folderTree.AllFolders()
+            .Select(folder => new FolderChoice(folder.Id, folder.Name, folder.Depth)).ToArray();
+        var choice = await dialogs.PickFolderAsync("Move item to area", choices);
+
+        if (choice is not null)
+        {
+            await DropItemOnFolderAsync(selectedItem.Id, choice.Id);
+        }
+    }
+
+    public async Task MoveRowToAreaAsync(ItemRowViewModel row)
+    {
+        await SelectItemAsync(row);
+
+        if (selectedItem?.Id == row.Id)
+        {
+            await MoveSelectedToAreaAsync();
+        }
+    }
+
+    /// <summary>Moves a top-level row and its subtree to a folder in this project.</summary>
+    public Task DropItemOnFolderAsync(Guid sourceId, Guid? targetFolderId)
+    {
+        if (FindRow(sourceId) is not { ParentId: null } || targetFolderId == SelectedFolder?.Id)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunGatedMoveAsync(
+            (service, origin) => SaveAreaMoveAsync(service, origin, sourceId, targetFolderId));
+    }
+
+    private async Task<bool> SaveDropAsync(ItemService service, ItemMoveOrigin origin, Guid sourceId,
+        Guid targetId, ItemDropPosition position)
+    {
+        var placement = ItemDropMapper.Map(AllItems().ToArray(), sourceId, targetId, position);
+
+        if (placement is null)
+        {
+            return false;
+        }
+
+        await service.MoveAtAsync(projectId, origin.FolderId, sourceId,
+            placement.Value.ParentId, placement.Value.Index);
+        return true;
+    }
+
+    private async Task<bool> SaveRootEndDropAsync(ItemService service, ItemMoveOrigin origin, Guid sourceId)
+    {
+        var index = AllItems().Count(row => row.ParentId is null);
+        await service.MoveAtAsync(projectId, origin.FolderId, sourceId, null, index);
+        return true;
+    }
+
+    private async Task<bool> SaveIndentAsync(ItemService service, ItemMoveOrigin origin, Guid id)
+    {
+        await service.IndentAsync(projectId, origin.FolderId, id);
+        return true;
+    }
+
+    private async Task<bool> SaveOutdentAsync(ItemService service, ItemMoveOrigin origin, Guid id)
+    {
+        await service.OutdentAsync(projectId, origin.FolderId, id);
+        return true;
+    }
+
+    private async Task SaveAreaMoveAsync(ItemService service, ItemMoveOrigin origin, Guid sourceId,
+        Guid? targetFolderId)
+    {
+        await service.MoveToAreaAsync(projectId, origin.FolderId, targetFolderId, sourceId);
+        await ShowAreaMoveResultAsync(service, origin, sourceId, targetFolderId);
+    }
+
+    /// <summary>
+    /// Runs one item move at a time. The unsaved-editor guard runs first; the origin (area,
+    /// selection) is captured afterwards so the finished move can tell whether the user has
+    /// moved on while the save was in flight.
+    /// </summary>
+    private async Task RunGatedMoveAsync(Func<ItemService, ItemMoveOrigin, Task> body)
+    {
+        if (items is null || isMoveRunning)
+        {
+            return;
+        }
+
+        isMoveRunning = true;
+
+        try
+        {
+            if (await ResolveDraftAsync())
+            {
+                ItemMoveError = null;
+                await body(items, CaptureMoveOrigin());
+            }
+        }
+        catch (DomainRuleException exception)
+        {
+            ItemMoveError = exception.Message;
+        }
+        finally
+        {
+            isMoveRunning = false;
+        }
+    }
+
+    private async Task RunItemMoveAsync(Guid movedId, Func<ItemService, ItemMoveOrigin, Task<bool>> saveMove)
+    {
+        await RunGatedMoveAsync(async (service, origin) =>
+        {
+            if (await saveMove(service, origin))
+            {
+                await ShowMoveResultAsync(service, origin, movedId);
+            }
+        });
+    }
+
+    private ItemMoveOrigin CaptureMoveOrigin()
+    {
+        return new ItemMoveOrigin(areaVersion, SelectedFolder?.Id, selectedItem?.Id);
+    }
+
+    private bool IsStale(ItemMoveOrigin origin)
+    {
+        return origin.AreaVersion != areaVersion;
+    }
+
+    /// <summary>Reloads the area after a move, unless the user has navigated elsewhere meanwhile.</summary>
+    private async Task ShowMoveResultAsync(ItemService service, ItemMoveOrigin origin, Guid movedId)
+    {
+        var snapshot = await service.LoadAreaAsync(projectId, origin.FolderId);
+
+        if (IsStale(origin))
+        {
+            return;
+        }
+
+        ApplyAreaSnapshot(snapshot);
+        var selectedId = ChooseSelectionAfterMove(origin, movedId);
+        await SelectAfterMoveAsync(selectedId, selectedId == movedId);
+    }
+
+    /// <summary>
+    /// Follows a moved item into its new area, unless the user selected something else or
+    /// started editing while the move was saving; then the current area is just refreshed.
+    /// </summary>
+    private async Task ShowAreaMoveResultAsync(ItemService service, ItemMoveOrigin origin, Guid movedId,
+        Guid? targetFolderId)
+    {
+        var selectedId = ChooseSelectionAfterMove(origin, movedId);
+        var followsMovedItem = selectedId == movedId;
+        var versionBeforeLoad = selectionVersion;
+        var shownFolderId = followsMovedItem ? targetFolderId : origin.FolderId;
+        var snapshot = await service.LoadAreaAsync(projectId, shownFolderId);
+
+        if (IsStale(origin) || versionBeforeLoad != selectionVersion)
+        {
+            return;
+        }
+
+        if (followsMovedItem)
+        {
+            SelectFolderById(targetFolderId);
+        }
+
+        ApplyAreaSnapshot(snapshot);
+        await SelectAfterMoveAsync(selectedId, followsMovedItem);
+    }
+
+    private void SelectFolderById(Guid? folderId)
+    {
+        var folder = folderTree.AllFolders().FirstOrDefault(node => node.Id == folderId);
+
+        if (folder is not null)
+        {
+            Select(folder);
+        }
+    }
+
+    /// <summary>
+    /// The moved item is selected, as it was before async moves, unless the user has since
+    /// selected another item or typed into the editor; that newer state always wins.
+    /// </summary>
+    private Guid? ChooseSelectionAfterMove(ItemMoveOrigin origin, Guid movedId)
+    {
+        var currentId = selectedItem?.Id;
+
+        if (currentId != origin.SelectedItemId || EditorHasEdits())
+        {
+            return currentId;
+        }
+
+        return movedId;
+    }
+
+    private bool EditorHasEdits()
+    {
+        if (Editor is null || selectedItem is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return Editor.IsDirty(selectedItem.Node.Item);
+        }
+        catch (DomainRuleException)
+        {
+            return true;
+        }
+    }
+
+    private async Task SelectAfterMoveAsync(Guid? itemId, bool restoreRowFocus)
+    {
+        RevealItem(itemId);
+        var row = FindRow(itemId);
+
+        if (row is not null && Editor?.Id == row.Id)
+        {
+            KeepEditorOn(row);
+        }
+        else
+        {
+            await SelectRowAsync(row);
+        }
+
+        if (restoreRowFocus)
+        {
+            ItemMoveCompleted?.Invoke();
+        }
+    }
+
+    /// <summary>Points the selection at a reloaded row without replacing the editor's draft.</summary>
+    private void KeepEditorOn(ItemRowViewModel row)
+    {
+        if (selectedItem is not null)
+        {
+            selectedItem.IsSelected = false;
+        }
+
+        selectedItem = row;
+        row.IsSelected = true;
+        OnPropertyChanged(nameof(SelectedSubItems));
+    }
+
     public Task CreateFolderAsync(FolderNodeViewModel parent)
     {
         return folderTree.CreateAsync(parent);

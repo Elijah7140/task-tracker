@@ -14,6 +14,63 @@ namespace TaskTracker.Presentation.Tests.ViewModels;
 public sealed class AreaItemsViewModelTests
 {
     [Fact]
+    public async Task Dropping_a_child_between_roots_promotes_it_and_keeps_it_selected()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Project");
+        var first = await store.Items.CreateAsync(project.Id, null, null, "First");
+        var second = await store.Items.CreateAsync(project.Id, null, null, "Second");
+        var child = await store.Items.CreateAsync(project.Id, null, first.Id, "Child");
+        using var page = TestWorkspaceFactory.CreateItemPage(store, project.Id);
+        await page.LoadAsync();
+
+        await page.DropItemAsync(child.Id, second.Id, ItemDropPosition.Before);
+        var snapshot = await store.Items.LoadAreaAsync(project.Id, null);
+
+        Assert.Equal([first.Id, child.Id, second.Id], snapshot.Items.Select(node => node.Item.Id));
+        Assert.True(page.OpenItems.Single(row => row.Id == child.Id).IsSelected);
+    }
+
+    [Fact]
+    public async Task Cancelling_dirty_draft_guard_leaves_drop_unapplied_and_draft_intact()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Project");
+        var first = await store.Items.CreateAsync(project.Id, null, null, "First");
+        var second = await store.Items.CreateAsync(project.Id, null, null, "Second");
+        var dialogs = new FakeDialogService { DraftResult = DraftDecision.Cancel };
+        using var page = TestWorkspaceFactory.CreateItemPage(store, project.Id, dialogs);
+        await page.LoadAsync();
+        await page.SelectItemAsync(page.OpenItems.Single(row => row.Id == first.Id));
+        page.Editor!.Title = "Unsaved title";
+
+        await page.DropItemAsync(first.Id, second.Id, ItemDropPosition.After);
+        var snapshot = await store.Items.LoadAreaAsync(project.Id, null);
+
+        Assert.Equal([first.Id, second.Id], snapshot.Items.Select(node => node.Item.Id));
+        Assert.Equal("Unsaved title", page.Editor.Title);
+    }
+
+    [Fact]
+    public async Task Stale_drop_shows_core_error_inline()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Project");
+        var first = await store.Items.CreateAsync(project.Id, null, null, "First");
+        var second = await store.Items.CreateAsync(project.Id, null, null, "Second");
+        using var page = TestWorkspaceFactory.CreateItemPage(store, project.Id);
+        await page.LoadAsync();
+        await store.Items.DeleteAsync(project.Id, null, first.Id);
+
+        await page.DropItemAsync(first.Id, second.Id, ItemDropPosition.After);
+
+        Assert.NotNull(page.ItemMoveError);
+        Assert.True(page.HasItemMoveError);
+    }
+    [Fact]
     public async Task Quick_add_creates_a_top_level_item_in_the_selected_area()
     {
         await using var store = new PresentationTestStore();

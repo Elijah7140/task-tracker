@@ -304,13 +304,13 @@ tooltip naming it, so the user knows the parent's own deadline isn't the cause.
 
 ### 6.4 Moving and ordering
 
-- Items reorder among siblings by Alt+↑/↓ (`SortOrder`, renumbered among siblings on
-  each move; sibling counts are small). Drag-and-drop is on the roadmap (§10).
+- Items reorder among siblings by Alt+↑/↓ or row drag (`SortOrder`, renumbered among
+  siblings on each move; sibling counts are small).
 - Moving a top-level item to another area **in the same project** moves its whole
   subtree (invariant 3). Moving between projects is out of scope for v1; if added later
   it must handle project-scoped custom fields.
 - Sub-items cannot be moved to another area on their own. They can be re-parented
-  within the same tree via indent/outdent (Phase 2 stretch).
+  within the same area by row drag or Alt+→/← (§7.5).
 - Folders move within the same project only (invariant 1).
 
 ### 6.5 Settings: global and per project
@@ -517,6 +517,31 @@ parses into an `ItemQuery`, and saved searches.
   - Pointer details: only the left button drags. A press that did not start on an entry (including "+N more" and scrollbars) never drags; a hover after a lost button release does not drag; releasing another button mid-drag does not drop; scrolling the week grid during a drag updates the ghost time.
   - After a move the calendar reloads and urgency is recomputed. A rule failure (for example the item was deleted) reloads and shows its message inline. Dragging does not auto-scroll the week grid.
 
+### 7.5 Item drag-and-drop
+
+- A left-button row press becomes a drag at 4 pixels. Escape or capture loss cancels;
+  a shorter movement remains a click. Top and bottom thirds place before and after
+  a row; the middle third makes the dragged item the row's last child. The view shows
+  an insertion edge or row outline. Folder targets are highlighted.
+- A sub-item may be promoted between top-level rows in its current area. A top-level
+  item may be dropped on a folder or project root, appending its whole subtree there.
+  A sub-item cannot be dropped on a folder. Self and descendant targets are rejected.
+- Completed rows are ordered by completion time (§6.2), so they cannot be reordered by
+  drag: a before/after drop that involves a finished row (as the dragged item or the
+  target) shows no indicator and does nothing. A middle-third "into" drop on a finished
+  row is allowed (§6.1 reopens the parent when an open sub-item moves in), as is dragging
+  a finished item into another row. Completion is reconciled for old and new parents
+  according to §6.1.
+- Drop feedback: "into" tints the target row with the accent color and shows a
+  "Make sub-item" label, so it is distinct from the selection outline; the dragged row
+  is dimmed while the drag is active.
+- Alt+→ indents under the previous sibling; Alt+← places the item immediately after
+  its parent. Ctrl+Shift+L opens Move to… for a selected top-level item; the context
+  menu offers the same folder picker. Ctrl+Shift+M is already used by Calendar.
+- A move consults the existing unsaved-editor guard before reloading. A cancelled
+  guard cancels the move; Save or Discard follows the user's guard choice. The moved
+  item remains selected after a move within the area.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -539,7 +564,8 @@ parses into an `ItemQuery`, and saved searches.
 ### Keyboard
 
 Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
-Delete delete (with confirm), Alt+↑/↓ reorder, Ctrl+F search (Phase 4),
+Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outdent,
+Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
 Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
 and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where

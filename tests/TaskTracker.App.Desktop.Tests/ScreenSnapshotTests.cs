@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,6 +22,41 @@ namespace TaskTracker.App.Desktop.Tests;
 /// <summary>Approved images of the principal application screens.</summary>
 public sealed class ScreenSnapshotTests
 {
+    [AvaloniaTheory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Item_drop_indicator_matches_approved_image(bool dark, bool into)
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Project");
+        var items = services.GetRequiredService<ItemService>();
+        var first = await items.CreateAsync(project.Id, null, null, "First item");
+        var second = await items.CreateAsync(project.Id, null, null, "Second item");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.OpenProjectAsync(project.Id);
+        Dispatcher.UIThread.RunJobs();
+        var rows = window.GetVisualDescendants().OfType<Border>()
+            .Where(border => border.Classes.Contains("itemRow")).ToArray();
+        var firstRow = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == first.Id);
+        var secondRow = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == second.Id);
+        var start = HeadlessInput.CentreOf(window, secondRow);
+        var finish = HeadlessInput.PointIn(window, firstRow, firstRow.Bounds.Width / 2,
+            into ? firstRow.Bounds.Height / 2 : firstRow.Bounds.Height * 0.3);
+
+        HeadlessInput.PressMouse(window, start);
+        HeadlessInput.MoveMouse(window, finish);
+        Assert.Contains(into ? "dropInto" : "dropBefore", firstRow.Classes);
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        var kind = into ? "into" : "before";
+        SnapshotComparer.AssertMatches(frame, $"item-drop-{kind}-{ThemeName(dark)}");
+        HeadlessInput.ReleaseMouse(window, finish);
+        window.Close();
+    }
     /// <summary>Tall enough to show a whole settings page or the whole item editor without scrolling.</summary>
     private const int TallWindowHeight = 1500;
 
