@@ -807,7 +807,7 @@ public sealed class ScreenSnapshotTests
         window.Close();
     }
 
-    private static MainWindow OpenWindow(MainWindowViewModel shell, bool dark, int height = 800, int width = 1200)
+    internal static MainWindow OpenWindow(MainWindowViewModel shell, bool dark, int height = 800, int width = 1200)
     {
         Application.Current!.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
         var window = new MainWindow { DataContext = shell, Width = width, Height = height };
@@ -815,7 +815,7 @@ public sealed class ScreenSnapshotTests
         return window;
     }
 
-    private static string ThemeName(bool dark)
+    internal static string ThemeName(bool dark)
     {
         return dark ? "dark" : "light";
     }

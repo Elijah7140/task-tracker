@@ -180,6 +180,38 @@ public sealed class SmokeTests
     }
 
     [Fact]
+    public void Query_syntax_search_can_be_saved_and_reopened_from_home()
+    {
+        const string query = "title~invoice no:ticket";
+
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            OpenProject(session);
+            AddItem(session, "Invoice review");
+            AddItem(session, "Other task");
+            session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
+            session.Find("HomeSearchButton").AsButton().Invoke();
+
+            session.TypeInto("SearchTextBox", query);
+            session.Press(VirtualKeyShort.RETURN);
+            session.WaitUntil(() => session.HasText("Invoice review") && !session.HasText("Other task"),
+                "the syntax query to show only the invoice item");
+            session.Find("SaveSearchButton").AsButton().Invoke();
+            session.TypeInto("DialogInput", "Invoices");
+            session.Press(VirtualKeyShort.RETURN);
+            session.FindNamed("SavedSearchChip", "Invoices");
+
+            session.Find("SearchBackButton").AsButton().Invoke();
+            session.FindNamed("SavedSearchLink", "Invoices").AsButton().Invoke();
+
+            session.WaitUntil(() => session.HasText("Invoice review") && !session.HasText("Other task"),
+                "the saved search to run from Home");
+            Assert.Equal(query, session.Find("SearchTextBox").AsTextBox().Text);
+        });
+    }
+
+    [Fact]
     public void Custom_fields_of_each_type_persist_after_reopening_the_project()
     {
         Run(session =>
@@ -680,9 +712,12 @@ public sealed class SmokeTests
         session.WaitUntil(() => TitleButtons(session).Count == children.Length + 1, "the sub-items to show");
         var rows = TitleButtons(session).OrderBy(button => button.BoundingRectangle.Top).ToList();
         var parentLeft = rows[0].BoundingRectangle.Left;
+        var childLeft = rows[1].BoundingRectangle.Left;
 
         Assert.Equal(parent, rows[0].Name);
         Assert.Equal(children.Order(), rows.Skip(1).Select(button => button.Name).Order());
         Assert.All(rows.Skip(1), child => Assert.True(child.BoundingRectangle.Left > parentLeft + 15));
+        Assert.All(rows.Skip(1), child => Assert.InRange(child.BoundingRectangle.Left,
+            childLeft - 2, childLeft + 2));
     }
 }

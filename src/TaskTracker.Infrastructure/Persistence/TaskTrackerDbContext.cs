@@ -4,6 +4,7 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
 
 namespace TaskTracker.Infrastructure.Persistence;
 
@@ -25,6 +26,8 @@ public sealed class TaskTrackerDbContext(DbContextOptions<TaskTrackerDbContext> 
     public DbSet<FieldChoice> FieldChoices => Set<FieldChoice>();
 
     public DbSet<ItemFieldValue> ItemFieldValues => Set<ItemFieldValue>();
+
+    public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
 
     public DbSet<GlobalSettingRow> GlobalSettings => Set<GlobalSettingRow>();
 

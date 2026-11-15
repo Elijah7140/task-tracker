@@ -38,6 +38,9 @@ internal sealed class SearchTestUnitOfWork : IUnitOfWork, IUnitOfWorkFactory
 
     public ITrashRepository Trash => throw new NotSupportedException();
 
+
+    public ISavedSearchRepository SavedSearches => throw new NotSupportedException();
+
     public IUnitOfWork Begin()
     {
         return this;

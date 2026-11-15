@@ -73,6 +73,9 @@ internal sealed class DelayedItemLookupUnitOfWorkFactory(IUnitOfWorkFactory inne
 
         public ITrashRepository Trash => unit.Trash;
 
+
+        public ISavedSearchRepository SavedSearches => unit.SavedSearches;
+
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {
             return unit.SaveChangesAsync(cancellationToken);

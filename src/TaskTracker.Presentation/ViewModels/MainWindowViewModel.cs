@@ -8,7 +8,9 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Trash;
 using TaskTracker.Presentation.Navigation;
@@ -34,6 +36,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
     private readonly CalendarService? calendar;
     private readonly ICalendarRescheduler? rescheduler;
     private readonly ITrashService? trash;
+    private readonly SavedSearchService? savedSearches;
+    private readonly ItemQueryParser? queryParser;
     private ViewModelBase? transientReturnPage;
     private bool returnPageIsStale;
     private bool isOpeningSearch;
@@ -47,7 +51,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null,
         FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null,
         CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null,
-        ITrashService? trash = null)
+        ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -64,6 +68,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         this.calendar = calendar;
         this.rescheduler = rescheduler;
         this.trash = trash;
+        this.savedSearches = savedSearches;
+        this.queryParser = queryParser;
         fieldLoader = CreateFieldLoader(fields, itemService);
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
@@ -95,7 +101,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         DiscardTransientReturnPage();
         DisposeCurrentPage();
         var version = pageVersion;
-        var page = new HomeViewModel(projectService, dialogs, this);
+        var page = new HomeViewModel(projectService, dialogs, this, savedSearches);
         await page.LoadAsync();
         ShowIfCurrent(page, version);
     }
@@ -118,6 +124,26 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         try
         {
             await ShowSearchPageAsync();
+        }
+        finally
+        {
+            isOpeningSearch = false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task OpenSavedSearchAsync(Guid savedSearchId)
+    {
+        if (search is null || registry is null || savedSearches is null || isOpeningSearch)
+        {
+            return;
+        }
+
+        isOpeningSearch = true;
+
+        try
+        {
+            await ShowSavedSearchPageAsync(savedSearchId);
         }
         finally
         {
@@ -299,8 +325,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         var version = pageVersion;
         var origin = PageBehind(CurrentPage);
         var workspace = origin as ProjectWorkspaceViewModel;
-        var page = new SearchViewModel(search!, registry!, projectService, this,
-            workspace?.ProjectId, workspace?.SelectedFolder?.Id, lookups);
+        var page = CreateSearchPage(workspace?.ProjectId, workspace?.SelectedFolder?.Id);
         await page.LoadAsync();
 
         if (version != pageVersion)
@@ -310,6 +335,62 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         }
 
         ShowTransientPage(origin, page);
+    }
+
+    private SearchViewModel CreateSearchPage(Guid? projectId, Guid? folderId)
+    {
+        return new SearchViewModel(search!, registry!, projectService, this, projectId, folderId, lookups,
+            parser: queryParser, savedSearchService: savedSearches, dialogs: dialogs);
+    }
+
+    private async Task ShowSavedSearchPageAsync(Guid savedSearchId)
+    {
+        var version = pageVersion;
+        var saved = await savedSearches!.FindAsync(savedSearchId);
+
+        if (saved is null)
+        {
+            await dialogs.ShowMessageAsync("Saved search", "This saved search no longer exists.");
+            await RefreshSavedSearchListsAsync();
+            return;
+        }
+
+        var origin = PageBehind(CurrentPage);
+        var page = CreateSearchPageFor(saved, origin as ProjectWorkspaceViewModel);
+        await page.LoadAsync();
+        await page.OpenSavedAsync(saved);
+
+        if (version != pageVersion)
+        {
+            page.Dispose();
+            return;
+        }
+
+        ShowTransientPage(origin, page);
+    }
+
+    /// <summary>A saved search with its own project or folder opens there; an all-projects one keeps the page behind as origin.</summary>
+    private SearchViewModel CreateSearchPageFor(SavedSearch saved, ProjectWorkspaceViewModel? workspace)
+    {
+        if (saved.ScopeKind == SavedSearchScopeKind.AllProjects)
+        {
+            return CreateSearchPage(workspace?.ProjectId, workspace?.SelectedFolder?.Id);
+        }
+
+        return CreateSearchPage(saved.ProjectId, saved.FolderId);
+    }
+
+    private async Task RefreshSavedSearchListsAsync()
+    {
+        if (CurrentPage is HomeViewModel { SavedSearches: not null } home)
+        {
+            await home.SavedSearches.LoadAsync();
+        }
+
+        if (CurrentPage is SearchViewModel { SavedSearches: not null } searchPage)
+        {
+            await searchPage.SavedSearches.LoadAsync();
+        }
     }
 
     private async Task ShowTrashPageAsync(ITrashService trashService, TimeZoneInfo zone)
@@ -428,6 +509,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         CurrentPage = transientReturnPage;
         transientReturnPage = null;
         returnPageIsStale = false;
+        await RefreshSavedSearchListsAsync();
     }
 
     /// <summary>Disposes the page on screen and marks any navigation still waiting on it as stale.</summary>

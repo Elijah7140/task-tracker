@@ -7,13 +7,15 @@ using CommunityToolkit.Mvvm.Input;
 using TaskTracker.Core;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>Builds a scoped query and displays bounded search results.</summary>
-public sealed class SearchViewModel : ViewModelBase, IDisposable
+public sealed partial class SearchViewModel : ViewModelBase, IDisposable
 {
     /// <summary>The number of matches shown unless a different limit is given.</summary>
     public const int DefaultResultLimit = 200;
@@ -46,8 +48,10 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
     /// <summary>Creates the page; the origin ids choose the default scope (see the scope options).</summary>
     public SearchViewModel(IItemSearchService search, IFieldRegistry registry, ProjectService projects,
         INavigationService navigation, Guid? projectId, Guid? folderId, LookupService? lookups,
-        int resultLimit = DefaultResultLimit)
+        int resultLimit = DefaultResultLimit, ItemQueryParser? parser = null,
+        SavedSearchService? savedSearchService = null, IDialogService? dialogs = null)
     {
+        this.parser = parser;
         this.search = search;
         this.registry = registry;
         this.navigation = navigation;
@@ -56,9 +60,10 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         originProjectId = projectId;
         originFolderId = folderId;
         ScopeOptions = CreateScopeOptions(projectId, folderId);
-        selectedScope = ScopeOptions[^1];
-        SearchCommand = new AsyncRelayCommand(RunAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        AddFilterCommand = new RelayCommand(AddFilter);
+        selectedScope = folderId is null && projectId is not null ? ScopeOptions[1] : ScopeOptions[^1];
+        SearchCommand = new AsyncRelayCommand(SubmitAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        AddFilterCommand = new RelayCommand(() => CreateRow());
+        SavedSearches = CreateSavedSearchList(savedSearchService, dialogs);
         BackCommand = new AsyncRelayCommand(navigation.ReturnFromSearchAsync);
         OpenResultCommand = new AsyncRelayCommand<SearchResultViewModel>(OpenResultAsync);
     }
@@ -85,7 +90,13 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
     public string Text
     {
         get => text;
-        set => SetProperty(ref text, value);
+        set
+        {
+            if (SetProperty(ref text, value))
+            {
+                RefreshQueryText();
+            }
+        }
     }
 
     /// <summary>The chosen scope; changing it refreshes the filter fields.</summary>
@@ -129,7 +140,7 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>True when every filter row is complete and valid.</summary>
-    public bool CanSearch => Filters.All(row => row.IsValid && row.IsComplete);
+    public bool CanSearch => queryTextEdited || Filters.All(row => row.IsValid && row.IsComplete);
 
     /// <summary>The message for the last failed search, filter load or result activation.</summary>
     public string? Error
@@ -155,6 +166,7 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
     {
         ScopeRefreshTask = RefreshFieldsAsync();
         await ScopeRefreshTask;
+        await LoadSavedSearchesAsync();
     }
 
     /// <summary>
@@ -251,6 +263,7 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         if (projectId is not null)
         {
             options.Add(new SearchScopeOption(SearchScopeKind.Project, "This project"));
+            options.Add(new SearchScopeOption(SearchScopeKind.Root, "Project root only"));
         }
 
         if (folderId is not null)
@@ -386,6 +399,7 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         return SelectedScope.Kind switch
         {
             SearchScopeKind.Project => new SearchScope.Project(projectId),
+            SearchScopeKind.Root => new SearchScope.Area(projectId, null, false),
             SearchScopeKind.Folder => new SearchScope.Area(projectId, originFolderId, IncludeSubfolders),
             _ => new SearchScope.AllProjects()
         };
@@ -456,12 +470,14 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         return field is not null && !fields.Any(candidate => candidate.Key == field.Key);
     }
 
-    private void AddFilter()
+    private SearchFilterRowViewModel CreateRow()
     {
         var row = new SearchFilterRowViewModel(registry, fields, RemoveFilter, ShowError);
         row.PropertyChanged += OnFilterChanged;
         Filters.Add(row);
         OnPropertyChanged(nameof(CanSearch));
+        RefreshQueryText();
+        return row;
     }
 
     private void RemoveFilter(SearchFilterRowViewModel row)
@@ -470,10 +486,13 @@ public sealed class SearchViewModel : ViewModelBase, IDisposable
         row.Dispose();
         Filters.Remove(row);
         OnPropertyChanged(nameof(CanSearch));
+        RefreshQueryText();
     }
 
     private void OnFilterChanged(object? sender, PropertyChangedEventArgs args)
     {
+        RefreshQueryText();
+
         if (args.PropertyName is nameof(SearchFilterRowViewModel.IsValid)
             or nameof(SearchFilterRowViewModel.IsComplete))
         {

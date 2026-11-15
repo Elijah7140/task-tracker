@@ -25,5 +25,7 @@ public interface IUnitOfWork : IAsyncDisposable
 
     ITrashRepository Trash { get; }
 
+    ISavedSearchRepository SavedSearches { get; }
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

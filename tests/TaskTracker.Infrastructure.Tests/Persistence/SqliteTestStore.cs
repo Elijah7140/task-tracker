@@ -6,6 +6,7 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Trash;
 using TaskTracker.Infrastructure.Persistence;
@@ -65,6 +66,11 @@ internal sealed class SqliteTestStore : IAsyncDisposable
     public SettingsService Settings(TaskTrackerDbContext database)
     {
         return new SettingsService(new TestUnitOfWorkFactory(database), Clock);
+    }
+
+    public SavedSearchService SavedSearches(TaskTrackerDbContext database)
+    {
+        return new SavedSearchService(new TestUnitOfWorkFactory(database), Clock);
     }
 
     public async ValueTask DisposeAsync()

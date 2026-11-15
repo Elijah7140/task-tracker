@@ -33,7 +33,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         await EnsureProjectAsync(work, projectId, cancellationToken);
         var fields = await work.Fields.DefinitionsAsync(cancellationToken);
         var order = fields.Count(field => field.ProjectId == projectId);
-        var usedKeys = fields.Select(row => row.Key).Concat(BuiltInSearchKeys.All);
+        var usedKeys = fields.Select(row => row.Key).Concat(BuiltInSearchKeys.Reserved);
         var field = FieldDefinition.Create(name, type, projectId, order, usedKeys);
         EnsureUniqueName(fields, field);
         work.Fields.Add(field);

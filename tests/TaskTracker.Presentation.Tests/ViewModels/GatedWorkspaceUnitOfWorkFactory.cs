@@ -57,6 +57,9 @@ internal sealed class GatedWorkspaceUnitOfWorkFactory(IUnitOfWorkFactory inner) 
 
         public ITrashRepository Trash => unit.Trash;
 
+
+        public ISavedSearchRepository SavedSearches => unit.SavedSearches;
+
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {
             return unit.SaveChangesAsync(cancellationToken);

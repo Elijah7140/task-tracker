@@ -255,10 +255,12 @@ public sealed class ProjectWorkspaceViewTests
         await HeadlessInput.WaitUntilAsync(() => page.SelectedFolder?.Id == folder.Id);
 
         Assert.True(Assert.Single(page.OpenItems).IsSelected);
-        Assert.Contains(window.GetVisualDescendants().OfType<Button>(), button =>
-            button.IsFocused && button.DataContext is ItemRowViewModel selected && selected.Id == item.Id);
+        await HeadlessInput.WaitUntilAsync(() => window.GetVisualDescendants().OfType<Button>()
+            .Any(button => button.IsFocused && button.DataContext is ItemRowViewModel selected &&
+                selected.Id == item.Id));
         window.Close();
     }
+
     [AvaloniaFact]
     public async Task Moving_a_finished_selected_item_keeps_its_title_focused_and_visible()
     {

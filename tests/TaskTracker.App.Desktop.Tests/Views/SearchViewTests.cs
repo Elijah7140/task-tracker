@@ -358,7 +358,8 @@ public sealed class SearchViewTests
         HeadlessInput.Press(window, Key.F, RawInputModifiers.Control);
         var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
         Assert.Equal(SearchScopeKind.Folder, page.SelectedScope.Kind);
-        Assert.Equal(["All projects", "This project", "This folder"], page.ScopeOptions.Select(option => option.Label));
+        Assert.Equal(["All projects", "This project", "Project root only", "This folder"],
+            page.ScopeOptions.Select(option => option.Label));
 
         await SearchByTypingAsync(window, page, "invoice");
 

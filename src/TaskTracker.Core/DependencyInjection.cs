@@ -5,7 +5,9 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Trash;
 
@@ -31,6 +33,9 @@ public static class DependencyInjection
         services.AddSingleton<ItemQueryValidator>();
         services.AddSingleton<ItemSearchService>();
         services.AddSingleton<IItemSearchService>(provider => provider.GetRequiredService<ItemSearchService>());
+        services.AddSingleton<SavedSearchService>();
+        services.AddSingleton(provider => new ItemQueryParser(
+            provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<TimeZoneInfo>()));
         return services;
     }
 }

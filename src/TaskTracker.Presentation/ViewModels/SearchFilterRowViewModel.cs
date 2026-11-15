@@ -200,6 +200,25 @@ public sealed class SearchFilterRowViewModel : ViewModelBase, IDisposable
         InsertFieldsMissingFrom(available);
     }
 
+    /// <summary>
+    /// Fills the row from a parsed filter: picks its field and operator, waits for the field's
+    /// choices to load, then sets the values. Does nothing when the field is not offered.
+    /// </summary>
+    public async Task ApplyAsync(FieldFilter filter)
+    {
+        var field = Fields.FirstOrDefault(candidate => candidate.Key == filter.FieldKey);
+
+        if (field is null)
+        {
+            return;
+        }
+
+        SelectedField = field;
+        SelectedOperator = Operators.FirstOrDefault(option => option.Operator == filter.Operator);
+        await ChoicesTask;
+        SetValues(filter.Value);
+    }
+
     /// <summary>Returns the filter this row describes, or null while no field or operator is picked.</summary>
     public FieldFilter? ToFilter()
     {
@@ -222,6 +241,62 @@ public sealed class SearchFilterRowViewModel : ViewModelBase, IDisposable
         disposed = true;
         choicesVersion++;
         choicesCancellation?.Cancel();
+    }
+
+    private void SetValues(FilterValue? value)
+    {
+        switch (value)
+        {
+            case FilterValue.Text text:
+                FirstText = text.Value;
+                break;
+
+            case FilterValue.Number number:
+                FirstText = FormatNumber(number.Value);
+                break;
+
+            case FilterValue.NumberRange numbers:
+                FirstText = FormatNumber(numbers.Min);
+                SecondText = FormatNumber(numbers.Max);
+                break;
+
+            case FilterValue.Bool flag:
+                BooleanValue = flag.Value;
+                break;
+
+            default:
+                SetDateAndChoiceValues(value);
+                break;
+        }
+    }
+
+    private void SetDateAndChoiceValues(FilterValue? value)
+    {
+        switch (value)
+        {
+            case FilterValue.Date date:
+                FirstDate = date.Value.ToDateTime(TimeOnly.MinValue);
+                break;
+
+            case FilterValue.DateRange dates:
+                FirstDate = dates.Min.ToDateTime(TimeOnly.MinValue);
+                SecondDate = dates.Max.ToDateTime(TimeOnly.MinValue);
+                break;
+
+            case FilterValue.Choice choice:
+                SelectedChoice = Choices.FirstOrDefault(option => option.Id == choice.Id);
+                break;
+
+            case FilterValue.ChoiceRange range:
+                SelectedChoice = Choices.FirstOrDefault(option => option.Id == range.Min);
+                SecondChoice = Choices.FirstOrDefault(option => option.Id == range.Max);
+                break;
+        }
+    }
+
+    private static string FormatNumber(double number)
+    {
+        return number.ToString("R", CultureInfo.CurrentCulture);
     }
 
     private void RemoveFieldsMissingFrom(IReadOnlyList<SearchableField> available)

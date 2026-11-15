@@ -1,6 +1,7 @@
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Trash;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
@@ -23,15 +24,18 @@ internal static class SearchTestShell
             lookups: store.Lookups, fields: store.Fields, search: search, registry: registry,
             calendar: calendar ?? new CalendarService(store.UnitOfWorkFactory),
             trash: trash ?? store.Trash,
-            rescheduler: new CalendarRescheduleService(store.UnitOfWorkFactory, clock ?? TimeProvider.System));
+            rescheduler: new CalendarRescheduleService(store.UnitOfWorkFactory, clock ?? TimeProvider.System),
+            savedSearches: store.SavedSearches, queryParser: new ItemQueryParser(clock ?? TimeProvider.System, timeZone ?? TimeZoneInfo.Utc));
     }
 
     internal static SearchViewModel CreatePage(PresentationTestStore store, IItemSearchService search,
         INavigationService? navigation = null, Guid? projectId = null, Guid? folderId = null,
-        int resultLimit = SearchViewModel.DefaultResultLimit, IFieldRegistry? registry = null)
+        int resultLimit = SearchViewModel.DefaultResultLimit, IFieldRegistry? registry = null,
+        bool withSyntax = false, IDialogService? dialogs = null)
     {
         return new SearchViewModel(search, registry ?? new FieldRegistry(store.UnitOfWorkFactory),
             store.Projects, navigation ?? new FakeNavigationService(), projectId, folderId,
-            store.Lookups, resultLimit);
+            store.Lookups, resultLimit, withSyntax ? store.Parser : null,
+            withSyntax ? store.SavedSearches : null, dialogs ?? new FakeDialogService());
     }
 }
