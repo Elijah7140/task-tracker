@@ -31,4 +31,34 @@ public sealed class EfItemRepository(TaskTrackerDbContext database) : IItemRepos
     {
         database.TodoItems.Add(item);
     }
+
+    public async Task<IReadOnlyList<ItemLink>> LinksAsync(Guid itemId, CancellationToken cancellationToken)
+    {
+        return await database.ItemLinks
+            .Where(link => link.ItemId == itemId)
+            .OrderBy(link => link.SortOrder)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ItemLink>> LinksForProjectAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        var projectItemIds = database.TodoItems.IgnoreQueryFilters()
+            .Where(item => item.ProjectId == projectId)
+            .Select(item => item.Id);
+
+        return await database.ItemLinks
+            .Where(link => projectItemIds.Contains(link.ItemId))
+            .OrderBy(link => link.SortOrder)
+            .ToListAsync(cancellationToken);
+    }
+
+    public void Add(ItemLink link)
+    {
+        database.ItemLinks.Add(link);
+    }
+
+    public void Remove(ItemLink link)
+    {
+        database.ItemLinks.Remove(link);
+    }
 }

@@ -465,6 +465,38 @@ public sealed class SmokeTests
         });
     }
 
+    [Fact]
+    public void A_markdown_description_previews_and_a_saved_link_is_there_after_reopening()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            OpenProject(session);
+            AddItem(session, "Markdown item");
+            session.FindNamed("ItemTitleButton", "Markdown item").Click();
+
+            ReplaceText(session, "EditorDescriptionBox", "Read the [docs](https://example.com/docs) now");
+            session.Find("EditorDescriptionPreviewTab").AsButton().Invoke();
+            session.WaitUntil(() => session.HasControl("MarkdownLink"), "the rendered link in the preview");
+            Assert.Equal("docs", session.Find("MarkdownLink").Name);
+            session.Find("EditorDescriptionEditTab").AsButton().Invoke();
+
+            session.TypeInto("EditorLinkUrlBox", "https://example.com/spec");
+            session.TypeInto("EditorLinkTitleBox", "Spec page");
+            session.Find("EditorLinkSubmitButton").AsButton().Invoke();
+            session.WaitUntil(() => session.HasControl("EditorLinkOpenButton"), "the added link in the list");
+            session.Find("EditorSaveButton").AsButton().Invoke();
+
+            session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
+            session.Find("OpenProjectButton").AsButton().Invoke();
+            session.FindNamed("ItemTitleButton", "Markdown item").Click();
+            session.WaitUntil(() => session.HasControl("EditorLinkOpenButton"), "the saved link after reopening");
+            Assert.Equal("Spec page", session.Find("EditorLinkOpenButton").Name);
+            session.Find("EditorDescriptionPreviewTab").AsButton().Invoke();
+            session.WaitUntil(() => session.HasControl("MarkdownLink"), "the preview of the saved description");
+        });
+    }
+
     private static void Run(Action<SmokeSession> scenario, IReadOnlyDictionary<string, string>? environment = null)
     {
         if (Environment.GetEnvironmentVariable("TASKTRACKER_SMOKE") != "1")

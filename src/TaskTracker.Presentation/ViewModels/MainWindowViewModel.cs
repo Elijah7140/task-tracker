@@ -40,6 +40,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private readonly SavedSearchService? savedSearches;
     private readonly ItemQueryParser? queryParser;
     private readonly TransferServices? transfer;
+    private readonly ILinkLauncher? linkLauncher;
     private ViewModelBase? transientReturnPage;
     private bool returnPageIsStale;
     private bool isOpeningSearch;
@@ -54,7 +55,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null,
         CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null,
         ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null,
-        UndoHistory? undoHistory = null, TransferServices? transfer = null)
+        UndoHistory? undoHistory = null, TransferServices? transfer = null, ILinkLauncher? linkLauncher = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -74,6 +75,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         this.savedSearches = savedSearches;
         this.queryParser = queryParser;
         this.transfer = transfer;
+        this.linkLauncher = linkLauncher;
         Undo = undoHistory is null ? null : new UndoCoordinator(undoHistory, this);
         fieldLoader = CreateFieldLoader(fields, itemService);
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
@@ -597,7 +599,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         DisposeCurrentPage();
         var version = pageVersion;
         var page = new ProjectWorkspaceViewModel(projectId, projectService, folderService, dialogs, this,
-            itemService, clock, timeZone, dispatcher, fieldLoader, Undo);
+            itemService, clock, timeZone, dispatcher, fieldLoader, Undo, linkLauncher);
 
         try
         {

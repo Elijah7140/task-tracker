@@ -17,12 +17,13 @@ internal static class CsvColumns
     public const string Project = "Project";
     public const string FolderPath = "Folder path";
     public const string ParentTitle = "Parent title";
+    public const string Links = "Links";
 
     /// <summary>Every fixed column, in the order an export writes them.</summary>
     public static IReadOnlyList<string> Standard { get; } =
     [
         Title, Description, Ticket, Type, Priority, DueDate, DueTime, ScheduledStart, ScheduledEnd,
-        Completed, CompletedAt, Project, FolderPath, ParentTitle
+        Completed, CompletedAt, Project, FolderPath, ParentTitle, Links
     ];
 
     /// <summary>

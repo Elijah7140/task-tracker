@@ -25,6 +25,7 @@ internal sealed class CsvRowReader(
         var (start, end) = ReadSchedule();
         var completedAt = ReadCompletion();
         var values = ReadFieldValues();
+        var linkUrls = ReadLinks();
 
         if (issues.Count != problemsBefore)
         {
@@ -32,7 +33,7 @@ internal sealed class CsvRowReader(
         }
 
         return new CsvImportRow(record.RowNumber, title, ReadDescription(), ticket, typeId, priorityId,
-            dueDate, dueTime, start, end, completedAt, values);
+            dueDate, dueTime, start, end, completedAt, values, linkUrls);
     }
 
     private string Cell(string column)
@@ -254,6 +255,29 @@ internal sealed class CsvRowReader(
         value = yes.Contains(text, StringComparer.OrdinalIgnoreCase);
 
         return value || no.Contains(text, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Reads the Links cell: addresses separated by whitespace, each checked like an editor link.</summary>
+    private List<string> ReadLinks()
+    {
+        var urls = Cell(CsvColumns.Links).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        if (urls.Count > LinkPolicy.MaxLinksPerItem)
+        {
+            Fail(CsvColumns.Links, $"An item may have at most {LinkPolicy.MaxLinksPerItem} links.");
+        }
+
+        foreach (var url in urls)
+        {
+            var problem = LinkPolicy.Validate(url, null);
+
+            if (problem is not null)
+            {
+                Fail(CsvColumns.Links, $"'{url}': {problem}");
+            }
+        }
+
+        return urls;
     }
 
     private List<FieldValueInput> ReadFieldValues()

@@ -8,8 +8,8 @@ using TaskTracker.Core.Projects;
 namespace TaskTracker.Infrastructure.Persistence;
 
 /// <summary>
-/// Snapshots the pending changes of a labelled save: every added, modified or deleted item,
-/// folder, project and item field value. A row whose only change is its <c>UpdatedAtUtc</c>
+/// Snapshots the pending changes of a labelled save: every added, modified or deleted item, item link,
+/// folder, project, item field value and item link. A row whose only change is its <c>UpdatedAtUtc</c>
 /// stamp is left out, so a step holds just the rows the user action really changed.
 /// </summary>
 internal static class UndoRowCollector
@@ -34,7 +34,7 @@ internal static class UndoRowCollector
 
     private static bool IsUndoableEntity(object entity)
     {
-        return entity is TodoItem or Folder or Project or ItemFieldValue;
+        return entity is TodoItem or Folder or Project or ItemFieldValue or ItemLink;
     }
 
     private static bool HasMeaningfulChange(EntityEntry entry)

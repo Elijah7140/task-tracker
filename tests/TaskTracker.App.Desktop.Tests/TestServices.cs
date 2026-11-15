@@ -19,11 +19,12 @@ public static class TestServices
 
     /// <summary>Initializes an isolated SQLite database and returns its disposable service scope.</summary>
     public static async Task<TestServiceScope> CreateAsync(
-        Window? dialogOwner = null, IFilePickerService? filePicker = null, IDatabaseBackup? backup = null)
+        Window? dialogOwner = null, IFilePickerService? filePicker = null, IDatabaseBackup? backup = null,
+        ILinkLauncher? linkLauncher = null)
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"tasktracker-ui-{Guid.NewGuid()}.db");
         var services = CompositionRoot.BuildServices(Clock, TimeZone, databasePath,
-            dialogOwner is null ? null : new AvaloniaDialogService(dialogOwner), filePicker, backup);
+            dialogOwner is null ? null : new AvaloniaDialogService(dialogOwner), filePicker, backup, linkLauncher);
         using var scope = services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
         return new TestServiceScope(services, databasePath);

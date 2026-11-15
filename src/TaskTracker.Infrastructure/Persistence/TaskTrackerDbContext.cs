@@ -27,6 +27,8 @@ public sealed class TaskTrackerDbContext(DbContextOptions<TaskTrackerDbContext> 
 
     public DbSet<ItemFieldValue> ItemFieldValues => Set<ItemFieldValue>();
 
+    public DbSet<ItemLink> ItemLinks => Set<ItemLink>();
+
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
 
     public DbSet<GlobalSettingRow> GlobalSettings => Set<GlobalSettingRow>();

@@ -15,4 +15,5 @@ internal sealed record CsvImportRow(
     DateTime? ScheduledStart,
     DateTime? ScheduledEnd,
     DateTime? CompletedAtUtc,
-    IReadOnlyList<FieldValueInput> FieldValues);
+    IReadOnlyList<FieldValueInput> FieldValues,
+    IReadOnlyList<string> LinkUrls);

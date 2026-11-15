@@ -145,8 +145,28 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
             "scheduled" => ScalarFilter("substr(t.ScheduledStart, 1, 10)", filter,
                 "t.ScheduledStart"),
             "status" => StatusFilter(filter),
+            "link" => LinkFilter(filter),
             _ => throw new InvalidOperationException("Unknown built-in search field.")
         };
+    }
+
+    /// <summary>Matches items having a link whose address or title contains the text (case-insensitive, literal).</summary>
+    private string LinkFilter(FieldFilter filter)
+    {
+        if (filter.Operator is FilterOperator.IsEmpty)
+        {
+            return "NOT EXISTS (SELECT 1 FROM ItemLink l WHERE l.ItemId = t.Id)";
+        }
+
+        if (filter.Operator is FilterOperator.IsNotEmpty)
+        {
+            return "EXISTS (SELECT 1 FROM ItemLink l WHERE l.ItemId = t.Id)";
+        }
+
+        var text = TextFolding.Fold(((FilterValue.Text)filter.Value!).Value.Trim());
+        var parameter = Parameter(text);
+        return "EXISTS (SELECT 1 FROM ItemLink l WHERE l.ItemId = t.Id AND "
+            + $"(instr(tt_fold(l.Url), {parameter}) > 0 OR instr(tt_fold(COALESCE(l.Title, '')), {parameter}) > 0))";
     }
 
     private string CustomFilter(Guid fieldId, FieldDataType type, FieldFilter filter)

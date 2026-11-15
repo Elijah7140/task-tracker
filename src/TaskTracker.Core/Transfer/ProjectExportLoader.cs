@@ -63,8 +63,10 @@ internal static class ProjectExportLoader
         var itemIds = items.Select(item => item.Id).ToHashSet();
         var allValues = await work.Fields.ValuesForProjectAsync(project.Id, cancellationToken);
         var values = allValues.Where(value => itemIds.Contains(value.ItemId)).ToList();
+        var allLinks = await work.Items.LinksForProjectAsync(project.Id, cancellationToken);
+        var links = allLinks.Where(link => itemIds.Contains(link.ItemId)).ToList();
         var settings = await work.Settings.GetProjectAsync(project.Id, cancellationToken);
 
-        return new ProjectExportData(project, folders, items, values, settings);
+        return new ProjectExportData(project, folders, items, values, links, settings);
     }
 }

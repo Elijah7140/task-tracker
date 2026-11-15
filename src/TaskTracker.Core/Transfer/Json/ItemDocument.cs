@@ -44,4 +44,7 @@ public sealed class ItemDocument
     public string? UpdatedAtUtc { get; init; }
 
     public IReadOnlyList<FieldValueDocument>? FieldValues { get; init; }
+
+    /// <summary>The item's links in order. Optional: files written before links existed simply lack it.</summary>
+    public IReadOnlyList<ItemLinkDocument>? Links { get; init; }
 }

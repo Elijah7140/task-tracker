@@ -9,6 +9,7 @@ namespace TaskTracker.Core.Transfer.Json;
 internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet<Guid> seenItemIds)
 {
     private readonly ItemValueValidator valueValidator = new(index, issues);
+    private readonly ItemLinkValidator linkValidator = new(issues);
 
     public void Validate(ProjectDocument project, string path)
     {
@@ -27,6 +28,7 @@ internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet
             ValidateDates(items[position], itemPath);
             ValidatePlacement(items[position], itemPath, folderIds, byId);
             valueValidator.Validate(items[position].FieldValues.OrEmpty(), project.Id, $"{itemPath}.fieldValues");
+            linkValidator.Validate(items[position].Links, $"{itemPath}.links");
         }
     }
 

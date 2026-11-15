@@ -22,6 +22,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     private readonly INavigationService navigation;
     private readonly ItemService? items;
     private readonly ICustomFieldInputLoader? fieldLoader;
+    private readonly ILinkLauncher? linkLauncher;
     private readonly AsyncRelayCommand saveCommand;
     private readonly WorkspaceUrgencyRefresher urgencyRefresher;
     private readonly ItemEditorCoordinator editorCoordinator;
@@ -40,7 +41,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public ProjectWorkspaceViewModel(Guid projectId, ProjectService projects, FolderService folders,
         IDialogService dialogs, INavigationService navigation, ItemService? items = null,
         TimeProvider? clock = null, TimeZoneInfo? timeZone = null, IUiDispatcher? dispatcher = null,
-        ICustomFieldInputLoader? fieldLoader = null, UndoCoordinator? undo = null)
+        ICustomFieldInputLoader? fieldLoader = null, UndoCoordinator? undo = null,
+        ILinkLauncher? linkLauncher = null)
     {
         this.projectId = projectId;
         this.projects = projects;
@@ -48,6 +50,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         this.navigation = navigation;
         this.items = items;
         this.fieldLoader = fieldLoader;
+        this.linkLauncher = linkLauncher;
         Undo = undo;
         areaItems = new AreaItemsViewModel(this, projectId, items, dialogs);
         folderTree = new FolderTreeViewModel(this, projectId, folders, dialogs);
@@ -72,6 +75,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         OutdentCommand = new AsyncRelayCommand(OutdentSelectedAsync);
         MoveItemToAreaCommand = new AsyncRelayCommand(MoveSelectedToAreaAsync);
         ToggleSelectedCommand = new AsyncRelayCommand(ToggleSelectedAsync);
+        OpenLinkCommand = new AsyncRelayCommand<string?>(OpenLinkAsync);
     }
 
     public ObservableCollection<FolderNodeViewModel> FolderRoots => folderTree.Roots;
@@ -186,6 +190,9 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public ICommand QuickAddCommand { get; }
 
     public ICommand AddSubItemCommand { get; }
+
+    /// <summary>Opens a link address in the system browser or mail client; the parameter is the address.</summary>
+    public ICommand OpenLinkCommand { get; }
 
     /// <summary>Saves the draft; disabled while a custom value cannot be parsed.</summary>
     public ICommand SaveCommand
@@ -453,9 +460,15 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
             return false;
         }
 
+        if (!Editor.Links.TryCommitPending())
+        {
+            await dialogs.ShowMessageAsync("Item validation", "Fix the link marked in red first.");
+            return false;
+        }
+
         try
         {
-            await items.EditAsync(Editor.Id, Editor.ToEdit(), Editor.ChangedCustomFields);
+            await items.EditAsync(Editor.Id, Editor.ToEdit(), Editor.ChangedCustomFields, Editor.ChangedLinks);
             await LoadItemsAsync(Editor.Id);
             return true;
         }
@@ -475,6 +488,21 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         if (previous is not null && Editor is not null)
         {
             Editor.TakeRevertedCustomFields(previous);
+            Editor.TakeRevertedLinks(previous);
+        }
+    }
+
+    /// <summary>Hands a link to the system, but only if it is an http, https or mailto address (§7.10).</summary>
+    public async Task OpenLinkAsync(string? url)
+    {
+        if (linkLauncher is null || !LinkPolicy.TryCreateUri(url, out var uri))
+        {
+            return;
+        }
+
+        if (!await linkLauncher.LaunchAsync(uri))
+        {
+            await dialogs.ShowMessageAsync("Open link", $"The link could not be opened: {url}");
         }
     }
 
@@ -518,6 +546,11 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         if (fieldLoader is not null)
         {
             draft.LoadCustomFields(await fieldLoader.LoadAsync(projectId, draft.Id));
+        }
+
+        if (items is not null)
+        {
+            draft.LoadLinks(await items.LoadLinksAsync(draft.Id));
         }
 
         return draft;

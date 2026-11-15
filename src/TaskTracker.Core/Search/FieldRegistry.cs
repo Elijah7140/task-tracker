@@ -14,7 +14,8 @@ public sealed class FieldRegistry(IUnitOfWorkFactory factory) : IFieldRegistry
         new("priority", "Priority", FieldDataType.Choice, null),
         new("due", "Due Date", FieldDataType.Date, null),
         new("scheduled", "Scheduled Date", FieldDataType.Date, null),
-        new("status", "Completed", FieldDataType.Boolean, null)
+        new("status", "Completed", FieldDataType.Boolean, null),
+        new("link", "Links", FieldDataType.Text, null)
     ];
 
     public async Task<IReadOnlyList<SearchableField>> GetFieldsAsync(

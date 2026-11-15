@@ -23,6 +23,17 @@ internal static class CsvItemImporter
             {
                 work.Fields.Add(ItemFieldValue.Create(item.Id, value));
             }
+
+            AddLinks(work, item, row, clock);
+        }
+    }
+
+    private static void AddLinks(IUnitOfWork work, TodoItem item, CsvImportRow row, TimeProvider clock)
+    {
+        for (var position = 0; position < row.LinkUrls.Count; position++)
+        {
+            var input = new ItemLinkInput(null, row.LinkUrls[position], null);
+            work.Items.Add(ItemLink.Create(item.Id, input, position, clock));
         }
     }
 

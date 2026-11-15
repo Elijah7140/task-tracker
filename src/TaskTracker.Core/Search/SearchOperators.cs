@@ -8,6 +8,11 @@ public static class SearchOperators
     /// <summary>Returns the valid operators in display order.</summary>
     public static IReadOnlyList<FilterOperator> For(SearchableField field)
     {
+        if (field.IsBuiltIn && field.Key == "link")
+        {
+            return [FilterOperator.Contains, FilterOperator.IsEmpty, FilterOperator.IsNotEmpty];
+        }
+
         var operators = new List<FilterOperator> { FilterOperator.Equals, FilterOperator.NotEquals };
 
         if (field.DataType == FieldDataType.Text)
