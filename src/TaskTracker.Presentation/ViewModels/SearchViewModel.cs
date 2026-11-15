@@ -169,6 +169,15 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
         await LoadSavedSearchesAsync();
     }
 
+    /// <summary>Runs the search again when one has already run, so results reflect changes made since, such as an undo.</summary>
+    public async Task RefreshAsync()
+    {
+        if (hasSearched)
+        {
+            await RunAsync();
+        }
+    }
+
     /// <summary>
     /// Runs the search. A newer search cancels and replaces an older one; errors appear in
     /// <see cref="Error"/> instead of escaping.

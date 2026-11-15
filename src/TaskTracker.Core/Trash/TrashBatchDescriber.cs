@@ -46,7 +46,8 @@ public static class TrashBatchDescriber
         };
     }
 
-    private static string TopNodeTitle(TrashBatchRows batch)
+    /// <summary>The name of the folder, item or project a batch started from.</summary>
+    public static string TopNodeTitle(TrashBatchRows batch)
     {
         return batch.Kind switch
         {

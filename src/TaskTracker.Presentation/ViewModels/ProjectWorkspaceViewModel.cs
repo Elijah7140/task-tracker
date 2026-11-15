@@ -40,7 +40,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public ProjectWorkspaceViewModel(Guid projectId, ProjectService projects, FolderService folders,
         IDialogService dialogs, INavigationService navigation, ItemService? items = null,
         TimeProvider? clock = null, TimeZoneInfo? timeZone = null, IUiDispatcher? dispatcher = null,
-        ICustomFieldInputLoader? fieldLoader = null)
+        ICustomFieldInputLoader? fieldLoader = null, UndoCoordinator? undo = null)
     {
         this.projectId = projectId;
         this.projects = projects;
@@ -48,6 +48,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         this.navigation = navigation;
         this.items = items;
         this.fieldLoader = fieldLoader;
+        Undo = undo;
         areaItems = new AreaItemsViewModel(this, projectId, items, dialogs);
         folderTree = new FolderTreeViewModel(this, projectId, folders, dialogs);
         editorCoordinator = new ItemEditorCoordinator(dialogs);
@@ -86,6 +87,14 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public FolderNodeViewModel? SelectedFolder => folderTree.Selected;
 
     internal ItemRowViewModel? SelectedItem => selectedItem;
+
+    /// <summary>Whether the item editor has a draft that undo must preserve.</summary>
+    public bool HasUnsavedChanges => EditorHasEdits();
+
+    /// <summary>Undo and redo buttons and the status toast; null in a window that has no history.</summary>
+    public UndoCoordinator? Undo { get; }
+
+    public bool HasUndo => Undo is not null;
 
     public ICommand HomeCommand { get; }
 

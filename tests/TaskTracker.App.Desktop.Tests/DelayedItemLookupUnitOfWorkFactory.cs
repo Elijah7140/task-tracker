@@ -81,6 +81,11 @@ internal sealed class DelayedItemLookupUnitOfWorkFactory(IUnitOfWorkFactory inne
             return unit.SaveChangesAsync(cancellationToken);
         }
 
+        public Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
+        {
+            return unit.SaveChangesAsync(undoLabel, cancellationToken);
+        }
+
         public ValueTask DisposeAsync()
         {
             return unit.DisposeAsync();

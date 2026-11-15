@@ -694,6 +694,60 @@ are deliberately **not** foreign keys.
   a chip per saved search that opens it. Home has a "Saved searches" section (hidden when empty) with each
   search as a link plus Rename and Delete. Returning to Home reloads the list.
 
+### 7.8 Undo and redo
+
+**History.** `UndoHistory` (Core, singleton) keeps the last 50 undoable steps in memory for the
+session; restarting clears it. One user action is one step however many rows it touches (a
+completion cascade, a deleted branch, a renumbered sibling list). Recording a new step drops
+every step that was undone, so redo is cleared by any new action.
+
+**What is recorded.** Recording is opt-in and explicit. A service that performs an undoable user
+action saves with a label, `unitOfWork.SaveChangesAsync(UndoLabels.Complete(title), ct)`; only
+labelled saves are recorded, and the label names the item the user acted on (completing a child
+that auto-completes its parent is "Complete 'Child'"). Everything else saves without a label and
+is never recorded: settings (including the auto-complete reconciliation they trigger), lookups,
+field definitions, saved searches, creating a project or folder, trash purge and empty, seeding
+and migrations. Search the services for `UndoLabels.` to see exactly what is undoable: create item
+or sub-item; one item Save (built-in and custom fields together, cleared fields included);
+complete and reopen with their cascade; delete item, folder or project (a soft-delete batch);
+reorder, indent, outdent, re-parent, drag and move to a folder; calendar reschedule; rename
+folder or project; and restore from the trash (undoing it deletes the batch again). On a labelled
+save `EfUnitOfWork` snapshots the before and after values of every added, modified or deleted
+item, folder, project and item field value, in the operation's own save, and hands the step to an
+`IUndoRecorder` (tests substitute a fake). A row whose only change is its `UpdatedAtUtc` stamp is
+left out, so steps stay small and do not widen conflicts. Purging a batch also makes the delete it
+followed un-undoable.
+
+**Applying a step.** Undo and redo write the recorded values back in one unit of work. Before
+writing, every affected row (soft-deleted ones included) is compared with the values the step left
+behind. If any row differs the whole step is refused and the history position does not move:
+"This item changed since; can't undo." (or "redo"; "folder" or "project" for those rows). A row
+that no longer exists, because its deletion was purged from the trash, gives "This item was
+permanently deleted since; can't undo." A refused step changes nothing; there is no partial undo.
+
+**UI.** Ctrl+Z undoes; Ctrl+Y and Ctrl+Shift+Z redo. The shortcuts work anywhere in the main window
+(workspace, calendar, search, trash, Home) except while a text box has focus (quick add, search
+box, a date picker's text, an editable combo box), where Ctrl+Z keeps its normal text-editing
+meaning. With nothing to undo or redo the keys do nothing at all, silently. The workspace header
+has Undo and Redo buttons whose tooltips name the action ("Undo: Complete 'Write report'"); they
+are disabled when there is nothing to do. A status toast at the bottom of the workspace (an
+overlay, so nothing moves) shows "Undid: ...", "Redid: ..." or a refusal. It clears on the next
+recorded action and when the user goes to another screen. Refusals on screens without the toast
+are shown in a message box. `UndoCoordinator` (Presentation) holds this behaviour; the shell
+creates it and hands it to each workspace. A failure other than a refused step is reported
+through the shell's unexpected-error message instead of crashing the app. If a write-back would
+break a foreign key (a choice or lookup the step used was removed since), it is refused as
+"This change references something that was removed; can't undo."
+
+**Reloading.** After a step the screen on show reloads: the workspace keeps its folder and the
+selected item when they still exist, the calendar and trash lists reload, a search that has run runs again, Home recounts. A search,
+calendar or trash page also marks the page behind it out of date, so going back reloads it
+through the existing unsaved-changes guard.
+
+**Dirty editor rule.** While the item editor holds unsaved edits, undo and redo are blocked with
+"Save or discard your item edits before undoing or redoing." The draft is untouched. (Reloading
+under a draft would either lose it or ask a question the user did not trigger.)
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -717,7 +771,8 @@ are deliberately **not** foreign keys.
 
 ### Keyboard
 
-Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
+Ctrl+Z undo, Ctrl+Y or Ctrl+Shift+Z redo (§7.8; not while a text box has focus, where text
+editing keeps its own undo). Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
 Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outdent,
 Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
@@ -755,7 +810,7 @@ Phases 0–2 are v1.
 - Recurring items.
 - Markdown descriptions; attachments/links.
 - ~~Saved searches and the text query syntax~~ (done, §7.7).
-- Undo/redo for recent actions.
+- ~~Undo/redo for recent actions~~ (done, §7.8).
 - Import/export (JSON, CSV).
 - Packaged installers per OS (MSIX/Velopack on Windows, .app on macOS, AppImage on Linux).
 - Mobile or browser head (Avalonia supports both) reusing the Presentation project.

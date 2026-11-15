@@ -1,6 +1,7 @@
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core.Trash;
 
@@ -48,7 +49,7 @@ public sealed class TrashService(IUnitOfWorkFactory unitOfWorkFactory, TimeProvi
         var position = await AppendPositionAsync(work, batch, cancellationToken);
         RestoreRows(batch, position);
         await ProjectCompletionReconciler.ReconcileIfEnabledAsync(work, batch.Rows.Project.Id, clock, cancellationToken);
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.Restore(TrashBatchDescriber.TopNodeTitle(batch)), cancellationToken);
     }
 
     /// <summary>
