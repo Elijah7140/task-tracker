@@ -58,14 +58,17 @@ internal sealed class CalendarDragController
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs args)
     {
-        if (IsDragging)
+        var isLeftPress = args.GetCurrentPoint(view).Properties.PointerUpdateKind ==
+            PointerUpdateKind.LeftButtonPressed;
+
+        if (IsDragging || !isLeftPress)
         {
             return;
         }
 
         var entryButton = CalendarEntryButton.From(args.Source);
 
-        if (!args.GetCurrentPoint(view).Properties.IsLeftButtonPressed || entryButton is null)
+        if (entryButton is null)
         {
             Disarm();
             return;

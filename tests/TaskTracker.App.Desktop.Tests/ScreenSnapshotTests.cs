@@ -123,6 +123,47 @@ public sealed class ScreenSnapshotTests
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Calendar_week_with_adjacent_half_hour_blocks_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedShortBlocksAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        var page = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        await page.SetWeekAsync(true);
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-week-short-blocks-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Calendar_week_late_at_night_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedLateNightAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenCalendarAsync();
+        var page = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        await page.SetWeekAsync(true);
+        ScrollWeekGridToEnd(window);
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"calendar-week-late-night-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Calendar_week_at_minimum_size_matches_approved_image(bool dark)
     {
         using var services = await TestServices.CreateAsync();
@@ -220,6 +261,55 @@ public sealed class ScreenSnapshotTests
         Assert.NotNull(frame);
         SnapshotComparer.AssertMatches(frame, $"calendar-week-allday-drag-{ThemeName(dark)}");
         window.Close();
+    }
+
+    /// <summary>
+    /// Two schedules that touch at 09:30, a 15-minute block, a schedule without an end and a due marker
+    /// after it: every one is drawn as tall as its duration.
+    /// </summary>
+    private static async Task SeedShortBlocksAsync(IServiceProvider services)
+    {
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
+        var items = services.GetRequiredService<ItemService>();
+        var day = new DateTime(2026, 11, 13);
+        await ScheduleAsync(items, project.Id, "Standup", day.AddHours(9), day.AddHours(9.5));
+        await ScheduleAsync(items, project.Id, "Review", day.AddHours(9.5), day.AddHours(10));
+        await ScheduleAsync(items, project.Id, "Quick sync", day.AddHours(10.25), day.AddHours(10.5));
+        await ScheduleAsync(items, project.Id, "Open ended", day.AddHours(11), null);
+        await DueAtAsync(items, project.Id, "Send agenda", DateOnly.FromDateTime(day), new TimeOnly(12, 0));
+    }
+
+    /// <summary>A due marker at 23:59 and a block that runs to midnight, both at the very end of the grid.</summary>
+    private static async Task SeedLateNightAsync(IServiceProvider services)
+    {
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
+        var items = services.GetRequiredService<ItemService>();
+        var day = new DateTime(2026, 11, 13);
+        await DueAtAsync(items, project.Id, "Midnight deadline", DateOnly.FromDateTime(day), new TimeOnly(23, 59));
+        await DueAtAsync(items, project.Id, "Late report", DateOnly.FromDateTime(day).AddDays(1), new TimeOnly(23, 45));
+        await ScheduleAsync(items, project.Id, "Night deploy", day.AddHours(22), day.AddHours(23.5));
+    }
+
+    private static async Task ScheduleAsync(ItemService items, Guid projectId, string title, DateTime start, DateTime? end)
+    {
+        var item = await items.CreateAsync(projectId, null, null, title);
+        await items.EditAsync(item.Id, new ItemEdit(title, null, null, null, null, null, null, start, end));
+    }
+
+    private static async Task DueAtAsync(ItemService items, Guid projectId, string title, DateOnly due, TimeOnly time)
+    {
+        var item = await items.CreateAsync(projectId, null, null, title);
+        await items.EditAsync(item.Id, new ItemEdit(title, null, null, null, null, due, time, null, null));
+    }
+
+    private static void ScrollWeekGridToEnd(Window window)
+    {
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        var scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First(viewer => viewer.Name == "WeekScroll");
+        scroll.ScrollToEnd();
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
     }
 
     private static async Task SeedCalendarAsync(IServiceProvider services)

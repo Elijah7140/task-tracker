@@ -176,20 +176,20 @@ public static class CalendarLayout
 
     private static void SplitOverlaps(IReadOnlyList<CalendarEntryViewModel> entries)
     {
-        var timed = entries.Where(entry => !entry.IsAllDay).OrderBy(entry => entry.Top).ToArray();
+        var timed = entries.Where(entry => !entry.IsAllDay).OrderBy(entry => entry.LayoutStartMinutes).ToArray();
         var group = new List<CalendarEntryViewModel>();
         var groupEnd = 0.0;
 
         foreach (var entry in timed)
         {
-            if (group.Count > 0 && entry.Top >= groupEnd)
+            if (group.Count > 0 && entry.LayoutStartMinutes >= groupEnd)
             {
                 PlaceGroup(group);
                 group.Clear();
             }
 
             group.Add(entry);
-            groupEnd = Math.Max(groupEnd, entry.Top + entry.Height);
+            groupEnd = Math.Max(groupEnd, entry.LayoutEndMinutes);
         }
 
         PlaceGroup(group);
@@ -202,7 +202,7 @@ public static class CalendarLayout
 
         foreach (var entry in group)
         {
-            var column = columnEnds.FindIndex(end => end <= entry.Top);
+            var column = columnEnds.FindIndex(end => end <= entry.LayoutStartMinutes);
 
             if (column < 0)
             {
@@ -210,7 +210,7 @@ public static class CalendarLayout
                 columnEnds.Add(0);
             }
 
-            columnEnds[column] = entry.Top + entry.Height;
+            columnEnds[column] = entry.LayoutEndMinutes;
             assignments.Add(column);
         }
 

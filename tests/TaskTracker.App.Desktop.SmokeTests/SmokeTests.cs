@@ -61,16 +61,17 @@ public sealed class SmokeTests
         Run(session =>
         {
             session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            var seededDay = DateTime.Today;
             OpenProject(session);
             AddItem(session, "Calendar due item");
             session.FindNamed("ItemTitleButton", "Calendar due item").Click();
-            ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(ReviewDate));
+            ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(seededDay));
             session.Press(VirtualKeyShort.TAB);
             session.Find("EditorSaveButton").AsButton().Invoke();
 
             AddItem(session, "Calendar scheduled item");
             session.FindNamed("ItemTitleButton", "Calendar scheduled item").Click();
-            ReplaceText(session, PickerEdit(session, "EditorStartDatePicker"), FormatDate(ReviewDate));
+            ReplaceText(session, PickerEdit(session, "EditorStartDatePicker"), FormatDate(seededDay));
             session.Press(VirtualKeyShort.TAB);
             session.Find("EditorSaveButton").AsButton().Invoke();
 
@@ -78,8 +79,11 @@ public sealed class SmokeTests
             session.SelectByName("CalendarScopeComboBox", "This project");
             session.FindText("Calendar due item");
             session.FindText("00:00 Calendar scheduled item");
-            session.Find("CalendarWeekButton").AsButton().Invoke();
             session.Find("CalendarNextButton").AsButton().Invoke();
+            session.Find("CalendarPreviousButton").AsButton().Invoke();
+            session.Find("CalendarTodayButton").AsButton().Invoke();
+            session.FindText("Calendar due item");
+            session.Find("CalendarWeekButton").AsButton().Invoke();
             session.FindText("Calendar due item");
             session.FindText("Calendar scheduled item");
             session.FindNamed("CalendarEntryButton", "Calendar due item").AsButton().Invoke();

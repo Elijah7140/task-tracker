@@ -363,6 +363,46 @@ public sealed class CalendarViewModelMoveTests
         Assert.Equal(new DateOnly(2026, 12, 13), request?.Day);
     }
 
+    [Fact]
+    public async Task Queued_steps_continue_from_the_saved_state_when_the_entry_left_the_visible_period()
+    {
+        var lastVisibleDay = new DateOnly(2026, 12, 5);
+        var entry = CalendarEntries.Due(lastVisibleDay);
+        using var scenario = await Scenario.CreateAsync(entry);
+        scenario.Rescheduler.Hold = new TaskCompletionSource();
+        scenario.Rescheduler.AfterMove = () => scenario.Service.Entries = [];
+        var occurrence = scenario.Occurrence;
+
+        var running = scenario.Page.MoveEntryByAsync(occurrence, 1, 0);
+        await scenario.Page.MoveEntryByAsync(occurrence, 1, 0);
+        await scenario.Page.MoveEntryByAsync(occurrence, 1, 0);
+        scenario.Rescheduler.Hold.SetResult();
+        await running;
+
+        Assert.Equal(lastVisibleDay.AddDays(1), scenario.Rescheduler.DueMoves[0].Date);
+        Assert.Equal(lastVisibleDay.AddDays(3), scenario.Rescheduler.DueMoves[1].Date);
+    }
+
+    [Fact]
+    public async Task Queued_steps_continue_a_schedule_from_the_saved_state_when_it_left_the_visible_period()
+    {
+        var start = new DateTime(2026, 12, 5, 9, 0, 0);
+        var entry = CalendarEntries.Scheduled(start, start.AddHours(1));
+        using var scenario = await Scenario.CreateAsync(entry);
+        scenario.Rescheduler.Hold = new TaskCompletionSource();
+        scenario.Rescheduler.AfterMove = () => scenario.Service.Entries = [];
+        var occurrence = scenario.Occurrence;
+
+        var running = scenario.Page.MoveEntryByAsync(occurrence, 1, 0);
+        await scenario.Page.MoveEntryByAsync(occurrence, 1, 15);
+        await scenario.Page.MoveEntryByAsync(occurrence, 1, 15);
+        scenario.Rescheduler.Hold.SetResult();
+        await running;
+
+        Assert.Equal(start.AddDays(1), scenario.Rescheduler.ScheduleMoves[0].Start);
+        Assert.Equal(new DateTime(2026, 12, 8, 9, 30, 0), scenario.Rescheduler.ScheduleMoves[1].Start);
+    }
+
     private static CalendarDropTarget MonthCell(DateOnly day)
     {
         return new CalendarDropTarget(CalendarDropZone.MonthCell, day, null);

@@ -14,10 +14,14 @@ public static class CalendarMetrics
     /// <summary>Vertical pixels for one minute of a timed entry.</summary>
     public const double PixelsPerMinute = HourHeight / 60;
 
+    /// <summary>Minutes in a day column.</summary>
+    public const double DayMinutes = 24 * 60;
+
     /// <summary>
-    /// Shortest timed entry. Markers for timed due dates use it too, so a badge and a title fit.
+    /// Entries shorter than this are drawn compact, with the urgency label and title on one line.
+    /// Heights always follow the real duration; this only chooses how the text is arranged.
     /// </summary>
-    public const double MinEntryHeight = 40;
+    public const double TwoLineHeight = 40;
 
     /// <summary>Hour the week view is scrolled to when it opens.</summary>
     public const int MorningHour = 7;

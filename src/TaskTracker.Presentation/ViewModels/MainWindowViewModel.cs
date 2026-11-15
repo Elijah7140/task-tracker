@@ -87,9 +87,10 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         DiscardSearchReturnPage();
         DiscardCalendarReturnPage();
         DisposeCurrentPage();
+        var version = pageVersion;
         var page = new HomeViewModel(projectService, dialogs, this);
         await page.LoadAsync();
-        CurrentPage = page;
+        ShowIfCurrent(page, version);
     }
 
     public async Task OpenProjectAsync(Guid projectId)
@@ -178,8 +179,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
             return SearchOpenOutcome.Cancelled;
         }
 
-        await OpenWorkspaceAsync(location.ProjectId, location.FolderId, itemId);
-        return SearchOpenOutcome.Opened;
+        var opened = await OpenWorkspaceAsync(location.ProjectId, location.FolderId, itemId);
+        return opened ? SearchOpenOutcome.Opened : SearchOpenOutcome.Cancelled;
     }
 
     /// <inheritdoc />
@@ -249,9 +250,10 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         }
 
         DisposeCurrentPage();
+        var version = pageVersion;
         var page = new AppSettingsViewModel(settings, dialogs, this, lookups, returnProjectId, fields);
         await page.LoadAsync();
-        CurrentPage = page;
+        ShowIfCurrent(page, version);
     }
 
     public async Task OpenProjectSettingsAsync(Guid projectId)
@@ -263,9 +265,10 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
 
         var project = await projectService.LoadWorkspaceAsync(projectId);
         DisposeCurrentPage();
+        var version = pageVersion;
         var page = new ProjectSettingsViewModel(projectId, settings, dialogs, this, fields);
         await page.LoadAsync(project.Name);
-        CurrentPage = page;
+        ShowIfCurrent(page, version);
     }
 
     private async Task ShowSearchPageAsync()
@@ -342,30 +345,62 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         return await itemService.FindLocationAsync(itemId);
     }
 
-    private async Task OpenWorkspaceAsync(Guid projectId, Guid? folderId, Guid? itemId)
+    /// <summary>
+    /// Loads and shows a workspace. Returns false when the user navigated elsewhere while it loaded
+    /// (the workspace is then disposed and the newer page stays) or the project was unavailable.
+    /// </summary>
+    private async Task<bool> OpenWorkspaceAsync(Guid projectId, Guid? folderId, Guid? itemId)
     {
         DiscardSearchReturnPage();
         DiscardCalendarReturnPage();
         DisposeCurrentPage();
+        var version = pageVersion;
         var page = new ProjectWorkspaceViewModel(projectId, projectService, folderService, dialogs, this,
             itemService, clock, timeZone, dispatcher, fieldLoader);
 
         try
         {
             await page.LoadAsync(folderId, itemId);
-            CurrentPage = page;
+            return ShowIfCurrent(page, version);
         }
         catch (DomainRuleException exception)
         {
             page.Dispose();
-            await GoHomeAsync();
-            await dialogs.ShowMessageAsync("Project unavailable", exception.Message);
+            await ReportUnavailableProjectAsync(version, exception);
+            return false;
         }
         catch
         {
             page.Dispose();
             throw;
         }
+    }
+
+    private async Task ReportUnavailableProjectAsync(int version, DomainRuleException exception)
+    {
+        if (version != pageVersion)
+        {
+            return;
+        }
+
+        await GoHomeAsync();
+        await dialogs.ShowMessageAsync("Project unavailable", exception.Message);
+    }
+
+    /// <summary>
+    /// Shows a page that finished loading, unless the user navigated elsewhere since
+    /// <paramref name="version"/> was read; a stale page is disposed instead.
+    /// </summary>
+    private bool ShowIfCurrent(ViewModelBase page, int version)
+    {
+        if (version != pageVersion)
+        {
+            (page as IDisposable)?.Dispose();
+            return false;
+        }
+
+        CurrentPage = page;
+        return true;
     }
 
     private void DiscardSearchReturnPage()

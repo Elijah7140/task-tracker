@@ -45,6 +45,7 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
     private bool isOpeningEntry;
     private bool isMovingEntry;
     private CalendarMoveRequest? pendingMove;
+    private CalendarEntryViewModel? lastSavedOccurrence;
     private bool disposed;
 
     public CalendarViewModel(ICalendarService service, ICalendarRescheduler rescheduler,
@@ -394,6 +395,7 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
             }
 
             await SaveMoveAsync(occurrence.Entry.ItemId, move);
+            lastSavedOccurrence = CalendarReschedule.AfterMove(occurrence, move);
             await LoadAsync();
             RequestFocus(request, occurrence, move);
         }
@@ -411,7 +413,9 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// The entry of the request as the latest load shows it, preferring the same day. When the entry is
-    /// no longer shown, the occurrence the gesture started on is used so the service can report why.
+    /// not shown (it left the visible period), the state the last saved move left it in is used, so a
+    /// queued step continues from there. Failing that, the occurrence the gesture started on is used so
+    /// the service can report why the move failed.
     /// </summary>
     private CalendarEntryViewModel CurrentOccurrenceOf(CalendarMoveRequest request)
     {
@@ -419,7 +423,13 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
             .Where(candidate => KeyOf(candidate) == request.Key)
             .ToArray();
         var sameDay = matches.FirstOrDefault(candidate => candidate.Day == request.Occurrence.Day);
-        return sameDay ?? matches.FirstOrDefault() ?? request.Occurrence;
+        return sameDay ?? matches.FirstOrDefault() ?? LastSavedOccurrenceOf(request) ?? request.Occurrence;
+    }
+
+    private CalendarEntryViewModel? LastSavedOccurrenceOf(CalendarMoveRequest request)
+    {
+        var saved = lastSavedOccurrence;
+        return saved is not null && KeyOf(saved) == request.Key ? saved : null;
     }
 
     private static CalendarEntryKey KeyOf(CalendarEntryViewModel occurrence)

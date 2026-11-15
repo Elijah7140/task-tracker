@@ -17,6 +17,8 @@ public sealed partial class CalendarView : UserControl
 {
     private const string MoreButtonId = "CalendarMoreButton";
 
+    private const double WheelPixelsPerNotch = 48;
+
     private readonly CalendarDragController drag;
 
     public CalendarView()
@@ -25,7 +27,24 @@ public sealed partial class CalendarView : UserControl
         var indicator = new CalendarDropIndicator(WeekColumns, WeekDropGhost, WeekDropGhostLabel);
         drag = new CalendarDragController(this, indicator);
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(PointerWheelChangedEvent, OnWheelDuringDrag);
         WeekScroll.ScrollChanged += (_, _) => drag.RefreshAfterScroll();
+    }
+
+    /// <summary>
+    /// While an entry is dragged, the calendar holds the pointer capture, so wheel events reach the
+    /// calendar and not the week grid under the pointer. Scroll the grid here instead.
+    /// </summary>
+    private void OnWheelDuringDrag(object? sender, PointerWheelEventArgs args)
+    {
+        if (!drag.IsDragging || DataContext is not CalendarViewModel { IsWeek: true })
+        {
+            return;
+        }
+
+        var offset = WeekScroll.Offset.Y - args.Delta.Y * WheelPixelsPerNotch;
+        WeekScroll.Offset = new Vector(WeekScroll.Offset.X, Math.Max(0, offset));
+        args.Handled = true;
     }
 
     protected override void OnLoaded(RoutedEventArgs args)

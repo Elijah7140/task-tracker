@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Projects;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
@@ -173,6 +174,44 @@ public sealed class MainWindowViewModelCalendarTests
     }
 
     [Fact]
+    public async Task Entry_activation_whose_workspace_is_still_loading_when_Back_is_pressed_leaves_Home_showing()
+    {
+        var scenario = await Scenario.CreateAsync(DraftDecision.Discard, gateWorkspace: true);
+        await using var store = scenario.Store;
+        await scenario.Shell.OpenCalendarAsync();
+        scenario.WorkspaceGate!.CloseGate();
+        var activation = scenario.Shell.OpenCalendarItemAsync(scenario.ItemId);
+
+        await scenario.Shell.ReturnFromCalendarAsync();
+        var home = Assert.IsType<HomeViewModel>(scenario.Shell.CurrentPage);
+        scenario.WorkspaceGate.OpenGate();
+        var outcome = await activation;
+
+        Assert.Equal(SearchOpenOutcome.Cancelled, outcome);
+        Assert.Same(home, scenario.Shell.CurrentPage);
+        Assert.Equal(0, scenario.Clock.ActiveTimers);
+    }
+
+    [Fact]
+    public async Task Search_result_whose_workspace_is_still_loading_when_Back_is_pressed_leaves_Home_showing()
+    {
+        var scenario = await Scenario.CreateAsync(DraftDecision.Discard, gateWorkspace: true);
+        await using var store = scenario.Store;
+        await scenario.OpenCalendarThenSearchAsync();
+        var search = Assert.IsType<SearchViewModel>(scenario.Shell.CurrentPage);
+        scenario.WorkspaceGate!.CloseGate();
+        var activation = search.OpenResultAsync(Assert.Single(search.Results));
+
+        await scenario.Shell.ReturnFromSearchAsync();
+        var home = Assert.IsType<HomeViewModel>(scenario.Shell.CurrentPage);
+        scenario.WorkspaceGate.OpenGate();
+        await activation;
+
+        Assert.Same(home, scenario.Shell.CurrentPage);
+        Assert.Equal(0, scenario.Clock.ActiveTimers);
+    }
+
+    [Fact]
     public async Task Calendar_still_loading_when_the_user_goes_home_is_not_shown_afterwards()
     {
         var scenario = await Scenario.CreateAsync(DraftDecision.Discard, gateCalendar: true);
@@ -217,7 +256,7 @@ public sealed class MainWindowViewModelCalendarTests
     {
         private Scenario(PresentationTestStore store, MainWindowViewModel shell, FakeDialogService dialogs,
             CountingTimerClock clock, ProjectWorkspaceViewModel workspace, Guid itemId,
-            GatedCalendarUnitOfWorkFactory? calendarGate)
+            GatedCalendarUnitOfWorkFactory? calendarGate, GatedWorkspaceUnitOfWorkFactory? workspaceGate)
         {
             Store = store;
             Shell = shell;
@@ -226,6 +265,7 @@ public sealed class MainWindowViewModelCalendarTests
             Workspace = workspace;
             ItemId = itemId;
             CalendarGate = calendarGate;
+            WorkspaceGate = workspaceGate;
         }
 
         public PresentationTestStore Store { get; }
@@ -242,7 +282,10 @@ public sealed class MainWindowViewModelCalendarTests
 
         public GatedCalendarUnitOfWorkFactory? CalendarGate { get; }
 
-        public static async Task<Scenario> CreateAsync(DraftDecision decision, bool gateCalendar = false)
+        public GatedWorkspaceUnitOfWorkFactory? WorkspaceGate { get; }
+
+        public static async Task<Scenario> CreateAsync(DraftDecision decision, bool gateCalendar = false,
+            bool gateWorkspace = false)
         {
             var clock = new CountingTimerClock(NoonOnTheThirteenth);
             var store = new PresentationTestStore(clock);
@@ -254,12 +297,14 @@ public sealed class MainWindowViewModelCalendarTests
             var dialogs = new FakeDialogService { DraftResult = decision };
             var gate = gateCalendar ? new GatedCalendarUnitOfWorkFactory(store.UnitOfWorkFactory) : null;
             var calendar = gate is null ? null : new CalendarService(gate);
-            var shell = SearchTestShell.Create(store, dialogs, clock, calendar: calendar);
+            var workspaceGate = gateWorkspace ? new GatedWorkspaceUnitOfWorkFactory(store.UnitOfWorkFactory) : null;
+            var projects = workspaceGate is null ? null : new ProjectService(workspaceGate, clock, TimeZoneInfo.Utc);
+            var shell = SearchTestShell.Create(store, dialogs, clock, calendar: calendar, projects: projects);
             await shell.OpenProjectAsync(project.Id);
             var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
             await workspace.SelectItemAsync(workspace.OpenItems.Single(row => row.Id == item.Id));
             workspace.Editor!.Title = "Draft title";
-            return new Scenario(store, shell, dialogs, clock, workspace, item.Id, gate);
+            return new Scenario(store, shell, dialogs, clock, workspace, item.Id, gate, workspaceGate);
         }
 
         public async Task OpenSearchThenCalendarAsync()

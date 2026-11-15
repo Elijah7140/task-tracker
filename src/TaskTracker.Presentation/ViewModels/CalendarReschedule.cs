@@ -32,6 +32,41 @@ public static class CalendarReschedule
     }
 
     /// <summary>
+    /// The occurrence a saved move leaves behind, built from the move itself so it does not depend on
+    /// what the calendar currently shows. Null when the move changes nothing.
+    /// </summary>
+    public static CalendarEntryViewModel? AfterMove(CalendarEntryViewModel occurrence, CalendarMove move)
+    {
+        var entry = occurrence.Entry;
+
+        if (move.Kind == CalendarMoveKind.Due)
+        {
+            var movedDue = entry with
+            {
+                Date = move.Date,
+                StartTime = move.Time,
+                DueDate = move.Date,
+                DueTime = move.Time
+            };
+            return CalendarLayout.Clip(movedDue, move.Date);
+        }
+
+        if (move.Kind == CalendarMoveKind.Schedule && entry.ScheduledStart is DateTime oldStart)
+        {
+            var movedSchedule = entry with
+            {
+                Date = DateOnly.FromDateTime(move.Start),
+                StartTime = TimeOnly.FromDateTime(move.Start),
+                ScheduledStart = move.Start,
+                ScheduledEnd = move.Start + (entry.ScheduledEnd - oldStart)
+            };
+            return CalendarLayout.Clip(movedSchedule, move.TargetDay);
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// The drop target a key press stands for: whole days, and minutes for entries that have a time.
     /// Returns null when the entry cannot move that way (an all-day entry has no time to nudge).
     /// A timed entry never crosses midnight; it stops at 00:00 and 23:45.
@@ -71,7 +106,7 @@ public static class CalendarReschedule
 
         if (moved > CalendarMetrics.LastSnapMinute)
         {
-            moved = Math.Max(currentMinutes, CalendarMetrics.LastSnapMinute);
+            moved = CalendarMetrics.LastSnapMinute;
         }
 
         moved = Math.Max(moved, 0);
