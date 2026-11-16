@@ -968,6 +968,8 @@ Phases 0–2 are v1.
 - ~~Undo/redo for recent actions~~ (done, §7.8).
 - ~~Import/export (JSON, CSV)~~ (done, §7.9).
 - Packaged installers per OS (MSIX/Velopack on Windows, .app on macOS, AppImage on Linux).
+- **Task stack.** Requested by the owner; scope and behaviour still to be agreed. Discuss
+  with the owner before designing or building it.
 - Mobile or browser head (Avalonia supports both) reusing the Presentation project.
 - Optional sync/shared database (adds time-zone ids, §5.4).
 
