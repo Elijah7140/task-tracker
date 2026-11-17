@@ -254,8 +254,12 @@ internal sealed class MarkdownControlBuilder(Action<string> openLink)
         };
     }
 
+    /// <summary>
+    /// A monospace font on each OS. Linux needs named fonts (DejaVu, Liberation, Noto): the generic
+    /// "monospace" name is not resolved there and would fall back to a proportional font.
+    /// </summary>
     private static FontFamily CodeFont()
     {
-        return new FontFamily("Cascadia Mono, Consolas, Menlo, monospace");
+        return new FontFamily("Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono, Liberation Mono, Noto Sans Mono, monospace");
     }
 }
