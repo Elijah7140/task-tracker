@@ -229,7 +229,8 @@ no active children and is completed/reopened manually like any task.
 With the setting **on**, the invariant is: *an item with active children is complete
 exactly when all of its active children are complete.* After **any** change to a tree —
 complete, reopen, add, delete, restore, move, indent/outdent — the app re-evaluates the
-affected item's ancestors bottom-up and fixes their state. Specifically:
+affected item's ancestors bottom-up and fixes their state. Reparenting evaluates the union of
+both chains, deepest first, using the final tree. Specifically:
 
 | Action | Result |
 |--------|--------|
@@ -762,7 +763,7 @@ camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\
 A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
 `dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `scheduledStart`/`scheduledEnd` as floating local values **without offset**
 (`2026-11-21T09:00:00`, §5.4), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
-`links` (optional, §7.10), `recurrence` and `recurrenceSeriesId` (optional, §7.11), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
+`links` (optional, §7.10), `recurrence`, `recurrenceSeriesId` and `recurrenceSuccessorCreated` (optional, §7.11), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
 Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
 culture throughout.
 
@@ -950,8 +951,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   So when a repeating sub-item completes, its new open sibling stops the parent from
   auto-completing. A repeating **parent** that auto-completes because its last child completed also
   creates its next occurrence, with its subtree reset to open. Reopening a completed occurrence by
-  hand does **not** delete the generated next occurrence, because silently deleting data is worse
-  than having two. Undo of the completion removes both, as one step.
+  hand keeps the generated next occurrence. Undo of the completion removes the generated occurrence
+  and restores the source in one step.
 - **Stopping and deleting.** "Stop repeating" removes the rule from that occurrence only. Deleting an
   occurrence deletes only that row, which goes to the trash as usual; other occurrences are
   unaffected. Restoring from the trash restores the rule with the row.
@@ -960,9 +961,10 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
 - **Search (§7.7).** `is:recurring` matches items with a rule. The filter row has a "Repeats" yes/no
   built-in field.
 - **Import/export (§7.9).** JSON adds an optional `recurrence` object on items and a
-  `recurrenceSeriesId`, still format version 1; validation and JSON paths are as usual. CSV
-  export adds a read-only `Repeats` column with a plain description, for example "Every 2 weeks on
-  Mon, Thu". CSV import ignores that column, and the preview says so.
+  `recurrenceSeriesId`, plus `recurrenceSuccessorCreated` when true, still format version 1.
+  Validation and JSON paths are as usual. CSV export adds a read-only `Repeats` column with a
+  plain description, for example "Every 2 weeks on Mon, Thu". CSV import ignores that column,
+  and the preview says so.
 - **UI.**
   - The editor has a **Repeat** section: a frequency dropdown (Does not repeat / Daily / Weekly /
     Monthly / Yearly), an interval box, weekday toggles (weekly), a day-of-month or "last day" choice
@@ -975,7 +977,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
 - **Data.** There is a `RecurrenceRule` value stored in columns on `TodoItem`: `RecurrenceFrequency`,
   `RecurrenceInterval`, `RecurrenceWeekdays` (bit flags), `RecurrenceMonthDay` (0 = last day),
   `RecurrenceMonth`, `RecurrenceAnchor`, `RecurrenceEndKind`, `RecurrenceEndDate`,
-  `RecurrenceRemaining`, and `RecurrenceSeriesId`. All are nullable, and the migration is additive.
+  `RecurrenceRemaining`, and `RecurrenceSeriesId`. These are nullable. The additive migration also
+  adds a boolean `RecurrenceSuccessorCreated`, defaulting to false.
   Adding columns to `TodoItem` follows the AGENTS.md rule on the `TodoItemSearch` triggers.
 - **Tests.** Core unit tests cover the next-date calculation: every frequency and interval, weekday
   sets that wrap past Sunday, month-end clamping, 29 February, both anchors, every end kind, and
@@ -990,6 +993,10 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   when there is no next date. Skip uses today's local date for a completion-date anchor. The editor
   derives a yearly rule's month and day from the due date or scheduled start. Editing other fields
   preserves an existing yearly pattern even when its occurrence was clamped.
+- **One successor per occurrence.** The source records successor creation in the same undoable save.
+  The marker survives manual reopening, rule edits and JSON round-trips. Completing the source again
+  never replaces a successor that was deleted or purged. Undo clears the marker when it removes the
+  generated occurrence, and redo restores both. The JSON marker is a boolean and needs no ID remap.
 - **Copied branches.** All active descendants shift by the root's date offset and start open.
   A copied descendant that repeats starts its own series. In a confirmed completion cascade, a
   newly opened repeating child keeps its parent open. Import, restore, and settings reconciliation

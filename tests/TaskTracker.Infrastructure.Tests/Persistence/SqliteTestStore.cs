@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Time.Testing;
 
 using TaskTracker.Core.Fields;
@@ -26,11 +27,15 @@ internal sealed class SqliteTestStore : IAsyncDisposable
         await database.Database.MigrateAsync();
     }
 
-    public TaskTrackerDbContext Open()
+    public TaskTrackerDbContext Open(IInterceptor? interceptor = null)
     {
-        var options = TaskTrackerSqliteOptions.Configure(
-            new DbContextOptionsBuilder<TaskTrackerDbContext>(), connection).Options;
-        return new TaskTrackerDbContext(options);
+        var builder = TaskTrackerSqliteOptions.Configure(new DbContextOptionsBuilder<TaskTrackerDbContext>(), connection);
+        if (interceptor is not null)
+        {
+            builder.AddInterceptors(interceptor);
+        }
+
+        return new TaskTrackerDbContext(builder.Options);
     }
 
     public ProjectService Projects(TaskTrackerDbContext database)

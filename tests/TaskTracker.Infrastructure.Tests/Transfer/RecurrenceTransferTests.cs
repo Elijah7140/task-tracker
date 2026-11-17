@@ -27,6 +27,8 @@ public sealed class RecurrenceTransferTests
 
         Assert.True(result.Succeeded, string.Join(", ", result.Issues));
         Assert.Equal(1, json["version"]!.GetValue<int>());
+        Assert.True(serialized["recurrenceSuccessorCreated"]!.GetValue<bool>());
+        Assert.Null(json["projects"]![0]!["items"]![1]!["recurrenceSuccessorCreated"]);
         Assert.Equal("weekly", serialized["recurrence"]!["frequency"]!.GetValue<string>());
         await using var reader = target.Store.Open();
         var rows = await reader.TodoItems.OrderBy(item => item.SortOrder).ToArrayAsync();
@@ -36,6 +38,11 @@ public sealed class RecurrenceTransferTests
         Assert.NotNull(rows[0].RecurrenceSeriesId);
         Assert.Equal(rows[0].RecurrenceSeriesId, rows[1].RecurrenceSeriesId);
         Assert.NotEqual(sourceSeries, rows[0].RecurrenceSeriesId);
+
+        await target.Items.SetCompletedAsync(rows[0].ProjectId, null, rows[0].Id, false);
+        await target.Items.SetCompletedAsync(rows[0].ProjectId, null, rows[0].Id, true);
+
+        Assert.Equal(2, (await target.ReadItemsAsync(rows[0].ProjectId)).Count);
     }
 
     [Fact]
@@ -59,6 +66,51 @@ public sealed class RecurrenceTransferTests
         Assert.Contains(result.Issues, issue => issue.Path == "$.projects[0].items[0].recurrence.remaining");
         Assert.Contains(result.Issues, issue => issue.Path == "$.projects[0].items[0].recurrenceSeriesId");
         Assert.Contains(result.Issues, issue => issue.Path == "$.projects[0].items[0].recurrence");
+    }
+
+    [Theory]
+    [InlineData("frequency", "daily, weekly")]
+    [InlineData("anchor", "dueDate, dueDate")]
+    [InlineData("endKind", "never, onDate")]
+    [InlineData("weekdays", "monday, someday")]
+    public async Task Json_rejects_invalid_enum_names_at_the_recurrence_property(string property, string value)
+    {
+        await using var world = await CreateRepeatingProjectAsync();
+        var text = await world.Transfer.ExportJsonAsync(new TransferScope.AllData());
+        var invalid = TransferJson.Edit(text, json =>
+        {
+            var recurrence = json["projects"]![0]!["items"]![0]!["recurrence"]!;
+            if (property == "frequency")
+            {
+                recurrence["weekdays"] = null;
+                recurrence["monthDay"] = 16;
+            }
+
+            recurrence[property] = value;
+        });
+
+        var result = await world.Transfer.ImportJsonAsync(invalid);
+
+        Assert.False(result.Succeeded);
+        var issue = Assert.Single(result.Issues);
+        Assert.Equal($"$.projects[0].items[0].recurrence.{property}", issue.Path);
+        Assert.Contains("name", issue.Message);
+    }
+
+    [Fact]
+    public async Task Json_requires_a_boolean_successor_marker()
+    {
+        await using var world = await CreateRepeatingProjectAsync();
+        var text = await world.Transfer.ExportJsonAsync(new TransferScope.AllData());
+        var invalid = TransferJson.Edit(text, json =>
+        {
+            json["projects"]![0]!["items"]![0]!["recurrenceSuccessorCreated"] = "true";
+        });
+
+        var result = await world.Transfer.ImportJsonAsync(invalid);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("$.projects[0].items[0].recurrenceSuccessorCreated", Assert.Single(result.Issues).Path);
     }
 
     [Fact]

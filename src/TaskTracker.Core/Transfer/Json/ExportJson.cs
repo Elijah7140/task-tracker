@@ -2,6 +2,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using TaskTracker.Core.Items.Recurrence;
+
 namespace TaskTracker.Core.Transfer.Json;
 
 /// <summary>The JSON settings shared by export and import: camelCase, indented, nulls omitted, text kept readable.</summary>
@@ -16,7 +18,14 @@ internal static class ExportJson
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         AllowTrailingCommas = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false) }
+        Converters =
+        {
+            new RecurrenceEnumConverter<RecurrenceFrequency>(),
+            new RecurrenceEnumConverter<RecurrenceAnchor>(),
+            new RecurrenceEnumConverter<RecurrenceEndKind>(),
+            new RecurrenceEnumConverter<RecurrenceWeekdays>(),
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
+        }
     };
 
     public static string Serialize(ExportDocument document)

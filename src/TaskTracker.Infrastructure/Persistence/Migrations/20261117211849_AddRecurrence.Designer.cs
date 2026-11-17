@@ -224,6 +224,9 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("RecurrenceSeriesId")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("RecurrenceSuccessorCreated")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("RecurrenceWeekdays")
                         .HasColumnType("INTEGER");
 

@@ -61,6 +61,9 @@ public sealed class TodoItem
 
     public Guid? RecurrenceSeriesId { get; private set; }
 
+    /// <summary>Whether this occurrence has already generated its successor.</summary>
+    public bool RecurrenceSuccessorCreated { get; private set; }
+
     public RecurrenceRule? Recurrence
     {
         get
@@ -102,6 +105,12 @@ public sealed class TodoItem
         RecurrenceEndDate = rule?.EndDate;
         RecurrenceRemaining = rule?.Remaining;
         RecurrenceSeriesId = rule is null ? null : seriesId ?? RecurrenceSeriesId ?? Guid.CreateVersion7();
+        Touch(clock);
+    }
+
+    internal void MarkRecurrenceSuccessorCreated(TimeProvider clock)
+    {
+        RecurrenceSuccessorCreated = true;
         Touch(clock);
     }
 

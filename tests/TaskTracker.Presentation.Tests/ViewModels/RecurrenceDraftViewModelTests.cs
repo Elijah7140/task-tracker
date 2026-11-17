@@ -60,6 +60,35 @@ public sealed class RecurrenceDraftViewModelTests
         Assert.Equal("Every year on 1 Mar", editor.Repeat.Summary);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("32")]
+    [InlineData("")]
+    public void The_monthly_day_must_be_between_one_and_thirty_one_unless_last_day_is_selected(string text)
+    {
+        var item = CreateItem();
+        var draft = new RecurrenceDraftViewModel(item, () => new DateOnly(2026, 11, 16))
+        {
+            FrequencyIndex = (int)RecurrenceFrequency.Monthly,
+            MonthDayText = text
+        };
+
+        Assert.Equal("Enter a day of the month from 1 to 31.", draft.Error);
+        Assert.Null(draft.Summary);
+        Assert.Throws<DomainRuleException>(() => draft.ToRule());
+
+        draft.UseLastDay = true;
+
+        Assert.Equal(0, draft.ToRule()?.MonthDay);
+        Assert.Equal("Monthly on the last day", draft.Summary);
+
+        draft.UseLastDay = false;
+        draft.MonthDayText = "31";
+
+        Assert.Equal(31, draft.ToRule()?.MonthDay);
+    }
+
     private static TodoItem CreateItem()
     {
         return TodoItem.Create(Guid.CreateVersion7(), null, null, "Task", TimeProvider.System);

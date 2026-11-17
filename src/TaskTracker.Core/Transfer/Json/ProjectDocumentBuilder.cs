@@ -87,6 +87,7 @@ internal sealed class ProjectDocumentBuilder(ExportCatalogue catalogue)
             FieldValues = BuildValues(values),
             Recurrence = item.Recurrence,
             RecurrenceSeriesId = item.RecurrenceSeriesId,
+            RecurrenceSuccessorCreated = item.RecurrenceSuccessorCreated,
             Links = BuildLinks(links)
         };
     }

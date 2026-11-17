@@ -68,6 +68,13 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
                 type: "TEXT",
                 nullable: true);
 
+            migrationBuilder.AddColumn<bool>(
+                name: "RecurrenceSuccessorCreated",
+                table: "TodoItem",
+                type: "INTEGER",
+                nullable: false,
+                defaultValue: false);
+
             migrationBuilder.AddColumn<int>(
                 name: "RecurrenceWeekdays",
                 table: "TodoItem",
@@ -122,6 +129,7 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql("ALTER TABLE TodoItem DROP COLUMN RecurrenceMonthDay");
             migrationBuilder.Sql("ALTER TABLE TodoItem DROP COLUMN RecurrenceRemaining");
             migrationBuilder.Sql("ALTER TABLE TodoItem DROP COLUMN RecurrenceSeriesId");
+            migrationBuilder.Sql("ALTER TABLE TodoItem DROP COLUMN RecurrenceSuccessorCreated");
             migrationBuilder.Sql("ALTER TABLE TodoItem DROP COLUMN RecurrenceWeekdays");
         }
     }

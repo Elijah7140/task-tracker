@@ -1,6 +1,6 @@
 namespace TaskTracker.Core.Fields;
 
-/// <summary>Serializes field changes and item value edits within one application process.</summary>
+/// <summary>Serializes field and item service writes within one application process.</summary>
 public sealed class FieldWriteGate
 {
     private readonly SemaphoreSlim semaphore = new(1, 1);

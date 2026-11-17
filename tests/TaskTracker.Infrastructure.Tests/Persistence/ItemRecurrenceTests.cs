@@ -1,5 +1,6 @@
 #pragma warning disable xUnit1051
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
@@ -161,6 +162,172 @@ public sealed class ItemRecurrenceTests
         Assert.Null(next.DueDate);
         Assert.Equal(edit.ScheduledStart!.Value.AddDays(7), next.ScheduledStart);
         Assert.Equal(edit.ScheduledEnd!.Value.AddDays(7), next.ScheduledEnd);
+    }
+
+    [Theory]
+    [InlineData("indent")]
+    [InlineData("move")]
+    [InlineData("drag")]
+    public async Task Moving_an_open_child_under_its_completed_sibling_keeps_the_repeating_parent_open(string operation)
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var (parent, finished, open) = await CreateBranchAsync(world);
+        var projectId = world.Project.Id;
+
+        switch (operation)
+        {
+            case "indent":
+                await world.Items.IndentAsync(projectId, null, open.Id);
+                break;
+            case "move":
+                await world.Items.MoveAsync(projectId, null, open.Id, finished.Id);
+                break;
+            case "drag":
+                await world.Items.MoveAtAsync(projectId, null, open.Id, finished.Id, 0);
+                break;
+        }
+
+        var root = Assert.Single((await world.Items.LoadAreaAsync(projectId, null)).Items);
+        Assert.Equal(parent.Id, root.Item.Id);
+        Assert.Null(root.Item.CompletedAtUtc);
+        var child = Assert.Single(root.Children);
+        Assert.Equal(finished.Id, child.Item.Id);
+        Assert.Null(child.Item.CompletedAtUtc);
+        Assert.Equal(open.Id, Assert.Single(child.Children).Item.Id);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Recompletion_keeps_one_final_occurrence_even_after_redo(bool redo)
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await CreateTwoOccurrenceSeriesAsync(world);
+        var projectId = world.Project.Id;
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, true);
+        var next = await FindSuccessorAsync(world, item.Id);
+        if (redo)
+        {
+            await world.History.UndoAsync();
+            Assert.False(await world.ItemExistsAsync(next.Id));
+            await world.History.RedoAsync();
+        }
+
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, false);
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, true);
+
+        var final = await FindSuccessorAsync(world, item.Id);
+        Assert.Equal(next.Id, final.Id);
+        Assert.Null(final.CompletedAtUtc);
+        Assert.Equal(1, final.Recurrence?.Remaining);
+    }
+
+    [Fact]
+    public async Task Undo_of_completion_allows_a_new_successor_when_completed_again()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await CreateTwoOccurrenceSeriesAsync(world);
+        var projectId = world.Project.Id;
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, true);
+        var next = await FindSuccessorAsync(world, item.Id);
+
+        await world.History.UndoAsync();
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, true);
+
+        Assert.NotEqual(next.Id, (await FindSuccessorAsync(world, item.Id)).Id);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Recompletion_does_not_replace_a_deleted_successor(bool purge)
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await CreateTwoOccurrenceSeriesAsync(world);
+        var projectId = world.Project.Id;
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, true);
+        var next = await FindSuccessorAsync(world, item.Id);
+        var batch = await world.Items.DeleteAsync(projectId, null, next.Id);
+        if (purge)
+        {
+            await world.Trash.PurgeAsync(batch);
+        }
+
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, false);
+        await world.Items.SetCompletedAsync(projectId, null, item.Id, true);
+
+        var root = Assert.Single((await world.Items.LoadAreaAsync(projectId, null)).Items);
+        Assert.Equal(item.Id, root.Item.Id);
+        Assert.NotNull(root.Item.CompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task Deleting_the_last_open_child_while_its_completion_saves_creates_one_successor()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var (parent, _, open) = await CreateBranchAsync(world);
+        var projectId = world.Project.Id;
+        var pause = new PauseBeforeSave();
+        var completionService = world.CreateItemService(pause);
+
+        var completion = completionService.SetCompletedAsync(projectId, null, open.Id, true);
+        Task<Guid> deletion;
+        try
+        {
+            await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            deletion = world.Items.DeleteAsync(projectId, null, open.Id);
+        }
+        finally
+        {
+            pause.Resume.SetResult();
+        }
+
+        await completion;
+        await deletion;
+        var next = await FindSuccessorAsync(world, parent.Id);
+        Assert.Null(next.CompletedAtUtc);
+        Assert.NotNull((await world.ReadItemAsync(parent.Id)).CompletedAtUtc);
+        Assert.NotNull((await world.ReadItemAsync(open.Id)).DeletedAtUtc);
+    }
+
+    private static async Task<(TodoItem Parent, TodoItem Finished, TodoItem Open)> CreateBranchAsync(UndoWorld world)
+    {
+        var projectId = world.Project.Id;
+        var parent = await world.Items.CreateAsync(projectId, null, null, "Audit");
+        var finished = await world.Items.CreateAsync(projectId, null, parent.Id, "Complete");
+        var open = await world.Items.CreateAsync(projectId, null, parent.Id, "Open");
+        await world.Items.EditAsync(parent.Id, RepeatEdit(parent.Title, Weekly));
+        await world.Items.SetCompletedAsync(projectId, null, finished.Id, true);
+        return (parent, finished, open);
+    }
+
+    private static async Task<TodoItem> CreateTwoOccurrenceSeriesAsync(UndoWorld world)
+    {
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Audit");
+        var rule = new RecurrenceRule(RecurrenceFrequency.Daily, EndKind: RecurrenceEndKind.AfterCount, Remaining: 2);
+        await world.Items.EditAsync(item.Id, RepeatEdit(item.Title, rule));
+        return item;
+    }
+
+    private static async Task<TodoItem> FindSuccessorAsync(UndoWorld world, Guid sourceId)
+    {
+        var area = await world.Items.LoadAreaAsync(world.Project.Id, null);
+        return Assert.Single(area.Items, row => row.Item.Id != sourceId).Item;
+    }
+
+    private sealed class PauseBeforeSave : SaveChangesInterceptor
+    {
+        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            Reached.SetResult();
+            await Resume.Task.WaitAsync(cancellationToken);
+            return result;
+        }
     }
 
     private static async Task SetUpParentAsync(UndoWorld world, TodoItem parent)

@@ -32,18 +32,27 @@ internal sealed class RecurringCompletion(ItemTree tree, TimeProvider clock, Tim
         return Result();
     }
 
-    public void Reconcile(Guid? parentId)
+    /// <summary>Reconciles each affected ancestor once, after its affected descendants.</summary>
+    public void Reconcile(params Guid?[] parentIds)
     {
-        while (parentId is Guid id)
+        var depths = new Dictionary<TodoItem, int>();
+        foreach (var parentId in parentIds.OfType<Guid>().Distinct())
         {
-            var parent = tree.Get(id);
-            var children = tree.Children(id);
+            var ancestors = tree.Ancestors(parentId);
+            depths[tree.Get(parentId)] = ancestors.Count;
+            for (var index = 0; index < ancestors.Count; index++)
+            {
+                depths[ancestors[index]] = ancestors.Count - index - 1;
+            }
+        }
+
+        foreach (var parent in depths.OrderByDescending(entry => entry.Value).Select(entry => entry.Key))
+        {
+            var children = tree.Children(parent.Id);
             if (children.Count > 0)
             {
                 SetCompleted(parent, children.All(child => child.CompletedAtUtc is not null));
             }
-
-            parentId = parent.ParentItemId;
         }
     }
 
@@ -74,12 +83,13 @@ internal sealed class RecurringCompletion(ItemTree tree, TimeProvider clock, Tim
         item.SetCompletion(timestamp, clock);
         changes.Add(new CompletionChange(item.Id, timestamp));
 
-        if (completed && item.Recurrence is { } rule)
+        if (completed && !item.RecurrenceSuccessorCreated && item.Recurrence is { } rule)
         {
             var localDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, timeZone).DateTime);
             if (RecurrenceCalculator.Next(rule, item.RecurrenceDate!.Value, localDay) is { } next)
             {
                 copies.Add(item, next, rule);
+                item.MarkRecurrenceSuccessorCreated(clock);
             }
             else
             {

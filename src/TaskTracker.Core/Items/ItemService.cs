@@ -25,6 +25,7 @@ public sealed class ItemService(
             throw new DomainRuleException("Item title is required and must be at most 300 characters.");
         }
 
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var items = unitOfWork.Items;
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
@@ -32,7 +33,7 @@ public sealed class ItemService(
         tree.Add(item);
         items.Add(item);
         Renumber(tree, parentId);
-        await ApplyStructureAsync(unitOfWork, tree, parentId, UndoLabels.Create(item.Title), cancellationToken);
+        await ApplyStructureAsync(unitOfWork, tree, UndoLabels.Create(item.Title), cancellationToken, parentId);
         return item;
     }
 
@@ -358,6 +359,7 @@ public sealed class ItemService(
 
     public async Task<Guid> DeleteAsync(Guid projectId, Guid? folderId, Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var parentId = tree.Get(id).ParentItemId;
@@ -365,12 +367,13 @@ public sealed class ItemService(
         var label = UndoLabels.Delete(tree.Get(id).Title);
         tree.DeleteSubtree(id, batchId, clock);
         Renumber(tree, parentId);
-        await ApplyStructureAsync(unitOfWork, tree, parentId, label, cancellationToken);
+        await ApplyStructureAsync(unitOfWork, tree, label, cancellationToken, parentId);
         return batchId;
     }
 
     public async Task RestoreAsync(Guid projectId, Guid? folderId, Guid batchId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var branch = tree.AllRows.Where(item => item.DeletionBatchId == batchId).ToArray();
@@ -405,6 +408,7 @@ public sealed class ItemService(
 
     public async Task MoveAsync(Guid projectId, Guid? folderId, Guid id, Guid? newParentId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var label = UndoLabels.Move(tree.Get(id).Title);
@@ -419,12 +423,12 @@ public sealed class ItemService(
         tree.Get(id).SetSortOrder(tree.Children(newParentId).Count - 1, clock);
         Renumber(tree, oldParentId);
         Renumber(tree, newParentId);
-        await ReconcileAsync(work, tree, oldParentId, tree.ProjectId, cancellationToken);
-        await ApplyStructureAsync(work, tree, newParentId, undoLabel, cancellationToken);
+        await ApplyStructureAsync(work, tree, undoLabel, cancellationToken, oldParentId, newParentId);
     }
 
     public async Task IndentAsync(Guid projectId, Guid? folderId, Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var item = tree.Get(id);
@@ -442,6 +446,7 @@ public sealed class ItemService(
 
     public async Task OutdentAsync(Guid projectId, Guid? folderId, Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var parentId = tree.Get(id).ParentItemId
@@ -456,6 +461,7 @@ public sealed class ItemService(
     public async Task MoveAtAsync(Guid projectId, Guid? folderId, Guid id, Guid? parentId,
         int index, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         await MoveAtAsync(unitOfWork, tree, id, parentId, index, UndoLabels.Move(tree.Get(id).Title), cancellationToken);
@@ -481,13 +487,13 @@ public sealed class ItemService(
             destination[position].SetSortOrder(position, clock);
         }
 
-        await ReconcileAsync(work, tree, oldParentId, tree.ProjectId, cancellationToken);
-        await ApplyStructureAsync(work, tree, parentId, undoLabel, cancellationToken);
+        await ApplyStructureAsync(work, tree, undoLabel, cancellationToken, oldParentId, parentId);
     }
 
     public async Task MoveToAreaAsync(Guid projectId, Guid? sourceFolderId, Guid? targetFolderId,
         Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var source = await LoadTreeAsync(unitOfWork, projectId, sourceFolderId, cancellationToken);
         var destination = await LoadTreeAsync(unitOfWork, projectId, targetFolderId, cancellationToken);
@@ -495,14 +501,13 @@ public sealed class ItemService(
         destination.Get(id).SetSortOrder(destination.Children(null).Count - 1, clock);
         Renumber(source, null);
         Renumber(destination, null);
-        await ReconcileAsync(unitOfWork, source, null, projectId, cancellationToken);
-        await ReconcileAsync(unitOfWork, destination, null, projectId, cancellationToken);
         await unitOfWork.SaveChangesAsync(UndoLabels.Move(destination.Get(id).Title), cancellationToken);
     }
 
     public async Task ReorderAsync(Guid projectId, Guid? folderId, Guid? parentId,
         IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var siblings = tree.Children(parentId);
@@ -517,8 +522,7 @@ public sealed class ItemService(
             tree.Get(ids[index]).SetSortOrder(index, clock);
         }
 
-        await ReconcileAsync(unitOfWork, tree, parentId, projectId, cancellationToken);
-        await unitOfWork.SaveChangesAsync(UndoLabels.ReorderItems(), cancellationToken);
+        await ApplyStructureAsync(unitOfWork, tree, UndoLabels.ReorderItems(), cancellationToken, parentId);
     }
 
     public async Task<AreaSnapshot> LoadAreaAsync(Guid projectId, Guid? folderId, CancellationToken cancellationToken = default)
@@ -576,22 +580,18 @@ public sealed class ItemService(
         return SettingsResolver.Resolve(global, project);
     }
 
-    private async Task ApplyStructureAsync(IUnitOfWork unitOfWork, ItemTree tree, Guid? parentId,
-        string undoLabel, CancellationToken cancellationToken)
+    private async Task ApplyStructureAsync(IUnitOfWork unitOfWork, ItemTree tree, string undoLabel,
+        CancellationToken cancellationToken, params Guid?[] parentIds)
     {
-        await ReconcileAsync(unitOfWork, tree, parentId, tree.ProjectId, cancellationToken);
-        await unitOfWork.SaveChangesAsync(undoLabel, cancellationToken);
-    }
-
-    private async Task ReconcileAsync(IUnitOfWork unitOfWork, ItemTree tree, Guid? parentId, Guid projectId, CancellationToken cancellationToken)
-    {
-        var effective = await GetSettingsAsync(unitOfWork, projectId, cancellationToken);
+        var effective = await GetSettingsAsync(unitOfWork, tree.ProjectId, cancellationToken);
         if (effective.AutoCompleteParents.Value)
         {
             var completion = new RecurringCompletion(tree, clock, timeZone);
-            completion.Reconcile(parentId);
+            completion.Reconcile(parentIds);
             await completion.PersistAsync(unitOfWork, cancellationToken);
         }
+
+        await unitOfWork.SaveChangesAsync(undoLabel, cancellationToken);
     }
 
     private void ApplyChanges(ItemTree tree, CompletionResult.Applied result)
