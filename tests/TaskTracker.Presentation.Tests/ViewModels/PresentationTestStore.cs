@@ -1,10 +1,20 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Fields;
+using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
+using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
+using TaskTracker.Core.Search.Syntax;
+using TaskTracker.Core.Settings;
+using TaskTracker.Core.Trash;
+using TaskTracker.Core.Undo;
 using TaskTracker.Infrastructure;
 using TaskTracker.Infrastructure.Persistence;
-using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.Tests.ViewModels;
 
@@ -27,28 +37,34 @@ internal sealed class PresentationTestStore : IAsyncDisposable
 
     public FolderService Folders => services.GetRequiredService<FolderService>();
 
-    public TaskTracker.Core.Trash.TrashService Trash =>
-        services.GetRequiredService<TaskTracker.Core.Trash.TrashService>();
+    public UndoHistory History => services.GetRequiredService<UndoHistory>();
 
-    public TaskTracker.Core.Items.ItemService Items => services.GetRequiredService<TaskTracker.Core.Items.ItemService>();
+    public TrashService Trash => services.GetRequiredService<TrashService>();
 
-    public TaskTracker.Core.Settings.SettingsService Settings =>
-        services.GetRequiredService<TaskTracker.Core.Settings.SettingsService>();
+    public ItemService Items => services.GetRequiredService<ItemService>();
 
-    public TaskTracker.Core.Lookups.LookupService Lookups =>
-        services.GetRequiredService<TaskTracker.Core.Lookups.LookupService>();
+    /// <summary>An item service whose changes are not recorded in the undo history, to simulate changes made behind its back.</summary>
+    public ItemService UnrecordedItems
+    {
+        get
+        {
+            var contexts = services.GetRequiredService<IDbContextFactory<TaskTrackerDbContext>>();
+            var units = new EfUnitOfWorkFactory(contexts, NullUndoRecorder.Instance);
+            return new ItemService(units, TimeProvider.System, TimeZoneInfo.Utc);
+        }
+    }
 
-    public TaskTracker.Core.Fields.FieldService Fields =>
-        services.GetRequiredService<TaskTracker.Core.Fields.FieldService>();
+    public SettingsService Settings => services.GetRequiredService<SettingsService>();
 
-    public TaskTracker.Core.SavedSearches.SavedSearchService SavedSearches =>
-        services.GetRequiredService<TaskTracker.Core.SavedSearches.SavedSearchService>();
+    public LookupService Lookups => services.GetRequiredService<LookupService>();
 
-    public TaskTracker.Core.Search.Syntax.ItemQueryParser Parser =>
-        services.GetRequiredService<TaskTracker.Core.Search.Syntax.ItemQueryParser>();
+    public FieldService Fields => services.GetRequiredService<FieldService>();
 
-    public TaskTracker.Core.Persistence.IUnitOfWorkFactory UnitOfWorkFactory =>
-        services.GetRequiredService<TaskTracker.Core.Persistence.IUnitOfWorkFactory>();
+    public SavedSearchService SavedSearches => services.GetRequiredService<SavedSearchService>();
+
+    public ItemQueryParser Parser => services.GetRequiredService<ItemQueryParser>();
+
+    public IUnitOfWorkFactory UnitOfWorkFactory => services.GetRequiredService<IUnitOfWorkFactory>();
 
     public async Task InitializeAsync()
     {
@@ -58,7 +74,7 @@ internal sealed class PresentationTestStore : IAsyncDisposable
     public ValueTask DisposeAsync()
     {
         services.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        SqliteConnection.ClearAllPools();
         File.Delete(databasePath);
         return ValueTask.CompletedTask;
     }

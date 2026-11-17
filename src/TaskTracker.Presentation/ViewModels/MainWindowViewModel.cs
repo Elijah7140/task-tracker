@@ -13,12 +13,13 @@ using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Trash;
+using TaskTracker.Core.Undo;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>Owns the current page and handles application navigation.</summary>
-public sealed class MainWindowViewModel : ViewModelBase, INavigationService
+public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUndoHost
 {
     private readonly ProjectService projectService;
     private readonly FolderService folderService;
@@ -51,7 +52,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         IUiDispatcher? dispatcher = null, SettingsService? settings = null, LookupService? lookups = null,
         FieldService? fields = null, IItemSearchService? search = null, IFieldRegistry? registry = null,
         CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null,
-        ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null)
+        ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null,
+        UndoHistory? undoHistory = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -70,6 +72,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         this.trash = trash;
         this.savedSearches = savedSearches;
         this.queryParser = queryParser;
+        Undo = undoHistory is null ? null : new UndoCoordinator(undoHistory, this);
         fieldLoader = CreateFieldLoader(fields, itemService);
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
@@ -84,6 +87,57 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
 
     public ICommand TrashCommand { get; }
 
+    /// <summary>Undo and redo for the whole window; null when the shell was built without a history.</summary>
+    public UndoCoordinator? Undo { get; }
+
+    bool IUndoHost.HasUnsavedEdits => CurrentPage is ProjectWorkspaceViewModel { HasUnsavedChanges: true };
+
+    /// <summary>
+    /// Brings the screen on show up to date. A search, calendar or trash page also marks the page
+    /// behind it out of date, so returning to it reloads it through the usual unsaved-changes guard.
+    /// </summary>
+    async Task IUndoHost.ReloadAsync()
+    {
+        if (IsTransientPage(CurrentPage))
+        {
+            returnPageIsStale = true;
+        }
+
+        switch (CurrentPage)
+        {
+            case ProjectWorkspaceViewModel workspace:
+                await workspace.LoadAsync(workspace.SelectedFolder?.Id, workspace.SelectedItem?.Id);
+                break;
+            case CalendarViewModel calendarPage:
+                await calendarPage.LoadAsync();
+                break;
+            case TrashViewModel trashPage:
+                await trashPage.LoadAsync();
+                break;
+            case SearchViewModel searchPage:
+                await searchPage.RefreshAsync();
+                break;
+            case HomeViewModel home:
+                await home.LoadAsync();
+                break;
+        }
+    }
+
+    /// <summary>The workspace shows a refusal in its status toast; other screens have no such place, so they get a message box.</summary>
+    async Task IUndoHost.ReportRefusalAsync(string message)
+    {
+        if (CurrentPage is not ProjectWorkspaceViewModel)
+        {
+            await dialogs.ShowMessageAsync("Undo and redo", message);
+        }
+    }
+
+    Task IUndoHost.ReportUnexpectedErrorAsync(Exception exception)
+    {
+        return ReportUnexpectedErrorAsync(exception);
+    }
+
+
     public ViewModelBase? CurrentPage
     {
         get => currentPage;
@@ -92,6 +146,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
             if (SetProperty(ref currentPage, value))
             {
                 pageVersion++;
+                Undo?.ClearStatus();
             }
         }
     }
@@ -539,7 +594,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService
         DisposeCurrentPage();
         var version = pageVersion;
         var page = new ProjectWorkspaceViewModel(projectId, projectService, folderService, dialogs, this,
-            itemService, clock, timeZone, dispatcher, fieldLoader);
+            itemService, clock, timeZone, dispatcher, fieldLoader, Undo);
 
         try
         {

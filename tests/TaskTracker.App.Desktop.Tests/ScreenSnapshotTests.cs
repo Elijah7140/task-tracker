@@ -499,6 +499,28 @@ public sealed class ScreenSnapshotTests
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Workspace_undo_status_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Project");
+        var items = services.GetRequiredService<ItemService>();
+        await items.CreateAsync(project.Id, null, null, "Task");
+        await items.CreateAsync(project.Id, null, null, "Second task");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+
+        await shell.OpenProjectAsync(project.Id);
+        await shell.Undo!.UndoAsync();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"workspace-undo-status-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task App_settings_match_approved_image(bool dark)
     {
         using var services = await TestServices.CreateAsync();

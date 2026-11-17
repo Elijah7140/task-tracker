@@ -1,6 +1,7 @@
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Undo;
 using TaskTracker.Core.Urgency;
 
 namespace TaskTracker.Core.Projects;
@@ -39,7 +40,7 @@ public sealed class ProjectService(
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var project = await GetAsync(unitOfWork, id, cancellationToken);
         project.Rename(name, clock);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Rename(project.Name), cancellationToken);
     }
 
     public async Task ReorderAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
@@ -104,7 +105,7 @@ public sealed class ProjectService(
             item.Delete(batchId, clock);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Delete(project.Name), cancellationToken);
         return batchId;
     }
 

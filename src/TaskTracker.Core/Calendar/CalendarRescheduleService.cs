@@ -1,5 +1,6 @@
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core.Calendar;
 
@@ -14,7 +15,7 @@ public sealed class CalendarRescheduleService(IUnitOfWorkFactory factory, TimePr
         await using var unit = factory.Begin();
         var item = await FindActiveItemAsync(unit, itemId, cancellationToken);
         item.SetDue(date, time, clock);
-        await unit.SaveChangesAsync(cancellationToken);
+        await unit.SaveChangesAsync(UndoLabels.Reschedule(item.Title), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -30,7 +31,7 @@ public sealed class CalendarRescheduleService(IUnitOfWorkFactory factory, TimePr
         var item = await FindActiveItemAsync(unit, itemId, cancellationToken);
         var newEnd = ShiftedEnd(item, newStart);
         item.SetSchedule(newStart, newEnd, clock);
-        await unit.SaveChangesAsync(cancellationToken);
+        await unit.SaveChangesAsync(UndoLabels.Reschedule(item.Title), cancellationToken);
     }
 
     private static async Task<TodoItem> FindActiveItemAsync(IUnitOfWork unit, Guid itemId,

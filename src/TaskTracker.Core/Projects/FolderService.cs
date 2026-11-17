@@ -1,5 +1,6 @@
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core.Projects;
 
@@ -33,7 +34,7 @@ public sealed class FolderService(
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, cancellationToken);
         tree.Get(id).Rename(name, clock);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Rename(tree.Get(id).Name), cancellationToken);
     }
 
     public async Task MoveAsync(Guid projectId, Guid id, Guid? newParentId, CancellationToken cancellationToken = default)
@@ -45,7 +46,7 @@ public sealed class FolderService(
         tree.Get(id).SetSortOrder(tree.Children(newParentId).Count - 1, clock);
         Renumber(tree, oldParentId);
         Renumber(tree, newParentId);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Move(tree.Get(id).Name), cancellationToken);
     }
 
     public async Task ReorderAsync(Guid projectId, Guid? parentId, IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
@@ -64,7 +65,7 @@ public sealed class FolderService(
             tree.Get(ids[index]).SetSortOrder(index, clock);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.ReorderFolders(), cancellationToken);
     }
 
     public async Task<Guid> DeleteAsync(Guid projectId, Guid id, CancellationToken cancellationToken = default)
@@ -75,6 +76,7 @@ public sealed class FolderService(
         var affectedIds = new[] { id }.Concat(tree.Descendants(id).Select(folder => folder.Id)).ToHashSet();
         var batchId = Guid.CreateVersion7();
         var parentId = tree.Get(id).ParentFolderId;
+        var label = UndoLabels.Delete(tree.Get(id).Name);
         tree.DeleteSubtree(id, batchId, clock);
         Renumber(tree, parentId);
 
@@ -86,7 +88,7 @@ public sealed class FolderService(
             }
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(label, cancellationToken);
         return batchId;
     }
 

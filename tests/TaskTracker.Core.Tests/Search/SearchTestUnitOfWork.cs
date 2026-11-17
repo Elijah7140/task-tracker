@@ -51,6 +51,11 @@ internal sealed class SearchTestUnitOfWork : IUnitOfWork, IUnitOfWorkFactory
         return Task.CompletedTask;
     }
 
+    public Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
     public ValueTask DisposeAsync()
     {
         return ValueTask.CompletedTask;

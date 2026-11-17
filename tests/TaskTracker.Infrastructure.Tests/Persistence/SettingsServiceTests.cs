@@ -49,7 +49,7 @@ public sealed class SettingsServiceTests
         var folderRepository = new EfFolderRepository(database);
         var itemRepository = new EfItemRepository(database);
         var settingsStore = new EfSettingsStore(database);
-        var unitOfWork = new EfUnitOfWork(database);
+        var unitOfWork = new TestUnitOfWorkFactory(database).Begin();
         var settings = new SettingsService(new TestUnitOfWorkFactory(database), TimeProvider.System);
         var items = new ItemService(new TestUnitOfWorkFactory(database), TimeProvider.System, TimeZoneInfo.Utc);
         await settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, false, cancellationToken: cancellationToken);

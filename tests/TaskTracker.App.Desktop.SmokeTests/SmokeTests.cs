@@ -16,6 +16,35 @@ namespace TaskTracker.App.Desktop.SmokeTests;
 public sealed class SmokeTests
 {
     [Fact]
+    public void Undo_restores_deleted_and_completed_item_then_redo_completes_it()
+    {
+        Run(session =>
+        {
+            OpenProject(session);
+            AddItem(session, "Undo smoke item");
+            session.FindRowCheckbox("Undo smoke item").Click();
+            session.Find("CompletedItemsExpander").Click();
+            DeleteSelectedItem(session, "Undo smoke item");
+
+            session.Find("WorkspaceUndoButton").Focus();
+            session.TypeChord(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
+            session.Find("CompletedItemsExpander").Click();
+            session.WaitUntil(() => HasItemRow(session, "Undo smoke item"), "deleted item to return");
+
+            session.Find("WorkspaceUndoButton").Focus();
+            session.TypeChord(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
+            session.WaitUntil(() => session.FindRowCheckbox("Undo smoke item").IsChecked == false,
+                "completed item to reopen");
+
+            session.Find("WorkspaceRedoButton").Focus();
+            session.TypeChord(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Y);
+            session.Find("CompletedItemsExpander").Click();
+            session.WaitUntil(() => session.FindRowCheckbox("Undo smoke item").IsChecked == true,
+                "redone completion");
+        });
+    }
+
+    [Fact]
     public void Item_drag_keyboard_indent_and_folder_move_survive_reopen()
     {
         Run(session =>

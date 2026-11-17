@@ -91,6 +91,12 @@ internal sealed class GatedSaveUnitOfWorkFactory(IUnitOfWorkFactory inner) : IUn
             await unit.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
+        {
+            await owner.HoldIfRequestedAsync();
+            await unit.SaveChangesAsync(undoLabel, cancellationToken);
+        }
+
         public ValueTask DisposeAsync()
         {
             return unit.DisposeAsync();

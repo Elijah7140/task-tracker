@@ -1,18 +1,32 @@
+using Microsoft.EntityFrameworkCore;
+
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Trash;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Infrastructure.Persistence;
 
-/// <summary>Owns one EF context and its repositories.</summary>
+/// <summary>
+/// Owns one EF context and its repositories. A save with an undo label also records the changed
+/// rows as one undo step; a save without a label records nothing.
+/// </summary>
 public sealed class EfUnitOfWork : IUnitOfWork
 {
     private readonly TaskTrackerDbContext database;
+    private readonly IDbContextFactory<TaskTrackerDbContext> contexts;
+    private readonly IUndoRecorder recorder;
 
-    public EfUnitOfWork(TaskTrackerDbContext database)
+    /// <param name="database">The context this unit of work owns.</param>
+    /// <param name="contexts">Opens the fresh contexts that undo and redo write through.</param>
+    /// <param name="recorder">Receives labelled saves; pass <see cref="NullUndoRecorder.Instance"/> for none.</param>
+    public EfUnitOfWork(TaskTrackerDbContext database, IDbContextFactory<TaskTrackerDbContext> contexts,
+        IUndoRecorder recorder)
     {
         this.database = database;
+        this.contexts = contexts;
+        this.recorder = recorder;
         Projects = new EfProjectRepository(database);
         Folders = new EfFolderRepository(database);
         Items = new EfItemRepository(database);
@@ -48,6 +62,17 @@ public sealed class EfUnitOfWork : IUnitOfWork
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         await database.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
+    {
+        var rows = UndoRowCollector.Collect(database.ChangeTracker);
+        await database.SaveChangesAsync(cancellationToken);
+
+        if (rows.Count > 0)
+        {
+            recorder.Record(new EfUndoableChange(contexts, rows, undoLabel));
+        }
     }
 
     public ValueTask DisposeAsync()

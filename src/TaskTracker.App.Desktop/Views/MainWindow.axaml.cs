@@ -29,6 +29,11 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void OnPreviewKeyDown(object? sender, KeyEventArgs args)
     {
+        if (await TryHandleUndoShortcutAsync(args))
+        {
+            return;
+        }
+
         if (!IsPeriodKey(args) || FocusManager?.GetFocusedElement() is TextBox)
         {
             return;
@@ -51,6 +56,48 @@ public sealed partial class MainWindow : Window
         }
     }
 
+
+    /// <summary>
+    /// Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z undo and redo, except while a text box has focus, where they
+    /// keep their text-editing meaning. Returns true when the key was taken.
+    /// </summary>
+    private async Task<bool> TryHandleUndoShortcutAsync(KeyEventArgs args)
+    {
+        var isUndo = IsUndoShortcut(args);
+
+        if (!isUndo && !IsRedoShortcut(args))
+        {
+            return false;
+        }
+
+        if (FocusManager?.GetFocusedElement() is TextBox || DataContext is not MainWindowViewModel { Undo: { } undo })
+        {
+            return false;
+        }
+
+        args.Handled = true;
+        await RunUndoStepAsync(undo, isUndo);
+        return true;
+    }
+
+    private async Task RunUndoStepAsync(UndoCoordinator undo, bool isUndo)
+    {
+        try
+        {
+            if (isUndo)
+            {
+                await undo.UndoAsync();
+            }
+            else
+            {
+                await undo.RedoAsync();
+            }
+        }
+        catch (Exception exception) when (DataContext is MainWindowViewModel shell)
+        {
+            await shell.ReportUnexpectedErrorAsync(exception);
+        }
+    }
     private async void OnKeyDown(object? sender, KeyEventArgs args)
     {
         if (DataContext is not MainWindowViewModel shell)
@@ -144,5 +191,16 @@ public sealed partial class MainWindow : Window
     private static bool IsSearchShortcut(KeyEventArgs args)
     {
         return args.Key == Key.F && args.KeyModifiers == KeyModifiers.Control;
+    }
+
+    private static bool IsUndoShortcut(KeyEventArgs args)
+    {
+        return args.Key == Key.Z && args.KeyModifiers == KeyModifiers.Control;
+    }
+
+    private static bool IsRedoShortcut(KeyEventArgs args)
+    {
+        return (args.Key == Key.Y && args.KeyModifiers == KeyModifiers.Control) ||
+            (args.Key == Key.Z && args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift));
     }
 }

@@ -25,7 +25,8 @@ internal static class SearchTestShell
             calendar: calendar ?? new CalendarService(store.UnitOfWorkFactory),
             trash: trash ?? store.Trash,
             rescheduler: new CalendarRescheduleService(store.UnitOfWorkFactory, clock ?? TimeProvider.System),
-            savedSearches: store.SavedSearches, queryParser: new ItemQueryParser(clock ?? TimeProvider.System, timeZone ?? TimeZoneInfo.Utc));
+            savedSearches: store.SavedSearches, queryParser: new ItemQueryParser(clock ?? TimeProvider.System, timeZone ?? TimeZoneInfo.Utc),
+            undoHistory: store.History);
     }
 
     internal static SearchViewModel CreatePage(PresentationTestStore store, IItemSearchService search,

@@ -10,6 +10,7 @@ using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Trash;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core;
 
@@ -19,6 +20,8 @@ public static class DependencyInjection
     public static IServiceCollection AddTaskTrackerCore(this IServiceCollection services)
     {
         services.AddSingleton<ProjectService>();
+        services.AddSingleton<UndoHistory>();
+        services.AddSingleton<IUndoRecorder>(provider => provider.GetRequiredService<UndoHistory>());
         services.AddSingleton<FolderService>();
         services.AddSingleton<ItemService>();
         services.AddSingleton<CalendarService>();
