@@ -997,6 +997,85 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   with the other imported identities. Search and calendar entries open the workspace editor, so
   completing an item from either view uses the workspace's existing completion action.
 
+### 7.12 Reminders and notifications
+
+Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for review):
+
+- **What reminds.** Only open, non-deleted items that have a due date. Scheduled blocks do not
+  remind in this phase. Completed, deleted and archived-project items never remind. A repeating
+  item's next occurrence reminds through its own due date.
+- **When.** The reminder instant is the due moment minus an offset.
+  - A timed due item's due moment is its due date and time.
+  - A date-only item's due moment is the setting `DateOnlyReminderTime`, a local time with default
+    09:00, on the due date.
+  - Floating local values become instants with `FloatingTime` and an explicitly passed zone (§5.4).
+    A reminder that falls in a DST gap fires at the first valid instant after it.
+- **Settings (§6.5).**
+
+  | Setting | Type | Default | Per-project override |
+  |---------|------|---------|----------------------|
+  | `RemindersEnabled` | bool | on | yes |
+  | `DefaultReminderOffset` | duration (0 = at the due moment) | 1 hour | yes |
+  | `DateOnlyReminderTime` | local time | 09:00 | yes |
+  | `KeepRunningInTray` | bool | off | no |
+- **Per item.** The editor has a **Reminder** choice:
+  - **Default**, which uses the effective setting;
+  - **None**;
+  - an offset: at the due moment, 5/15/30 minutes, 1/2 hours, 1/2 days or 1 week before.
+
+  It is stored as nullable `ReminderMode` and `ReminderOffsetMinutes` columns on `TodoItem`. The
+  migration is additive and follows the AGENTS.md trigger rule. Recurring copies (§7.11) and
+  import/export (§7.9, JSON only) carry it. A change is part of the item edit's undo step.
+- **Delivery state.** `ReminderDeliveredFor` records the reminder instant (UTC) that was last
+  delivered for the item. A reminder is due when its instant is ≤ now and differs from
+  `ReminderDeliveredFor`. Changing the due date, time or offset therefore re-arms the reminder
+  without extra bookkeeping. Recording delivery is application state, not user data: it is not
+  undoable and not exported.
+- **Scheduler.** `ReminderScheduler` lives in Presentation and uses the injected `TimeProvider`.
+  - It checks every 30 seconds, and also immediately after any save, on wake from sleep and on a
+    clock change, so long timers can't drift.
+  - It reads due reminders with one bounded query and hands them to `IReminderNotifier`.
+  - It delivers each reminder once, then records delivery.
+- **Missed while closed.** At startup, reminders whose instant passed while the app was closed are
+  handled as follows:
+  - those from the last 24 hours are delivered as **one** grouped notification ("3 reminders while
+    you were away");
+  - older ones are marked delivered without a notification; their items still show as overdue
+    through urgency colours (§6.3).
+- **Snooze and dismiss.** The in-app **Reminders** panel offers **Snooze**, **Mark complete**,
+  **Open** and **Dismiss** for each reminder.
+  - The panel opens from a bell button in the title bar, with a count badge, and with Ctrl+Shift+R.
+  - Snooze options are 10 minutes, 1 hour or tomorrow at `DateOnlyReminderTime`. Snooze sets a
+    nullable `SnoozedUntilUtc`, which overrides the computed instant once; it is a labelled undo step.
+  - Dismiss clears the entry from the panel.
+- **OS notifications.** `IReminderNotifier` is implemented in App.Desktop, and the in-app panel
+  always shows reminders as well.
+  - **Windows:** a native notification through the notification-area icon (Shell_NotifyIcon with a
+    balloon, which Windows 10/11 shows as a toast). No packaging and no AUMID registration are
+    needed.
+  - **Linux:** the freedesktop `org.freedesktop.Notifications` D-Bus service through a managed D-Bus
+    client.
+  - **Elsewhere, or when the platform call fails:** in-app only. The failure is logged once and
+    the app keeps working.
+  - Clicking a notification brings the window forward and opens the item.
+  - Any new package needs an exact, at least two-weeks-old version in
+    `Directory.Packages.props`. Prefer no new dependency on Windows.
+- **Tray.** With `KeepRunningInTray` on, closing the window hides it to a notification-area icon
+  instead of quitting, so reminders keep firing. The tray menu has **Open** and **Quit**.
+  Starting with the OS is out of scope; it belongs with installers.
+- **Search (§7.7).** `has:reminder` matches open items whose effective reminder is not None.
+- **Tests.**
+  - **Core:** instant calculation (timed and date-only, offsets, DST gap and repeat in fixed zones,
+    and the effective-setting precedence) and the re-arming rule.
+  - **SQLite:** due-reminder query, delivery recording, snooze, undo of snooze, the migration with
+    its FTS triggers, recurrence copy and import/export.
+  - **ViewModel:** the scheduler with a fake `TimeProvider`, the missed-while-closed grouping and
+    the panel actions.
+  - **Headless interaction:** the bell button, Ctrl+Shift+R, snooze and the editor Reminder choice.
+  - **Snapshots:** the panel and the editor, light and dark.
+  - **Smoke:** a reminder due in under a minute appears in the in-app panel; the OS toast itself
+    is checked by hand.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -1056,7 +1135,7 @@ Phases 0–2 are v1.
   existing reorder/move/move-to-area operations (§4). Needs a drop indicator, a
   keyboard-equivalent path for every drop, and headless drag tests (§11.1).
 - ~~Trash view with restore~~ (done, §7.6).
-- Reminders / OS notifications for approaching deadlines.
+- Reminders / OS notifications for approaching deadlines (decisions in §7.12).
 - Recurring items (decisions in §7.11).
 - ~~Markdown descriptions; attachments/links~~ (done, §7.10; file attachments stay out of scope).
 - ~~Saved searches and the text query syntax~~ (done, §7.7).
