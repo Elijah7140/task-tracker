@@ -5,7 +5,7 @@ public static class BuiltInSearchKeys
 {
     public static IReadOnlyList<string> All { get; } =
     [
-        "title", "ticket", "type", "priority", "due", "scheduled", "status", "link"
+        "title", "ticket", "type", "priority", "due", "scheduled", "status", "link", "repeats"
     ];
 
     /// <summary>Words the text syntax gives a meaning of their own (<c>has:</c>, <c>no:</c>, <c>is:</c>).</summary>

@@ -20,12 +20,13 @@ internal static class CsvColumns
     public const string FolderPath = "Folder path";
     public const string ParentTitle = "Parent title";
     public const string Links = "Links";
+    public const string Repeats = "Repeats";
 
     /// <summary>Every fixed column, in the order an export writes them.</summary>
     public static IReadOnlyList<string> Standard { get; } =
     [
         Title, Description, Ticket, Type, Priority, DueDate, DueTime, ScheduledStart, ScheduledEnd,
-        Completed, CompletedAt, Project, FolderPath, ParentTitle, Links
+        Completed, CompletedAt, Project, FolderPath, ParentTitle, Links, Repeats
     ];
 
     /// <summary>
@@ -45,5 +46,5 @@ internal static class CsvColumns
     }
 
     /// <summary>Columns an export writes for context that an import recognises but does not use.</summary>
-    public static IReadOnlyList<string> IgnoredOnImport { get; } = [Project, FolderPath, ParentTitle];
+    public static IReadOnlyList<string> IgnoredOnImport { get; } = [Project, FolderPath, ParentTitle, Repeats];
 }

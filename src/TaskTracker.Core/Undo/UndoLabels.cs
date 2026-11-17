@@ -7,6 +7,12 @@ namespace TaskTracker.Core.Undo;
 /// </summary>
 public static class UndoLabels
 {
+    public static string SetRecurrence(string title) => $"Set repeat for '{title}'";
+
+    public static string SkipRepeat(string title) => $"Skip repeat for '{title}'";
+
+    public static string StopRepeating(string title) => $"Stop repeating '{title}'";
+
     /// <summary>Creating an item or sub-item.</summary>
     public static string Create(string name)
     {

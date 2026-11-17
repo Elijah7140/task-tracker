@@ -1,5 +1,6 @@
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
+using TaskTracker.Core.Items.Recurrence;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
@@ -24,6 +25,7 @@ public sealed class ItemService(
             throw new DomainRuleException("Item title is required and must be at most 300 characters.");
         }
 
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var items = unitOfWork.Items;
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
@@ -31,18 +33,20 @@ public sealed class ItemService(
         tree.Add(item);
         items.Add(item);
         Renumber(tree, parentId);
-        await ApplyStructureAsync(unitOfWork, tree, parentId, UndoLabels.Create(item.Title), cancellationToken);
+        await ApplyStructureAsync(unitOfWork, tree, UndoLabels.Create(item.Title), cancellationToken, parentId);
         return item;
     }
 
     public async Task EditAsync(Guid id, ItemEdit edit, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var item = await unitOfWork.Items.FindAsync(id, cancellationToken)
             ?? throw new DomainRuleException("Item is missing or deleted.");
-        ValidateEdit(edit);
+        ValidateEdit(item, edit);
+        var label = EditLabel(item, edit);
         ApplyEdit(item, edit);
-        await unitOfWork.SaveChangesAsync(UndoLabels.Edit(item.Title), cancellationToken);
+        await unitOfWork.SaveChangesAsync(label, cancellationToken);
     }
 
     /// <summary>Finds the current project and folder of an active item, or null when it is gone.</summary>
@@ -90,7 +94,8 @@ public sealed class ItemService(
         await using var work = unitOfWorkFactory.Begin();
         var item = await work.Items.FindAsync(id, cancellationToken)
             ?? throw new DomainRuleException("Item is missing or deleted.");
-        ValidateEdit(edit);
+        ValidateEdit(item, edit);
+        var label = EditLabel(item, edit);
         await ApplyValueChangesAsync(work, item, values, cancellationToken);
 
         if (links is not null)
@@ -99,7 +104,7 @@ public sealed class ItemService(
         }
 
         ApplyEdit(item, edit);
-        await work.SaveChangesAsync(UndoLabels.Edit(item.Title), cancellationToken);
+        await work.SaveChangesAsync(label, cancellationToken);
     }
 
     private static async Task ApplyValueChangesAsync(IUnitOfWork work, TodoItem item,
@@ -216,7 +221,7 @@ public sealed class ItemService(
             old.BoolValue == input.BoolValue && old.ChoiceId == input.ChoiceId;
     }
 
-    private static void ValidateEdit(ItemEdit edit)
+    private static void ValidateEdit(TodoItem item, ItemEdit edit)
     {
         if (!TodoItem.IsTitleValid(edit.Title))
         {
@@ -238,6 +243,32 @@ public sealed class ItemService(
         {
             throw new DomainRuleException("Scheduled times must be floating local values.");
         }
+
+        ValidateRecurrenceEdit(edit, item);
+    }
+
+    private static void ValidateRecurrenceEdit(ItemEdit edit, TodoItem item)
+    {
+        var rule = edit.UpdateRecurrence ? edit.Recurrence : item.Recurrence;
+        if (rule is not null && edit.DueDate is null && edit.ScheduledStart is null)
+        {
+            throw new DomainRuleException("A repeating item needs a due date or a scheduled start.");
+        }
+
+        if (rule?.FindError() is { } error)
+        {
+            throw new DomainRuleException(error.Message);
+        }
+    }
+
+    private static string EditLabel(TodoItem item, ItemEdit edit)
+    {
+        if (!edit.UpdateRecurrence || item.Recurrence == edit.Recurrence)
+        {
+            return UndoLabels.Edit(edit.Title.Trim());
+        }
+
+        return edit.Recurrence is null ? UndoLabels.StopRepeating(item.Title) : UndoLabels.SetRecurrence(item.Title);
     }
 
     private void ApplyEdit(TodoItem item, ItemEdit edit)
@@ -248,26 +279,72 @@ public sealed class ItemService(
         item.SetLookups(edit.ItemTypeId, edit.PriorityLevelId, clock);
         item.SetDue(edit.DueDate, edit.DueTime, clock);
         item.SetSchedule(edit.ScheduledStart, edit.ScheduledEnd, clock);
+
+        if (edit.UpdateRecurrence)
+        {
+            item.SetRecurrence(edit.Recurrence, clock);
+        }
     }
 
     public async Task<CompletionResult> SetCompletedAsync(Guid projectId, Guid? folderId, Guid id,
         bool completed, bool confirmed = false, CancellationToken cancellationToken = default)
     {
-        await using var unitOfWork = unitOfWorkFactory.Begin();
-        var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
-        var effective = await GetSettingsAsync(unitOfWork, projectId, cancellationToken);
-        var nowUtc = clock.GetUtcNow().UtcDateTime;
+        using var lease = await gate.EnterAsync(cancellationToken);
+        await using var work = unitOfWorkFactory.Begin();
+        var tree = await LoadTreeAsync(work, projectId, folderId, cancellationToken);
+        var effective = await GetSettingsAsync(work, projectId, cancellationToken);
+        var automatic = effective.AutoCompleteParents.Value;
+        var completion = new RecurringCompletion(tree, clock, timeZone);
         var result = completed
-            ? CompletionService.Complete(tree, id, effective.AutoCompleteParents.Value, nowUtc, confirmed)
-            : CompletionService.Reopen(tree, id, effective.AutoCompleteParents.Value, nowUtc);
+            ? completion.Complete(id, automatic, confirmed)
+            : CompletionService.Reopen(tree, id, automatic, clock.GetUtcNow().UtcDateTime);
 
         if (result is CompletionResult.Applied applied)
         {
-            ApplyChanges(tree, applied);
-            await unitOfWork.SaveChangesAsync(CompletionLabel(tree.Get(id).Title, completed), cancellationToken);
+            if (!completed)
+            {
+                ApplyChanges(tree, applied);
+            }
+
+            await completion.PersistAsync(work, cancellationToken);
+            await work.SaveChangesAsync(CompletionLabel(tree.Get(id).Title, completed), cancellationToken);
         }
 
         return result;
+    }
+
+    /// <summary>Advances an open occurrence in place. False means the rule has no next date.</summary>
+    public async Task<bool> SkipRepeatAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var lease = await gate.EnterAsync(cancellationToken);
+        await using var work = unitOfWorkFactory.Begin();
+        var item = await work.Items.FindAsync(id, cancellationToken);
+        if (item is not { CompletedAtUtc: null, Recurrence: { } rule })
+        {
+            throw new DomainRuleException("Only an open repeating item can be skipped.");
+        }
+
+        var localDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), timeZone).DateTime);
+        if (RecurrenceCalculator.Next(rule, item.RecurrenceDate!.Value, localDay) is not { } next)
+        {
+            return false;
+        }
+
+        OccurrenceDates.Move(item, next, clock);
+        item.SetRecurrence(OccurrenceDates.AdvanceRule(rule), clock);
+        await work.SaveChangesAsync(UndoLabels.SkipRepeat(item.Title), cancellationToken);
+        return true;
+    }
+
+    /// <summary>Removes the selected occurrence's rule in one undoable save.</summary>
+    public async Task StopRepeatingAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var lease = await gate.EnterAsync(cancellationToken);
+        await using var work = unitOfWorkFactory.Begin();
+        var item = await work.Items.FindAsync(id, cancellationToken)
+            ?? throw new DomainRuleException("Item is missing or deleted.");
+        item.SetRecurrence(null, clock);
+        await work.SaveChangesAsync(UndoLabels.StopRepeating(item.Title), cancellationToken);
     }
 
     private static string CompletionLabel(string title, bool completed)
@@ -282,6 +359,7 @@ public sealed class ItemService(
 
     public async Task<Guid> DeleteAsync(Guid projectId, Guid? folderId, Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var parentId = tree.Get(id).ParentItemId;
@@ -289,12 +367,13 @@ public sealed class ItemService(
         var label = UndoLabels.Delete(tree.Get(id).Title);
         tree.DeleteSubtree(id, batchId, clock);
         Renumber(tree, parentId);
-        await ApplyStructureAsync(unitOfWork, tree, parentId, label, cancellationToken);
+        await ApplyStructureAsync(unitOfWork, tree, label, cancellationToken, parentId);
         return batchId;
     }
 
     public async Task RestoreAsync(Guid projectId, Guid? folderId, Guid batchId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var branch = tree.AllRows.Where(item => item.DeletionBatchId == batchId).ToArray();
@@ -315,10 +394,13 @@ public sealed class ItemService(
             item.Restore(clock);
         }
 
+        var settings = await GetSettingsAsync(unitOfWork, projectId, cancellationToken);
         foreach (var parentId in branch.Select(item => item.ParentItemId).Distinct())
         {
             Renumber(tree, parentId);
-            await ReconcileAsync(unitOfWork, tree, parentId, projectId, cancellationToken);
+            var changes = CompletionService.AfterStructureChanged(tree, parentId,
+                settings.AutoCompleteParents.Value, clock.GetUtcNow().UtcDateTime);
+            ApplyChanges(tree, changes);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -326,6 +408,7 @@ public sealed class ItemService(
 
     public async Task MoveAsync(Guid projectId, Guid? folderId, Guid id, Guid? newParentId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var label = UndoLabels.Move(tree.Get(id).Title);
@@ -340,12 +423,12 @@ public sealed class ItemService(
         tree.Get(id).SetSortOrder(tree.Children(newParentId).Count - 1, clock);
         Renumber(tree, oldParentId);
         Renumber(tree, newParentId);
-        await ReconcileAsync(work, tree, oldParentId, tree.ProjectId, cancellationToken);
-        await ApplyStructureAsync(work, tree, newParentId, undoLabel, cancellationToken);
+        await ApplyStructureAsync(work, tree, undoLabel, cancellationToken, oldParentId, newParentId);
     }
 
     public async Task IndentAsync(Guid projectId, Guid? folderId, Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var item = tree.Get(id);
@@ -363,6 +446,7 @@ public sealed class ItemService(
 
     public async Task OutdentAsync(Guid projectId, Guid? folderId, Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var parentId = tree.Get(id).ParentItemId
@@ -377,6 +461,7 @@ public sealed class ItemService(
     public async Task MoveAtAsync(Guid projectId, Guid? folderId, Guid id, Guid? parentId,
         int index, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         await MoveAtAsync(unitOfWork, tree, id, parentId, index, UndoLabels.Move(tree.Get(id).Title), cancellationToken);
@@ -402,13 +487,13 @@ public sealed class ItemService(
             destination[position].SetSortOrder(position, clock);
         }
 
-        await ReconcileAsync(work, tree, oldParentId, tree.ProjectId, cancellationToken);
-        await ApplyStructureAsync(work, tree, parentId, undoLabel, cancellationToken);
+        await ApplyStructureAsync(work, tree, undoLabel, cancellationToken, oldParentId, parentId);
     }
 
     public async Task MoveToAreaAsync(Guid projectId, Guid? sourceFolderId, Guid? targetFolderId,
         Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var source = await LoadTreeAsync(unitOfWork, projectId, sourceFolderId, cancellationToken);
         var destination = await LoadTreeAsync(unitOfWork, projectId, targetFolderId, cancellationToken);
@@ -416,14 +501,13 @@ public sealed class ItemService(
         destination.Get(id).SetSortOrder(destination.Children(null).Count - 1, clock);
         Renumber(source, null);
         Renumber(destination, null);
-        await ReconcileAsync(unitOfWork, source, null, projectId, cancellationToken);
-        await ReconcileAsync(unitOfWork, destination, null, projectId, cancellationToken);
         await unitOfWork.SaveChangesAsync(UndoLabels.Move(destination.Get(id).Title), cancellationToken);
     }
 
     public async Task ReorderAsync(Guid projectId, Guid? folderId, Guid? parentId,
         IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
         var siblings = tree.Children(parentId);
@@ -438,8 +522,7 @@ public sealed class ItemService(
             tree.Get(ids[index]).SetSortOrder(index, clock);
         }
 
-        await ReconcileAsync(unitOfWork, tree, parentId, projectId, cancellationToken);
-        await unitOfWork.SaveChangesAsync(UndoLabels.ReorderItems(), cancellationToken);
+        await ApplyStructureAsync(unitOfWork, tree, UndoLabels.ReorderItems(), cancellationToken, parentId);
     }
 
     public async Task<AreaSnapshot> LoadAreaAsync(Guid projectId, Guid? folderId, CancellationToken cancellationToken = default)
@@ -497,19 +580,18 @@ public sealed class ItemService(
         return SettingsResolver.Resolve(global, project);
     }
 
-    private async Task ApplyStructureAsync(IUnitOfWork unitOfWork, ItemTree tree, Guid? parentId,
-        string undoLabel, CancellationToken cancellationToken)
+    private async Task ApplyStructureAsync(IUnitOfWork unitOfWork, ItemTree tree, string undoLabel,
+        CancellationToken cancellationToken, params Guid?[] parentIds)
     {
-        await ReconcileAsync(unitOfWork, tree, parentId, tree.ProjectId, cancellationToken);
-        await unitOfWork.SaveChangesAsync(undoLabel, cancellationToken);
-    }
+        var effective = await GetSettingsAsync(unitOfWork, tree.ProjectId, cancellationToken);
+        if (effective.AutoCompleteParents.Value)
+        {
+            var completion = new RecurringCompletion(tree, clock, timeZone);
+            completion.Reconcile(parentIds);
+            await completion.PersistAsync(unitOfWork, cancellationToken);
+        }
 
-    private async Task ReconcileAsync(IUnitOfWork unitOfWork, ItemTree tree, Guid? parentId, Guid projectId, CancellationToken cancellationToken)
-    {
-        var effective = await GetSettingsAsync(unitOfWork, projectId, cancellationToken);
-        var changes = CompletionService.AfterStructureChanged(tree, parentId,
-            effective.AutoCompleteParents.Value, clock.GetUtcNow().UtcDateTime);
-        ApplyChanges(tree, changes);
+        await unitOfWork.SaveChangesAsync(undoLabel, cancellationToken);
     }
 
     private void ApplyChanges(ItemTree tree, CompletionResult.Applied result)

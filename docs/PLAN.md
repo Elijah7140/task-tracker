@@ -229,7 +229,8 @@ no active children and is completed/reopened manually like any task.
 With the setting **on**, the invariant is: *an item with active children is complete
 exactly when all of its active children are complete.* After **any** change to a tree —
 complete, reopen, add, delete, restore, move, indent/outdent — the app re-evaluates the
-affected item's ancestors bottom-up and fixes their state. Specifically:
+affected item's ancestors bottom-up and fixes their state. Reparenting evaluates the union of
+both chains, deepest first, using the final tree. Specifically:
 
 | Action | Result |
 |--------|--------|
@@ -628,7 +629,7 @@ query    = { term }
 term     = word | phrase | clause
 word     = any run of non-space characters that is not a clause   -> free text
 phrase   = '"' chars '"'                                          -> free text (\" and \\ are escapes)
-clause   = key op value | 'has:' key | 'no:' key | 'is:' ('done' | 'open')
+clause   = key op value | 'has:' key | 'no:' key | 'is:' ('done' | 'open' | 'recurring')
 op       = ':'  '!='  '>'  '<'  '>='  '<='  '~'
 value    = endpoint [ '..' endpoint ]                             (a range only after ':')
 endpoint = quoted string | run of characters up to a space or '..'
@@ -643,6 +644,7 @@ endpoint = quoted string | run of characters up to a space or '..'
 | `key>=value`, `key<=value` | Dates and priority only, translated exactly: `due>=D` is `due>(D-1 day)` except at the minimum date, where it means `has:due`; `due<=D` uses the following day except at the maximum date, where it means `has:due`. `priority>=high` is the range from the top level to High, `priority<=high` from High to the bottom level. Numbers reject them with a hint (use `>`, `<` or a range) |
 | `key:a..b` | Between, inclusive (numbers, dates, priority; priority runs more important to less important) |
 | `has:key` / `no:key` | IsNotEmpty / IsEmpty |
+| `is:recurring` | `repeats` Equals true (§7.11) |
 | `is:done` / `is:open` | `status` Equals true / false; a query with `is:done` (or `status:yes`) turns Include completed on |
 
 Values: Text as written (quote when it has spaces); Number with the **invariant** culture (a dot for
@@ -761,7 +763,7 @@ camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\
 A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
 `dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `scheduledStart`/`scheduledEnd` as floating local values **without offset**
 (`2026-11-21T09:00:00`, §5.4), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
-`links` (optional, §7.10), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
+`links` (optional, §7.10), `recurrence`, `recurrenceSeriesId` and `recurrenceSuccessorCreated` (optional, §7.11), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
 Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
 culture throughout.
 
@@ -787,7 +789,7 @@ culture throughout.
   completion and timestamps. Project overrides are imported; **global settings in the file are ignored**. If an override would leave
   the project with invalid thresholds against this database's global settings, the import is refused.
 - *Saved searches* are created as new ones (name clashes suffixed like projects), pointing at the new project and folder ids. The
-  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. If a legacy custom `link` field is
+  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. If a legacy custom `link` or `repeats` field is
   renumbered, its saved-search references are rewritten in scopes that include the field. Other renumbered project-field keys can
   leave a saved search stale, with the usual "can't be run" message.
 - *Completion (§6.1)*: where the project's effective auto-complete setting is on, imported trees are reconciled before saving.
@@ -806,7 +808,7 @@ culture throughout.
 current search results (all matches, not just the first 200, in result order) as a flat table, UTF-8 **with BOM** (for Excel),
 RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
 quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Due date, Due time, Scheduled start, Scheduled end,
-Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), then one column per custom field by
+Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), `Repeats` (read-only, §7.11), then one column per custom field by
 display name (active fields, and archived ones that have a value; fields sharing a name share a column). Dates and numbers are ISO
 and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the culture.
 
@@ -829,7 +831,8 @@ with a message before they are read.
 
 **CSV import** targets a chosen project and optionally one of its folders (default: the root). Headers match by name ignoring case.
 `Project`, `Folder path` and `Parent title` are recognised but ignored: **every row becomes a top-level item** at the end of the area
-(sub-items are not rebuilt; the simple rule beats guessing among equal titles). Other unknown columns are reported and ignored.
+(sub-items are not rebuilt; the simple rule beats guessing among equal titles). `Repeats` is also recognised and ignored.
+Other unknown columns are reported and ignored.
 Type and priority match by name; an unknown or archived name is an **error** (it never creates a lookup, so typos do not create junk)
 and the message lists the valid names. Custom fields match by display name among the project's active fields; values follow §7.1:
 number with a dot (a decimal comma is refused with a hint), `yyyy-MM-dd` date, yes/no, choice by label, blank cell = no value.
@@ -909,6 +912,97 @@ in saved searches whose scope includes that field, because `link` is now a built
   also `null` entries and more than 100 links, and creates the links with new ids. CSV: a `Links` column holds the addresses separated by
   single spaces (titles are not written); import reads it, each address validated like an editor link (`Row 4, Links`). A custom field
   named "Links" is written as "Links (field)" like any other fixed-header collision.
+
+### 7.11 Recurring items
+
+Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for review):
+
+- **Completing creates the next occurrence.** A repeating item is an ordinary item with a
+  recurrence rule. Completing it leaves it completed, as history that the Completed section and
+  the Today view show. In the **same transaction** it creates the next occurrence as a new open
+  item. Nothing is projected into the future: the calendar and search show only real rows.
+- **What is copied.** The next occurrence copies everything from the completed one except its
+  dates and completion: title, description, ticket number, type, priority, custom field values,
+  links, the rule, and the open/closed subtree. Every copied sub-item starts **open**. The new
+  occurrence goes directly after the completed one in the same area and under the same parent,
+  so manual order is kept.
+- **Series.** Occurrences share a `RecurrenceSeriesId` (Guid). This is used for display ("repeats",
+  ↻ marker) and for future features; no rule depends on it.
+- **Rule.** Frequency is Daily, Weekly, Monthly or Yearly, with an interval "every N". The extra options are:
+  - **Weekly:** a set of weekdays.
+  - **Monthly:** a day of the month (1–31), or "last day". A day that a month lacks clamps to its last
+    day, for example 31 becomes 30 or 28/29.
+  - **Yearly:** a month and day; 29 Feb clamps to 28 Feb.
+  - **Anchor:** **from the due date** (default: the next date strictly after the current due date
+    that fits the rule) or **from the completion date** (the next date after the local completion
+    day, §5.4).
+  - **End:** never, on a date (the last allowed occurrence date, inclusive), or after N occurrences.
+    The remaining count is stored on the rule and decreases on each new occurrence. When the end is
+    reached, completing creates nothing and the status line says "That was the last repeat."
+- **Dates that move.** A rule needs a due date or a scheduled start; the editor says so and won't
+  save a rule without one. The due date moves to the next date. The due time, a floating local time,
+  stays the same. A scheduled block moves by the same number of days as the due date, keeping its
+  start time and length. With only a scheduled block, the block's start date is the anchor. "From
+  the due date" skips missed dates: an item three weeks overdue on a weekly rule gets the first date
+  after the current due date, not one occurrence per missed week.
+- **Skip.** "Skip this one" moves the item's own dates to the next occurrence without completing it
+  or creating a row. It is one undo step.
+- **Completion rules (§6.1).** The next occurrence is created **before** parents are re-evaluated.
+  So when a repeating sub-item completes, its new open sibling stops the parent from
+  auto-completing. A repeating **parent** that auto-completes because its last child completed also
+  creates its next occurrence, with its subtree reset to open. Reopening a completed occurrence by
+  hand keeps the generated next occurrence. Undo of the completion removes the generated occurrence
+  and restores the source in one step.
+- **Stopping and deleting.** "Stop repeating" removes the rule from that occurrence only. Deleting an
+  occurrence deletes only that row, which goes to the trash as usual; other occurrences are
+  unaffected. Restoring from the trash restores the rule with the row.
+- **Undo.** Completion with its next occurrence, Skip, setting or changing a rule, and Stop repeating
+  are each one labelled undo step (§7.8).
+- **Search (§7.7).** `is:recurring` matches items with a rule. The filter row has a "Repeats" yes/no
+  built-in field.
+- **Import/export (§7.9).** JSON adds an optional `recurrence` object on items and a
+  `recurrenceSeriesId`, plus `recurrenceSuccessorCreated` when true, still format version 1.
+  Validation and JSON paths are as usual. CSV export adds a read-only `Repeats` column with a
+  plain description, for example "Every 2 weeks on Mon, Thu". CSV import ignores that column,
+  and the preview says so.
+- **UI.**
+  - The editor has a **Repeat** section: a frequency dropdown (Does not repeat / Daily / Weekly /
+    Monthly / Yearly), an interval box, weekday toggles (weekly), a day-of-month or "last day" choice
+    (monthly), an anchor choice and end options. A one-line summary of the rule is shown below.
+  - Repeating rows show a ↻ marker with the summary as a tooltip.
+  - The context menu, and the editor, have **Skip this one** and **Stop repeating**.
+  - Every control has an AutomationId.
+  - Completing a repeating item through any path (checkbox, keyboard, search result, calendar) uses
+    the same service operation.
+- **Data.** There is a `RecurrenceRule` value stored in columns on `TodoItem`: `RecurrenceFrequency`,
+  `RecurrenceInterval`, `RecurrenceWeekdays` (bit flags), `RecurrenceMonthDay` (0 = last day),
+  `RecurrenceMonth`, `RecurrenceAnchor`, `RecurrenceEndKind`, `RecurrenceEndDate`,
+  `RecurrenceRemaining`, and `RecurrenceSeriesId`. These are nullable. The additive migration also
+  adds a boolean `RecurrenceSuccessorCreated`, defaulting to false.
+  Adding columns to `TodoItem` follows the AGENTS.md rule on the `TodoItemSearch` triggers.
+- **Tests.** Core unit tests cover the next-date calculation: every frequency and interval, weekday
+  sets that wrap past Sunday, month-end clamping, 29 February, both anchors, every end kind, and
+  overdue skipping. They also cover the §6.1 interactions. SQLite tests cover copying, which
+  includes links, custom fields and the subtree, plus undo, trash and the migration. The UI has
+  ViewModel tests, headless interaction tests for the Repeat section, Skip and Stop repeating,
+  snapshot baselines in light and dark, and a smoke step.
+
+- **Implementation decisions.** Weekly intervals use weeks starting on Monday. Monthly and yearly
+  intervals advance the anchor's month or year before applying the selected day. A count includes
+  the current occurrence. Skip consumes one occurrence and leaves the final occurrence in place
+  when there is no next date. Skip uses today's local date for a completion-date anchor. The editor
+  derives a yearly rule's month and day from the due date or scheduled start. Editing other fields
+  preserves an existing yearly pattern even when its occurrence was clamped.
+- **One successor per occurrence.** The source records successor creation in the same undoable save.
+  The marker survives manual reopening, rule edits and JSON round-trips. Completing the source again
+  never replaces a successor that was deleted or purged. Undo clears the marker when it removes the
+  generated occurrence, and redo restores both. The JSON marker is a boolean and needs no ID remap.
+- **Copied branches.** All active descendants shift by the root's date offset and start open.
+  A copied descendant that repeats starts its own series. In a confirmed completion cascade, a
+  newly opened repeating child keeps its parent open. Import, restore, and settings reconciliation
+  preserve the usual completion invariant without generating occurrences. JSON import remaps series IDs
+  with the other imported identities. Search and calendar entries open the workspace editor, so
+  completing an item from either view uses the workspace's existing completion action.
 
 ## 8. User interface (Avalonia)
 
@@ -1025,7 +1119,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
   keyboard-equivalent path for every drop, and headless drag tests (§11.1).
 - ~~Trash view with restore~~ (done, §7.6).
 - Reminders / OS notifications for approaching deadlines.
-- Recurring items.
+- Recurring items (decisions in §7.11).
 - ~~Markdown descriptions; attachments/links~~ (done, §7.10; file attachments stay out of scope).
 - ~~Saved searches and the text query syntax~~ (done, §7.7).
 - ~~Undo/redo for recent actions~~ (done, §7.8).

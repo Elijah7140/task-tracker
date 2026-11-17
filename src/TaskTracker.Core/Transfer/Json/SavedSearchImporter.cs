@@ -9,7 +9,7 @@ namespace TaskTracker.Core.Transfer.Json;
 
 /// <summary>
 /// Creates the file's saved searches as new ones, pointing at the new projects and folders and
-/// rewriting choice IDs and legacy custom link keys in their query text (§7.7).
+/// rewriting choice IDs and legacy custom field keys in their query text (§7.7).
 /// </summary>
 internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider clock, ImportMap map, IssueList issues)
 {
@@ -32,12 +32,13 @@ internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider
     private void AddSearch(SavedSearchDocument document, TakenNames takenNames, int sortOrder, string path)
     {
         var scope = CreateScope(document);
-        var query = RewriteLegacyLinkKey(RewriteIds(document.QueryText!), scope);
+        var query = RewriteLegacyKey(RewriteIds(document.QueryText!), scope, "link");
+        query = RewriteLegacyKey(query, scope, "repeats");
 
         if (query.Length > SavedSearch.QueryTextMaxLength)
         {
             issues.Add($"{path}.queryText",
-                $"Renaming the custom link field makes the query longer than {SavedSearch.QueryTextMaxLength} characters.");
+                $"Renaming a custom field makes the query longer than {SavedSearch.QueryTextMaxLength} characters.");
             return;
         }
 
@@ -50,10 +51,8 @@ internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider
         work.SavedSearches.Add(search);
     }
 
-    private string RewriteLegacyLinkKey(string query, SearchScope scope)
+    private string RewriteLegacyKey(string query, SearchScope scope, string legacyKey)
     {
-        const string legacyKey = "link";
-
         if (!map.Fields.TryGetValue(legacyKey, out var field) || field.Key == legacyKey)
         {
             return query;

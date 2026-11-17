@@ -11,6 +11,8 @@ internal sealed class ImportMap
 
     public Dictionary<Guid, Guid> Choices { get; } = [];
 
+    public Dictionary<Guid, Guid> RecurrenceSeries { get; } = [];
+
     public Dictionary<Guid, Guid> Projects { get; } = [];
 
     public Dictionary<Guid, Guid> Folders { get; } = [];

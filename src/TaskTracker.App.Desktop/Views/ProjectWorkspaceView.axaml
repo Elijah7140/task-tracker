@@ -208,6 +208,7 @@
                 <Button Grid.Column="1" Grid.RowSpan="2" Content="✕" ToolTip.Tip="Clear scheduled end"
                         Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearEndCommand}" AutomationProperties.AutomationId="EditorClearEndButton" />
               </Grid>
+              <views:ItemRecurrenceView />
               <views:CustomFieldsView />
               <views:ItemLinksView />
               <TextBlock Text="Sub-items" FontWeight="SemiBold" Margin="0,12,0,0" />
@@ -242,6 +243,12 @@
         </Grid>
       </Border>
     </Grid>
+    <Border Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16" Padding="14,8" CornerRadius="6"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1"
+            IsHitTestVisible="False" IsVisible="{Binding HasRecurrenceStatus}">
+      <TextBlock Text="{Binding RecurrenceStatus}" AutomationProperties.AutomationId="WorkspaceRecurrenceStatus" />
+    </Border>
     <Border Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16" Padding="14,8" CornerRadius="6"
             Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1"

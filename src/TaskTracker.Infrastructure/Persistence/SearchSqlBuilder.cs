@@ -144,7 +144,8 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
             "due" => ScalarFilter("t.DueDate", filter),
             "scheduled" => ScalarFilter("substr(t.ScheduledStart, 1, 10)", filter,
                 "t.ScheduledStart"),
-            "status" => StatusFilter(filter),
+            "status" => BooleanColumnFilter(filter, "t.CompletedAtUtc"),
+            "repeats" => BooleanColumnFilter(filter, "t.RecurrenceFrequency"),
             "link" => LinkFilter(filter),
             _ => throw new InvalidOperationException("Unknown built-in search field.")
         };
@@ -312,7 +313,7 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
         return $"(SELECT SortOrder FROM PriorityLevel WHERE Id = {parameter})";
     }
 
-    private static string StatusFilter(FieldFilter filter)
+    private static string BooleanColumnFilter(FieldFilter filter, string column)
     {
         if (filter.Operator is FilterOperator.IsEmpty)
         {
@@ -324,9 +325,9 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
             return "1 = 1";
         }
 
-        var completed = ((FilterValue.Bool)filter.Value!).Value;
-        var matchesCompleted = filter.Operator is FilterOperator.Equals ? completed : !completed;
-        return matchesCompleted ? "t.CompletedAtUtc IS NOT NULL" : "t.CompletedAtUtc IS NULL";
+        var value = ((FilterValue.Bool)filter.Value!).Value;
+        var matchesPresent = filter.Operator is FilterOperator.Equals ? value : !value;
+        return matchesPresent ? $"{column} IS NOT NULL" : $"{column} IS NULL";
     }
 
     private static object ScalarValue(FilterValue value)

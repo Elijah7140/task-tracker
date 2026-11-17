@@ -247,7 +247,7 @@ public sealed class ProjectWorkspaceViewTests
         Dispatcher.UIThread.RunJobs();
         var menu = row.ContextMenu!;
         Assert.True(menu.IsOpen);
-        HeadlessInput.Click(window, menu.Items.OfType<MenuItem>().Single());
+        HeadlessInput.Click(window, menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Move to…")));
         var dialog = OpenDialog(window);
         dialog.GetVisualDescendants().OfType<ComboBox>().Single().SelectedIndex = 1;
         HeadlessInput.Press(dialog, Key.Enter);

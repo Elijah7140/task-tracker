@@ -59,11 +59,17 @@ internal sealed class QueryClauseBinder
 
     private BoundClause? BindIs(QueryClause clause, string value)
     {
+        if (value.Equals("recurring", StringComparison.OrdinalIgnoreCase))
+        {
+            var repeats = new FieldFilter("repeats", FilterOperator.Equals, new FilterValue.Bool(true));
+            return new BoundClause(repeats, "is:recurring", "is:recurring");
+        }
+
         var wantsDone = value.Equals("done", StringComparison.OrdinalIgnoreCase);
 
         if (!wantsDone && !value.Equals("open", StringComparison.OrdinalIgnoreCase))
         {
-            return Fail(clause, "'is:' takes done or open.");
+            return Fail(clause, "'is:' takes done, open or recurring.");
         }
 
         var filter = new FieldFilter("status", FilterOperator.Equals, new FilterValue.Bool(wantsDone));

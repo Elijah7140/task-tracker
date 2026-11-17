@@ -336,7 +336,7 @@ public sealed class ItemQueryParserTests
     {
         var result = Parse("is:late");
 
-        Assert.Contains("done or open", Assert.Single(result.Errors).Message);
+        Assert.Contains("done, open or recurring", Assert.Single(result.Errors).Message);
     }
 
     [Fact]

@@ -24,6 +24,8 @@ public sealed class ItemRowViewModel : ViewModelBase
         urgency = node.DisplayedUrgency.Value;
         this.workspace = workspace;
         ToggleCommand = new AsyncRelayCommand(() => workspace.ToggleAsync(this));
+        SkipRepeatCommand = new AsyncRelayCommand(() => workspace.ChangeRepeatAsync(this, skip: true));
+        StopRepeatingCommand = new AsyncRelayCommand(() => workspace.ChangeRepeatAsync(this, skip: false));
         SelectCommand = new AsyncRelayCommand(() => workspace.SelectItemAsync(this));
         MoveItemToAreaCommand = new AsyncRelayCommand(() => workspace.MoveRowToAreaAsync(this));
     }
@@ -33,6 +35,16 @@ public sealed class ItemRowViewModel : ViewModelBase
     public Guid Id => Node.Item.Id;
 
     public ICommand MoveItemToAreaCommand { get; }
+
+    public ICommand SkipRepeatCommand { get; }
+
+    public ICommand StopRepeatingCommand { get; }
+
+    public bool Repeats => Node.Item.Recurrence is not null;
+
+    public bool CanSkipRepeat => Repeats && !IsComplete;
+
+    public string? RepeatSummary => Node.Item.Recurrence?.Describe();
 
     public Guid? ParentId => Node.Item.ParentItemId;
 

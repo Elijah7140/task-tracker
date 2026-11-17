@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
+             x:Class="TaskTracker.App.Desktop.Views.ItemRecurrenceView"
+             x:CompileBindings="False">
+  <Expander DataContext="{Binding Repeat}" Header="Repeat" IsExpanded="{Binding CanStop, Mode=OneWay}"
+            Margin="0,8,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+            AutomationProperties.AutomationId="EditorRepeatSection">
+    <StackPanel Spacing="8">
+      <ComboBox ItemsSource="{Binding Frequencies}" SelectedIndex="{Binding FrequencyIndex, Mode=TwoWay}"
+                HorizontalAlignment="Stretch" AutomationProperties.Name="Repeat frequency"
+                AutomationProperties.AutomationId="EditorRepeatFrequency" />
+      <StackPanel Spacing="8" IsVisible="{Binding IsRepeating}">
+        <Grid ColumnDefinitions="*,90" ColumnSpacing="6">
+          <TextBlock Text="Repeat interval" VerticalAlignment="Center" />
+          <TextBox Grid.Column="1" Text="{Binding IntervalText, Mode=TwoWay}" AutomationProperties.Name="Repeat interval"
+                   AutomationProperties.AutomationId="EditorRepeatInterval" />
+        </Grid>
+        <ItemsControl IsVisible="{Binding IsWeekly}" ItemsSource="{Binding Weekdays}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="0,0,8,0"
+                        AutomationProperties.AutomationId="{Binding AutomationId}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Spacing="4" IsVisible="{Binding IsMonthly}">
+          <CheckBox Content="Last day of the month" IsChecked="{Binding UseLastDay, Mode=TwoWay}"
+                    AutomationProperties.AutomationId="EditorRepeatLastDay" />
+          <Grid ColumnDefinitions="*,90" ColumnSpacing="6" IsVisible="{Binding !UseLastDay}">
+            <TextBlock Text="Day of month" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding MonthDayText, Mode=TwoWay}" AutomationProperties.Name="Day of month"
+                     AutomationProperties.AutomationId="EditorRepeatMonthDay" />
+          </Grid>
+        </StackPanel>
+        <TextBlock Text="Calculate next occurrence" />
+        <ComboBox ItemsSource="{Binding Anchors}" SelectedIndex="{Binding AnchorIndex, Mode=TwoWay}"
+                  HorizontalAlignment="Stretch" AutomationProperties.Name="Repeat anchor"
+                  AutomationProperties.AutomationId="EditorRepeatAnchor" />
+        <TextBlock Text="Ends" />
+        <ComboBox ItemsSource="{Binding EndOptions}" SelectedIndex="{Binding EndIndex, Mode=TwoWay}"
+                  HorizontalAlignment="Stretch" AutomationProperties.Name="Repeat end"
+                  AutomationProperties.AutomationId="EditorRepeatEnd" />
+        <CalendarDatePicker SelectedDate="{Binding EndDate, Mode=TwoWay}" IsVisible="{Binding EndsOnDate}"
+                            HorizontalAlignment="Stretch" AutomationProperties.Name="Last occurrence date"
+                            AutomationProperties.AutomationId="EditorRepeatEndDate" />
+        <TextBox Text="{Binding CountText, Mode=TwoWay}" IsVisible="{Binding EndsAfterCount}"
+                 AutomationProperties.Name="Remaining occurrences, including this one"
+                 PlaceholderText="Occurrences including this one" AutomationProperties.AutomationId="EditorRepeatCount" />
+        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontWeight="SemiBold"
+                   AutomationProperties.AutomationId="EditorRepeatSummary" />
+        <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource AppDangerBrush}" AutomationProperties.AutomationId="EditorRepeatError" />
+      </StackPanel>
+      <WrapPanel IsVisible="{Binding CanStop}">
+        <Button Content="Skip this one" Classes="subtle" IsVisible="{Binding CanSkip}" Margin="0,0,6,0"
+                Command="{Binding $parent[views:ProjectWorkspaceView].DataContext.SkipRepeatCommand}"
+                AutomationProperties.AutomationId="EditorSkipRepeatButton" />
+        <Button Content="Stop repeating" Classes="subtle"
+                Command="{Binding $parent[views:ProjectWorkspaceView].DataContext.StopRepeatingCommand}"
+                AutomationProperties.AutomationId="EditorStopRepeatingButton" />
+      </WrapPanel>
+    </StackPanel>
+  </Expander>
+</UserControl>

@@ -194,6 +194,39 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("RecurrenceAnchor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("RecurrenceEndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RecurrenceEndKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RecurrenceFrequency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RecurrenceInterval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RecurrenceMonth")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RecurrenceMonthDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RecurrenceRemaining")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("RecurrenceSeriesId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("RecurrenceSuccessorCreated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RecurrenceWeekdays")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("ScheduledEnd")
                         .HasColumnType("TEXT");
 

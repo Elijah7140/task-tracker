@@ -52,6 +52,7 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
         dueTimeText = dueTime?.ToString("HH:mm") ?? string.Empty;
         scheduledStartText = scheduledStart?.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
         scheduledEndText = scheduledEnd?.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
+        Repeat = new RecurrenceDraftViewModel(item, ReadRecurrenceDate);
         ClearTypeCommand = new RelayCommand(ClearType);
         ClearPriorityCommand = new RelayCommand(ClearPriority);
         ClearDueDateCommand = new RelayCommand(() => DueDateText = string.Empty);
@@ -61,6 +62,8 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
     }
 
     public Guid Id { get; }
+
+    public RecurrenceDraftViewModel Repeat { get; }
 
     /// <summary>The inputs for the item's active custom fields, in display order.</summary>
     public ObservableCollection<CustomFieldInputViewModel> CustomFields { get; } = [];
@@ -211,6 +214,7 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
             if (SetProperty(ref dueDateText, value))
             {
                 OnPropertyChanged(nameof(DueDatePickerDate));
+                Repeat.RefreshSummary();
             }
         }
     }
@@ -236,6 +240,7 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(StartPickerDate));
                 OnPropertyChanged(nameof(StartPickerTime));
+                Repeat.RefreshSummary();
             }
         }
     }
@@ -397,22 +402,36 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
             ? PriorityLevelId
             : SelectedPriority?.Id;
         return new ItemEdit(Title, Description, TicketNumber, typeId, priorityId,
-            date, time, start, end);
+            date, time, start, end)
+        {
+            UpdateRecurrence = true,
+            Recurrence = Repeat.ToRule()
+        };
     }
 
     /// <summary>Compares the draft, custom fields included, with the persisted item.</summary>
     public bool IsDirty(TodoItem item)
     {
-        if (CustomFields.Any(input => input.IsDirty) || Links.IsDirty)
+        if (CustomFields.Any(input => input.IsDirty) || Links.IsDirty || Repeat.HasError)
         {
             return true;
         }
 
         var stored = new ItemEdit(item.Title, item.Description, item.TicketNumber,
             item.ItemTypeId, item.PriorityLevelId, item.DueDate, item.DueTime,
-            item.ScheduledStart, item.ScheduledEnd);
+            item.ScheduledStart, item.ScheduledEnd)
+        {
+            UpdateRecurrence = true,
+            Recurrence = item.Recurrence
+        };
 
         return ToEdit() != stored;
+    }
+
+    private DateOnly? ReadRecurrenceDate()
+    {
+        var date = DueDatePickerDate ?? StartPickerDate;
+        return date is { } value ? DateOnly.FromDateTime(value) : null;
     }
 
     private static DateOnly? ParseDate(string text)
