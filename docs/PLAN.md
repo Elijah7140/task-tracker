@@ -974,8 +974,8 @@ Phases 0–2 are v1.
 - **Tickets view.** A list of tickets that the owner orders by hand ("relative
   priority"), by dragging or by keyboard, to set the order in which to work on them.
   That order is stored separately from the tree order and does not change the
-  Priority field. Default assumption: a ticket is an open item that has a ticket number.
-  Confirm this with the owner in the final report.
+  Priority field. A ticket is an open item that has a ticket number (confirmed by the
+  owner; an explicit ticket flag may come later but is not needed now).
 - **Today view (done today).** Shows the items completed today (local day, §5.4) that are
   still completed: an item checked off today and then unchecked does not appear.
   - Completed sub-items are grouped under their parent and collapsed by default.
