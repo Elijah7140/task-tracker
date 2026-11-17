@@ -175,6 +175,11 @@ public sealed class RecurrenceDraftViewModel : ViewModelBase
                 return "A repeating item needs a due date or a scheduled start.";
             }
 
+            if (IsMonthly && !UseLastDay && ReadNumber(MonthDayText) is < 1 or > 31)
+            {
+                return "Enter a day of the month from 1 to 31.";
+            }
+
             return BuildRule()?.FindError()?.Message;
         }
     }

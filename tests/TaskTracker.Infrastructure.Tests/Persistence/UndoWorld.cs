@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Time.Testing;
 
 using TaskTracker.Core.Calendar;
@@ -167,11 +168,17 @@ internal sealed class UndoWorld : IAsyncDisposable
         await store.DisposeAsync();
     }
 
-    private sealed class StoreContextFactory(SqliteTestStore store) : IDbContextFactory<TaskTrackerDbContext>
+    public ItemService CreateItemService(IInterceptor interceptor)
+    {
+        var contexts = new StoreContextFactory(store, interceptor);
+        return new ItemService(new RecordingUnitOfWorkFactory(contexts, Recorder), Clock, TimeZoneInfo.Utc);
+    }
+
+    private sealed class StoreContextFactory(SqliteTestStore store, IInterceptor? interceptor = null) : IDbContextFactory<TaskTrackerDbContext>
     {
         public TaskTrackerDbContext CreateDbContext()
         {
-            return store.Open();
+            return store.Open(interceptor);
         }
     }
 

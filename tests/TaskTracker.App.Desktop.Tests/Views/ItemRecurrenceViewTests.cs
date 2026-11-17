@@ -84,6 +84,36 @@ public sealed class ItemRecurrenceViewTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Typing_zero_as_a_month_day_blocks_save_until_last_day_is_checked()
+    {
+        using var services = await TestServices.CreateAsync();
+        var (projectId, itemId) = await CreateItemAsync(services, null);
+        var (window, page) = await OpenAsync(services, projectId);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ItemTitleButton"));
+        await HeadlessInput.WaitUntilAsync(() => page.Editor?.Id == itemId);
+        HeadlessInput.Click(window, HeadlessInput.Find<Expander>(window, "EditorRepeatSection"));
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(window, "EditorRepeatFrequency"), "Monthly");
+        var monthDay = HeadlessInput.Find<TextBox>(window, "EditorRepeatMonthDay");
+        HeadlessInput.Click(window, monthDay);
+
+        HeadlessInput.Press(window, Key.A, RawInputModifiers.Control);
+        window.KeyTextInput("0");
+        Dispatcher.UIThread.RunJobs();
+
+        var save = HeadlessInput.Find<Button>(window, "EditorSaveButton");
+        Assert.Equal("0", monthDay.Text);
+        Assert.False(save.IsEffectivelyEnabled);
+        var error = HeadlessInput.Find<TextBlock>(window, "EditorRepeatError");
+        Assert.Equal("Enter a day of the month from 1 to 31.", error.Text);
+
+        HeadlessInput.Click(window, HeadlessInput.Find<CheckBox>(window, "EditorRepeatLastDay"));
+        Assert.True(save.IsEffectivelyEnabled);
+        HeadlessInput.Click(window, save);
+        await HeadlessInput.WaitUntilAsync(() => page.OpenItems[0].Node.Item.Recurrence?.MonthDay == 0);
+        window.Close();
+    }
+
     private static void ChooseWeeklyRepeat(MainWindow window)
     {
         HeadlessInput.Click(window, HeadlessInput.Find<Expander>(window, "EditorRepeatSection"));

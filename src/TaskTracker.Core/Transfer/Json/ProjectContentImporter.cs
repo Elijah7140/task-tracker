@@ -92,6 +92,11 @@ internal sealed class ProjectContentImporter(
             item.SetRecurrence(rule, clock, MapSeries(document.RecurrenceSeriesId));
         }
 
+        if (document.RecurrenceSuccessorCreated)
+        {
+            item.MarkRecurrenceSuccessorCreated(clock);
+        }
+
         if (ImportParse.Utc(document.CompletedAtUtc) is DateTime completedAt)
         {
             item.SetCompletion(completedAt, clock);

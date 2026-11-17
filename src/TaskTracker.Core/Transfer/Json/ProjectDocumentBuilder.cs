@@ -89,6 +89,7 @@ internal sealed class ProjectDocumentBuilder(ExportCatalogue catalogue)
             ReminderOffsetMinutes = item.ReminderOffsetMinutes,
             Recurrence = item.Recurrence,
             RecurrenceSeriesId = item.RecurrenceSeriesId,
+            RecurrenceSuccessorCreated = item.RecurrenceSuccessorCreated,
             Links = BuildLinks(links)
         };
     }

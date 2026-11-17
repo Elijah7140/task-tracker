@@ -26,7 +26,9 @@ public sealed class RecurrenceMigrationTests
 
         await migrator.MigrateAsync();
 
-        Assert.Null((await database.TodoItems.AsNoTracking().SingleAsync()).Recurrence);
+        var existing = await database.TodoItems.AsNoTracking().SingleAsync();
+        Assert.Null(existing.Recurrence);
+        Assert.False(existing.RecurrenceSuccessorCreated);
         await AssertSearchIsMaintainedAsync(database, "upgraded");
 
         await migrator.MigrateAsync(PreviousMigration);
