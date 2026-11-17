@@ -975,9 +975,13 @@ Phases 0–2 are v1.
   ticket is an open item that has a ticket number (confirmed by the owner; an explicit
   ticket flag may come later but is not needed now).
   - **Numbered priority levels.** Extend the existing Priority field (§6.2) so it supports
-    numbered levels (e.g. 1, 2, 3) alongside or instead of the named ones. Levels keep
-    their own editable sort order. This is the same Priority used everywhere, not a
-    separate ticket priority.
+    numbered levels (e.g. 1, 2, 3) alongside or instead of the named ones. This is the
+    same Priority used everywhere, not a separate ticket priority.
+  - **A level's number is not its rank.** The number is only a label, and the level's
+    sort order is set separately. For example, the owner's levels rank 1, 7, 2, ...: level
+    7 sits between 1 and 2. Nothing may sort or compare levels by number; the number
+    and the sort order must be editable independently. Tests cover a non-monotonic
+    mapping like 1, 7, 2.
   - **Ordering.** Items with no priority come first, ordered only by drag and drop. Below
     them are the prioritized items, grouped into one section per level in level sort
     order, and within a section by drag-and-drop order. The drag order is stored
@@ -995,6 +999,12 @@ Phases 0–2 are v1.
   - A parent that is not itself completed still appears, as context, so its completed
     children are shown. It is expanded rather than collapsed, and visibly marked as
     not completed.
+- **Undo everywhere it is feasible.** Audit every operation that changes user data and make
+  it a labelled undo step (§7.8) wherever it can work reliably. This covers settings,
+  lookup and field management, priority levels, links, trash actions and the new views.
+  Each feature added from here on ships with undo unless that is infeasible. Operations
+  left out, such as import (§7.9) and permanent purge, are listed in §7.8 with the
+  reason.
 - **Task stack.** Requested by the owner; scope and behaviour still to be agreed. Discuss
   with the owner before designing or building it.
 - Mobile or browser head (Avalonia supports both) reusing the Presentation project.
