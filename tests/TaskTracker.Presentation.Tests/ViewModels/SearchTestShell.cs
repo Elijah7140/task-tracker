@@ -1,6 +1,7 @@
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Trash;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
@@ -11,7 +12,8 @@ internal static class SearchTestShell
 {
     internal static MainWindowViewModel Create(PresentationTestStore store, FakeDialogService? dialogs = null,
         TimeProvider? clock = null, IFieldRegistry? registry = null, IItemSearchService? search = null,
-        TimeZoneInfo? timeZone = null, CalendarService? calendar = null, ProjectService? projects = null)
+        TimeZoneInfo? timeZone = null, CalendarService? calendar = null, ProjectService? projects = null,
+        ITrashService? trash = null)
     {
         registry ??= new FieldRegistry(store.UnitOfWorkFactory);
         var validator = new ItemQueryValidator(store.UnitOfWorkFactory);
@@ -20,6 +22,7 @@ internal static class SearchTestShell
             store.Items, clock ?? TimeProvider.System, timeZone ?? TimeZoneInfo.Utc, settings: store.Settings,
             lookups: store.Lookups, fields: store.Fields, search: search, registry: registry,
             calendar: calendar ?? new CalendarService(store.UnitOfWorkFactory),
+            trash: trash ?? store.Trash,
             rescheduler: new CalendarRescheduleService(store.UnitOfWorkFactory, clock ?? TimeProvider.System));
     }
 

@@ -25,6 +25,18 @@ public interface INavigationService
     Task ReturnFromCalendarAsync();
 
     /// <summary>
+    /// Opens the trash and remembers the page to return to, with the same single-return-page
+    /// rule as search and the calendar.
+    /// </summary>
+    Task OpenTrashAsync();
+
+    /// <summary>
+    /// Returns from the trash to its originating page. After a restore the page behind is
+    /// reloaded first, which asks its unsaved-changes guard; cancelling that stays in the trash.
+    /// </summary>
+    Task ReturnFromTrashAsync();
+
+    /// <summary>
     /// Opens the current workspace folder of a calendar item. The calendar stays open when the
     /// item no longer exists, the user cancels leaving a page with unsaved changes, or the
     /// calendar was left while the request was pending.

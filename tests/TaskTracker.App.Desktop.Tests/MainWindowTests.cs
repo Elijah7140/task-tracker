@@ -353,7 +353,7 @@ public sealed class MainWindowTests
             return Task.FromResult<string?>(null);
         }
 
-        public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue")
+        public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue", bool cancelIsDefault = false)
         {
             return Task.FromResult(false);
         }
@@ -403,6 +403,16 @@ public sealed class MainWindowTests
         }
 
         public Task ReturnFromCalendarAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task OpenTrashAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ReturnFromTrashAsync()
         {
             return Task.CompletedTask;
         }

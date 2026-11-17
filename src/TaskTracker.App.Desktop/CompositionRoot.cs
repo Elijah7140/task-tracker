@@ -35,7 +35,8 @@ public static class CompositionRoot
             .Register<ProjectSettingsViewModel, ProjectSettingsView>()
             .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>()
             .Register<SearchViewModel, SearchView>()
-            .Register<CalendarViewModel, CalendarView>());
+            .Register<CalendarViewModel, CalendarView>()
+            .Register<TrashViewModel, TrashView>());
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<MainWindowViewModel>());

@@ -5,7 +5,11 @@ public interface IDialogService
 {
     Task<string?> PromptAsync(string title, string label, string? initialValue = null);
 
-    Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue");
+    /// <summary>
+    /// Asks the user to confirm. With <paramref name="cancelIsDefault"/> the Cancel button is the default and
+    /// has focus, so a stray Enter cannot confirm; use it for irreversible actions.
+    /// </summary>
+    Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue", bool cancelIsDefault = false);
 
     Task<DraftDecision> ResolveDraftAsync();
 

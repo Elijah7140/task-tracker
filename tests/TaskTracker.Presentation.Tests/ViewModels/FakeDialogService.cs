@@ -21,14 +21,21 @@ internal sealed class FakeDialogService : IDialogService
 
     public List<string> ConfirmTitles { get; } = [];
 
+    public List<string> ConfirmMessages { get; } = [];
+
+    public List<bool> CancelDefaults { get; } = [];
+
     public Task<string?> PromptAsync(string title, string label, string? initialValue = null)
     {
         return Task.FromResult(PromptResult);
     }
 
-    public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue")
+    public Task<bool> ConfirmAsync(string title, string message, string confirmText = "Continue",
+        bool cancelIsDefault = false)
     {
         ConfirmTitles.Add(title);
+        ConfirmMessages.Add(message);
+        CancelDefaults.Add(cancelIsDefault);
 
         return Task.FromResult(ConfirmResult);
     }

@@ -2,6 +2,7 @@ using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Trash;
 
 namespace TaskTracker.App.Desktop.Tests;
 
@@ -69,6 +70,8 @@ internal sealed class DelayedItemLookupUnitOfWorkFactory(IUnitOfWorkFactory inne
         public IItemSearch Search => unit.Search;
 
         public ICalendarRepository Calendar => unit.Calendar;
+
+        public ITrashRepository Trash => unit.Trash;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {

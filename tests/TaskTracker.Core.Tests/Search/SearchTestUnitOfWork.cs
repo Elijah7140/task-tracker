@@ -4,6 +4,7 @@ using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Trash;
 
 namespace TaskTracker.Core.Tests.Search;
 
@@ -34,6 +35,8 @@ internal sealed class SearchTestUnitOfWork : IUnitOfWork, IUnitOfWorkFactory
     public IItemSearch Search => throw new NotSupportedException();
 
     public ICalendarRepository Calendar => throw new NotSupportedException();
+
+    public ITrashRepository Trash => throw new NotSupportedException();
 
     public IUnitOfWork Begin()
     {

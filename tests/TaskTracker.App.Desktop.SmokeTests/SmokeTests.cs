@@ -297,6 +297,33 @@ public sealed class SmokeTests
     }
 
     [Fact]
+    public void Trash_restores_an_item_and_permanently_deletes_a_folder()
+    {
+        Run(session =>
+        {
+            OpenProject(session);
+            AddItem(session, "Restore me");
+            DeleteSelectedItem(session, "Restore me");
+            CreateFolderAndSelectIt(session, "Doomed folder");
+            DeleteFolder(session, "Doomed folder");
+
+            session.Find("WorkspaceTrashButton").AsButton().Invoke();
+            session.WaitUntil(() => HasTrashRow(session, "Restore me") && HasTrashRow(session, "Doomed folder"),
+                "both deleted nodes to be listed in the trash");
+            ClickTrashRowButton(session, "Restore me", "RestoreBatchButton");
+            session.WaitUntil(() => !HasTrashRow(session, "Restore me"), "the restored item to leave the trash");
+            ClickTrashRowButton(session, "Doomed folder", "PurgeBatchButton");
+            session.Find("DialogConfirmButton").AsButton().Invoke();
+            session.WaitUntil(() => !HasTrashRow(session, "Doomed folder"), "the purged folder to leave the trash");
+            session.FindText("The trash is empty.");
+
+            session.Find("TrashBackButton").AsButton().Invoke();
+            session.WaitUntil(() => HasItemRow(session, "Restore me"), "the restored item to show in the workspace");
+            Assert.Null(session.Find("FolderTree").FindFirstDescendant(query => query.ByName("Doomed folder")));
+        });
+    }
+
+    [Fact]
     public void Saving_an_app_threshold_persists_after_reopening_settings()
     {
         Run(session =>
@@ -581,6 +608,42 @@ public sealed class SmokeTests
     private static string FormatDate(DateTime value)
     {
         return value.ToString("d", CultureInfo.CurrentCulture);
+    }
+
+    private static void DeleteSelectedItem(SmokeSession session, string title)
+    {
+        session.FindNamed("ItemTitleButton", title).Click();
+        session.Press(VirtualKeyShort.DELETE);
+        session.Find("DialogConfirmButton");
+        session.Press(VirtualKeyShort.RETURN);
+        session.WaitUntil(() => !session.HasControl("DialogConfirmButton") && !HasItemRow(session, title),
+            $"{title} to be deleted");
+    }
+
+    private static void DeleteFolder(SmokeSession session, string name)
+    {
+        var folder = session.Find("FolderTree").FindFirstDescendant(query => query.ByName(name));
+        Assert.NotNull(folder);
+        folder.RightClick();
+        session.Find("DeleteFolderMenuItem").Click();
+        session.Find("DialogConfirmButton");
+        session.Press(VirtualKeyShort.RETURN);
+        session.WaitUntil(() => !session.HasControl("DialogConfirmButton") && session.Find("FolderTree")
+            .FindFirstDescendant(query => query.ByName(name)) is null, $"folder {name} to be deleted");
+    }
+
+    private static bool HasTrashRow(SmokeSession session, string title)
+    {
+        return session.Window.FindAllDescendants(query => query.ByAutomationId("TrashBatchRow"))
+            .Any(row => row.Name == title || row.FindFirstDescendant(query => query.ByName(title)) is not null);
+    }
+
+    private static void ClickTrashRowButton(SmokeSession session, string title, string buttonId)
+    {
+        var row = session.FindNamed("TrashBatchRow", title);
+        var button = row.FindFirstDescendant(query => query.ByAutomationId(buttonId));
+        Assert.NotNull(button);
+        button.AsButton().Invoke();
     }
 
     private static bool HasItemRow(SmokeSession session, string title)

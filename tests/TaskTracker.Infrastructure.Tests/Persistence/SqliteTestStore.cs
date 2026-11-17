@@ -7,6 +7,7 @@ using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Trash;
 using TaskTracker.Infrastructure.Persistence;
 
 namespace TaskTracker.Infrastructure.Tests.Persistence;
@@ -44,6 +45,11 @@ internal sealed class SqliteTestStore : IAsyncDisposable
     public ItemService Items(TaskTrackerDbContext database)
     {
         return new ItemService(new TestUnitOfWorkFactory(database), Clock, TimeZoneInfo.Utc);
+    }
+
+    public TrashService Trash(TaskTrackerDbContext database)
+    {
+        return new TrashService(new TestUnitOfWorkFactory(database), Clock);
     }
 
     public LookupService Lookups(TaskTrackerDbContext database)

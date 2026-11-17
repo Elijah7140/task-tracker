@@ -542,6 +542,73 @@ parses into an `ItemQuery`, and saved searches.
   guard cancels the move; Save or Discard follows the user's guard choice. The moved
   item remains selected after a move within the area.
 
+### 7.6 Trash
+
+The trash lists **deletion batches** (§5.3), not individual rows: one row per `DeletionBatchId`.
+
+- **Row contents.** The top node of the batch (the project, folder or item that was deleted
+  directly; rows deleted earlier keep their own batch), its kind, where it was, when it was
+  deleted, and what it contains. *Where it was* is the project name, the folder names down to
+  its parent, and for a sub-item the titles of its parent items, joined by ›; names are used
+  even when those parents are deleted too. A project's location is "Home". *When* is the
+  deletion time in the local zone, formatted with the current culture. *Contains* counts the
+  folders and items of the batch, including the top node itself ("1 item", "2 folders, 5 items").
+  Rows are ordered by deletion time, newest first.
+- **Scope.** All projects (including deleted projects) or This project. Opened from Home the
+  only scope is All projects; opened from a workspace (also when search or the calendar was
+  opened from it) the default is This project.
+- **Restore** restores exactly the rows of the batch and nothing else; rows deleted earlier in
+  other batches stay deleted and appear as their own rows. If the top node's parent is still
+  deleted, Restore is disabled and the reason is shown under the row: "Restore the folder 'X'
+  first" (parent folder, or the folder of an item), "Restore the item 'X' first" (a sub-item
+  whose parent item was deleted later), or "Restore the project first". There is no "restore
+  with parent". The restored top node goes **after the largest sort order among its siblings** (the end; gaps stay); its descendants keep
+  their order.
+- **Completion on restore (§6.1).** Restore behaves like adding the rows back: with
+  `AutoCompleteParentWhenChildrenComplete` on, the project is reconciled in the same save, so
+  an open item restored under a completed parent reopens that parent (and its ancestors), and a
+  completed item restored under a parent whose other children are all complete keeps it
+  complete. With the setting off nothing changes.
+- **Search and calendar.** Deleting never touches the full-text rows (§7.2) and restore just
+  clears the deletion fields, so restored items are searchable and appear in the calendar at
+  once; deleted items are excluded from both.
+- **Delete permanently** (behind a confirmation) hard-deletes the batch. Custom field values go
+  with their item (cascade) and the search rows go through the existing triggers. It is
+  refused with a rule error ("'X' still belongs to 'Y'. Delete 'X' permanently first.") while
+  a row outside the batch still points into it: an earlier-deleted sub-item of a deleted item,
+  an earlier-deleted item or sub-folder of a deleted folder, or a live row (impossible through
+  the services, but checked rather than assumed). The exception is a **project**: purging a
+  project removes the whole project, including batches deleted from it earlier, its own custom
+  fields (with choices and values) and its setting overrides, because nothing can outlive it.
+  The confirmation for a project says so ("This also deletes the N entries deleted from this
+  project earlier"), because those are separate rows that vanish with it.
+- **Irreversible confirmations** (Delete permanently, Empty trash) use a destructive dialog:
+  `IDialogService.ConfirmAsync(..., cancelIsDefault: true)` makes Cancel the default and focused
+  button, so Enter or Escape cancels and only a click on the confirm button destroys data. Other
+  dialogs keep their existing behaviour.
+- **One change at a time.** A second Restore, Delete permanently or Empty trash is ignored
+  while one (or its confirmation) is in progress.
+- **Empty trash** (behind a confirmation) permanently deletes everything in scope in one
+  transaction: all deleted folders and items, and deleted projects with all they own. Live rows
+  are never touched; one that points at a deleted row stops the operation.
+- **Navigation.** A Trash button on Home and in the workspace header, and Ctrl+Shift+T (exact
+  modifiers). Back or Escape (no modifiers) returns. Search, Calendar and Trash share the
+  single return page described in §7.4, so Back always lands on the page the first of them was
+  opened from. Opening the trash keeps the page behind it, including an unsaved editor draft,
+  alive. If something was restored, returning reloads that page (Home recounts its projects; a
+  workspace reloads keeping its selected folder and item), which asks the unsaved-changes guard
+  once; Cancel stays on the page you are leaving. The shell remembers that the page behind is
+  out of date as soon as a restore starts, so the refresh also happens when search or the
+  calendar replaced the trash first, or when the restore was still running; the flag clears
+  once the page behind is shown again. Back and Escape are ignored while the trash is busy
+  with a restore, a permanent deletion or its confirmation.
+- **Failures** (a batch already gone, a refused purge) show inline on the page and the list
+  reloads. Loads are cancellable: a newer load replaces an older one, and leaving the page
+  ignores any load still running.
+- **Code.** Core `TrashService` (`ListAsync`, `RestoreAsync`, `PurgeAsync`, `EmptyAsync`; one
+  unit of work each) over `ITrashRepository`, the only place that queries deleted rows across
+  projects and removes rows.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -560,6 +627,7 @@ parses into an `ItemQuery`, and saved searches.
    priority levels (add, rename, drag to reorder, archive).
 4. **Project Settings** — per-project overrides (§6.5).
 5. **Calendar** — scoped month and week views of due dates and scheduled blocks; activating an entry opens its item (§7.4).
+6. **Trash** — deletion batches with Restore, Delete permanently and Empty trash, scoped to all projects or one (§7.6).
 
 ### Keyboard
 
@@ -567,7 +635,7 @@ Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
 Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outdent,
 Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
-Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
+Ctrl+Shift+T trash (§7.6), Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
 and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where
 Alt+↑/↓ reorders items, so the two never clash.
 
@@ -651,7 +719,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
   The rules in §6.4 and §6.1 still apply; the view only translates a drop into the
   existing reorder/move/move-to-area operations (§4). Needs a drop indicator, a
   keyboard-equivalent path for every drop, and headless drag tests (§11.1).
-- Trash view with restore (data model already supports it, §5.3).
+- ~~Trash view with restore~~ (done, §7.6).
 - Reminders / OS notifications for approaching deadlines.
 - Recurring items.
 - Markdown descriptions; attachments/links.
