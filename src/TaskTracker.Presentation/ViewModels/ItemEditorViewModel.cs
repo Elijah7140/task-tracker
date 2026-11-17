@@ -12,7 +12,7 @@ using TaskTracker.Core.Lookups;
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>An editable item draft saved explicitly by the workspace.</summary>
-public sealed class ItemEditorViewModel : ViewModelBase
+public sealed partial class ItemEditorViewModel : ViewModelBase
 {
     private string title;
     private string? description;
@@ -403,7 +403,7 @@ public sealed class ItemEditorViewModel : ViewModelBase
     /// <summary>Compares the draft, custom fields included, with the persisted item.</summary>
     public bool IsDirty(TodoItem item)
     {
-        if (CustomFields.Any(input => input.IsDirty))
+        if (CustomFields.Any(input => input.IsDirty) || Links.IsDirty)
         {
             return true;
         }

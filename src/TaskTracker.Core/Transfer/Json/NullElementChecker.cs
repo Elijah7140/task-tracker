@@ -50,6 +50,7 @@ internal static class NullElementChecker
         {
             var itemPath = ImportChecks.Element(path, position);
             CheckList(items![position]?.FieldValues, $"{itemPath}.fieldValues", issues);
+            CheckList(items![position]?.Links, $"{itemPath}.links", issues);
         }
     }
 

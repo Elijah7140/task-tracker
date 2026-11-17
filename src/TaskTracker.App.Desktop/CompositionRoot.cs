@@ -22,7 +22,8 @@ public static class CompositionRoot
         string? databasePath = null,
         IDialogService? dialogs = null,
         IFilePickerService? filePicker = null,
-        IDatabaseBackup? backup = null)
+        IDatabaseBackup? backup = null,
+        ILinkLauncher? linkLauncher = null)
     {
         var services = new ServiceCollection();
 
@@ -51,6 +52,7 @@ public static class CompositionRoot
         services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<MainWindowViewModel>());
         services.AddSingleton<IDialogService>(dialogs ?? new AvaloniaDialogService());
         services.AddSingleton(filePicker ?? CreateFilePicker());
+        services.AddSingleton(linkLauncher ?? new AvaloniaLinkLauncher());
         services.AddSingleton(provider => new TransferServices(
             provider.GetRequiredService<DataTransferService>(), provider.GetRequiredService<IFilePickerService>()));
 

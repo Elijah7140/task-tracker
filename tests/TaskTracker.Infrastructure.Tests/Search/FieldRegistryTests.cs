@@ -33,11 +33,11 @@ public sealed class FieldRegistryTests
         var projectFields = await registry.GetFieldsAsync(new SearchScope.Project(first.Id));
         var allFields = await registry.GetFieldsAsync(new SearchScope.AllProjects());
 
-        Assert.Equal(["title", "ticket", "type", "priority", "due", "scheduled", "status", "global", "local"],
+        Assert.Equal(["title", "ticket", "type", "priority", "due", "scheduled", "status", "link", "global", "local"],
             projectFields.Select(field => field.Key));
-        Assert.Equal(["global", "local", "other"], allFields.Skip(7).Select(field => field.Key));
+        Assert.Equal(["global", "local", "other"], allFields.Skip(8).Select(field => field.Key));
         Assert.IsType<FieldSource.BuiltIn>(projectFields[0].Source);
-        Assert.IsType<FieldSource.Custom>(projectFields[7].Source);
+        Assert.IsType<FieldSource.Custom>(projectFields[8].Source);
     }
 
     [Fact]

@@ -12,4 +12,14 @@ public interface IItemRepository
     Task<TodoItem?> FindAsync(Guid id, CancellationToken cancellationToken);
 
     void Add(TodoItem item);
+
+    /// <summary>The links of one item in display order.</summary>
+    Task<IReadOnlyList<ItemLink>> LinksAsync(Guid itemId, CancellationToken cancellationToken);
+
+    /// <summary>The links of every item of one project, deleted items included; callers filter by item.</summary>
+    Task<IReadOnlyList<ItemLink>> LinksForProjectAsync(Guid projectId, CancellationToken cancellationToken);
+
+    void Add(ItemLink link);
+
+    void Remove(ItemLink link);
 }

@@ -18,6 +18,14 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
     </Style>
+    <Style Selector="Button.tab">
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Button.tab.activeTab">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+    </Style>
     <Style Selector="ScrollViewer.dropRoot">
       <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
       <Setter Property="BorderThickness" Value="0,0,0,3" />
@@ -146,9 +154,21 @@
                           IsVisible="{Binding $parent[UserControl].DataContext.HasEditor}" Spacing="8">
               <TextBlock Text="Title" />
               <TextBox x:Name="EditorTitleBox" Text="{Binding Title, Mode=TwoWay}" AutomationProperties.AutomationId="EditorTitleBox" />
-              <TextBlock Text="Description" />
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="2">
+                <TextBlock Text="Description" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="Edit" Classes="subtle tab" Classes.activeTab="{Binding IsEditingDescription}"
+                        Command="{Binding ShowEditCommand}" AutomationProperties.AutomationId="EditorDescriptionEditTab" />
+                <Button Grid.Column="2" Content="Preview" Classes="subtle tab" Classes.activeTab="{Binding IsPreviewing}"
+                        Command="{Binding ShowPreviewCommand}" AutomationProperties.AutomationId="EditorDescriptionPreviewTab" />
+              </Grid>
               <TextBox Text="{Binding Description, Mode=TwoWay}" AcceptsReturn="True" MinHeight="80" AutomationProperties.AutomationId="EditorDescriptionBox"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap" IsVisible="{Binding IsEditingDescription}" />
+              <Border IsVisible="{Binding IsPreviewing}" MinHeight="80" Padding="8,6" CornerRadius="4" BorderThickness="1"
+                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      AutomationProperties.AutomationId="EditorDescriptionPreview">
+                <views:MarkdownView Blocks="{Binding PreviewBlocks}"
+                                    LinkCommand="{Binding $parent[UserControl].DataContext.OpenLinkCommand}" />
+              </Border>
               <TextBlock Text="Ticket number" />
               <TextBox Text="{Binding TicketNumber, Mode=TwoWay}" AutomationProperties.AutomationId="EditorTicketNumberBox" />
               <TextBlock Text="Type" />
@@ -189,6 +209,7 @@
                         Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearEndCommand}" AutomationProperties.AutomationId="EditorClearEndButton" />
               </Grid>
               <views:CustomFieldsView />
+              <views:ItemLinksView />
               <TextBlock Text="Sub-items" FontWeight="SemiBold" Margin="0,12,0,0" />
               <ItemsControl ItemsSource="{Binding $parent[UserControl].DataContext.SelectedSubItems}">
                 <ItemsControl.ItemTemplate>

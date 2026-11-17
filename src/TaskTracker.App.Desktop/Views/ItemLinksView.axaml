@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
+             x:Class="TaskTracker.App.Desktop.Views.ItemLinksView"
+             x:CompileBindings="False">
+  <StackPanel Spacing="6" DataContext="{Binding Links}">
+    <TextBlock Text="Links" FontWeight="SemiBold" Margin="0,12,0,0" />
+    <ItemsControl ItemsSource="{Binding Items}" AutomationProperties.AutomationId="EditorLinksList">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="2" Margin="0,2">
+            <Button Classes="subtle" HorizontalContentAlignment="Left" Padding="4,2" HorizontalAlignment="Stretch" Background="Transparent"
+                    Command="{Binding $parent[views:ProjectWorkspaceView].DataContext.OpenLinkCommand}"
+                    CommandParameter="{Binding Url}" ToolTip.Tip="{Binding Url}"
+                    AutomationProperties.AutomationId="EditorLinkOpenButton" AutomationProperties.Name="{Binding DisplayText}">
+              <StackPanel Background="Transparent" HorizontalAlignment="Stretch">
+                <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource SystemAccentColor}" />
+                <TextBlock Text="{Binding Url}" TextTrimming="CharacterEllipsis" FontSize="11" Opacity="0.65"
+                           IsVisible="{Binding HasTitle}" />
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="1" Content="↑" ToolTip.Tip="Move up" Classes="subtle icon" Command="{Binding MoveUpCommand}"
+                    AutomationProperties.AutomationId="EditorLinkMoveUpButton" />
+            <Button Grid.Column="2" Content="↓" ToolTip.Tip="Move down" Classes="subtle icon" Command="{Binding MoveDownCommand}"
+                    AutomationProperties.AutomationId="EditorLinkMoveDownButton" />
+            <Button Grid.Column="3" Content="Edit" ToolTip.Tip="Edit this link" Classes="subtle" Command="{Binding EditCommand}"
+                    AutomationProperties.AutomationId="EditorLinkEditButton" />
+            <Button Grid.Column="4" Content="✕" ToolTip.Tip="Remove this link" Classes="subtle icon" Command="{Binding RemoveCommand}"
+                    AutomationProperties.AutomationId="EditorLinkRemoveButton" />
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBox Text="{Binding NewUrl, Mode=TwoWay}" PlaceholderText="https://example.com" AutomationProperties.AutomationId="EditorLinkUrlBox">
+      <TextBox.KeyBindings>
+        <KeyBinding Gesture="Enter" Command="{Binding SubmitCommand}" />
+      </TextBox.KeyBindings>
+    </TextBox>
+    <TextBox Text="{Binding NewTitle, Mode=TwoWay}" PlaceholderText="Title (optional)" AutomationProperties.AutomationId="EditorLinkTitleBox">
+      <TextBox.KeyBindings>
+        <KeyBinding Gesture="Enter" Command="{Binding SubmitCommand}" />
+      </TextBox.KeyBindings>
+    </TextBox>
+    <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{DynamicResource AppDangerBrush}"
+               IsVisible="{Binding HasError}" AutomationProperties.AutomationId="EditorLinkError" />
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <Button Content="{Binding SubmitText}" Classes="subtle" Command="{Binding SubmitCommand}"
+              AutomationProperties.AutomationId="EditorLinkSubmitButton" />
+      <Button Content="Cancel" Classes="subtle" Command="{Binding CancelEditCommand}" IsVisible="{Binding CanCancelEntry}"
+              AutomationProperties.AutomationId="EditorLinkCancelButton" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

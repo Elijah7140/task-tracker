@@ -52,16 +52,17 @@ internal sealed class ProjectDocumentBuilder(ExportCatalogue catalogue)
     private List<ItemDocument> BuildItems(ProjectExportData data)
     {
         var valuesByItem = data.Values.ToLookup(value => value.ItemId);
+        var linksByItem = data.Links.ToLookup(link => link.ItemId);
         var ordered = data.Items
             .OrderBy(item => item.SortOrder)
             .ThenBy(item => item.CreatedAtUtc)
             .ThenBy(item => item.Title, StringComparer.Ordinal)
             .ThenBy(item => item.Id);
 
-        return ordered.Select(item => BuildItem(item, valuesByItem[item.Id])).ToList();
+        return ordered.Select(item => BuildItem(item, valuesByItem[item.Id], linksByItem[item.Id])).ToList();
     }
 
-    private ItemDocument BuildItem(TodoItem item, IEnumerable<ItemFieldValue> values)
+    private ItemDocument BuildItem(TodoItem item, IEnumerable<ItemFieldValue> values, IEnumerable<ItemLink> links)
     {
         return new ItemDocument
         {
@@ -83,8 +84,19 @@ internal sealed class ProjectDocumentBuilder(ExportCatalogue catalogue)
             SortOrder = item.SortOrder,
             CreatedAtUtc = TransferTimeFormat.FormatUtc(item.CreatedAtUtc),
             UpdatedAtUtc = TransferTimeFormat.FormatUtc(item.UpdatedAtUtc),
-            FieldValues = BuildValues(values)
+            FieldValues = BuildValues(values),
+            Links = BuildLinks(links)
         };
+    }
+
+    /// <summary>The links in order, or null when there are none so the property is left out of the file.</summary>
+    private static List<ItemLinkDocument>? BuildLinks(IEnumerable<ItemLink> links)
+    {
+        var documents = links.OrderBy(link => link.SortOrder)
+            .Select(link => new ItemLinkDocument { Url = link.Url, Title = link.Title })
+            .ToList();
+
+        return documents.Count == 0 ? null : documents;
     }
 
     private List<FieldValueDocument> BuildValues(IEnumerable<ItemFieldValue> values)

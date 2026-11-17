@@ -115,5 +115,25 @@ internal sealed class DelayedItemLookupUnitOfWorkFactory(IUnitOfWorkFactory inne
         {
             items.Add(item);
         }
+
+        public Task<IReadOnlyList<ItemLink>> LinksAsync(Guid itemId, CancellationToken cancellationToken)
+        {
+            return items.LinksAsync(itemId, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<ItemLink>> LinksForProjectAsync(Guid projectId, CancellationToken cancellationToken)
+        {
+            return items.LinksForProjectAsync(projectId, cancellationToken);
+        }
+
+        public void Add(ItemLink link)
+        {
+            items.Add(link);
+        }
+
+        public void Remove(ItemLink link)
+        {
+            items.Remove(link);
+        }
     }
 }

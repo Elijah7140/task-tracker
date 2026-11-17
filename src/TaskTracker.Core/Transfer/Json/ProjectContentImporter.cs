@@ -55,6 +55,7 @@ internal sealed class ProjectContentImporter(
             itemIds[document.Id!.Value] = item.Id;
             created.Add(item);
             AddValues(item, document);
+            AddLinks(item, document);
         }
 
         return created;
@@ -99,6 +100,17 @@ internal sealed class ProjectContentImporter(
     private Guid? PriorityId(ItemDocument document)
     {
         return index.FindPriority(document)?.Id is Guid id ? map.PriorityLevels[id] : null;
+    }
+
+    private void AddLinks(TodoItem item, ItemDocument document)
+    {
+        var links = document.Links.OrEmpty();
+
+        for (var position = 0; position < links.Count; position++)
+        {
+            var input = new ItemLinkInput(null, links[position].Url!, links[position].Title);
+            work.Items.Add(ItemLink.Create(item.Id, input, position, clock));
+        }
     }
 
     private void AddValues(TodoItem item, ItemDocument document)

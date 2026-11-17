@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-using TaskTracker.Core.Search;
-
 namespace TaskTracker.Infrastructure.Persistence.Migrations;
 
 /// <summary>Adds the item full-text index and its transaction-local maintenance triggers.</summary>
@@ -47,7 +45,8 @@ public sealed class AddItemSearch : Migration
 
     private static void RenameReservedKeys(MigrationBuilder migrationBuilder)
     {
-        foreach (var key in BuiltInSearchKeys.All)
+        // Later migrations reserve new keys together with any affected saved searches.
+        foreach (var key in new[] { "title", "ticket", "type", "priority", "due", "scheduled", "status" })
         {
             var sql = $"""
                 WITH RECURSIVE candidates(suffix, candidate) AS (

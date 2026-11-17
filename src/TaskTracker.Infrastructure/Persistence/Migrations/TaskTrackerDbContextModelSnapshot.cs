@@ -121,6 +121,37 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TaskTracker.Core.Items.ItemLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId", "SortOrder");
+
+                    b.ToTable("ItemLink", (string)null);
+                });
+
             modelBuilder.Entity("TaskTracker.Core.Items.TodoItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -526,6 +557,15 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FieldDefinitionId", "ChoiceId")
                         .HasPrincipalKey("FieldDefinitionId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("TaskTracker.Core.Items.ItemLink", b =>
+                {
+                    b.HasOne("TaskTracker.Core.Items.TodoItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TaskTracker.Core.Items.TodoItem", b =>

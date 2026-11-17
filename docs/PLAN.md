@@ -109,6 +109,7 @@ Rules that keep the code readable and portable:
 Project ─1:N─ Folder (self-referencing ParentFolderId, null = top level)
 Project ─1:N─ TodoItem (FolderId null = project root)
 TodoItem ─1:N─ TodoItem (ParentItemId, sub-items)
+TodoItem ─1:N─ ItemLink (web or mail links, §7.10)
 TodoItem ─N:1─ ItemType
 TodoItem ─N:1─ PriorityLevel
 GlobalSetting (key/value);  ProjectSetting (ProjectId, key/value)
@@ -130,7 +131,7 @@ Phase 3: FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldVal
 | `FolderId` | Guid? | null = project root |
 | `ParentItemId` | Guid? | null = top-level item |
 | `Title` | string (required, ≤ 300) | |
-| `Description` | string? | Plain text v1; Markdown on roadmap |
+| `Description` | string? | Markdown (a superset of the plain text stored before); previewed read-only in the editor, §7.10 |
 | `TicketNumber` | string? (≤ 100) | Free text, e.g. `JIRA-1234`. Indexed, not unique |
 | `PriorityLevelId` | Guid? | null = no priority |
 | `ItemTypeId` | Guid? | |
@@ -378,7 +379,7 @@ Removing a choice archives it; items keep their value.
 - Keys are creation-time lowercase slugs of display names, globally unique with numeric
   collision suffixes, and never change on rename; the database has a unique key index.
 - Built-in search keys (`title`, `ticket`, `type`, `priority`, `due`, `scheduled`,
-  `status`) and the query-syntax keywords (`has`, `no`, `is`, §7.7) are reserved. Custom fields use the next numeric collision suffix.
+  `status`, `link`) and the query-syntax keywords (`has`, `no`, `is`, §7.7) are reserved. Custom fields use the next numeric collision suffix.
   The saved-search migration renames existing keyword keys with the same first-free suffix rule;
   field ids and values remain unchanged.
 - Display names are required and trimmed, and are case-insensitively unique among active
@@ -402,7 +403,7 @@ Why typed columns instead of a JSON blob: range queries ("severity ≥ 3",
 
 **Field registry.** `IFieldRegistry` returns every searchable field as a
 `SearchableField { Key, DisplayName, DataType, Source }`. `Source` is either a built-in
-column (`title`, `ticket`, `priority`, `type`, `due`, `scheduled`, `status`) or a
+column (`title`, `ticket`, `priority`, `type`, `due`, `scheduled`, `status`, `link`) or a
 `FieldDefinition`. Search code treats both the same.
 
 **Query model** (Core, storage-agnostic):
@@ -713,7 +714,7 @@ complete and reopen with their cascade; delete item, folder or project (a soft-d
 reorder, indent, outdent, re-parent, drag and move to a folder; calendar reschedule; rename
 folder or project; and restore from the trash (undoing it deletes the batch again). On a labelled
 save `EfUnitOfWork` snapshots the before and after values of every added, modified or deleted
-item, folder, project and item field value, in the operation's own save, and hands the step to an
+item, folder, project, item field value and item link (§7.10), in the operation's own save, and hands the step to an
 `IUndoRecorder` (tests substitute a fake). A row whose only change is its `UpdatedAtUtc` stamp is
 left out, so steps stay small and do not widen conflicts. Purging a batch also makes the delete it
 followed un-undoable.
@@ -760,7 +761,7 @@ camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\
 A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
 `dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `scheduledStart`/`scheduledEnd` as floating local values **without offset**
 (`2026-11-21T09:00:00`, §5.4), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
-`fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
+`links` (optional, §7.10), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
 Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
 culture throughout.
 
@@ -786,8 +787,9 @@ culture throughout.
   completion and timestamps. Project overrides are imported; **global settings in the file are ignored**. If an override would leave
   the project with invalid thresholds against this database's global settings, the import is refused.
 - *Saved searches* are created as new ones (name clashes suffixed like projects), pointing at the new project and folder ids. The
-  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. A saved search that names a project
-  field whose key had to be renumbered is stale and shows the usual "can't be run" message.
+  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. If a legacy custom `link` field is
+  renumbered, its saved-search references are rewritten in scopes that include the field. Other renumbered project-field keys can
+  leave a saved search stale, with the usual "can't be run" message.
 - *Completion (§6.1)*: where the project's effective auto-complete setting is on, imported trees are reconciled before saving.
 - *All or nothing:* one unit of work, one save. A failure leaves nothing tracked or stored. Imports are **not undoable** (no undo step
   is recorded). The UI asks for confirmation first and `IDatabaseBackup` (the SQLite backup API, as used before migrations) copies
@@ -804,11 +806,15 @@ culture throughout.
 current search results (all matches, not just the first 200, in result order) as a flat table, UTF-8 **with BOM** (for Excel),
 RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
 quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Due date, Due time, Scheduled start, Scheduled end,
-Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, then one column per custom field by
-display name (active fields, and archived ones that have a value; fields sharing a name share a column). A custom field whose
-display name equals a fixed header (any case: Type, Priority, Ticket, ...) is written as "Type (field)" so headers never repeat; an
-import maps that header back to the field. Dates and numbers are ISO and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the
-culture.
+Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), then one column per custom field by
+display name (active fields, and archived ones that have a value; fields sharing a name share a column). Dates and numbers are ISO
+and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the culture.
+
+- **Custom-field headers.** Export and import match names case-insensitively and add one ` (field)` suffix to a fixed column
+  name or to a name that already consists of a fixed name followed by one or more such suffixes. For example, the fields
+  `Links` and `Links (field)` use `Links (field)` and `Links (field) (field)`. Plain `Links` imports as item links. If the
+  target has an active custom field named `Links`, an invalid address in that column produces a row error about the ambiguity
+  and explains how to rename the header for legacy custom-field values.
 
 **Formula injection.** Excel runs a cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return as a formula. An export
 therefore puts an apostrophe in front of any text cell (title, description, ticket, type, priority, project, folder path, parent
@@ -843,6 +849,67 @@ The Search page's "Export results (CSV)" re-runs the last search without the 200
 `CompositionRoot` swaps in a picker that answers with a fixed path, and only when **both** `TASKTRACKER_TEST_FILE_PATH` and
 `TASKTRACKER_SMOKE=1` are set (README.md); the real picker never reads those variables.
 
+### 7.10 Markdown and links
+
+**Markdown descriptions.** `TodoItem.Description` is the same column as before and holds Markdown. Markdown is a superset of the
+plain text already stored, so there is no data migration. The item editor shows **Edit | Preview** tabs above the description: Edit is
+the multi-line text box; Preview renders the text read-only. Previewing is a view mode only (it never makes the editor dirty, and a
+newly selected item opens in Edit).
+
+- **Parsing** is Markdig 1.5.1 (pinned in `Directory.Packages.props`; 1.6.0 was under two weeks old). `MarkdownParser` (Presentation,
+  `Markdown`) maps Markdig's tree into small display records (`MarkdownParagraph`, `MarkdownList`, ...), so no parser type reaches the
+  view. App.Desktop's `MarkdownView`/`MarkdownControlBuilder` turn those records into ordinary Avalonia controls. No web view, no HTML.
+- **Supported:** headings, emphasis and strong, inline code, fenced and indented code blocks, bullet and numbered lists (nested, a
+  numbered list keeps its start number), task-list checkboxes (display only: not focusable, clicks do nothing, the stored text never
+  changes), links and bare http(s) addresses, block quotes, horizontal rules. Single newlines are kept as line breaks, so existing plain
+  multi-line descriptions look the same as before. Nothing else (tables, footnotes...) is interpreted; it shows as written.
+- **Raw HTML is never interpreted.** The parser has HTML switched off, so `<b>x</b>` or an HTML block reaches the preview as literal text.
+- **Images are never loaded.** An offline desktop app makes no network fetches and reads no local files for a description, so an image
+  is shown as a link whose text is the alt text ("image" when empty); it is clickable only under the link rule below.
+- **Limits** keep hostile or huge text from freezing the preview. The source is capped at 100,000 characters. Blocks, list entries
+  and inline nodes share a 2,000-node limit and a 100,000-character display text limit that includes expanded link addresses.
+  Containers nested deeper than 16 levels show as plain text. Input Markdig refuses as too deeply nested is shown verbatim as a
+  code block. A notice line says when the preview was cut short. The stored text is never changed.
+
+**Opening links.** Links in the preview open in the OS default handler through `ILinkLauncher` (Presentation; Avalonia's `Launcher` in
+App.Desktop, a fake in tests), and **only for `http`, `https` and `mailto`** (`LinkPolicy`, Core). Any other scheme (`file:`,
+`javascript:`, `ftp:`, custom schemes, relative paths) is shown as text followed by its address in parentheses and is not clickable; it
+is never launched, and the launcher checks the policy again itself. There is no confirmation dialog: the user wrote or pasted the text,
+and the address is shown in a tooltip. A failed launch shows a message. Both the preview and the Links list use the workspace's
+`OpenLinkCommand`.
+
+**Item links (attachments).** `ItemLink`: `Id` (Guid v7), `ItemId`, `Url` (at most 2000), `Title?` (at most 300), `SortOrder`,
+`CreatedAtUtc`; table `ItemLink`, index `(ItemId, SortOrder)`, foreign key to `TodoItem` with `ON DELETE CASCADE`. The migration is
+additive (`AddItemLinks`). It gives an existing custom field whose key is `link` the first free numeric suffix and rewrites references
+in saved searches whose scope includes that field, because `link` is now a built-in search key (§7.2).
+
+- **Rules** (`LinkPolicy`, one place for editor, services, import and the launcher): a trimmed, absolute `http`/`https` address with a
+  host, or a `mailto:` address. Whitespace and control characters inside the address are rejected. An item holds at most 100 links.
+  A blank title is stored as null.
+- **File attachments are out of scope.** The app stores no files and no paths; a `file://` link is rejected, not just unopenable.
+- **Editor.** The "Links" section lists the links (title or address, address underneath a title, tooltip, click opens) with move up,
+  move down, Edit and remove buttons, then an address box, a title box and Add link (Enter in a box also adds). Edit loads a link into
+  the boxes and the button becomes Update link. Cancel clears a pending entry or edit. Finish or cancel the current entry before
+  editing another link. A message under the boxes explains a rejected link. Link changes are part
+  of the item draft: they make the editor dirty, Revert restores the stored list, and Save writes them with the rest of the item. Text
+  still in the boxes at Save is added first; if it is invalid, Save is refused with "Fix the link marked in red first.".
+- **Save.** `ItemService.EditAsync(id, edit, values, links)`: a non-null `links` replaces the whole list in the same unit of work
+  (matched by id: updated, removed or added; the list order becomes the sort order); null leaves the links alone. One save is one
+  undo step.
+- **Undo (§7.8).** `ItemLink` rows are collected by the undo row collector like item field values, so undo and redo re-insert, update
+  and delete them, and a changed link makes the step refuse ("This item changed since; can't undo.").
+- **Trash (§7.6).** Links stay with a soft-deleted item (nothing loads them while it is deleted), come back with a restore, and
+  disappear with a permanent delete through the foreign key cascade.
+- **Search (§7.2).** A built-in text field `link` ("Links") matches the address or title of any of the item's links: **Contains**
+  (case-insensitive, literal), **IsEmpty**, **IsNotEmpty**; Equals and NotEquals are not offered for it. Links are not part of the
+  full-text index (that would mean new triggers on another table for little gain); `link~wiki` or the filter row finds them.
+- **Import and export (§7.9).** JSON: an item may carry `"links": [{"url": "...", "title": "..."}]` in list order, left out when empty.
+  This is an optional property inside **version 1**: version 1 files without it import as before, and an older reader would simply
+  ignore it, so the version number is not bumped. Import validates each entry with the editor's rules (path `...items[3].links[0]`),
+  also `null` entries and more than 100 links, and creates the links with new ids. CSV: a `Links` column holds the addresses separated by
+  single spaces (titles are not written); import reads it, each address validated like an editor link (`Row 4, Links`). A custom field
+  named "Links" is written as "Links (field)" like any other fixed-header collision.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -856,7 +923,7 @@ The Search page's "Export results (CSV)" re-runs the last search without the 200
      - Open items as an expandable tree, each row showing checkbox, type icon, title,
        ticket, priority, due/scheduled date, with (rolled-up) urgency background.
      - **Completed (n)** expander at the bottom, collapsed by default (§6.2).
-   - **Right:** detail editor for the selected item (all fields, sub-item list).
+   - **Right:** detail editor for the selected item (all fields, the Markdown description with Edit and Preview, links, sub-item list; §7.10).
    - Breadcrumb at top: `Home › Billing DB › dbo › Tables`.
 3. **App Settings** — global auto-complete and urgency thresholds; manage item types and
    priority levels (add, rename, drag to reorder, archive).
@@ -959,11 +1026,50 @@ When one of these is picked up, its agreed design replaces the sections it confl
 - ~~Trash view with restore~~ (done, §7.6).
 - Reminders / OS notifications for approaching deadlines.
 - Recurring items.
-- Markdown descriptions; attachments/links.
+- ~~Markdown descriptions; attachments/links~~ (done, §7.10; file attachments stay out of scope).
 - ~~Saved searches and the text query syntax~~ (done, §7.7).
 - ~~Undo/redo for recent actions~~ (done, §7.8).
 - ~~Import/export (JSON, CSV)~~ (done, §7.9).
 - Packaged installers per OS (MSIX/Velopack on Windows, .app on macOS, AppImage on Linux).
+- **Quick reschedule from the context menu.** Right-click an item (tree, search results,
+  calendar) and choose "Push back one day", which moves its due date (and its scheduled
+  block, if any) one day later. A labelled undo step, with a keyboard equivalent.
+- **Tickets view.** A list of tickets in the order the owner wants to work on them. A
+  ticket is an open item that has a ticket number (confirmed by the owner; an explicit
+  ticket flag may come later but is not needed now).
+  - **Numbered priority levels.** Extend the existing Priority field (§6.2) so it supports
+    numbered levels (e.g. 1, 2, 3) alongside or instead of the named ones. This is the
+    same Priority used everywhere, not a separate ticket priority.
+  - **A level's number is not its rank.** The number is only a label, and the level's
+    sort order is set separately. For example, the owner's levels rank 1, 7, 2, ...: level
+    7 sits between 1 and 2. Nothing may sort or compare levels by number; the number
+    and the sort order must be editable independently. Tests cover a non-monotonic
+    mapping like 1, 7, 2.
+  - **Ordering.** Items with no priority come first, ordered only by drag and drop. Below
+    them are the prioritized items, grouped into one section per level in level sort
+    order, and within a section by drag-and-drop order. The drag order is stored
+    separately from the tree order.
+  - **Dropping into a section.** Dragging an item to a spot below a prioritized item puts
+    it in that section and sets its Priority to that level. Assumption: dragging an item
+    up into the no-priority group clears its Priority. Every drop has a keyboard
+    equivalent.
+  - **Context menu.** "Set priority" on each item. If the level changes, the item moves to
+    the bottom of the drag order in its new section.
+  - Priority changes made here are labelled undo steps.
+- **Today view (done today).** Shows the items completed today (local day, §5.4) that are
+  still completed: an item checked off today and then unchecked does not appear.
+  - Completed sub-items are grouped under their parent and collapsed by default.
+  - A parent that is not itself completed still appears, as context, so its completed
+    children are shown. It is expanded rather than collapsed, and visibly marked as
+    not completed.
+- **Undo everywhere it is feasible.** Audit every operation that changes user data and make
+  it a labelled undo step (§7.8) wherever it can work reliably. This covers settings,
+  lookup and field management, priority levels, links, trash actions and the new views.
+  Each feature added from here on ships with undo unless that is infeasible. Operations
+  left out, such as import (§7.9) and permanent purge, are listed in §7.8 with the
+  reason.
+- **Task stack.** Requested by the owner; scope and behaviour still to be agreed. Discuss
+  with the owner before designing or building it.
 - Mobile or browser head (Avalonia supports both) reusing the Presentation project.
 - Optional sync/shared database (adds time-zone ids, §5.4).
 

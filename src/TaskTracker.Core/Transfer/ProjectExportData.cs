@@ -10,4 +10,5 @@ internal sealed record ProjectExportData(
     IReadOnlyList<Folder> Folders,
     IReadOnlyList<TodoItem> Items,
     IReadOnlyList<ItemFieldValue> Values,
+    IReadOnlyList<ItemLink> Links,
     IReadOnlyDictionary<string, string> Settings);

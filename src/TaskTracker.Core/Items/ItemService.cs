@@ -68,9 +68,22 @@ public sealed class ItemService(
         return await work.Fields.ValuesAsync(id, cancellationToken);
     }
 
-    /// <summary>Edits built-in fields and only the listed custom fields in one save; blank values remove their rows.</summary>
+    /// <summary>Loads the links of one active item in display order.</summary>
+    public async Task<IReadOnlyList<ItemLink>> LoadLinksAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var work = unitOfWorkFactory.Begin();
+        _ = await work.Items.FindAsync(id, cancellationToken)
+            ?? throw new DomainRuleException("Item is missing or deleted.");
+        return await work.Items.LinksAsync(id, cancellationToken);
+    }
+
+    /// <summary>
+    /// Edits built-in fields and only the listed custom fields in one save; blank values remove their rows.
+    /// A non-null <paramref name="links"/> replaces the item's whole link list in the same save (one undo step);
+    /// null leaves the links alone.
+    /// </summary>
     public async Task EditAsync(Guid id, ItemEdit edit, IReadOnlyList<FieldValueInput> values,
-        CancellationToken cancellationToken = default)
+        IReadOnlyList<ItemLinkInput>? links = null, CancellationToken cancellationToken = default)
     {
         using var lease = await gate.EnterAsync(cancellationToken);
         values = values.Select(Normalize).ToArray();
@@ -79,6 +92,12 @@ public sealed class ItemService(
             ?? throw new DomainRuleException("Item is missing or deleted.");
         ValidateEdit(edit);
         await ApplyValueChangesAsync(work, item, values, cancellationToken);
+
+        if (links is not null)
+        {
+            await ItemLinkEditor.ApplyAsync(work.Items, id, links, clock, cancellationToken);
+        }
+
         ApplyEdit(item, edit);
         await work.SaveChangesAsync(UndoLabels.Edit(item.Title), cancellationToken);
     }

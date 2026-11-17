@@ -25,6 +25,7 @@ internal sealed class CsvRowReader(
         var (start, end) = ReadSchedule();
         var completedAt = ReadCompletion();
         var values = ReadFieldValues();
+        var linkUrls = ReadLinks();
 
         if (issues.Count != problemsBefore)
         {
@@ -32,7 +33,7 @@ internal sealed class CsvRowReader(
         }
 
         return new CsvImportRow(record.RowNumber, title, ReadDescription(), ticket, typeId, priorityId,
-            dueDate, dueTime, start, end, completedAt, values);
+            dueDate, dueTime, start, end, completedAt, values, linkUrls);
     }
 
     private string Cell(string column)
@@ -254,6 +255,74 @@ internal sealed class CsvRowReader(
         value = yes.Contains(text, StringComparer.OrdinalIgnoreCase);
 
         return value || no.Contains(text, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Reads the Links cell: addresses separated by whitespace, each checked like an editor link.</summary>
+    private List<string> ReadLinks()
+    {
+        var cell = Cell(CsvColumns.Links);
+        var addresses = new List<Range>();
+
+        if (!TryReadLinkRanges(cell, addresses))
+        {
+            Fail(CsvColumns.Links, $"An item may have at most {LinkPolicy.MaxLinksPerItem} links.");
+            return [];
+        }
+
+        var urls = addresses.Select(address => cell[address]).ToList();
+        ValidateLinks(urls);
+        return urls;
+    }
+
+    private void ValidateLinks(List<string> urls)
+    {
+        foreach (var url in urls)
+        {
+            var problem = LinkPolicy.Validate(url, null);
+
+            if (problem is null)
+            {
+                continue;
+            }
+
+            if (header.HasCustomLinksField)
+            {
+                Fail(CsvColumns.Links, "The Links column is ambiguous. It expects link addresses. "
+                    + "If this column holds values for the custom field, rename the header to 'Links (field)'.");
+                return;
+            }
+
+            Fail(CsvColumns.Links, $"'{url}': {problem}");
+        }
+    }
+
+    private static bool TryReadLinkRanges(string cell, List<Range> addresses)
+    {
+        var position = 0;
+
+        while (position < cell.Length)
+        {
+            if (char.IsWhiteSpace(cell[position]))
+            {
+                position++;
+                continue;
+            }
+
+            if (addresses.Count == LinkPolicy.MaxLinksPerItem)
+            {
+                return false;
+            }
+
+            var start = position++;
+            while (position < cell.Length && !char.IsWhiteSpace(cell[position]))
+            {
+                position++;
+            }
+
+            addresses.Add(start..position);
+        }
+
+        return true;
     }
 
     private List<FieldValueInput> ReadFieldValues()

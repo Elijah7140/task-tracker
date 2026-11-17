@@ -99,7 +99,8 @@ internal sealed class CsvExporter(ExportCatalogue catalogue)
             Utc(item.CompletedAtUtc),
             CsvCells.Protect(rows.Project.Project.Name),
             CsvCells.Protect(rows.FolderPath(item)),
-            CsvCells.Protect(rows.ParentTitle(item))
+            CsvCells.Protect(rows.ParentTitle(item)),
+            string.Join(" ", rows.LinksOf(item).Select(link => link.Url))
         };
 
         cells.AddRange(columns.Select(column => FieldCell(rows, item, column)));
@@ -152,12 +153,14 @@ internal sealed class CsvExporter(ExportCatalogue catalogue)
         private readonly Dictionary<Guid, string> folderPaths = [];
         private readonly Dictionary<Guid, TodoItem> itemsById;
         private readonly ILookup<Guid, ItemFieldValue> valuesByItem;
+        private readonly ILookup<Guid, ItemLink> linksByItem;
 
         public ProjectRows(ProjectExportData project)
         {
             Project = project;
             itemsById = project.Items.ToDictionary(item => item.Id);
             valuesByItem = project.Values.ToLookup(value => value.ItemId);
+            linksByItem = project.Links.ToLookup(link => link.ItemId);
             var foldersById = project.Folders.ToDictionary(folder => folder.Id);
 
             foreach (var folder in project.Folders)
@@ -176,6 +179,11 @@ internal sealed class CsvExporter(ExportCatalogue catalogue)
         public string ParentTitle(TodoItem item)
         {
             return item.ParentItemId is Guid parentId ? itemsById[parentId].Title : string.Empty;
+        }
+
+        public IEnumerable<ItemLink> LinksOf(TodoItem item)
+        {
+            return linksByItem[item.Id].OrderBy(link => link.SortOrder);
         }
 
         public IEnumerable<ItemFieldValue> ValuesOf(TodoItem item)
