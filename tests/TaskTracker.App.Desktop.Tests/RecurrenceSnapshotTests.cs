@@ -12,7 +12,7 @@ using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests;
 
-/// <summary>Windows snapshots of the Repeat section and the workspace repeat marker.</summary>
+/// <summary>Snapshots of the Repeat section and the workspace repeat marker.</summary>
 public sealed class RecurrenceSnapshotTests
 {
     [AvaloniaTheory]
@@ -22,7 +22,6 @@ public sealed class RecurrenceSnapshotTests
     [InlineData(true, true)]
     public async Task Weekly_recurrence_matches_the_approved_image(bool dark, bool showEditor)
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "The recurrence snapshot baselines are approved on Windows.");
         using var services = await TestServices.CreateAsync();
         var projectId = await SeedAsync(services);
         var shell = services.GetRequiredService<MainWindowViewModel>();
