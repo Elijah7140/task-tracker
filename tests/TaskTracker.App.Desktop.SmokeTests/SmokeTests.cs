@@ -19,6 +19,82 @@ public sealed class SmokeTests
     private static readonly DateTime ReviewDate = new(2026, 11, 20);
 
     [Fact]
+    public void Calendar_shows_due_and_scheduled_items_and_opens_one()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            OpenProject(session);
+            AddItem(session, "Calendar due item");
+            session.FindNamed("ItemTitleButton", "Calendar due item").Click();
+            ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(ReviewDate));
+            session.Press(VirtualKeyShort.TAB);
+            session.Find("EditorSaveButton").AsButton().Invoke();
+
+            AddItem(session, "Calendar scheduled item");
+            session.FindNamed("ItemTitleButton", "Calendar scheduled item").Click();
+            ReplaceText(session, PickerEdit(session, "EditorStartDatePicker"), FormatDate(ReviewDate));
+            session.Press(VirtualKeyShort.TAB);
+            session.Find("EditorSaveButton").AsButton().Invoke();
+
+            session.Find("WorkspaceCalendarButton").AsButton().Invoke();
+            session.SelectByName("CalendarScopeComboBox", "This project");
+            session.FindText("Calendar due item");
+            session.FindText("00:00 Calendar scheduled item");
+            session.Find("CalendarWeekButton").AsButton().Invoke();
+            session.Find("CalendarNextButton").AsButton().Invoke();
+            session.FindText("Calendar due item");
+            session.FindText("Calendar scheduled item");
+            session.FindNamed("CalendarEntryButton", "Calendar due item").AsButton().Invoke();
+            Assert.Equal("Calendar due item", session.Find("EditorTitleBox").AsTextBox().Text);
+        });
+    }
+
+    [Fact]
+    public void Calendar_entry_moves_with_Alt_arrow_keys_and_the_item_shows_the_new_date()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            var today = DateTime.Today;
+            OpenCalendarWithDueItem(session, "Keyboard move item", today);
+
+            session.FindNamed("CalendarEntryButton", "Keyboard move item").Focus();
+            session.TypeChord(VirtualKeyShort.ALT, VirtualKeyShort.RIGHT);
+            session.WaitUntil(() => IsInCalendarCell(session, "Keyboard move item", today.AddDays(1)),
+                "the entry to move to tomorrow");
+            session.TypeChord(VirtualKeyShort.ALT, VirtualKeyShort.RIGHT);
+            session.WaitUntil(() => IsInCalendarCell(session, "Keyboard move item", today.AddDays(2)),
+                "the entry to move one more day");
+
+            session.FindNamed("CalendarEntryButton", "Keyboard move item").AsButton().Invoke();
+            var shownDate = PickerEdit(session, "EditorDueDatePicker").AsTextBox().Text;
+            Assert.Equal(FormatDate(today.AddDays(2)), shownDate);
+        });
+    }
+
+    [Fact]
+    public void Calendar_entry_moves_with_a_real_mouse_drag_and_the_item_shows_the_new_date()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            var today = DateTime.Today;
+            OpenCalendarWithDueItem(session, "Mouse move item", today);
+            var entry = session.FindNamed("CalendarEntryButton", "Mouse move item");
+            var targetCell = session.FindNamed("CalendarDayCell", today.AddDays(2).ToString("yyyy-MM-dd"));
+
+            Mouse.Drag(entry.BoundingRectangle.Center(), targetCell.BoundingRectangle.Center());
+            session.WaitUntil(() => IsInCalendarCell(session, "Mouse move item", today.AddDays(2)),
+                "the entry to land two days later");
+
+            session.FindNamed("CalendarEntryButton", "Mouse move item").AsButton().Invoke();
+            var shownDate = PickerEdit(session, "EditorDueDatePicker").AsTextBox().Text;
+            Assert.Equal(FormatDate(today.AddDays(2)), shownDate);
+        });
+    }
+
+    [Fact]
     public void Search_matches_builtin_priority_and_custom_number_then_opens_result()
     {
         Run(session =>
@@ -238,6 +314,29 @@ public sealed class SmokeTests
         }
     }
 
+    /// <summary>Creates a project with one item due on the date and opens the month calendar of that project.</summary>
+    private static void OpenCalendarWithDueItem(SmokeSession session, string title, DateTime due)
+    {
+        OpenProject(session);
+        AddItem(session, title);
+        session.FindNamed("ItemTitleButton", title).Click();
+        ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(due));
+        session.Press(VirtualKeyShort.TAB);
+        session.Find("EditorSaveButton").AsButton().Invoke();
+        session.Find("WorkspaceCalendarButton").AsButton().Invoke();
+        session.SelectByName("CalendarScopeComboBox", "This project");
+        session.FindNamed("CalendarEntryButton", title);
+    }
+
+    /// <summary>True when the entry button sits inside the month cell of the given day.</summary>
+    private static bool IsInCalendarCell(SmokeSession session, string title, DateTime day)
+    {
+        var cell = session.Window.FindAllDescendants(query => query.ByAutomationId("CalendarDayCell"))
+            .FirstOrDefault(candidate => candidate.Name == day.ToString("yyyy-MM-dd"));
+        var entry = cell?.FindFirstDescendant(query => query.ByAutomationId("CalendarEntryButton"));
+        return entry is not null && entry.Name == title;
+    }
+
     private static void CreateProject(SmokeSession session)
     {
         session.Find("NewProjectButton").Click();
@@ -275,7 +374,12 @@ public sealed class SmokeTests
     /// <summary>The text box inside the editor's custom date picker.</summary>
     private static AutomationElement DatePickerEdit(SmokeSession session)
     {
-        var picker = session.Find("EditorCustomDatePicker");
+        return PickerEdit(session, "EditorCustomDatePicker");
+    }
+
+    private static AutomationElement PickerEdit(SmokeSession session, string automationId)
+    {
+        var picker = session.Find(automationId);
 
         return picker.FindFirstDescendant(query => query.ByControlType(ControlType.Edit))
             ?? throw new InvalidOperationException("The date picker has no text box.");

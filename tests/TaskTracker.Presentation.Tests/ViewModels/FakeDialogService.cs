@@ -12,6 +12,11 @@ internal sealed class FakeDialogService : IDialogService
 
     public FolderChoice? FolderResult { get; set; }
 
+    public int DraftPromptCount { get; private set; }
+
+    /// <summary>When set, the draft question stays open until the test completes it.</summary>
+    public TaskCompletionSource<DraftDecision>? DraftGate { get; set; }
+
     public List<string> Messages { get; } = [];
 
     public List<string> ConfirmTitles { get; } = [];
@@ -30,7 +35,9 @@ internal sealed class FakeDialogService : IDialogService
 
     public Task<DraftDecision> ResolveDraftAsync()
     {
-        return Task.FromResult(DraftResult);
+        DraftPromptCount++;
+
+        return DraftGate?.Task ?? Task.FromResult(DraftResult);
     }
 
     public Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders)

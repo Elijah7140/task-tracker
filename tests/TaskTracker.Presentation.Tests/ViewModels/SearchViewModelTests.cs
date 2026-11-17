@@ -149,8 +149,8 @@ public sealed class SearchViewModelTests
         await store.InitializeAsync();
         var page = await OpenPageFromHomeAsync(store);
         var row = AddRow(page, "due", FilterOperator.Between);
-        row.FirstDate = new DateTimeOffset(2026, 12, 15, 0, 0, 0, TimeSpan.Zero);
-        row.SecondDate = new DateTimeOffset(2026, 11, 15, 0, 0, 0, TimeSpan.Zero);
+        row.FirstDate = new DateTime(2026, 12, 15);
+        row.SecondDate = new DateTime(2026, 11, 15);
 
         await page.RunAsync();
 
@@ -161,41 +161,167 @@ public sealed class SearchViewModelTests
     }
 
     [Fact]
-    public async Task Date_range_in_order_searches_without_an_error()
+    public async Task Date_range_in_order_finds_exactly_the_items_due_inside_it_boundaries_included()
     {
         await using var store = new PresentationTestStore();
         await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        await CreateItemAsync(store, project.Id, "Before range", due: new DateOnly(2026, 11, 14));
+        await CreateItemAsync(store, project.Id, "First day", due: new DateOnly(2026, 11, 15));
+        await CreateItemAsync(store, project.Id, "Middle", due: new DateOnly(2026, 11, 30));
+        await CreateItemAsync(store, project.Id, "Last day", due: new DateOnly(2026, 12, 15));
+        await CreateItemAsync(store, project.Id, "After range", due: new DateOnly(2026, 12, 16));
+        await CreateItemAsync(store, project.Id, "No due date");
         var page = await OpenPageFromHomeAsync(store);
         var row = AddRow(page, "due", FilterOperator.Between);
-        row.FirstDate = new DateTimeOffset(2026, 11, 15, 0, 0, 0, TimeSpan.Zero);
-        row.SecondDate = new DateTimeOffset(2026, 12, 15, 0, 0, 0, TimeSpan.Zero);
+        row.FirstDate = new DateTime(2026, 11, 15);
+        row.SecondDate = new DateTime(2026, 12, 15);
 
         await page.RunAsync();
 
         Assert.Null(page.Error);
-        Assert.True(page.ShowEmpty);
+        Assert.Equal(["First day", "Last day", "Middle"], TitlesOf(page));
     }
 
     [Fact]
-    public async Task Priority_range_runs_only_from_more_important_to_less_important()
+    public async Task Priority_range_finds_exactly_the_items_inside_it_from_more_to_less_important()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        var levels = (await store.Lookups.PriorityLevelsAsync()).OrderBy(level => level.SortOrder).ToList();
+        Assert.True(levels.Count >= 4);
+
+        foreach (var level in levels)
+        {
+            await CreateItemAsync(store, project.Id, $"Item {level.Name}", priorityId: level.Id);
+        }
+
+        await CreateItemAsync(store, project.Id, "No priority");
+        var page = await OpenPageFromHomeAsync(store);
+        var row = AddRow(page, "priority", FilterOperator.Between);
+        await row.ChoicesTask;
+        row.SelectedChoice = row.Choices.Single(choice => choice.Id == levels[1].Id);
+        row.SecondChoice = row.Choices.Single(choice => choice.Id == levels[2].Id);
+        Assert.True(page.CanSearch);
+
+        await page.RunAsync();
+
+        Assert.Null(page.Error);
+        Assert.Equal([$"Item {levels[1].Name}", $"Item {levels[2].Name}"], TitlesOf(page));
+    }
+
+    [Fact]
+    public async Task Priority_range_from_less_to_more_important_blocks_search()
     {
         await using var store = new PresentationTestStore();
         await store.InitializeAsync();
         var page = await OpenPageFromHomeAsync(store);
         var row = AddRow(page, "priority", FilterOperator.Between);
         await row.ChoicesTask;
-        var mostImportant = row.Choices.OrderBy(choice => choice.SortOrder).First();
-        var leastImportant = row.Choices.OrderBy(choice => choice.SortOrder).Last();
-        row.SelectedChoice = leastImportant;
-        row.SecondChoice = mostImportant;
+        var ranked = row.Choices.OrderBy(choice => choice.SortOrder).ToList();
+
+        row.SelectedChoice = ranked[^1];
+        row.SecondChoice = ranked[0];
 
         Assert.False(page.CanSearch);
+        Assert.Equal("Put the more important priority first.", row.ValueError);
+    }
 
-        row.SelectedChoice = mostImportant;
-        row.SecondChoice = leastImportant;
+    [Fact]
+    public async Task Number_range_finds_exactly_the_items_inside_it_and_skips_items_without_a_value()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        var effort = await store.Fields.CreateAsync("Effort", FieldDataType.Number, project.Id);
+        await CreateItemAsync(store, project.Id, "Too small", effort: (effort.Id, 1.9));
+        await CreateItemAsync(store, project.Id, "Lower bound", effort: (effort.Id, 2));
+        await CreateItemAsync(store, project.Id, "Inside", effort: (effort.Id, 3.5));
+        await CreateItemAsync(store, project.Id, "Upper bound", effort: (effort.Id, 5));
+        await CreateItemAsync(store, project.Id, "Too large", effort: (effort.Id, 5.1));
+        await CreateItemAsync(store, project.Id, "No effort");
+        var shell = SearchTestShell.Create(store);
+        await shell.OpenProjectAsync(project.Id);
+        await shell.OpenSearchAsync();
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        var row = AddRow(page, effort.Key, FilterOperator.Between);
+        row.FirstText = "2";
+        row.SecondText = "5";
+
         await page.RunAsync();
 
-        Assert.True(page.CanSearch);
+        Assert.Null(page.Error);
+        Assert.Equal(["Inside", "Lower bound", "Upper bound"], TitlesOf(page));
+    }
+
+    [Fact]
+    public async Task No_items_match_is_hidden_while_a_new_search_runs_and_shown_again_when_it_ends_empty()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var pending = new TaskCompletionSource<ItemSearchResults>();
+        var search = new FakeSearch(query => query.Text == "slow"
+            ? pending.Task
+            : Task.FromResult(new ItemSearchResults([], false)));
+        var page = SearchTestShell.CreatePage(store, search);
+        page.Text = "nothing";
+        await page.RunAsync();
+        Assert.True(page.ShowEmpty);
+        var changed = new List<string?>();
+        page.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        page.Text = "slow";
+
+        var running = page.RunAsync();
+
+        Assert.True(page.IsBusy);
+        Assert.False(page.ShowEmpty);
+        Assert.Contains(nameof(SearchViewModel.ShowEmpty), changed);
+        changed.Clear();
+        pending.SetResult(new ItemSearchResults([], false));
+        await running;
+        Assert.True(page.ShowEmpty);
+        Assert.Contains(nameof(SearchViewModel.ShowEmpty), changed);
+    }
+
+    [Fact]
+    public async Task A_second_activation_while_one_is_pending_is_ignored_and_the_next_one_works()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        var navigation = new FakeNavigationService { ResultGate = new TaskCompletionSource<SearchOpenOutcome>() };
+        var search = new FakeSearch(_ => Task.FromResult(new ItemSearchResults([Hit(project.Id, "Review")], false)));
+        var page = SearchTestShell.CreatePage(store, search, navigation);
+        await page.RunAsync();
+        var row = page.Results.Single();
+
+        page.OpenResultCommand.Execute(row);
+        await page.OpenResultAsync(row);
+
+        Assert.Equal(1, navigation.ResultRequests);
+        navigation.ResultGate.SetResult(SearchOpenOutcome.Cancelled);
+        navigation.ResultGate = null;
+        await page.OpenResultAsync(row);
+        Assert.Equal(2, navigation.ResultRequests);
+    }
+
+    [Fact]
+    public async Task Activation_answered_after_the_page_was_disposed_reports_nothing()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        var navigation = new FakeNavigationService { ResultGate = new TaskCompletionSource<SearchOpenOutcome>() };
+        var search = new FakeSearch(_ => Task.FromResult(new ItemSearchResults([Hit(project.Id, "Review")], false)));
+        var page = SearchTestShell.CreatePage(store, search, navigation);
+        await page.RunAsync();
+        var activation = page.OpenResultAsync(page.Results.Single());
+
+        page.Dispose();
+        navigation.ResultGate.SetResult(SearchOpenOutcome.ItemMissing);
+        await activation;
+
         Assert.Null(page.Error);
     }
 
@@ -567,6 +693,26 @@ public sealed class SearchViewModelTests
         row.SelectedField = row.Fields.Single(field => field.Key == fieldKey);
         row.SelectedOperator = row.Operators.Single(option => option.Operator == operation);
         return row;
+    }
+
+    private static async Task CreateItemAsync(PresentationTestStore store, Guid projectId, string title,
+        DateOnly? due = null, Guid? priorityId = null, (Guid FieldId, double Value)? effort = null)
+    {
+        var item = await store.Items.CreateAsync(projectId, null, null, title);
+        var edit = new ItemEdit(title, null, null, null, priorityId, due, null, null, null);
+        var values = new List<FieldValueInput>();
+
+        if (effort is not null)
+        {
+            values.Add(new FieldValueInput(effort.Value.FieldId, NumberValue: effort.Value.Value));
+        }
+
+        await store.Items.EditAsync(item.Id, edit, values);
+    }
+
+    private static IReadOnlyList<string> TitlesOf(SearchViewModel page)
+    {
+        return page.Results.Select(result => result.Title).Order(StringComparer.Ordinal).ToList();
     }
 
     private static ItemSearchResult Hit(Guid projectId, string title)

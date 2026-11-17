@@ -397,6 +397,21 @@ public sealed class MainWindowTests
             return Task.CompletedTask;
         }
 
+        public Task OpenCalendarAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ReturnFromCalendarAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<SearchOpenOutcome> OpenCalendarItemAsync(Guid itemId)
+        {
+            return Task.FromResult(SearchOpenOutcome.Opened);
+        }
+
         public Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result)
         {
             return Task.FromResult(SearchOpenOutcome.Opened);

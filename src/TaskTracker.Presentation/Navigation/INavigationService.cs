@@ -16,6 +16,22 @@ public interface INavigationService
     Task ReturnFromSearchAsync();
 
     /// <summary>
+    /// Opens the calendar and remembers the page to return to. Opened from the search page, it
+    /// remembers the page search was opened from, so Back never lands on a closed search.
+    /// </summary>
+    Task OpenCalendarAsync();
+
+    /// <summary>Returns from the calendar to its originating page.</summary>
+    Task ReturnFromCalendarAsync();
+
+    /// <summary>
+    /// Opens the current workspace folder of a calendar item. The calendar stays open when the
+    /// item no longer exists, the user cancels leaving a page with unsaved changes, or the
+    /// calendar was left while the request was pending.
+    /// </summary>
+    Task<SearchOpenOutcome> OpenCalendarItemAsync(Guid itemId);
+
+    /// <summary>
     /// Opens the item behind a search result in its current folder. The search page stays open
     /// when the item no longer exists or the user cancels leaving a page with unsaved changes.
     /// </summary>

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
@@ -88,12 +89,19 @@ public sealed class SmokeSession : IDisposable
         return Window.FindFirstDescendant(query => query.ByName(name)) is not null;
     }
 
-    /// <summary>Picks the entry of a combo box whose displayed text matches the name.</summary>
+    /// <summary>
+    /// Picks the entry of a combo box whose displayed text matches the name, then closes the popup.
+    /// UI Automation's Select leaves the popup open (found by reading ExpandCollapseState, which
+    /// stays Expanded), and its light-dismiss layer swallows the next real mouse press.
+    /// </summary>
     public void SelectByName(string automationId, string entryName)
     {
         var comboBox = Find(automationId).AsComboBox();
         comboBox.Select(entryName);
         WaitUntil(() => comboBox.SelectedItem?.Name == entryName, $"{automationId} to show {entryName}");
+        comboBox.Collapse();
+        WaitUntil(() => comboBox.ExpandCollapseState == ExpandCollapseState.Collapsed,
+            $"{automationId} to close");
     }
 
     /// <summary>

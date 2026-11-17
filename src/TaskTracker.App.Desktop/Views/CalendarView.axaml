@@ -1,0 +1,202 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TaskTracker.App.Desktop.Views.CalendarView"
+             xmlns:converters="using:TaskTracker.App.Desktop.Converters"
+             xmlns:views="using:TaskTracker.App.Desktop.Views"
+             xmlns:vm="using:TaskTracker.Presentation.ViewModels"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <Style Selector="Button.calendarEntry">
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.calendarEntry.urgent TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource UrgencyForegroundBrush}" />
+    </Style>
+    <Style Selector="Border.monthCell">
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+      <Setter Property="Padding" Value="5" />
+    </Style>
+    <!-- Drop indicators: the thicker border replaces padding so the cell content does not shift. -->
+    <Style Selector="Border.monthCell.dropTarget">
+      <Setter Property="BorderThickness" Value="3" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="Padding" Value="3" />
+    </Style>
+    <!-- The all-day cell always reserves its 2px border, so highlighting it never changes the layout. -->
+    <Style Selector="Border.allDayCell">
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.allDayCell.dropTarget">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+    </Style>
+  </UserControl.Styles>
+  <UserControl.Resources>
+    <converters:UrgencyBrushConverter x:Key="UrgencyBrush" />
+    <converters:UrgencyWeightConverter x:Key="UrgencyWeight" />
+    <converters:CalendarDayBrushConverter x:Key="TodayBrush" />
+    <!-- One line: urgency label, then the title. Used by month cells and the week all-day row. -->
+    <DataTemplate x:Key="InlineEntryContent">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="4">
+        <TextBlock Text="{Binding UrgencyLabel}" IsVisible="{Binding HasUrgencyLabel}"
+                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding MonthLabel}" TextTrimming="CharacterEllipsis"
+                   FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}" />
+      </Grid>
+    </DataTemplate>
+    <!-- Two lines for time-grid blocks: urgency label above the title. -->
+    <DataTemplate x:Key="BlockEntryContent">
+      <StackPanel>
+        <TextBlock Text="{Binding UrgencyLabel}" IsVisible="{Binding HasUrgencyLabel}"
+                   FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                   FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
+  <Grid RowDefinitions="Auto,Auto,*" Margin="24" RowSpacing="12">
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+      <Button Content="← Back" Command="{Binding BackCommand}" AutomationProperties.AutomationId="CalendarBackButton" />
+      <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" VerticalAlignment="Center" />
+      <Button Grid.Column="2" x:Name="PreviousButton" Content="Previous" Command="{Binding PreviousCommand}" AutomationProperties.AutomationId="CalendarPreviousButton" />
+      <Button Grid.Column="3" Content="Today" Command="{Binding TodayCommand}" AutomationProperties.AutomationId="CalendarTodayButton" />
+      <Button Grid.Column="4" x:Name="NextButton" Content="Next" Command="{Binding NextCommand}" AutomationProperties.AutomationId="CalendarNextButton" />
+      <Button Grid.Column="5" Content="Month" Command="{Binding MonthCommand}" AutomationProperties.AutomationId="CalendarMonthButton" />
+      <Button Grid.Column="6" Content="Week" Command="{Binding WeekCommand}" AutomationProperties.AutomationId="CalendarWeekButton" />
+    </Grid>
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12">
+      <ComboBox Width="150" ItemsSource="{Binding ScopeOptions}" SelectedItem="{Binding SelectedScope, Mode=TwoWay}"
+                AutomationProperties.AutomationId="CalendarScopeComboBox" />
+      <CheckBox Grid.Column="1" Content="Include completed" IsChecked="{Binding IncludeCompleted, Mode=TwoWay}"
+                AutomationProperties.AutomationId="CalendarIncludeCompletedCheckBox" />
+      <TextBlock Grid.Column="2" Text="{Binding Error}" Foreground="{DynamicResource AppDangerBrush}"
+                 VerticalAlignment="Center" AutomationProperties.AutomationId="CalendarErrorText" />
+    </Grid>
+    <ScrollViewer Grid.Row="2" IsVisible="{Binding IsMonth}">
+      <ItemsControl ItemsSource="{Binding Days}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><UniformGrid Columns="7" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Classes="monthCell" MinHeight="72" Opacity="{Binding Opacity}" ClipToBounds="True"
+                    Background="{Binding IsToday, Converter={StaticResource TodayBrush}}"
+                    AutomationProperties.AutomationId="CalendarDayCell" AutomationProperties.AccessibilityView="Content"
+                    AutomationProperties.Name="{Binding IsoDate}">
+              <StackPanel Spacing="3">
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding VisibleEntries}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Classes="calendarEntry" Classes.urgent="{Binding HasUrgencyLabel}" Content="{Binding}"
+                              ContentTemplate="{StaticResource InlineEntryContent}"
+                              Background="{Binding Urgency, Converter={StaticResource UrgencyBrush}}"
+                              Opacity="{Binding Opacity}" ToolTip.Tip="{Binding Tooltip}"
+                              Command="{Binding $parent[UserControl].DataContext.OpenEntryCommand}"
+                              CommandParameter="{Binding}"
+                              AutomationProperties.AutomationId="CalendarEntryButton"
+                              AutomationProperties.Name="{Binding Label}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="{Binding MoreLabel}" IsVisible="{Binding HasMore}" Padding="3,1"
+                        Command="{Binding $parent[UserControl].DataContext.MoreCommand}" CommandParameter="{Binding}"
+                        AutomationProperties.AutomationId="CalendarMoreButton" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    <Grid Grid.Row="2" RowDefinitions="Auto,*" IsVisible="{Binding IsWeek}">
+      <ItemsControl ItemsSource="{Binding Days}" Margin="45,0,0,0">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><UniformGrid Columns="7" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Classes="allDayCell" Margin="0,0,0,4"
+                    Background="{Binding IsToday, Converter={StaticResource TodayBrush}}"
+                    AutomationProperties.AutomationId="CalendarAllDayCell" AutomationProperties.AccessibilityView="Content"
+                    AutomationProperties.Name="{Binding IsoDate}">
+              <StackPanel MinWidth="90" Spacing="2">
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding AllDayEntries}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Classes="calendarEntry" Classes.urgent="{Binding HasUrgencyLabel}" Content="{Binding}"
+                              ContentTemplate="{StaticResource InlineEntryContent}"
+                              Background="{Binding Urgency, Converter={StaticResource UrgencyBrush}}"
+                              Opacity="{Binding Opacity}" ToolTip.Tip="{Binding Tooltip}"
+                              Command="{Binding $parent[UserControl].DataContext.OpenEntryCommand}"
+                              CommandParameter="{Binding}"
+                              AutomationProperties.AutomationId="CalendarEntryButton"
+                              AutomationProperties.Name="{Binding Label}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <ScrollViewer Grid.Row="1" x:Name="WeekScroll">
+        <Grid ColumnDefinitions="45,*">
+          <ItemsControl ItemsSource="{x:Static vm:CalendarMetrics.HourLabels}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" Height="{x:Static vm:CalendarMetrics.HourHeight}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ItemsControl Grid.Column="1" x:Name="WeekColumns" ItemsSource="{Binding Days}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><UniformGrid Columns="7" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid Classes="timeColumn" Height="{x:Static vm:CalendarMetrics.DayHeight}" MinWidth="90"
+                      ClipToBounds="True" Background="{Binding IsToday, Converter={StaticResource TodayBrush}}"
+                      AutomationProperties.AutomationId="CalendarTimeColumn" AutomationProperties.AccessibilityView="Content"
+                      AutomationProperties.Name="{Binding IsoDate}">
+                  <views:CalendarHourLines IsHitTestVisible="False" />
+                  <ItemsControl ItemsSource="{Binding TimedEntries}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><views:CalendarTimedPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Button Classes="calendarEntry" Classes.urgent="{Binding HasUrgencyLabel}" Content="{Binding}"
+                                ContentTemplate="{StaticResource BlockEntryContent}"
+                                VerticalAlignment="Stretch" VerticalContentAlignment="Top"
+                                Height="{Binding Height}"
+                                Background="{Binding Urgency, Converter={StaticResource UrgencyBrush}}"
+                                Opacity="{Binding Opacity}" ToolTip.Tip="{Binding Tooltip}"
+                                Command="{Binding $parent[UserControl].DataContext.OpenEntryCommand}"
+                                CommandParameter="{Binding}"
+                                AutomationProperties.AutomationId="CalendarEntryButton"
+                                AutomationProperties.Name="{Binding Label}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <!-- Ghost block shown at the snapped drop time while an entry is dragged over the time grid. -->
+          <Grid x:Name="WeekDropGhost" Grid.Column="1" IsVisible="False" IsHitTestVisible="False"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
+                AutomationProperties.AutomationId="CalendarDropIndicator">
+            <Border Background="{DynamicResource SystemAccentColor}" Opacity="0.25" />
+            <Border BorderBrush="{DynamicResource SystemAccentColor}" BorderThickness="0,2,0,0" VerticalAlignment="Top" />
+            <TextBlock x:Name="WeekDropGhostLabel" Margin="4,3,0,0" FontWeight="SemiBold" VerticalAlignment="Top"
+                       AutomationProperties.AutomationId="CalendarDropTime" />
+          </Grid>
+        </Grid>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</UserControl>

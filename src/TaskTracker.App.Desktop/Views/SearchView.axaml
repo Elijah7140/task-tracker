@@ -53,9 +53,9 @@
                          IsVisible="{Binding IsNumber}" AutomationProperties.AutomationId="FilterValueNumberBox" />
                 <TextBox Width="120" Margin="0,0,8,4" Text="{Binding SecondText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                          IsVisible="{Binding IsSecondNumber}" AutomationProperties.AutomationId="FilterValueSecondNumberBox" />
-                <DatePicker Width="220" Margin="0,0,8,4" SelectedDate="{Binding FirstDate, Mode=TwoWay}" IsVisible="{Binding IsDate}"
+                <CalendarDatePicker Width="220" Margin="0,0,8,4" SelectedDate="{Binding FirstDate, Mode=TwoWay}" IsVisible="{Binding IsDate}"
                             AutomationProperties.AutomationId="FilterValueDatePicker" />
-                <DatePicker Width="220" Margin="0,0,8,4" SelectedDate="{Binding SecondDate, Mode=TwoWay}" IsVisible="{Binding IsSecondDate}"
+                <CalendarDatePicker Width="220" Margin="0,0,8,4" SelectedDate="{Binding SecondDate, Mode=TwoWay}" IsVisible="{Binding IsSecondDate}"
                             AutomationProperties.AutomationId="FilterValueSecondDatePicker" />
                 <ComboBox Width="160" Margin="0,0,8,4" ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
                           ItemTemplate="{StaticResource LabelItemTemplate}" IsVisible="{Binding IsChoice}"

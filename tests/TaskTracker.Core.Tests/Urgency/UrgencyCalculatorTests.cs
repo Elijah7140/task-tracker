@@ -181,4 +181,66 @@ public sealed class UrgencyCalculatorTests
         Assert.Equal(UrgencyLevel.Overdue, actual.Value);
         Assert.Equal(child.Id, actual.SourceDescendantId);
     }
+
+    [Theory]
+    [InlineData(-1, UrgencyLevel.Overdue)]
+    [InlineData(0, UrgencyLevel.Imminent)]
+    [InlineData(24, UrgencyLevel.Imminent)]
+    [InlineData(25, UrgencyLevel.Approaching)]
+    [InlineData(72, UrgencyLevel.Approaching)]
+    [InlineData(73, UrgencyLevel.None)]
+    public void Deadline_overload_classifies_hours_remaining(int hoursRemaining, UrgencyLevel expected)
+    {
+        var thresholds = new UrgencyThresholds(TimeSpan.FromDays(3), TimeSpan.FromHours(24));
+        var deadline = Now.AddHours(hoursRemaining);
+
+        var actual = UrgencyCalculator.Calculate(deadline, Now, thresholds);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Deadline_overload_without_a_deadline_has_no_urgency()
+    {
+        var thresholds = new UrgencyThresholds(TimeSpan.FromDays(3), TimeSpan.FromHours(24));
+
+        var actual = UrgencyCalculator.Calculate((DateTime?)null, Now, thresholds);
+
+        Assert.Equal(UrgencyLevel.None, actual);
+    }
+
+    [Fact]
+    public void Deadline_overload_clamps_yellow_through_the_thresholds()
+    {
+        var thresholds = new UrgencyThresholds(TimeSpan.FromHours(1), TimeSpan.FromHours(24));
+
+        var actual = UrgencyCalculator.Calculate(Now.AddHours(20), Now, thresholds);
+
+        Assert.Equal(UrgencyLevel.Imminent, actual);
+    }
+
+    [Fact]
+    public void Effective_deadline_prefers_due_date_and_treats_a_missing_time_as_end_of_day()
+    {
+        var due = new DateOnly(2026, 11, 14);
+        var scheduled = new DateTime(2026, 11, 13, 9, 0, 0);
+
+        var dateOnly = UrgencyCalculator.EffectiveDeadline(due, null, scheduled, TimeZoneInfo.Utc);
+        var timed = UrgencyCalculator.EffectiveDeadline(due, new TimeOnly(8, 30), scheduled, TimeZoneInfo.Utc);
+
+        Assert.Equal(due.ToDateTime(TimeOnly.MaxValue), dateOnly);
+        Assert.Equal(new DateTime(2026, 11, 14, 8, 30, 0), timed);
+    }
+
+    [Fact]
+    public void Effective_deadline_falls_back_to_the_scheduled_start_then_to_none()
+    {
+        var scheduled = new DateTime(2026, 11, 13, 9, 0, 0);
+
+        var fromSchedule = UrgencyCalculator.EffectiveDeadline(null, null, scheduled, TimeZoneInfo.Utc);
+        var none = UrgencyCalculator.EffectiveDeadline(null, null, null, TimeZoneInfo.Utc);
+
+        Assert.Equal(scheduled, fromSchedule);
+        Assert.Null(none);
+    }
 }

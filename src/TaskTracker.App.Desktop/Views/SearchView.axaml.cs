@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 using TaskTracker.Presentation.ViewModels;
 
@@ -22,28 +24,48 @@ public sealed partial class SearchView : UserControl
         SearchTextBox.Focus();
     }
 
-    private async void OnResultPointerPressed(object? sender, PointerPressedEventArgs args)
+    private void OnResultPointerPressed(object? sender, PointerPressedEventArgs args)
     {
-        if (args.ClickCount == 2)
+        if (!IsLeftDoubleClick(args))
+        {
+            return;
+        }
+
+        var row = ResultRowUnder(args);
+
+        if (row?.DataContext is SearchResultViewModel result)
         {
             args.Handled = true;
-            await OpenSelectedAsync();
+            OpenResult(result);
         }
     }
 
-    private async void OnResultKeyDown(object? sender, KeyEventArgs args)
+    private void OnResultKeyDown(object? sender, KeyEventArgs args)
     {
         if (args.Key == Key.Enter)
         {
             args.Handled = true;
-            await OpenSelectedAsync();
+            OpenResult(SearchResultsList.SelectedItem as SearchResultViewModel);
         }
     }
 
-    private Task OpenSelectedAsync()
+    private bool IsLeftDoubleClick(PointerPressedEventArgs args)
     {
-        return DataContext is SearchViewModel search && SearchResultsList.SelectedItem is SearchResultViewModel row
-            ? search.OpenResultAsync(row)
-            : Task.CompletedTask;
+        var point = args.GetCurrentPoint(SearchResultsList);
+        return args.ClickCount == 2 && point.Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed;
+    }
+
+    /// <summary>The result row the pointer is over, or null for empty space in the list.</summary>
+    private static ListBoxItem? ResultRowUnder(PointerPressedEventArgs args)
+    {
+        return (args.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
+    }
+
+    private void OpenResult(SearchResultViewModel? result)
+    {
+        if (DataContext is SearchViewModel search && search.OpenResultCommand.CanExecute(result))
+        {
+            search.OpenResultCommand.Execute(result);
+        }
     }
 }

@@ -14,14 +14,19 @@ public static class UrgencyCalculator
             return Urgency.None;
         }
 
-        var deadline = EffectiveDeadline(item, zone);
+        var deadline = EffectiveDeadline(item.DueDate, item.DueTime, item.ScheduledStart, zone);
+        return Calculate(deadline, nowUtc, thresholds);
+    }
 
-        if (deadline is null)
+    /// <summary>Classifies a resolved UTC deadline; no deadline means no urgency.</summary>
+    public static Urgency Calculate(DateTime? deadlineUtc, DateTime nowUtc, UrgencyThresholds thresholds)
+    {
+        if (deadlineUtc is null)
         {
             return Urgency.None;
         }
 
-        var remaining = deadline.Value - nowUtc;
+        var remaining = deadlineUtc.Value - nowUtc;
 
         if (remaining < TimeSpan.Zero)
         {
@@ -34,6 +39,26 @@ public static class UrgencyCalculator
         }
 
         return remaining <= thresholds.Yellow ? Urgency.Approaching : Urgency.None;
+    }
+
+    /// <summary>
+    /// Resolves the effective deadline (§6.3): the due date and time when set, otherwise the
+    /// scheduled start, otherwise none.
+    /// </summary>
+    public static DateTime? EffectiveDeadline(DateOnly? dueDate, TimeOnly? dueTime,
+        DateTime? scheduledStart, TimeZoneInfo zone)
+    {
+        if (dueDate is DateOnly date)
+        {
+            return FloatingTime.ToUtc(date, dueTime, zone);
+        }
+
+        if (scheduledStart is DateTime start)
+        {
+            return FloatingTime.ToUtc(start, zone);
+        }
+
+        return null;
     }
 
     /// <summary>Finds the most urgent active item in a branch and identifies its source.</summary>
@@ -77,20 +102,5 @@ public static class UrgencyCalculator
         }
 
         return new DisplayedUrgency(best, source);
-    }
-
-    private static DateTime? EffectiveDeadline(TodoItem item, TimeZoneInfo zone)
-    {
-        if (item.DueDate is DateOnly dueDate)
-        {
-            return FloatingTime.ToUtc(dueDate, item.DueTime, zone);
-        }
-
-        if (item.ScheduledStart is DateTime scheduledStart)
-        {
-            return FloatingTime.ToUtc(scheduledStart, zone);
-        }
-
-        return null;
     }
 }

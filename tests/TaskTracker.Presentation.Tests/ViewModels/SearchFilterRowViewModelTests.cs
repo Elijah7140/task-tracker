@@ -125,7 +125,7 @@ public sealed class SearchFilterRowViewModelTests
         row.SelectedChoice = row.Choices.First();
         row.SecondChoice = row.Choices.Last();
         row.FirstText = "left over";
-        row.FirstDate = new DateTimeOffset(2026, 11, 15, 0, 0, 0, TimeSpan.Zero);
+        row.FirstDate = new DateTime(2026, 11, 15);
         row.BooleanValue = true;
 
         row.SelectedField = row.Fields.Single(field => field.Key == "type");
