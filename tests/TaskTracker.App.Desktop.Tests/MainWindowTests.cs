@@ -363,9 +363,21 @@ public sealed class MainWindowTests
             return Task.FromResult(DraftDecision.Cancel);
         }
 
-        public Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders)
+        public Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders,
+            string label = "Move into", string confirmText = "Move")
         {
             return Task.FromResult<FolderChoice?>(null);
+        }
+
+        public Task<int?> ChooseAsync(string title, string label, IReadOnlyList<string> options,
+            string confirmText = "Choose")
+        {
+            return Task.FromResult<int?>(null);
+        }
+
+        public Task<bool> ShowImportPreviewAsync(CsvImportPreviewViewModel preview)
+        {
+            return Task.FromResult(false);
         }
 
         public Task ShowMessageAsync(string title, string message)

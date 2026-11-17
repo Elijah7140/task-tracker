@@ -18,12 +18,13 @@ public sealed class HomeViewModel : ViewModelBase
     private readonly INavigationService navigation;
 
     public HomeViewModel(ProjectService projects, IDialogService dialogs, INavigationService navigation,
-        SavedSearchService? savedSearches = null)
+        SavedSearchService? savedSearches = null, TransferServices? transfer = null)
     {
         this.projects = projects;
         this.dialogs = dialogs;
         this.navigation = navigation;
         SavedSearches = savedSearches is null ? null : new SavedSearchListViewModel(savedSearches, dialogs, navigation);
+        Transfer = CreateTransfer(transfer);
         CreateCommand = new AsyncRelayCommand(CreateAsync);
         OpenCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenAsync);
         RenameCommand = new AsyncRelayCommand<ProjectCardViewModel>(RenameAsync);
@@ -39,6 +40,9 @@ public sealed class HomeViewModel : ViewModelBase
 
     /// <summary>The saved searches shown as quick links, or null when saved searches are unavailable.</summary>
     public SavedSearchListViewModel? SavedSearches { get; }
+
+    /// <summary>The Import / Export menu, or null when import and export are unavailable.</summary>
+    public DataTransferViewModel? Transfer { get; }
 
     public bool IsEmpty => Cards.Count == 0;
 
@@ -148,6 +152,16 @@ public sealed class HomeViewModel : ViewModelBase
         {
             await navigation.OpenProjectSettingsAsync(card.Id);
         }
+    }
+
+    private DataTransferViewModel? CreateTransfer(TransferServices? services)
+    {
+        if (services is null)
+        {
+            return null;
+        }
+
+        return new DataTransferViewModel(services.Service, projects, dialogs, services.Files, LoadAsync);
     }
 
     private async Task RunAndRefreshAsync(Func<Task> action)

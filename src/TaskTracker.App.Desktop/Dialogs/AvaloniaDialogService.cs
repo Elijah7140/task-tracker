@@ -4,9 +4,10 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 
+using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Projects;
-
 using TaskTracker.Presentation.Navigation;
+using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Dialogs;
 
@@ -83,7 +84,8 @@ public sealed class AvaloniaDialogService : IDialogService
         return await window.ShowDialog<DraftDecision>(GetOwner());
     }
 
-    public async Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders)
+    public async Task<FolderChoice?> PickFolderAsync(string title, IReadOnlyList<FolderChoice> folders,
+        string label = "Move into", string confirmText = "Move")
     {
         var picker = new ComboBox
         {
@@ -94,10 +96,44 @@ public sealed class AvaloniaDialogService : IDialogService
                 new TextBlock { Text = new string(' ', choice.Depth * 3) + choice.Name })
         };
         AutomationProperties.SetAutomationId(picker, "DialogFolderPicker");
-        var window = CreateWindow(title, new TextBlock { Text = "Move into" }, picker);
-        AddButtons(window, "Move", () => window.Close(picker.SelectedItem as FolderChoice),
+        var window = CreateWindow(title, new TextBlock { Text = label }, picker);
+        AddButtons(window, confirmText, () => window.Close(picker.SelectedItem as FolderChoice),
             "Cancel", () => window.Close(null));
         return await window.ShowDialog<FolderChoice?>(GetOwner());
+    }
+
+    public async Task<int?> ChooseAsync(string title, string label, IReadOnlyList<string> options,
+        string confirmText = "Choose")
+    {
+        var picker = new ComboBox { ItemsSource = options, SelectedIndex = 0, MinWidth = 320 };
+        AutomationProperties.SetAutomationId(picker, "DialogChoicePicker");
+        var window = CreateWindow(title, new TextBlock { Text = label }, picker);
+        AddButtons(window, confirmText, () => window.Close(picker.SelectedIndex), "Cancel", () => window.Close(null));
+
+        return await window.ShowDialog<int?>(GetOwner());
+    }
+
+    public async Task<bool> ShowImportPreviewAsync(CsvImportPreviewViewModel preview)
+    {
+        var content = new ScrollViewer
+        {
+            Content = new ImportPreviewView { DataContext = preview },
+            MaxHeight = 560,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+        };
+        var window = CreateWindow("Import CSV", 720, content);
+
+        if (preview.CanImport)
+        {
+            AddButtons(window, "Import", () => window.Close(true), "Cancel", () => window.Close(false));
+        }
+        else
+        {
+            var close = AddButtons(window, "Close", () => window.Close(false), null, null);
+            close.IsCancel = true;
+        }
+
+        return await window.ShowDialog<bool>(GetOwner());
     }
 
     public async Task ShowMessageAsync(string title, string message)
@@ -110,6 +146,11 @@ public sealed class AvaloniaDialogService : IDialogService
 
     private static Window CreateWindow(string title, params Control[] content)
     {
+        return CreateWindow(title, 420, content);
+    }
+
+    private static Window CreateWindow(string title, double width, params Control[] content)
+    {
         var panel = new StackPanel { Spacing = 16, Margin = new Thickness(24) };
 
         foreach (var control in content)
@@ -120,7 +161,7 @@ public sealed class AvaloniaDialogService : IDialogService
         return new Window
         {
             Title = title,
-            Width = 420,
+            Width = width,
             SizeToContent = SizeToContent.Height,
             MinHeight = 150,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,

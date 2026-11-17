@@ -11,6 +11,7 @@ using TaskTracker.Core.Projects;
 using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Transfer;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
 using TaskTracker.Infrastructure;
@@ -30,8 +31,13 @@ internal sealed class PresentationTestStore : IAsyncDisposable
         collection.AddSingleton(timeZone ?? TimeZoneInfo.Utc);
         collection.AddTaskTrackerCore();
         collection.AddTaskTrackerInfrastructure(databasePath);
+        collection.AddSingleton<IDatabaseBackup>(Backup);
         services = collection.BuildServiceProvider();
     }
+
+    public CountingDatabaseBackup Backup { get; } = new();
+
+    public DataTransferService Transfer => services.GetRequiredService<DataTransferService>();
 
     public ProjectService Projects => services.GetRequiredService<ProjectService>();
 

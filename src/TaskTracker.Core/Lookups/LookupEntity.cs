@@ -3,6 +3,9 @@ namespace TaskTracker.Core.Lookups;
 /// <summary>Shared editable fields for item types and priority levels.</summary>
 public abstract class LookupEntity
 {
+    /// <summary>The longest name an item type or priority level may have, once trimmed.</summary>
+    public const int NameMaxLength = 300;
+
     protected LookupEntity()
     {
     }
@@ -21,9 +24,9 @@ public abstract class LookupEntity
 
     public void Rename(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Length > 300)
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > NameMaxLength)
         {
-            throw new DomainRuleException("Name must be 1 to 300 characters.");
+            throw new DomainRuleException($"Name must be 1 to {NameMaxLength} characters.");
         }
 
         Name = name.Trim();

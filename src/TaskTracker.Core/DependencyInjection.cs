@@ -9,6 +9,7 @@ using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Transfer;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
 
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddSingleton<ItemSearchService>();
         services.AddSingleton<IItemSearchService>(provider => provider.GetRequiredService<ItemSearchService>());
         services.AddSingleton<SavedSearchService>();
+        services.AddSingleton<DataTransferService>();
         services.AddSingleton(provider => new ItemQueryParser(
             provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<TimeZoneInfo>()));
         return services;

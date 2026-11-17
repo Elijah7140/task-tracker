@@ -3,6 +3,12 @@ namespace TaskTracker.Core.Items;
 /// <summary>A task or sub-item in one project area.</summary>
 public sealed class TodoItem
 {
+    /// <summary>The longest title an item may have, once trimmed.</summary>
+    public const int TitleMaxLength = 300;
+
+    /// <summary>The longest ticket number an item may have, once trimmed.</summary>
+    public const int TicketNumberMaxLength = 100;
+
     private TodoItem()
     {
     }
@@ -76,9 +82,9 @@ public sealed class TodoItem
 
     public void SetTicketNumber(string? value, TimeProvider clock)
     {
-        if (value?.Length > 100)
+        if (!IsTicketNumberValid(value))
         {
-            throw new ArgumentException("Ticket number exceeds 100 characters.", nameof(value));
+            throw new ArgumentException($"Ticket number exceeds {TicketNumberMaxLength} characters.", nameof(value));
         }
 
         TicketNumber = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -164,16 +170,35 @@ public sealed class TodoItem
         Touch(clock);
     }
 
+    /// <summary>Restores the stored timestamps when data is imported, instead of stamping the import time.</summary>
+    internal void RestoreTimestamps(DateTime createdAtUtc, DateTime updatedAtUtc)
+    {
+        CreatedAtUtc = createdAtUtc;
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
     private void Touch(TimeProvider clock)
     {
         UpdatedAtUtc = clock.GetUtcNow().UtcDateTime;
     }
 
+    /// <summary>True for a title that is not blank and, once trimmed, fits <see cref="TitleMaxLength"/>.</summary>
+    public static bool IsTitleValid(string? title)
+    {
+        return !string.IsNullOrWhiteSpace(title) && title.Trim().Length <= TitleMaxLength;
+    }
+
+    /// <summary>True for no ticket number, or one that, once trimmed, fits <see cref="TicketNumberMaxLength"/>.</summary>
+    public static bool IsTicketNumberValid(string? value)
+    {
+        return value is null || value.Trim().Length <= TicketNumberMaxLength;
+    }
+
     private static string ValidTitle(string title)
     {
-        if (string.IsNullOrWhiteSpace(title) || title.Length > 300)
+        if (!IsTitleValid(title))
         {
-            throw new ArgumentException("Title must be 1 to 300 characters.", nameof(title));
+            throw new ArgumentException($"Title must be 1 to {TitleMaxLength} characters.", nameof(title));
         }
 
         return title.Trim();

@@ -77,6 +77,13 @@ public sealed class Project
         Touch(clock);
     }
 
+    /// <summary>Restores the stored timestamps when data is imported, instead of stamping the import time.</summary>
+    internal void RestoreTimestamps(DateTime createdAtUtc, DateTime updatedAtUtc)
+    {
+        CreatedAtUtc = createdAtUtc;
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
     private void Touch(TimeProvider clock)
     {
         UpdatedAtUtc = clock.GetUtcNow().UtcDateTime;

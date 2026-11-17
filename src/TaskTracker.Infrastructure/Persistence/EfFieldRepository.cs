@@ -29,6 +29,20 @@ public sealed class EfFieldRepository(TaskTrackerDbContext database) : IFieldRep
         return await database.ItemFieldValues.AnyAsync(value => value.FieldDefinitionId == fieldId, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<FieldChoice>> AllChoicesAsync(CancellationToken cancellationToken)
+    {
+        return await database.FieldChoices.OrderBy(choice => choice.SortOrder).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ItemFieldValue>> ValuesForProjectAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        var projectItemIds = database.TodoItems.Where(item => item.ProjectId == projectId).Select(item => item.Id);
+
+        return await database.ItemFieldValues
+            .Where(value => projectItemIds.Contains(value.ItemId))
+            .ToListAsync(cancellationToken);
+    }
+
     public void Add(FieldDefinition field)
     {
         database.FieldDefinitions.Add(field);
