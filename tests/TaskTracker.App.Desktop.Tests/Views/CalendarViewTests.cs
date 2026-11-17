@@ -374,6 +374,114 @@ public sealed class CalendarViewTests
         window.Close();
     }
 
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PageDown_and_PageUp_change_the_period_while_an_entry_has_focus(bool week)
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        await SeedTimedItemAsync(services, "Focused entry", TheThirteenth, new TimeOnly(10, 0));
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.C, CtrlShift);
+        var calendar = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        HeadlessInput.Press(window, week ? Key.W : Key.M, CtrlShift);
+        await WaitUntilAsync(() => calendar.Days.Count == (week ? 7 : 42));
+        window.UpdateLayout();
+        HeadlessInput.Find<Button>(window, "CalendarEntryButton").Focus();
+        var original = calendar.Title;
+
+        HeadlessInput.Press(window, Key.PageDown);
+
+        Assert.NotEqual(original, calendar.Title);
+        HeadlessInput.Press(window, Key.PageUp);
+        Assert.Equal(original, calendar.Title);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Adjacent_half_hour_blocks_each_fill_the_column_at_their_real_height()
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        var day = new DateTime(2026, 11, 13);
+        await SeedScheduleAsync(services, "First half", day.AddHours(9), day.AddHours(9.5));
+        await SeedScheduleAsync(services, "Second half", day.AddHours(9.5), day.AddHours(10));
+        await SeedScheduleAsync(services, "No end", day.AddHours(11), null);
+        await OpenWeekAsync(window, services);
+
+        var first = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "First half");
+        var second = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "Second half");
+        var noEnd = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "No end");
+
+        var halfHour = CalendarMetrics.HourHeight / 2;
+        Assert.Equal(halfHour, first.Bounds.Height, 1);
+        Assert.Equal(halfHour, second.Bounds.Height, 1);
+        Assert.Equal(halfHour, noEnd.Bounds.Height, 1);
+        Assert.Equal(ColumnOf(first).Bounds.Width, first.Bounds.Width, 1);
+        Assert.Equal(first.Bounds.Width, second.Bounds.Width, 1);
+        Assert.Equal(TopOf(window, first) + halfHour, TopOf(window, second), 1);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_marker_at_23_59_stays_fully_inside_the_day_column_and_keeps_its_text()
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        await SeedTimedItemAsync(services, "Midnight deadline", TheThirteenth, new TimeOnly(23, 59));
+        await OpenWeekAsync(window, services);
+        var scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First(viewer => viewer.Name == "WeekScroll");
+        scroll.ScrollToEnd();
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+
+        var marker = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "Midnight deadline");
+
+        var column = ColumnOf(marker);
+        Assert.True(TopOf(window, marker) >= TopOf(window, column) - 0.5);
+        Assert.True(BottomOf(window, marker) <= BottomOf(window, column) + 0.5);
+        Assert.Equal(CalendarEntryViewModelHeight(marker), marker.Bounds.Height, 1);
+        var title = marker.GetVisualDescendants().OfType<TextBlock>()
+            .First(text => text.IsEffectivelyVisible && text.Text == "Midnight deadline");
+        Assert.True(BottomOf(window, title) <= BottomOf(window, column) + 0.5);
+        window.Close();
+    }
+
+    private static double CalendarEntryViewModelHeight(Button button)
+    {
+        return ((CalendarEntryViewModel)button.DataContext!).Height;
+    }
+
+    private static async Task OpenWeekAsync(MainWindow window, IServiceProvider services)
+    {
+        var shell = ShowShell(window, services);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.C, CtrlShift);
+        var calendar = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        HeadlessInput.Press(window, Key.W, CtrlShift);
+        await WaitUntilAsync(() => calendar.Days.Count == 7);
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static async Task SeedTimedItemAsync(IServiceProvider services, string title, DateOnly due, TimeOnly time)
+    {
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Project " + title);
+        var items = services.GetRequiredService<ItemService>();
+        var item = await items.CreateAsync(project.Id, null, null, title);
+        await items.EditAsync(item.Id, new ItemEdit(title, null, null, null, null, due, time, null, null));
+    }
+
+    private static async Task SeedScheduleAsync(IServiceProvider services, string title, DateTime start, DateTime? end)
+    {
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Project " + title);
+        var items = services.GetRequiredService<ItemService>();
+        var item = await items.CreateAsync(project.Id, null, null, title);
+        await items.EditAsync(item.Id, new ItemEdit(title, null, null, null, null, null, null, start, end));
+    }
+
     private static void AssertShowsOverdue(Button entryButton)
     {
         var labels = entryButton.GetVisualDescendants().OfType<TextBlock>()
@@ -436,7 +544,14 @@ public sealed class CalendarViewTests
 
     private static Control ColumnOf(Control entryButton)
     {
-        return entryButton.GetVisualAncestors().OfType<StackPanel>().First(panel => panel.MinWidth == 90);
+        return entryButton.GetVisualAncestors().OfType<Control>().First(IsDayColumn);
+    }
+
+    private static bool IsDayColumn(Control control)
+    {
+        var isAllDayColumn = control is StackPanel panel && panel.MinWidth == 90;
+        var isTimeColumn = control is Grid grid && grid.Classes.Contains("timeColumn");
+        return isAllDayColumn || isTimeColumn;
     }
 
     private static double TopOf(Visual window, Visual control)

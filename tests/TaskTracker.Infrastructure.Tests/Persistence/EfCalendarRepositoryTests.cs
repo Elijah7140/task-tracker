@@ -225,6 +225,54 @@ public sealed class EfCalendarRepositoryTests
         Assert.All(entries, entry => Assert.Equal(item.Id, entry.ItemId));
     }
 
+    [Fact]
+    public async Task Item_due_inside_the_range_but_scheduled_outside_it_returns_only_the_due_entry()
+    {
+        await using var store = new SqliteTestStore();
+        var range = new CalendarQuery(null, new DateOnly(2026, 11, 16), new DateOnly(2026, 11, 23), false);
+
+        var entries = await LoadEntriesAsync(store, range, (project, clock) =>
+        {
+            var item = TodoItem.Create(project.Id, null, null, "Due now", clock);
+            item.SetDue(new DateOnly(2026, 11, 18), null, clock);
+            item.SetSchedule(new DateTime(2026, 1, 5, 9, 0, 0), new DateTime(2026, 1, 5, 10, 0, 0), clock);
+            return [item];
+        });
+
+        Assert.Equal(CalendarEntryKind.Due, Assert.Single(entries).Kind);
+    }
+
+    [Fact]
+    public async Task Item_scheduled_inside_the_range_but_due_outside_it_returns_only_the_scheduled_entry()
+    {
+        await using var store = new SqliteTestStore();
+        var range = new CalendarQuery(null, new DateOnly(2026, 11, 16), new DateOnly(2026, 11, 23), false);
+
+        var entries = await LoadEntriesAsync(store, range, (project, clock) =>
+        {
+            var item = TodoItem.Create(project.Id, null, null, "Scheduled now", clock);
+            item.SetDue(new DateOnly(2027, 1, 15), null, clock);
+            item.SetSchedule(new DateTime(2026, 11, 18, 9, 0, 0), new DateTime(2026, 11, 18, 10, 0, 0), clock);
+            return [item];
+        });
+
+        Assert.Equal(CalendarEntryKind.Scheduled, Assert.Single(entries).Kind);
+    }
+
+    private static async Task<IReadOnlyList<CalendarEntry>> LoadEntriesAsync(SqliteTestStore store,
+        CalendarQuery query, Func<Project, TimeProvider, TodoItem[]> createItems)
+    {
+        await store.InitializeAsync();
+        await using var database = store.Open();
+        var project = Project.Create("Project", store.Clock);
+        database.Projects.Add(project);
+        database.TodoItems.AddRange(createItems(project, store.Clock));
+        await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var repository = new EfCalendarRepository(database);
+
+        return await repository.LoadAsync(query, TestContext.Current.CancellationToken);
+    }
+
     private static async Task<string[]> LoadTitlesAsync(SqliteTestStore store, CalendarQuery query,
         Func<Project, TimeProvider, TodoItem[]> createItems)
     {

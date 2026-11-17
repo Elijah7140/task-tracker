@@ -59,6 +59,14 @@ public static class HeadlessInput
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>Turns the mouse wheel at a window position; by default the left button counts as held down.</summary>
+    public static void Wheel(Window window, Point point, double deltaY,
+        RawInputModifiers held = RawInputModifiers.LeftMouseButton)
+    {
+        window.MouseWheel(point, new Vector(0, deltaY), held);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Presses at one position, moves in several steps, and releases at another.</summary>
     public static void Drag(Window window, Point from, Point to)
     {

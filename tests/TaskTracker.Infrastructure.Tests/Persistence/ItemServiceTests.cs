@@ -15,6 +15,64 @@ namespace TaskTracker.Infrastructure.Tests.Persistence;
 public sealed class ItemServiceTests
 {
     [Fact]
+    public async Task Moving_at_an_index_reparents_and_renumbers_both_sibling_lists()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var service = store.Items(context);
+        var first = await service.CreateAsync(project.Id, null, null, "First");
+        var second = await service.CreateAsync(project.Id, null, null, "Second");
+        var third = await service.CreateAsync(project.Id, null, null, "Third");
+        var childA = await service.CreateAsync(project.Id, null, first.Id, "Child A");
+        var childB = await service.CreateAsync(project.Id, null, first.Id, "Child B");
+        var childC = await service.CreateAsync(project.Id, null, first.Id, "Child C");
+
+        await service.MoveAtAsync(project.Id, null, childB.Id, null, 1);
+        await using var reader = store.Open();
+        var roots = await SiblingsAsync(reader, null);
+        var remainingChildren = await SiblingsAsync(reader, first.Id);
+
+        Assert.Equal([first.Id, childB.Id, second.Id, third.Id], roots.Select(item => item.Id));
+        Assert.Equal([0, 1, 2, 3], roots.Select(item => item.SortOrder));
+        Assert.Equal([childA.Id, childC.Id], remainingChildren.Select(item => item.Id));
+        Assert.Equal([0, 1], remainingChildren.Select(item => item.SortOrder));
+        Assert.Null((await reader.TodoItems.SingleAsync(item => item.Id == childB.Id)).ParentItemId);
+    }
+
+    [Fact]
+    public async Task Rejected_move_into_a_descendant_leaves_nothing_for_the_next_operation_to_save()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var service = store.Items(context);
+        var parent = await service.CreateAsync(project.Id, null, null, "Parent");
+        var child = await service.CreateAsync(project.Id, null, parent.Id, "Child");
+        var other = await service.CreateAsync(project.Id, null, null, "Other");
+
+        await Assert.ThrowsAsync<DomainRuleException>(() =>
+            service.MoveAtAsync(project.Id, null, parent.Id, child.Id, 0));
+        await service.MoveAtAsync(project.Id, null, other.Id, null, 0);
+        await using var reader = store.Open();
+        var roots = await SiblingsAsync(reader, null);
+        var children = await SiblingsAsync(reader, parent.Id);
+
+        Assert.Equal([other.Id, parent.Id], roots.Select(item => item.Id));
+        Assert.Equal([0, 1], roots.Select(item => item.SortOrder));
+        Assert.Equal([child.Id], children.Select(item => item.Id));
+        Assert.Null((await reader.TodoItems.SingleAsync(item => item.Id == parent.Id)).ParentItemId);
+    }
+
+    private static async Task<TodoItem[]> SiblingsAsync(TaskTrackerDbContext reader, Guid? parentId)
+    {
+        return await reader.TodoItems.Where(item => item.ParentItemId == parentId)
+            .OrderBy(item => item.SortOrder).ToArrayAsync();
+    }
+
+    [Fact]
     public async Task Next_operation_reads_committed_item_changes()
     {
         await using var store = new SqliteTestStore();

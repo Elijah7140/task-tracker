@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 
 using TaskTracker.Presentation.ViewModels;
 
@@ -17,7 +18,36 @@ public sealed partial class MainWindow : Window
             .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>()
             .Register<SearchViewModel, SearchView>()
             .Register<CalendarViewModel, CalendarView>());
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
+    }
+
+    /// <summary>
+    /// PageUp/PageDown change the calendar period. They are handled while the key travels down, because
+    /// a focused entry, scroll viewer or combo box would otherwise consume them before the window sees them.
+    /// </summary>
+    private async void OnPreviewKeyDown(object? sender, KeyEventArgs args)
+    {
+        if (!IsPeriodKey(args) || FocusManager?.GetFocusedElement() is TextBox)
+        {
+            return;
+        }
+
+        if (DataContext is not MainWindowViewModel shell || shell.CurrentPage is not CalendarViewModel calendar)
+        {
+            return;
+        }
+
+        args.Handled = true;
+
+        try
+        {
+            await calendar.MoveAsync(args.Key == Key.PageUp ? -1 : 1);
+        }
+        catch (Exception exception)
+        {
+            await shell.ReportUnexpectedErrorAsync(exception);
+        }
     }
 
     private async void OnKeyDown(object? sender, KeyEventArgs args)
@@ -60,24 +90,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>PageUp/PageDown and Escape act on the calendar with no modifiers; Ctrl+Shift+M/W switch views.</summary>
+    /// <summary>Escape acts on the calendar with no modifiers; Ctrl+Shift+M/W switch views.</summary>
     private static async Task HandleCalendarKeyAsync(
         MainWindowViewModel shell, CalendarViewModel calendar, KeyEventArgs args)
     {
         var hasNoModifiers = args.KeyModifiers == KeyModifiers.None;
         var hasControlShift = args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift);
 
-        if (hasNoModifiers && args.Key == Key.PageUp)
-        {
-            args.Handled = true;
-            await calendar.MoveAsync(-1);
-        }
-        else if (hasNoModifiers && args.Key == Key.PageDown)
-        {
-            args.Handled = true;
-            await calendar.MoveAsync(1);
-        }
-        else if (hasNoModifiers && args.Key == Key.Escape)
+        if (hasNoModifiers && args.Key == Key.Escape)
         {
             args.Handled = true;
             await shell.ReturnFromCalendarAsync();
@@ -92,6 +112,12 @@ public sealed partial class MainWindow : Window
             args.Handled = true;
             await calendar.SetWeekAsync(true);
         }
+    }
+
+    private static bool IsPeriodKey(KeyEventArgs args)
+    {
+        var isPageKey = args.Key == Key.PageUp || args.Key == Key.PageDown;
+        return isPageKey && args.KeyModifiers == KeyModifiers.None;
     }
 
     private static bool IsCalendarShortcut(KeyEventArgs args)

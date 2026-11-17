@@ -21,27 +21,32 @@ public sealed class CalendarEntryViewModel : ViewModelBase
     public required TimeOnly? End { get; init; }
 
     /// <summary>Vertical offset in the week time grid.</summary>
-    public double Top
+    public double Top => LayoutStartMinutes * CalendarMetrics.PixelsPerMinute;
+
+    /// <summary>
+    /// Height in the week time grid, from the real duration (48 pixels per hour). A due marker takes
+    /// the default block length, so it is as tall as a schedule without an end.
+    /// </summary>
+    public double Height => DurationMinutes * CalendarMetrics.PixelsPerMinute;
+
+    /// <summary>True for entries too short to stack the urgency label above the title.</summary>
+    public bool IsCompact => Height < CalendarMetrics.TwoLineHeight;
+
+    /// <summary>
+    /// Minute of the day where the entry is drawn from. A due marker that would run past the end of the
+    /// day is moved up so that all of it stays inside the day column.
+    /// </summary>
+    public double LayoutStartMinutes
     {
         get
         {
-            return CalendarMetrics.OffsetOf(Start ?? TimeOnly.MinValue);
+            var startMinutes = (Start ?? TimeOnly.MinValue).ToTimeSpan().TotalMinutes;
+            return Math.Min(startMinutes, CalendarMetrics.DayMinutes - DurationMinutes);
         }
     }
 
-    /// <summary>Height in the week time grid: a marker for due entries, a scaled block for schedules.</summary>
-    public double Height
-    {
-        get
-        {
-            if (Entry.Kind == CalendarEntryKind.Due)
-            {
-                return CalendarMetrics.MinEntryHeight;
-            }
-
-            return Math.Max(CalendarMetrics.MinEntryHeight, DurationMinutes * CalendarMetrics.PixelsPerMinute);
-        }
-    }
+    /// <summary>Minute of the day where the drawn entry ends; overlaps are decided from these intervals.</summary>
+    public double LayoutEndMinutes => LayoutStartMinutes + DurationMinutes;
 
     public double DurationMinutes
     {

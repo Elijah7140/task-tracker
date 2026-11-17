@@ -25,13 +25,18 @@ public sealed class ItemRowViewModel : ViewModelBase
         this.workspace = workspace;
         ToggleCommand = new AsyncRelayCommand(() => workspace.ToggleAsync(this));
         SelectCommand = new AsyncRelayCommand(() => workspace.SelectItemAsync(this));
+        MoveItemToAreaCommand = new AsyncRelayCommand(() => workspace.MoveRowToAreaAsync(this));
     }
 
     public ItemNode Node { get; }
 
     public Guid Id => Node.Item.Id;
 
+    public ICommand MoveItemToAreaCommand { get; }
+
     public Guid? ParentId => Node.Item.ParentItemId;
+
+    public bool IsTopLevel => ParentId is null;
 
     public string Title => Node.Item.Title;
 

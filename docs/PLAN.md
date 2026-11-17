@@ -304,13 +304,13 @@ tooltip naming it, so the user knows the parent's own deadline isn't the cause.
 
 ### 6.4 Moving and ordering
 
-- Items reorder among siblings by Alt+↑/↓ (`SortOrder`, renumbered among siblings on
-  each move; sibling counts are small). Drag-and-drop is on the roadmap (§10).
+- Items reorder among siblings by Alt+↑/↓ or row drag (`SortOrder`, renumbered among
+  siblings on each move; sibling counts are small).
 - Moving a top-level item to another area **in the same project** moves its whole
   subtree (invariant 3). Moving between projects is out of scope for v1; if added later
   it must handle project-scoped custom fields.
 - Sub-items cannot be moved to another area on their own. They can be re-parented
-  within the same tree via indent/outdent (Phase 2 stretch).
+  within the same area by row drag or Alt+→/← (§7.5).
 - Folders move within the same project only (invariant 1).
 
 ### 6.5 Settings: global and per project
@@ -500,8 +500,8 @@ parses into an `ItemQuery`, and saved searches.
 - A due date produces an all-day entry, or a timed entry when DueTime is set. A schedule produces a separate block; a missing end, or an end that is not after the start (a zero-length schedule), makes a 30-minute block. Both entries appear when both fields are set, including on sub-items.
 - Completed entries are hidden by default; Include completed shows them muted and checked. Deleted items, folders, and projects are excluded.
 - Month shows six weeks starting on the culture's first day of week. Days outside the month are dimmed. All-day entries precede timed entries; after three entries, +N more opens that day in Week.
-- Week has seven columns, an all-day row, and a 00:00–24:00 time grid at 48 pixels per hour. It opens scrolled to 07:00. Timed due entries are markers; scheduled blocks scale with duration and split width when overlapping. The all-day row grows to hold every all-day entry of the week, and entries fill their day column. Within a day entries are ordered all-day first, then by start, then by title (culture-aware, ignoring case), then by item id.
-- Today comes from the injected TimeProvider and explicit local time zone. Previous, Today, Next, Month and Week control the period. PageUp/PageDown change periods; Ctrl+Shift+M/W switch views.
+- Week has seven columns, an all-day row, and a 00:00–24:00 time grid at 48 pixels per hour. It opens scrolled to 07:00. Timed due entries are 30-minute markers and scheduled blocks are exactly as tall as their duration (a block with no end is 30 minutes); entries split width only when their real intervals overlap, so touching blocks do not. A marker that would pass 24:00 is moved up to end at midnight. Blocks shorter than 40 pixels put the urgency label and title on one line. The all-day row grows to hold every all-day entry of the week, and entries fill their day column. Within a day entries are ordered all-day first, then by start, then by title (culture-aware, ignoring case), then by item id.
+- Today comes from the injected TimeProvider and explicit local time zone. Previous, Today, Next, Month and Week control the period. PageUp/PageDown change periods (also with an entry focused, but not while a text box has focus); Ctrl+Shift+M/W switch views.
 - The scope is All projects from Home or This project from a workspace. Include completed is available in either scope.
 - Home, workspace, and Ctrl+Shift+C open the calendar. Back or Escape (with no modifiers) restores the previous page. Search and Calendar never stack: opening one from the other disposes it and keeps the original page as the single return target, so Back lands on that page and activating an entry or result asks that page's unsaved-changes guard once. An entry activation still pending when the calendar is left is dropped. Activating an entry opens its current workspace folder and selects it, subject to the unsaved-changes guard. A deleted item reloads the calendar and reports “This item no longer exists”. Month navigation moves from the first day of the month.
 - Entries use their own urgency, refreshed each minute, and show it as a label (Approaching, Imminent, Overdue) with a bold title when overdue, never by colour alone; tooltips show type and priority.
@@ -513,9 +513,34 @@ parses into an `ItemQuery`, and saved searches.
   - Times snap to 15 minutes and are clamped to 00:00–23:45 so the start stays on the dropped day. A block that crosses midnight moves as a whole, whichever day of it is dragged.
   - Keyboard: with an entry focused, Alt+←/→ moves it one day and Alt+↑/↓ moves a timed due entry or scheduled block 15 minutes (month and week). Alt+↑/↓ does nothing for an all-day entry. A time between quarter hours first lands on the next quarter in the direction of the key (10:07 goes to 10:15 with Alt+↓ and to 10:00 with Alt+↑). Timed entries stop at 00:00 and 23:45 instead of crossing midnight.
   - Focus stays on the moved entry after the reload. If it is no longer shown, focus goes to its day's "+N more" button, or to Previous or Next when the entry left the visible period; the period itself does not move.
-  - While a move is saving, newer key steps on the same entry are added together and a newer drop replaces a waiting one; the waiting move is planned against the entry as reloaded, so a held key keeps moving it and a reload between pointer press and drop never uses stale values. A failed move discards the waiting ones.
-  - Pointer details: only the left button drags. A press that did not start on an entry (including "+N more" and scrollbars) never drags; a hover after a lost button release does not drag; releasing another button mid-drag does not drop; scrolling the week grid during a drag updates the ghost time.
+  - While a move is saving, newer key steps on the same entry are added together and a newer drop replaces a waiting one; the waiting move is planned against the entry as reloaded (or as last saved when it left the visible period), so a held key keeps moving it and a reload between pointer press and drop never uses stale values. A failed move discards the waiting ones.
+  - Pointer details: only the left button drags. A press that did not start on an entry (including "+N more" and scrollbars) never drags; a hover after a lost button release does not drag; releasing another button mid-drag does not drop; scrolling the week grid with the wheel during a drag updates the ghost time. Extra buttons pressed mid-gesture never start or retarget a drag.
   - After a move the calendar reloads and urgency is recomputed. A rule failure (for example the item was deleted) reloads and shows its message inline. Dragging does not auto-scroll the week grid.
+
+### 7.5 Item drag-and-drop
+
+- A left-button row press becomes a drag at 4 pixels. Escape or capture loss cancels;
+  a shorter movement remains a click. Top and bottom thirds place before and after
+  a row; the middle third makes the dragged item the row's last child. The view shows
+  an insertion edge or row outline. Folder targets are highlighted.
+- A sub-item may be promoted between top-level rows in its current area. A top-level
+  item may be dropped on a folder or project root, appending its whole subtree there.
+  A sub-item cannot be dropped on a folder. Self and descendant targets are rejected.
+- Completed rows are ordered by completion time (§6.2), so they cannot be reordered by
+  drag: a before/after drop that involves a finished row (as the dragged item or the
+  target) shows no indicator and does nothing. A middle-third "into" drop on a finished
+  row is allowed (§6.1 reopens the parent when an open sub-item moves in), as is dragging
+  a finished item into another row. Completion is reconciled for old and new parents
+  according to §6.1.
+- Drop feedback: "into" tints the target row with the accent color and shows a
+  "Make sub-item" label, so it is distinct from the selection outline; the dragged row
+  is dimmed while the drag is active.
+- Alt+→ indents under the previous sibling; Alt+← places the item immediately after
+  its parent. Ctrl+Shift+L opens Move to… for a selected top-level item; the context
+  menu offers the same folder picker. Ctrl+Shift+M is already used by Calendar.
+- A move consults the existing unsaved-editor guard before reloading. A cancelled
+  guard cancels the move; Save or Discard follows the user's guard choice. The moved
+  item remains selected after a move within the area.
 
 ## 8. User interface (Avalonia)
 
@@ -539,7 +564,8 @@ parses into an `ItemQuery`, and saved searches.
 ### Keyboard
 
 Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
-Delete delete (with confirm), Alt+↑/↓ reorder, Ctrl+F search (Phase 4),
+Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outdent,
+Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
 Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
 and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where

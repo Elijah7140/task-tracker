@@ -335,7 +335,41 @@ public sealed class ItemService(
         var parentId = tree.Get(id).ParentItemId
             ?? throw new DomainRuleException("A top-level item cannot be outdented.");
         var grandparentId = tree.Get(parentId).ParentItemId;
-        await MoveWithinTreeAsync(unitOfWork, tree, id, grandparentId, cancellationToken);
+        var parentIndex = tree.Children(grandparentId).ToList().FindIndex(item => item.Id == parentId);
+        await MoveAtAsync(unitOfWork, tree, id, grandparentId, parentIndex + 1, cancellationToken);
+    }
+
+    /// <summary>Places an item at an index among siblings in the same area.</summary>
+    public async Task MoveAtAsync(Guid projectId, Guid? folderId, Guid id, Guid? parentId,
+        int index, CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Begin();
+        var tree = await LoadTreeAsync(unitOfWork, projectId, folderId, cancellationToken);
+        await MoveAtAsync(unitOfWork, tree, id, parentId, index, cancellationToken);
+    }
+
+    private async Task MoveAtAsync(IUnitOfWork work, ItemTree tree, Guid id, Guid? parentId,
+        int index, CancellationToken cancellationToken)
+    {
+        var oldParentId = tree.Get(id).ParentItemId;
+        var destination = tree.Children(parentId).Where(item => item.Id != id).ToList();
+
+        if (index < 0 || index > destination.Count)
+        {
+            throw new DomainRuleException("Item position is outside its siblings.");
+        }
+
+        tree.Move(id, parentId, clock);
+        destination.Insert(index, tree.Get(id));
+        Renumber(tree, oldParentId);
+
+        for (var position = 0; position < destination.Count; position++)
+        {
+            destination[position].SetSortOrder(position, clock);
+        }
+
+        await ReconcileAsync(work, tree, oldParentId, tree.ProjectId, cancellationToken);
+        await ApplyStructureAsync(work, tree, parentId, cancellationToken);
     }
 
     public async Task MoveToAreaAsync(Guid projectId, Guid? sourceFolderId, Guid? targetFolderId,

@@ -15,6 +15,43 @@ namespace TaskTracker.App.Desktop.SmokeTests;
 /// <summary>Exercises the running desktop application through Windows UI Automation.</summary>
 public sealed class SmokeTests
 {
+    [Fact]
+    public void Item_drag_keyboard_indent_and_folder_move_survive_reopen()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            OpenProject(session);
+            AddItem(session, "Parent item");
+            AddItem(session, "Dragged item");
+            var dragged = session.FindNamed("ItemTitleButton", "Dragged item");
+            var parent = session.FindNamed("ItemTitleButton", "Parent item");
+            Mouse.Drag(dragged.BoundingRectangle.Center(), parent.BoundingRectangle.Center());
+            session.WaitUntil(() => IsIndented(session, "Dragged item", "Parent item"),
+                "dragged item to nest");
+
+            AddItem(session, "Keyboard child");
+            session.FindNamed("ItemTitleButton", "Keyboard child").Click();
+            session.TypeChord(VirtualKeyShort.ALT, VirtualKeyShort.RIGHT);
+            session.WaitUntil(() => IsIndented(session, "Keyboard child", "Parent item"),
+                "keyboard item to nest");
+
+            CreateFolderAndSelectIt(session, "Destination");
+            session.FindNamed("BreadcrumbButton", "Smoke Project").AsButton().Invoke();
+            session.WaitUntil(() => HasItemRow(session, "Parent item"), "project root area to load");
+            parent = session.FindNamed("ItemTitleButton", "Parent item");
+            var folder = session.FindNamed("FolderTreeItem", "Destination");
+            Mouse.Drag(parent.BoundingRectangle.Center(), folder.BoundingRectangle.Center());
+            session.WaitUntil(() => session.Find("SelectedAreaHeading").Name == "Destination", "the move to follow into Destination");
+            session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
+            session.Find("OpenProjectButton").AsButton().Invoke();
+            session.FindNamed("FolderTreeItem", "Destination").Click();
+            session.WaitUntil(() => HasItemRow(session, "Parent item"), "the reopened Destination area");
+
+            AssertChildrenBeneathParent(session, "Parent item", "Dragged item", "Keyboard child");
+        });
+    }
+
     private const string ItemWithFields = "Metadata item";
     private static readonly DateTime ReviewDate = new(2026, 11, 20);
 
@@ -24,16 +61,17 @@ public sealed class SmokeTests
         Run(session =>
         {
             session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            var seededDay = DateTime.Today;
             OpenProject(session);
             AddItem(session, "Calendar due item");
             session.FindNamed("ItemTitleButton", "Calendar due item").Click();
-            ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(ReviewDate));
+            ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(seededDay));
             session.Press(VirtualKeyShort.TAB);
             session.Find("EditorSaveButton").AsButton().Invoke();
 
             AddItem(session, "Calendar scheduled item");
             session.FindNamed("ItemTitleButton", "Calendar scheduled item").Click();
-            ReplaceText(session, PickerEdit(session, "EditorStartDatePicker"), FormatDate(ReviewDate));
+            ReplaceText(session, PickerEdit(session, "EditorStartDatePicker"), FormatDate(seededDay));
             session.Press(VirtualKeyShort.TAB);
             session.Find("EditorSaveButton").AsButton().Invoke();
 
@@ -41,8 +79,11 @@ public sealed class SmokeTests
             session.SelectByName("CalendarScopeComboBox", "This project");
             session.FindText("Calendar due item");
             session.FindText("00:00 Calendar scheduled item");
-            session.Find("CalendarWeekButton").AsButton().Invoke();
             session.Find("CalendarNextButton").AsButton().Invoke();
+            session.Find("CalendarPreviousButton").AsButton().Invoke();
+            session.Find("CalendarTodayButton").AsButton().Invoke();
+            session.FindText("Calendar due item");
+            session.Find("CalendarWeekButton").AsButton().Invoke();
             session.FindText("Calendar due item");
             session.FindText("Calendar scheduled item");
             session.FindNamed("CalendarEntryButton", "Calendar due item").AsButton().Invoke();
@@ -547,5 +588,38 @@ public sealed class SmokeTests
         return session.Window.FindAllDescendants(query => query.ByAutomationId("ItemTitleButton"))
             .Any(button => button.Name == title || button.FindFirstDescendant(
                 query => query.ByName(title)) is not null);
+    }
+
+    private static bool IsIndented(SmokeSession session, string child, string parent)
+    {
+        var childButton = session.Window.FindAllDescendants(query => query.ByAutomationId("ItemTitleButton"))
+            .FirstOrDefault(button => button.Name == child);
+        var parentButton = session.Window.FindAllDescendants(query => query.ByAutomationId("ItemTitleButton"))
+            .FirstOrDefault(button => button.Name == parent);
+
+        return childButton is not null && parentButton is not null &&
+            childButton.BoundingRectangle.Left > parentButton.BoundingRectangle.Left + 15;
+    }
+
+    private static List<AutomationElement> TitleButtons(SmokeSession session)
+    {
+        return session.Window.FindAllDescendants(query => query.ByAutomationId("ItemTitleButton")).ToList();
+    }
+
+    /// <summary>
+    /// With the parent expanded, the area must show exactly the parent followed by its children,
+    /// each indented under it. Only these rows exist in the area, so a child that was not
+    /// re-parented would appear unindented or elsewhere.
+    /// </summary>
+    private static void AssertChildrenBeneathParent(SmokeSession session, string parent, params string[] children)
+    {
+        session.Find("ItemExpandButton").Click();
+        session.WaitUntil(() => TitleButtons(session).Count == children.Length + 1, "the sub-items to show");
+        var rows = TitleButtons(session).OrderBy(button => button.BoundingRectangle.Top).ToList();
+        var parentLeft = rows[0].BoundingRectangle.Left;
+
+        Assert.Equal(parent, rows[0].Name);
+        Assert.Equal(children.Order(), rows.Skip(1).Select(button => button.Name).Order());
+        Assert.All(rows.Skip(1), child => Assert.True(child.BoundingRectangle.Left > parentLeft + 15));
     }
 }

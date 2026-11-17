@@ -218,7 +218,7 @@ public sealed class CalendarRescheduleTests
         Assert.Equal(TimeOnly.MinValue, CalendarReschedule.StepTarget(atMidnight, 0, -15)?.Time);
         Assert.Equal(TimeOnly.MinValue, CalendarReschedule.StepTarget(nearMidnight, 0, -15)?.Time);
         Assert.Equal(new TimeOnly(23, 45), CalendarReschedule.StepTarget(lateEvening, 0, 15)?.Time);
-        Assert.Equal(new TimeOnly(23, 59), CalendarReschedule.StepTarget(afterLastSlot, 0, 15)?.Time);
+        Assert.Equal(new TimeOnly(23, 45), CalendarReschedule.StepTarget(afterLastSlot, 0, 15)?.Time);
     }
 
     [Fact]

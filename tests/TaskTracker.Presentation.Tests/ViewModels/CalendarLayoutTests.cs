@@ -214,17 +214,89 @@ public sealed class CalendarLayoutTests
     }
 
     [Fact]
-    public void Short_blocks_and_markers_are_never_shorter_than_the_minimum()
+    public void Blocks_and_markers_are_as_tall_as_their_real_duration()
     {
-        var shortBlock = CalendarLayout.Clip(
+        var tenMinutes = CalendarLayout.Clip(
             CalendarEntries.Scheduled(new DateTime(2026, 11, 16, 9, 0, 0), new DateTime(2026, 11, 16, 9, 10, 0)),
             Monday);
+        var noEnd = CalendarLayout.Clip(
+            CalendarEntries.Scheduled(new DateTime(2026, 11, 16, 9, 0, 0), null), Monday);
         var marker = CalendarLayout.Clip(CalendarEntries.Due(Monday, time: new TimeOnly(9, 0)), Monday);
 
-        Assert.NotNull(shortBlock);
+        Assert.NotNull(tenMinutes);
+        Assert.NotNull(noEnd);
         Assert.NotNull(marker);
-        Assert.Equal(CalendarMetrics.MinEntryHeight, shortBlock.Height);
-        Assert.Equal(CalendarMetrics.MinEntryHeight, marker.Height);
+        Assert.Equal(10 * CalendarMetrics.HourHeight / 60, tenMinutes.Height, 6);
+        Assert.Equal(CalendarMetrics.HourHeight / 2, noEnd.Height, 6);
+        Assert.Equal(CalendarMetrics.HourHeight / 2, marker.Height, 6);
+    }
+
+    [Fact]
+    public void Adjacent_half_hour_blocks_do_not_overlap_or_split_the_width()
+    {
+        var entries = new[]
+        {
+            CalendarEntries.Scheduled(Monday.ToDateTime(new TimeOnly(9, 0)), Monday.ToDateTime(new TimeOnly(9, 30)), "First"),
+            CalendarEntries.Scheduled(Monday.ToDateTime(new TimeOnly(9, 30)), Monday.ToDateTime(new TimeOnly(10, 0)), "Second")
+        };
+
+        var day = BuildDay(Monday, entries);
+
+        Assert.All(day.Entries, entry => Assert.Equal(1.0, entry.WidthFraction));
+        Assert.Equal(Entry(day, "First").Top + Entry(day, "First").Height, Entry(day, "Second").Top, 6);
+    }
+
+    [Fact]
+    public void Blocks_closer_than_the_old_minimum_height_still_do_not_overlap()
+    {
+        var entries = new[]
+        {
+            CalendarEntries.Scheduled(Monday.ToDateTime(new TimeOnly(9, 0)), Monday.ToDateTime(new TimeOnly(9, 15)), "First"),
+            CalendarEntries.Scheduled(Monday.ToDateTime(new TimeOnly(9, 30)), Monday.ToDateTime(new TimeOnly(9, 45)), "Second")
+        };
+
+        var day = BuildDay(Monday, entries);
+
+        Assert.All(day.Entries, entry => Assert.Equal(1.0, entry.WidthFraction));
+    }
+
+    [Fact]
+    public void A_due_marker_at_the_end_of_the_day_is_moved_up_to_fit_inside_it()
+    {
+        var late = CalendarLayout.Clip(CalendarEntries.Due(Monday, time: new TimeOnly(23, 59)), Monday);
+        var evening = CalendarLayout.Clip(CalendarEntries.Due(Monday, time: new TimeOnly(23, 0)), Monday);
+
+        Assert.NotNull(late);
+        Assert.NotNull(evening);
+        Assert.Equal(CalendarMetrics.DayHeight, late.Top + late.Height, 6);
+        Assert.Equal(CalendarMetrics.OffsetOf(new TimeOnly(23, 0)), evening.Top, 6);
+    }
+
+    [Fact]
+    public void A_late_marker_that_was_moved_up_shares_width_with_the_block_it_now_covers()
+    {
+        var entries = new[]
+        {
+            CalendarEntries.Scheduled(Monday.ToDateTime(new TimeOnly(23, 30)), Monday.AddDays(1).ToDateTime(TimeOnly.MinValue), "Block"),
+            CalendarEntries.Due(Monday, "Marker", new TimeOnly(23, 59))
+        };
+
+        var day = BuildDay(Monday, entries);
+
+        Assert.All(day.Entries, entry => Assert.Equal(0.5, entry.WidthFraction));
+    }
+
+    [Theory]
+    [InlineData(10, true)]
+    [InlineData(30, true)]
+    [InlineData(60, false)]
+    public void Only_short_entries_are_compact(int minutes, bool expectedCompact)
+    {
+        var start = Monday.ToDateTime(new TimeOnly(9, 0));
+        var entry = CalendarLayout.Clip(CalendarEntries.Scheduled(start, start.AddMinutes(minutes)), Monday);
+
+        Assert.NotNull(entry);
+        Assert.Equal(expectedCompact, entry.IsCompact);
     }
 
     [Fact]

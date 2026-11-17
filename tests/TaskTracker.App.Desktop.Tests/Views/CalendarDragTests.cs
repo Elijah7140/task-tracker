@@ -10,8 +10,14 @@ using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Views;
+using TaskTracker.Core.Calendar;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Search;
+using TaskTracker.Core.Settings;
+using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests.Views;
@@ -520,15 +526,135 @@ public sealed class CalendarDragTests
         var column = TimeColumn(window, TheFourteenth);
         var scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First(viewer => viewer.Name == "WeekScroll");
         var dropY = CalendarMetrics.OffsetOf(new TimeOnly(11, 30)) + 12;
+        var pointer = HeadlessInput.PointIn(window, column, column.Bounds.Width / 2, dropY);
         HeadlessInput.PressMouse(window, HeadlessInput.PointIn(window, block, block.Bounds.Width / 2, 12));
-        HeadlessInput.MoveMouse(window, HeadlessInput.PointIn(window, column, column.Bounds.Width / 2, dropY));
+        HeadlessInput.MoveMouse(window, pointer);
         Assert.Equal("11:30", HeadlessInput.Find<TextBlock>(window, "CalendarDropTime").Text);
+        var offsetBefore = scroll.Offset.Y;
 
-        scroll.Offset = new Vector(0, scroll.Offset.Y + CalendarMetrics.HourHeight);
+        HeadlessInput.Wheel(window, pointer, -1);
         window.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal("12:30", HeadlessInput.Find<TextBlock>(window, "CalendarDropTime").Text);
+        Assert.True(scroll.Offset.Y > offsetBefore);
+        var ghostTime = TimeOnly.Parse(HeadlessInput.Find<TextBlock>(window, "CalendarDropTime").Text!);
+        Assert.True(ghostTime > new TimeOnly(11, 30));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Losing_the_pointer_capture_during_a_drag_cancels_it_and_saves_nothing()
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        var seeded = await SeedAsync(services, due: TheThirteenth);
+        await OpenCalendarAsync(window, services, week: false);
+        var entry = HeadlessInput.Find<Button>(window, "CalendarEntryButton");
+        var target = MonthCell(window, TheSeventeenth);
+        var targetPoint = HeadlessInput.CentreOf(window, target);
+        IPointer? pointer = null;
+        window.AddHandler(InputElement.PointerMovedEvent, (_, args) => pointer = args.Pointer,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel, true);
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, entry));
+        HeadlessInput.MoveMouse(window, targetPoint);
+        Assert.Contains("dropTarget", target.Classes);
+
+        pointer!.Capture(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.DoesNotContain("dropTarget", target.Classes);
+        HeadlessInput.ReleaseMouse(window, targetPoint);
+        await Task.Delay(100);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(TheThirteenth, (await seeded.ReadAsync(services)).DueDate);
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(MouseButton.Right, RawInputModifiers.RightMouseButton)]
+    [InlineData(MouseButton.Middle, RawInputModifiers.MiddleMouseButton)]
+    public async Task Pressing_another_button_while_left_is_held_on_empty_space_does_not_arm_a_drag(
+        MouseButton extraButton, RawInputModifiers extraHeld)
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        var seeded = await SeedAsync(services, due: TheThirteenth);
+        await OpenCalendarAsync(window, services, week: false);
+        var entry = HeadlessInput.Find<Button>(window, "CalendarEntryButton");
+        var emptySpot = HeadlessInput.PointIn(window, MonthCell(window, TheSeventeenth), 6, 6);
+        var target = MonthCell(window, TheSeventeenth);
+        var targetPoint = HeadlessInput.CentreOf(window, target);
+        var held = RawInputModifiers.LeftMouseButton | extraHeld;
+
+        HeadlessInput.PressMouse(window, emptySpot);
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, entry), extraButton,
+            RawInputModifiers.LeftMouseButton);
+        HeadlessInput.MoveMouse(window, targetPoint, held);
+
+        Assert.DoesNotContain("dropTarget", target.Classes);
+        HeadlessInput.ReleaseMouse(window, targetPoint, extraButton, RawInputModifiers.LeftMouseButton);
+        HeadlessInput.ReleaseMouse(window, targetPoint);
+        await Task.Delay(100);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(TheThirteenth, (await seeded.ReadAsync(services)).DueDate);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Pressing_the_right_button_on_another_entry_mid_gesture_keeps_dragging_the_first_entry()
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        var first = await SeedAsync(services, due: TheThirteenth, title: "First entry");
+        var second = await SeedAsync(services, due: TheThirteenth, title: "Second entry");
+        var calendar = await OpenCalendarAsync(window, services, week: false);
+        var firstButton = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "First entry");
+        var secondButton = HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", "Second entry");
+        var targetPoint = HeadlessInput.CentreOf(window, MonthCell(window, TheSeventeenth));
+
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, firstButton));
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, secondButton), MouseButton.Right,
+            RawInputModifiers.LeftMouseButton);
+        HeadlessInput.MoveMouse(window, targetPoint, RawInputModifiers.LeftMouseButton | RawInputModifiers.RightMouseButton);
+        HeadlessInput.ReleaseMouse(window, targetPoint, MouseButton.Right, RawInputModifiers.LeftMouseButton);
+        HeadlessInput.ReleaseMouse(window, targetPoint);
+        await HeadlessInput.WaitUntilAsync(() => HasEntryOn(calendar, TheSeventeenth));
+
+        Assert.Equal(TheSeventeenth, (await first.ReadAsync(services)).DueDate);
+        Assert.Equal(TheThirteenth, (await second.ReadAsync(services)).DueDate);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Holding_Alt_Right_while_a_save_is_pending_adds_up_the_steps_across_the_period_boundary()
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        var held = new HeldCalendarRescheduler(services.GetRequiredService<ICalendarRescheduler>());
+        var shell = ShowShellWithHeldSaves(window, services, held);
+        await shell.GoHomeAsync();
+        HeadlessInput.Press(window, Key.C, CtrlShift);
+        var calendar = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
+        await HeadlessInput.WaitUntilAsync(() => calendar.Days.Count == 42);
+        var lastVisibleDay = calendar.Days[^1].Date;
+        var seeded = await SeedAsync(services, due: lastVisibleDay);
+        await calendar.LoadAsync();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        HeadlessInput.Find<Button>(window, "CalendarEntryButton").Focus();
+        held.Hold();
+
+        HeadlessInput.Press(window, Key.Right, RawInputModifiers.Alt);
+        HeadlessInput.Press(window, Key.Right, RawInputModifiers.Alt);
+        HeadlessInput.Press(window, Key.Right, RawInputModifiers.Alt);
+        HeadlessInput.Press(window, Key.Right, RawInputModifiers.Alt);
+        await HeadlessInput.WaitUntilAsync(() => held.MovesStarted == 1);
+        held.Release();
+        await HeadlessInput.WaitUntilAsync(() => held.MovesStarted == 2);
+        var stored = await WaitForDueDateAsync(seeded, services, lastVisibleDay.AddDays(4));
+
+        Assert.Equal(lastVisibleDay.AddDays(4), stored);
+        Assert.Equal(2, held.MovesStarted);
         window.Close();
     }
 
@@ -706,6 +832,42 @@ public sealed class CalendarDragTests
     {
         var focused = window.FocusManager?.GetFocusedElement() as Control;
         return focused is null ? null : Avalonia.Automation.AutomationProperties.GetAutomationId(focused);
+    }
+
+    /// <summary>A shell like the real one, except that rescheduling saves can be held back by <paramref name="held"/>.</summary>
+    private static MainWindowViewModel ShowShellWithHeldSaves(
+        MainWindow window, IServiceProvider services, HeldCalendarRescheduler held)
+    {
+        var shell = new MainWindowViewModel(
+            services.GetRequiredService<ProjectService>(), services.GetRequiredService<FolderService>(),
+            services.GetRequiredService<IDialogService>(), services.GetRequiredService<ItemService>(),
+            services.GetRequiredService<TimeProvider>(), services.GetRequiredService<TimeZoneInfo>(),
+            settings: services.GetRequiredService<SettingsService>(),
+            lookups: services.GetRequiredService<LookupService>(),
+            fields: services.GetRequiredService<FieldService>(),
+            search: services.GetRequiredService<IItemSearchService>(),
+            registry: services.GetRequiredService<IFieldRegistry>(),
+            calendar: services.GetRequiredService<CalendarService>(),
+            rescheduler: held);
+        window.DataContext = shell;
+        window.Show();
+        return shell;
+    }
+
+    /// <summary>Reads the stored due date until it equals the expected one (a save may still be finishing).</summary>
+    private static async Task<DateOnly?> WaitForDueDateAsync(
+        SeededItem seeded, IServiceProvider services, DateOnly expected)
+    {
+        DateOnly? stored = null;
+
+        for (var attempt = 0; attempt < 300 && stored != expected; attempt++)
+        {
+            await Task.Delay(10);
+            Dispatcher.UIThread.RunJobs();
+            stored = (await seeded.ReadAsync(services)).DueDate;
+        }
+
+        return stored;
     }
 
     private static MainWindowViewModel ShowShell(MainWindow window, IServiceProvider services)

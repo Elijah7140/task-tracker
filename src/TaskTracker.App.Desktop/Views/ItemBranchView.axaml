@@ -13,11 +13,37 @@
       <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
       <Setter Property="BorderThickness" Value="4,1,1,1" />
     </Style>
+    <Style Selector="Border.itemRow.dropBefore">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="0,3,0,0" />
+    </Style>
+    <Style Selector="Border.itemRow.dropAfter">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="0,0,0,3" />
+    </Style>
     <Style Selector="Border.itemRow.approaching">
       <Setter Property="Background" Value="{DynamicResource UrgencyApproachingBrush}" />
     </Style>
     <Style Selector="Border.itemRow.immediate">
       <Setter Property="Background" Value="{DynamicResource UrgencyImmediateBrush}" />
+    </Style>
+    <!-- "Drop into" tints the whole row and shows a label, so it cannot be mistaken for the
+         selection bar or the focus outline. Declared after the urgency styles to win over them. -->
+    <Style Selector="Border.itemRow.dropInto">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="Background">
+        <SolidColorBrush Color="{DynamicResource SystemAccentColor}" Opacity="0.3" />
+      </Setter>
+    </Style>
+    <Style Selector="Border.dropHint">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.itemRow.dropInto Border.dropHint">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="Border.itemRow.dragging">
+      <Setter Property="Opacity" Value="0.4" />
     </Style>
     <Style Selector="Border.itemRow.approaching TextBlock, Border.itemRow.immediate TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource UrgencyForegroundBrush}" />
@@ -31,9 +57,16 @@
   </UserControl.Resources>
   <StackPanel Spacing="3" HorizontalAlignment="Stretch">
     <Border Classes="itemRow" Classes.selected="{Binding IsSelected}"
+            AutomationProperties.AutomationId="ItemDragRow"
             Classes.approaching="{Binding IsApproaching}"
             Classes.immediate="{Binding IsImmediate}"
             CornerRadius="5" Padding="3,2" HorizontalAlignment="Stretch">
+      <Border.ContextMenu>
+        <ContextMenu>
+          <MenuItem Header="Move to…" Command="{Binding MoveItemToAreaCommand}" IsVisible="{Binding IsTopLevel}"
+                    AutomationProperties.AutomationId="MoveItemToAreaMenuItem" />
+        </ContextMenu>
+      </Border.ContextMenu>
       <Grid>
       <!-- Detail columns share their width across all rows (scope set in ProjectWorkspaceView),
            so they align without reserving space for values no row has. -->
@@ -92,6 +125,12 @@
                      TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}" />
         </Button>
       </Grid>
+      <Border Classes="dropHint" IsHitTestVisible="False" HorizontalAlignment="Right"
+              VerticalAlignment="Center" Margin="0,0,6,0" Padding="7,1" CornerRadius="3"
+              Background="{DynamicResource SystemAccentColor}">
+        <TextBlock Text="↳ Make sub-item" FontSize="11" FontWeight="SemiBold" Foreground="White"
+                   AutomationProperties.AutomationId="DropIntoHint" />
+      </Border>
       </Grid>
     </Border>
     <ItemsControl ItemsSource="{Binding Children}" IsVisible="{Binding IsExpanded}"
