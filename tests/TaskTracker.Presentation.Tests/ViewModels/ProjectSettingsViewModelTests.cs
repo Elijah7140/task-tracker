@@ -61,6 +61,38 @@ public sealed class ProjectSettingsViewModelTests
     }
 
     [Fact]
+    public async Task Resetting_reminder_overrides_restores_the_unlisted_global_offset_and_time()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        var globalOffset = TimeSpan.FromMinutes(45);
+        var projectOffset = TimeSpan.FromMinutes(90);
+        var globalTime = new TimeOnly(8, 30);
+        await store.Settings.SetGlobalAsync(SettingsCatalogue.DefaultReminderOffset, globalOffset);
+        await store.Settings.SetGlobalAsync(SettingsCatalogue.DateOnlyReminderTime, globalTime);
+        await store.Settings.SetProjectOverrideAsync(project.Id, SettingsCatalogue.DefaultReminderOffset, projectOffset);
+        await store.Settings.SetProjectOverrideAsync(project.Id, SettingsCatalogue.DateOnlyReminderTime, new TimeOnly(10, 30));
+        var page = await LoadPageAsync(store, project, new FakeDialogService(), new FakeNavigationService());
+        var loadedOffset = page.Reminders.SelectedOffset;
+
+        page.Reminders.ResetOffsetCommand.Execute(null);
+        page.Reminders.ResetTimeCommand.Execute(null);
+        await page.SaveAsync();
+
+        var effective = await store.Settings.GetEffectiveAsync(project.Id);
+        Assert.Equal("90 minutes before", loadedOffset?.Label);
+        Assert.Equal("45 minutes before", page.Reminders.SelectedOffset?.Label);
+        Assert.Equal(globalTime.ToTimeSpan(), page.Reminders.DateOnlyTime);
+        Assert.Equal("Inherited from global", page.Reminders.OffsetSource);
+        Assert.Equal("Inherited from global", page.Reminders.TimeSource);
+        Assert.Equal(SettingSource.Global, effective.DefaultReminderOffset.Source);
+        Assert.Equal(globalOffset, effective.DefaultReminderOffset.Value);
+        Assert.Equal(SettingSource.Global, effective.DateOnlyReminderTime.Source);
+        Assert.Equal(globalTime, effective.DateOnlyReminderTime.Value);
+    }
+
+    [Fact]
     public async Task Reset_alone_changes_the_form_but_persists_nothing()
     {
         await using var store = new PresentationTestStore();

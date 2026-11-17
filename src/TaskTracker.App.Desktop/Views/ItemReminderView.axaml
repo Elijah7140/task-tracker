@@ -4,7 +4,7 @@
              x:Class="TaskTracker.App.Desktop.Views.ItemReminderView"
              x:DataType="vm:ItemEditorViewModel">
   <StackPanel Spacing="4" Margin="0,8,0,0">
-    <TextBlock Text="Reminder" Classes="caption" />
+    <TextBlock Text="Reminder" />
     <ComboBox ItemsSource="{Binding ReminderChoices}" SelectedItem="{Binding SelectedReminder, Mode=TwoWay}"
               HorizontalAlignment="Stretch" AutomationProperties.Name="Reminder"
               AutomationProperties.AutomationId="EditorReminderChoice">

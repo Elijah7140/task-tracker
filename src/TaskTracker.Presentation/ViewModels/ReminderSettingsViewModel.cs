@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Settings;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -17,10 +18,13 @@ public sealed partial class ReminderSettingsViewModel : ViewModelBase
     private bool enabled;
 
     [ObservableProperty]
-    private string offsetMinutes = "60";
+    private IReadOnlyList<ReminderChoice> offsetChoices = ReminderChoice.OffsetOptions;
 
     [ObservableProperty]
-    private string dateOnlyTime = "09:00";
+    private ReminderChoice? selectedOffset;
+
+    [ObservableProperty]
+    private TimeSpan? dateOnlyTime = SettingsCatalogue.DateOnlyReminderTime.DefaultValue.ToTimeSpan();
 
     [ObservableProperty]
     private bool keepRunningInTray;
@@ -48,14 +52,14 @@ public sealed partial class ReminderSettingsViewModel : ViewModelBase
     {
         get
         {
-            if ((!IsProject || OverrideOffset) && ParseOffset() is null)
+            if ((!IsProject || OverrideOffset) && SelectedOffset?.Offset is null)
             {
-                return "Enter a nonnegative number of minutes for the default reminder.";
+                return "Choose a default reminder offset.";
             }
 
-            if ((!IsProject || OverrideTime) && ParseTime() is null)
+            if ((!IsProject || OverrideTime) && DateOnlyTime is null)
             {
-                return "Enter the date-only reminder time in HH:mm format.";
+                return "Choose the date-only reminder time.";
             }
 
             return null;
@@ -66,16 +70,16 @@ public sealed partial class ReminderSettingsViewModel : ViewModelBase
 
     public ReminderPreferences Preferences => new(
         !IsProject || OverrideEnabled ? Enabled : null,
-        !IsProject || OverrideOffset ? ParseOffset() : null,
-        !IsProject || OverrideTime ? ParseTime() : null,
+        !IsProject || OverrideOffset ? SelectedOffset?.Offset : null,
+        (!IsProject || OverrideTime) && DateOnlyTime is TimeSpan time ? TimeOnly.FromTimeSpan(time) : null,
         IsProject ? null : KeepRunningInTray);
 
     public async Task LoadGlobalAsync(SettingsService settings)
     {
         inherited = await ReadGlobalAsync(settings);
         Enabled = inherited.Enabled!.Value;
-        OffsetMinutes = FormatOffset(inherited.Offset!.Value);
-        DateOnlyTime = FormatTime(inherited.DateOnlyTime!.Value);
+        LoadOffset(inherited.Offset!.Value);
+        DateOnlyTime = inherited.DateOnlyTime!.Value.ToTimeSpan();
         KeepRunningInTray = await settings.GetGlobalAsync(SettingsCatalogue.KeepRunningInTray);
     }
 
@@ -86,8 +90,8 @@ public sealed partial class ReminderSettingsViewModel : ViewModelBase
         OverrideOffset = effective.DefaultReminderOffset.Source == SettingSource.Project;
         OverrideTime = effective.DateOnlyReminderTime.Source == SettingSource.Project;
         Enabled = effective.RemindersEnabled.Value;
-        OffsetMinutes = FormatOffset(effective.DefaultReminderOffset.Value);
-        DateOnlyTime = FormatTime(effective.DateOnlyReminderTime.Value);
+        LoadOffset(effective.DefaultReminderOffset.Value);
+        DateOnlyTime = effective.DateOnlyReminderTime.Value.ToTimeSpan();
     }
 
     partial void OnOverrideEnabledChanged(bool value)
@@ -102,7 +106,7 @@ public sealed partial class ReminderSettingsViewModel : ViewModelBase
     {
         if (!value)
         {
-            OffsetMinutes = FormatOffset(inherited.Offset!.Value);
+            LoadOffset(inherited.Offset!.Value);
         }
     }
 
@@ -110,7 +114,7 @@ public sealed partial class ReminderSettingsViewModel : ViewModelBase
     {
         if (!value)
         {
-            DateOnlyTime = FormatTime(inherited.DateOnlyTime!.Value);
+            DateOnlyTime = inherited.DateOnlyTime!.Value.ToTimeSpan();
         }
     }
 
@@ -145,38 +149,21 @@ public sealed partial class ReminderSettingsViewModel : ViewModelBase
             await settings.GetGlobalAsync(SettingsCatalogue.DateOnlyReminderTime));
     }
 
-    private TimeSpan? ParseOffset()
+    private void LoadOffset(TimeSpan offset)
     {
-        if (!decimal.TryParse(OffsetMinutes, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var minutes)
-            || minutes < 0 || minutes > (decimal)long.MaxValue / TimeSpan.TicksPerMinute)
+        var standard = ReminderChoice.OffsetOptions.FirstOrDefault(choice => choice.Offset == offset);
+        if (standard is not null)
         {
-            return null;
+            OffsetChoices = ReminderChoice.OffsetOptions;
+            SelectedOffset = standard;
+            return;
         }
 
-        return TimeSpan.FromTicks((long)decimal.Round(minutes * TimeSpan.TicksPerMinute));
-    }
-
-    private TimeOnly? ParseTime()
-    {
-        try
-        {
-            return SettingsCatalogue.DateOnlyReminderTime.Parse(DateOnlyTime);
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
-    }
-
-    private static string FormatOffset(TimeSpan offset)
-    {
-        return ((decimal)offset.Ticks / TimeSpan.TicksPerMinute).ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static string FormatTime(TimeOnly time)
-    {
-        return time.Ticks % TimeSpan.TicksPerMinute == 0
-            ? time.ToString("HH:mm", CultureInfo.InvariantCulture)
-            : SettingsCatalogue.DateOnlyReminderTime.Format(time);
+        var minutes = (decimal)offset.Ticks / TimeSpan.TicksPerMinute;
+        var unit = minutes == 1 ? "minute" : "minutes";
+        var custom = new ReminderChoice($"{minutes.ToString(CultureInfo.InvariantCulture)} {unit} before",
+            ReminderMode.Offset, offset);
+        OffsetChoices = [.. ReminderChoice.OffsetOptions, custom];
+        SelectedOffset = custom;
     }
 }

@@ -2,22 +2,35 @@ using TaskTracker.Core.Reminders;
 
 namespace TaskTracker.Presentation.ViewModels;
 
-/// <summary>A selectable reminder option in the item draft.</summary>
-public sealed record ReminderChoice(string Label, ReminderMode? Mode = null, int? OffsetMinutes = null)
+/// <summary>A selectable reminder option in the editor or settings.</summary>
+public sealed record ReminderChoice(string Label, ReminderMode? Mode = null, TimeSpan? Offset = null)
 {
+    public int? OffsetMinutes => (int?)Offset?.TotalMinutes;
+
+    public static IReadOnlyList<ReminderChoice> OffsetOptions { get; } =
+        Array.AsReadOnly<ReminderChoice>(
+        [
+            OffsetOption("At the due moment", 0),
+            OffsetOption("5 minutes before", 5),
+            OffsetOption("15 minutes before", 15),
+            OffsetOption("30 minutes before", 30),
+            OffsetOption("1 hour before", 60),
+            OffsetOption("2 hours before", 120),
+            OffsetOption("1 day before", 1440),
+            OffsetOption("2 days before", 2880),
+            OffsetOption("1 week before", 10080),
+        ]);
+
     public static IReadOnlyList<ReminderChoice> Options { get; } =
         Array.AsReadOnly<ReminderChoice>(
         [
             new("Default"),
             new("None", ReminderMode.None),
-            new("At the due moment", ReminderMode.Offset, 0),
-            new("5 minutes before", ReminderMode.Offset, 5),
-            new("15 minutes before", ReminderMode.Offset, 15),
-            new("30 minutes before", ReminderMode.Offset, 30),
-            new("1 hour before", ReminderMode.Offset, 60),
-            new("2 hours before", ReminderMode.Offset, 120),
-            new("1 day before", ReminderMode.Offset, 1440),
-            new("2 days before", ReminderMode.Offset, 2880),
-            new("1 week before", ReminderMode.Offset, 10080),
+            ..OffsetOptions,
         ]);
+
+    private static ReminderChoice OffsetOption(string label, int minutes)
+    {
+        return new ReminderChoice(label, ReminderMode.Offset, TimeSpan.FromMinutes(minutes));
+    }
 }
