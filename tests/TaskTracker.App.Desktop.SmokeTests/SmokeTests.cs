@@ -555,7 +555,7 @@ public sealed class SmokeTests
     {
         var clock = TimeProvider.System;
         using var services = CompositionRoot.BuildServices(clock: clock, databasePath: path);
-        await services.GetRequiredService<DatabaseInitializer>().InitializeAsync();
+        await InitializeDatabaseAsync(services);
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Reminder Smoke");
         var items = services.GetRequiredService<ItemService>();
         var item = await items.CreateAsync(project.Id, null, null, title);
@@ -567,6 +567,16 @@ public sealed class SmokeTests
             ReminderMode = ReminderMode.Offset,
             ReminderOffsetMinutes = 0,
         });
+
+        // Pooled connections would keep the file open and stop the session deleting it afterwards.
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    /// <summary>The initializer is a scoped service, so it is resolved in a scope, as the app does at startup.</summary>
+    private static async Task InitializeDatabaseAsync(IServiceProvider services)
+    {
+        using var scope = services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
     }
 
     private static void Run(Action<SmokeSession> scenario, IReadOnlyDictionary<string, string>? environment = null,
