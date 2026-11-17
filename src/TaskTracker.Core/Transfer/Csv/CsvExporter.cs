@@ -100,7 +100,8 @@ internal sealed class CsvExporter(ExportCatalogue catalogue)
             CsvCells.Protect(rows.Project.Project.Name),
             CsvCells.Protect(rows.FolderPath(item)),
             CsvCells.Protect(rows.ParentTitle(item)),
-            string.Join(" ", rows.LinksOf(item).Select(link => link.Url))
+            string.Join(" ", rows.LinksOf(item).Select(link => link.Url)),
+            item.Recurrence?.Describe() ?? string.Empty
         };
 
         cells.AddRange(columns.Select(column => FieldCell(rows, item, column)));

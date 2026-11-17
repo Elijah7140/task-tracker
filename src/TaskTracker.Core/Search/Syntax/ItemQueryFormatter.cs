@@ -52,6 +52,11 @@ public static class ItemQueryFormatter
             return $"has:{filter.FieldKey}";
         }
 
+        if (filter is { FieldKey: "repeats", Operator: FilterOperator.Equals, Value: FilterValue.Bool { Value: true } })
+        {
+            return "is:recurring";
+        }
+
         if (filter is { FieldKey: "status", Operator: FilterOperator.Equals, Value: FilterValue.Bool done })
         {
             return done.Value ? "is:done" : "is:open";

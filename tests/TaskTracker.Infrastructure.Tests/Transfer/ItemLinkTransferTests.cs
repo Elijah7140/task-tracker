@@ -173,7 +173,7 @@ public sealed class ItemLinkTransferTests
 
         var header = table.Records[0].Cells;
         var column = header.ToList().IndexOf("Links");
-        Assert.Equal(header.Count - 1 - 6, column);
+        Assert.Equal(header.Count - 2 - 6, column);
         var rows = table.Records.Skip(1).ToDictionary(record => record.Cells[0], record => record.Cells[column]);
         Assert.Equal("https://a.example https://b.example/x?y=1", rows["Fix invoice totals"]);
         Assert.Equal(string.Empty, rows["Add index"]);
@@ -252,7 +252,7 @@ public sealed class ItemLinkTransferTests
         var result = await world.Transfer.ImportCsvAsync(csv, target.Id, null);
 
         var headers = CsvParser.Parse(csv).Records[0].Cells;
-        Assert.Equal(["Links", "Links (field) (field)", "Links (field)"], headers.TakeLast(3));
+        Assert.Equal(["Links", "Repeats", "Links (field) (field)", "Links (field)"], headers.TakeLast(4));
         Assert.True(result.Succeeded, string.Join("; ", result.Issues));
         var imported = Assert.Single(await world.ReadItemsAsync(target.Id));
         var values = (await world.ReadValuesAsync(imported.Id)).ToDictionary(value => value.FieldDefinitionId);

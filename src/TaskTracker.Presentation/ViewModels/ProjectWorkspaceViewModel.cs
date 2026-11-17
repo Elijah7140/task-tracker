@@ -33,6 +33,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     private AreaSnapshot? areaSnapshot;
     private string quickAddTitle = string.Empty;
     private string? itemMoveError;
+    private string? recurrenceStatus;
     private bool isCompletedExpanded;
     private int selectionVersion;
     private int areaVersion;
@@ -75,6 +76,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         OutdentCommand = new AsyncRelayCommand(OutdentSelectedAsync);
         MoveItemToAreaCommand = new AsyncRelayCommand(MoveSelectedToAreaAsync);
         ToggleSelectedCommand = new AsyncRelayCommand(ToggleSelectedAsync);
+        SkipRepeatCommand = new AsyncRelayCommand(() => ChangeSelectedRepeatAsync(skip: true));
+        StopRepeatingCommand = new AsyncRelayCommand(() => ChangeSelectedRepeatAsync(skip: false));
         OpenLinkCommand = new AsyncRelayCommand<string?>(OpenLinkAsync);
     }
 
@@ -99,6 +102,30 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public UndoCoordinator? Undo { get; }
 
     public bool HasUndo => Undo is not null;
+
+    public ICommand SkipRepeatCommand { get; }
+
+    public ICommand StopRepeatingCommand { get; }
+
+    public string? RecurrenceStatus
+    {
+        get => recurrenceStatus;
+        private set
+        {
+            if (SetProperty(ref recurrenceStatus, value))
+            {
+                OnPropertyChanged(nameof(HasRecurrenceStatus));
+            }
+        }
+    }
+
+    public bool HasRecurrenceStatus => RecurrenceStatus is not null;
+
+    internal void ReportLastRepeat()
+    {
+        Undo?.ClearStatus();
+        RecurrenceStatus = "That was the last repeat.";
+    }
 
     public ICommand HomeCommand { get; }
 
@@ -319,6 +346,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
             return;
         }
 
+        RecurrenceStatus = null;
         var snapshot = await items.LoadAreaAsync(projectId, SelectedFolder?.Id);
         ApplyAreaSnapshot(snapshot);
         await SelectLoadedItemAsync(selectedItemId ?? selectedItem?.Id);
@@ -513,7 +541,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
 
     private bool CanSave()
     {
-        return Editor is null || Editor.CustomFieldsValid;
+        return Editor is null || (Editor.CustomFieldsValid && !Editor.Repeat.HasError);
     }
 
     private void ReplaceEditorSubscription(ItemEditorViewModel? previous, ItemEditorViewModel? current)
@@ -521,14 +549,24 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         if (previous is not null)
         {
             previous.PropertyChanged -= OnEditorChanged;
+            previous.Repeat.PropertyChanged -= OnRepeatChanged;
         }
 
         if (current is not null)
         {
             current.PropertyChanged += OnEditorChanged;
+            current.Repeat.PropertyChanged += OnRepeatChanged;
         }
 
         saveCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnRepeatChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RecurrenceDraftViewModel.HasError))
+        {
+            saveCommand.NotifyCanExecuteChanged();
+        }
     }
 
     private void OnEditorChanged(object? sender, PropertyChangedEventArgs e)
@@ -571,6 +609,16 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public Task AddSubItemAsync()
     {
         return areaItems.AddSubItemAsync();
+    }
+
+    private Task ChangeSelectedRepeatAsync(bool skip)
+    {
+        return selectedItem is { } row ? ChangeRepeatAsync(row, skip) : Task.CompletedTask;
+    }
+
+    internal Task ChangeRepeatAsync(ItemRowViewModel row, bool skip)
+    {
+        return areaItems.ChangeRepeatAsync(row, skip);
     }
 
     public Task ToggleAsync(ItemRowViewModel row)

@@ -80,9 +80,9 @@ public sealed class SavedSearchMigrationTests
             var stamp = "2026-11-13 12:00:00";
             await old.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO Project (Id, Name, SortOrder, CreatedAtUtc, UpdatedAtUtc) VALUES ({projectId}, {"Migration"}, {0}, {stamp}, {stamp})");
-            itemId = (await new TaskTracker.Core.Items.ItemService(
-                new TestUnitOfWorkFactory(old), TimeProvider.System, TimeZoneInfo.Utc)
-                .CreateAsync(projectId, null, null, "Keep value")).Id;
+            itemId = Guid.CreateVersion7();
+            await old.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO TodoItem (Id, ProjectId, Title, SortOrder, CreatedAtUtc, UpdatedAtUtc) VALUES ({itemId}, {projectId}, {"Keep value"}, {0}, {stamp}, {stamp})");
 
             foreach (var key in new[] { "has", "has-2", "has-3", "no", "no-2", "is" })
             {

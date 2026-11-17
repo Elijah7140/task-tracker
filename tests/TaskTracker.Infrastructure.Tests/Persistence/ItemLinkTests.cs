@@ -292,8 +292,9 @@ public sealed class ItemLinkTests
             await old.GetService<IMigrator>().MigrateAsync("20261115054310_AddSavedSearches");
             await old.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO Project (Id, Name, SortOrder, CreatedAtUtc, UpdatedAtUtc) VALUES ({projectId}, {"Kept"}, {0}, {stamp}, {stamp})");
-            itemId = (await new ItemService(new TestUnitOfWorkFactory(old), TimeProvider.System, TimeZoneInfo.Utc)
-                .CreateAsync(projectId, null, null, "Existing item")).Id;
+            itemId = Guid.CreateVersion7();
+            await old.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO TodoItem (Id, ProjectId, Title, SortOrder, CreatedAtUtc, UpdatedAtUtc) VALUES ({itemId}, {projectId}, {"Existing item"}, {0}, {stamp}, {stamp})");
             await old.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO FieldDefinition (Id, Key, DisplayName, DataType, IsArchived, SortOrder) VALUES ({fieldId}, {"link"}, {"Link"}, {"Text"}, {false}, {0})");
             Assert.Equal(0, await CountTablesAsync(connection, "ItemLink"));

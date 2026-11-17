@@ -1,3 +1,5 @@
+using TaskTracker.Core.Items.Recurrence;
+
 namespace TaskTracker.Core.Items;
 
 /// <summary>A task or sub-item in one project area.</summary>
@@ -38,6 +40,70 @@ public sealed class TodoItem
     public DateTime? ScheduledStart { get; private set; }
 
     public DateTime? ScheduledEnd { get; private set; }
+
+    private RecurrenceFrequency? RecurrenceFrequency { get; set; }
+
+    private int? RecurrenceInterval { get; set; }
+
+    private RecurrenceWeekdays? RecurrenceWeekdays { get; set; }
+
+    private int? RecurrenceMonthDay { get; set; }
+
+    private int? RecurrenceMonth { get; set; }
+
+    private RecurrenceAnchor? RecurrenceAnchor { get; set; }
+
+    private RecurrenceEndKind? RecurrenceEndKind { get; set; }
+
+    private DateOnly? RecurrenceEndDate { get; set; }
+
+    private int? RecurrenceRemaining { get; set; }
+
+    public Guid? RecurrenceSeriesId { get; private set; }
+
+    public RecurrenceRule? Recurrence
+    {
+        get
+        {
+            if (RecurrenceFrequency is not { } frequency)
+            {
+                return null;
+            }
+
+            return new RecurrenceRule(frequency, RecurrenceInterval!.Value, RecurrenceWeekdays,
+                RecurrenceMonthDay, RecurrenceMonth, RecurrenceAnchor!.Value,
+                RecurrenceEndKind!.Value, RecurrenceEndDate, RecurrenceRemaining);
+        }
+    }
+
+    /// <summary>The floating date used when advancing this item's due date or scheduled block.</summary>
+    public DateOnly? RecurrenceDate => DueDate ?? (ScheduledStart is { } start ? DateOnly.FromDateTime(start) : null);
+
+    /// <summary>Sets the rule and keeps the series identity when the rule is edited.</summary>
+    public void SetRecurrence(RecurrenceRule? rule, TimeProvider clock, Guid? seriesId = null)
+    {
+        if (rule?.FindError() is { } error)
+        {
+            throw new DomainRuleException(error.Message);
+        }
+
+        if (rule is not null && RecurrenceDate is null)
+        {
+            throw new DomainRuleException("A repeating item needs a due date or a scheduled start.");
+        }
+
+        RecurrenceFrequency = rule?.Frequency;
+        RecurrenceInterval = rule?.Interval;
+        RecurrenceWeekdays = rule?.Weekdays;
+        RecurrenceMonthDay = rule?.MonthDay;
+        RecurrenceMonth = rule?.Month;
+        RecurrenceAnchor = rule?.Anchor;
+        RecurrenceEndKind = rule?.EndKind;
+        RecurrenceEndDate = rule?.EndDate;
+        RecurrenceRemaining = rule?.Remaining;
+        RecurrenceSeriesId = rule is null ? null : seriesId ?? RecurrenceSeriesId ?? Guid.CreateVersion7();
+        Touch(clock);
+    }
 
     public DateTime? CompletedAtUtc { get; private set; }
 

@@ -1,3 +1,5 @@
+using TaskTracker.Core.Items.Recurrence;
+
 namespace TaskTracker.Core.Transfer.Json;
 
 /// <summary>
@@ -46,5 +48,9 @@ public sealed class ItemDocument
     public IReadOnlyList<FieldValueDocument>? FieldValues { get; init; }
 
     /// <summary>The item's links in order. Optional: files written before links existed simply lack it.</summary>
+    public RecurrenceRule? Recurrence { get; init; }
+
+    public Guid? RecurrenceSeriesId { get; init; }
+
     public IReadOnlyList<ItemLinkDocument>? Links { get; init; }
 }

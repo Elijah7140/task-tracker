@@ -81,6 +81,41 @@ public sealed class SmokeTests
         });
     }
 
+    [Fact]
+    public void Completing_a_weekly_repeat_shows_the_next_open_occurrence()
+    {
+        Run(session =>
+        {
+            session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+            var date = new DateTime(2026, 11, 16);
+            const string title = "Weekly review";
+            OpenProject(session);
+            AddItem(session, title);
+            session.FindNamed("ItemTitleButton", title).Click();
+            SetWeeklyRepeat(session, date);
+
+            session.FindRowCheckbox(title).Click();
+
+            session.WaitUntil(() => session.FindRowCheckbox(title).IsChecked == false, "the next repeat to open");
+            session.FindNamed("ItemTitleButton", title).Click();
+            session.WaitUntil(() => PickerEdit(session, "EditorDueDatePicker").AsTextBox().Text == FormatDate(date.AddDays(7)),
+                "the next weekly due date");
+            Assert.NotNull(session.Find("ItemRepeatMarker"));
+        });
+    }
+
+    private static void SetWeeklyRepeat(SmokeSession session, DateTime date)
+    {
+        ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(date));
+        session.Press(VirtualKeyShort.TAB);
+        Mouse.MoveTo(session.Find("EditorTitleBox").BoundingRectangle.Center());
+        Mouse.Scroll(-20);
+        session.Find("EditorRepeatSection").Click();
+        session.SelectByName("EditorRepeatFrequency", "Weekly");
+        session.Find("EditorSaveButton").AsButton().Invoke();
+        session.Find("ItemRepeatMarker");
+    }
+
     private const string ItemWithFields = "Metadata item";
     private static readonly DateTime ReviewDate = new(2026, 11, 20);
 

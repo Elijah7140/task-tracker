@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Items.Recurrence;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 
@@ -28,6 +29,7 @@ public sealed class TodoItemConfiguration : IEntityTypeConfiguration<TodoItem>
             .HasConversion(value => value, value => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null);
         builder.Property(item => item.DeletedAtUtc)
             .HasConversion(value => value, value => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null);
+        ConfigureRecurrence(builder);
         builder.HasIndex(item => new { item.ProjectId, item.FolderId });
         builder.HasIndex(item => item.ParentItemId);
         builder.HasIndex(item => item.TicketNumber);
@@ -38,5 +40,20 @@ public sealed class TodoItemConfiguration : IEntityTypeConfiguration<TodoItem>
         builder.HasOne<ItemType>().WithMany().HasForeignKey(item => item.ItemTypeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<PriorityLevel>().WithMany().HasForeignKey(item => item.PriorityLevelId).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(item => item.DeletedAtUtc == null);
+    }
+
+    private static void ConfigureRecurrence(EntityTypeBuilder<TodoItem> builder)
+    {
+        builder.Ignore(item => item.Recurrence);
+        builder.Ignore(item => item.RecurrenceDate);
+        builder.Property<RecurrenceFrequency?>("RecurrenceFrequency");
+        builder.Property<int?>("RecurrenceInterval");
+        builder.Property<RecurrenceWeekdays?>("RecurrenceWeekdays");
+        builder.Property<int?>("RecurrenceMonthDay");
+        builder.Property<int?>("RecurrenceMonth");
+        builder.Property<RecurrenceAnchor?>("RecurrenceAnchor");
+        builder.Property<RecurrenceEndKind?>("RecurrenceEndKind");
+        builder.Property<DateOnly?>("RecurrenceEndDate");
+        builder.Property<int?>("RecurrenceRemaining");
     }
 }

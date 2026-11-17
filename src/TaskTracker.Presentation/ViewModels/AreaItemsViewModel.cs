@@ -220,6 +220,38 @@ public sealed class AreaItemsViewModel
         }
 
         await workspace.LoadItemsAsync(row.Id);
+        if (result is CompletionResult.Applied { LastRepeat: true })
+        {
+            workspace.ReportLastRepeat();
+        }
+    }
+
+    internal async Task ChangeRepeatAsync(ItemRowViewModel row, bool skip)
+    {
+        if (items is null || !await workspace.ResolveDraftAsync())
+        {
+            return;
+        }
+
+        try
+        {
+            if (skip && !await items.SkipRepeatAsync(row.Id))
+            {
+                workspace.ReportLastRepeat();
+                return;
+            }
+
+            if (!skip)
+            {
+                await items.StopRepeatingAsync(row.Id);
+            }
+
+            await workspace.LoadItemsAsync(row.Id);
+        }
+        catch (DomainRuleException exception)
+        {
+            await dialogs.ShowMessageAsync("Item action failed", exception.Message);
+        }
     }
 
     public async Task ToggleSelectedAsync()

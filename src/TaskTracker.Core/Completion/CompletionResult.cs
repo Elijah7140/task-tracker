@@ -8,7 +8,11 @@ public abstract record CompletionResult
     }
 
     /// <summary>Changes that the application service can persist together.</summary>
-    public sealed record Applied(IReadOnlyList<CompletionChange> Changes) : CompletionResult;
+    public sealed record Applied(IReadOnlyList<CompletionChange> Changes) : CompletionResult
+    {
+        /// <summary>At least one rule ended during this completion.</summary>
+        public bool LastRepeat { get; init; }
+    }
 
     /// <summary>The number of open descendants that would also be completed.</summary>
     public sealed record NeedsConfirmation(int OpenSubItemCount) : CompletionResult;

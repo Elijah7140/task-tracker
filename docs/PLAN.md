@@ -628,7 +628,7 @@ query    = { term }
 term     = word | phrase | clause
 word     = any run of non-space characters that is not a clause   -> free text
 phrase   = '"' chars '"'                                          -> free text (\" and \\ are escapes)
-clause   = key op value | 'has:' key | 'no:' key | 'is:' ('done' | 'open')
+clause   = key op value | 'has:' key | 'no:' key | 'is:' ('done' | 'open' | 'recurring')
 op       = ':'  '!='  '>'  '<'  '>='  '<='  '~'
 value    = endpoint [ '..' endpoint ]                             (a range only after ':')
 endpoint = quoted string | run of characters up to a space or '..'
@@ -643,6 +643,7 @@ endpoint = quoted string | run of characters up to a space or '..'
 | `key>=value`, `key<=value` | Dates and priority only, translated exactly: `due>=D` is `due>(D-1 day)` except at the minimum date, where it means `has:due`; `due<=D` uses the following day except at the maximum date, where it means `has:due`. `priority>=high` is the range from the top level to High, `priority<=high` from High to the bottom level. Numbers reject them with a hint (use `>`, `<` or a range) |
 | `key:a..b` | Between, inclusive (numbers, dates, priority; priority runs more important to less important) |
 | `has:key` / `no:key` | IsNotEmpty / IsEmpty |
+| `is:recurring` | `repeats` Equals true (§7.11) |
 | `is:done` / `is:open` | `status` Equals true / false; a query with `is:done` (or `status:yes`) turns Include completed on |
 
 Values: Text as written (quote when it has spaces); Number with the **invariant** culture (a dot for
@@ -761,7 +762,7 @@ camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\
 A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
 `dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `scheduledStart`/`scheduledEnd` as floating local values **without offset**
 (`2026-11-21T09:00:00`, §5.4), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
-`links` (optional, §7.10), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
+`links` (optional, §7.10), `recurrence` and `recurrenceSeriesId` (optional, §7.11), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
 Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
 culture throughout.
 
@@ -787,7 +788,7 @@ culture throughout.
   completion and timestamps. Project overrides are imported; **global settings in the file are ignored**. If an override would leave
   the project with invalid thresholds against this database's global settings, the import is refused.
 - *Saved searches* are created as new ones (name clashes suffixed like projects), pointing at the new project and folder ids. The
-  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. If a legacy custom `link` field is
+  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. If a legacy custom `link` or `repeats` field is
   renumbered, its saved-search references are rewritten in scopes that include the field. Other renumbered project-field keys can
   leave a saved search stale, with the usual "can't be run" message.
 - *Completion (§6.1)*: where the project's effective auto-complete setting is on, imported trees are reconciled before saving.
@@ -806,7 +807,7 @@ culture throughout.
 current search results (all matches, not just the first 200, in result order) as a flat table, UTF-8 **with BOM** (for Excel),
 RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
 quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Due date, Due time, Scheduled start, Scheduled end,
-Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), then one column per custom field by
+Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), `Repeats` (read-only, §7.11), then one column per custom field by
 display name (active fields, and archived ones that have a value; fields sharing a name share a column). Dates and numbers are ISO
 and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the culture.
 
@@ -829,7 +830,8 @@ with a message before they are read.
 
 **CSV import** targets a chosen project and optionally one of its folders (default: the root). Headers match by name ignoring case.
 `Project`, `Folder path` and `Parent title` are recognised but ignored: **every row becomes a top-level item** at the end of the area
-(sub-items are not rebuilt; the simple rule beats guessing among equal titles). Other unknown columns are reported and ignored.
+(sub-items are not rebuilt; the simple rule beats guessing among equal titles). `Repeats` is also recognised and ignored.
+Other unknown columns are reported and ignored.
 Type and priority match by name; an unknown or archived name is an **error** (it never creates a lookup, so typos do not create junk)
 and the message lists the valid names. Custom fields match by display name among the project's active fields; values follow §7.1:
 number with a dot (a decimal comma is refused with a hint), `yyyy-MM-dd` date, yes/no, choice by label, blank cell = no value.
@@ -981,6 +983,19 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   includes links, custom fields and the subtree, plus undo, trash and the migration. The UI has
   ViewModel tests, headless interaction tests for the Repeat section, Skip and Stop repeating,
   snapshot baselines in light and dark, and a smoke step.
+
+- **Implementation decisions.** Weekly intervals use weeks starting on Monday. Monthly and yearly
+  intervals advance the anchor's month or year before applying the selected day. A count includes
+  the current occurrence. Skip consumes one occurrence and leaves the final occurrence in place
+  when there is no next date. Skip uses today's local date for a completion-date anchor. The editor
+  derives a yearly rule's month and day from the due date or scheduled start. Editing other fields
+  preserves an existing yearly pattern even when its occurrence was clamped.
+- **Copied branches.** All active descendants shift by the root's date offset and start open.
+  A copied descendant that repeats starts its own series. In a confirmed completion cascade, a
+  newly opened repeating child keeps its parent open. Import, restore, and settings reconciliation
+  preserve the usual completion invariant without generating occurrences. JSON import remaps series IDs
+  with the other imported identities. Search and calendar entries open the workspace editor, so
+  completing an item from either view uses the workspace's existing completion action.
 
 ## 8. User interface (Avalonia)
 

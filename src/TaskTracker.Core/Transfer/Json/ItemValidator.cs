@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using TaskTracker.Core.Items;
 
 namespace TaskTracker.Core.Transfer.Json;
@@ -26,6 +28,7 @@ internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet
             ValidateIdentity(items[position], itemPath);
             ValidateLookups(items[position], itemPath);
             ValidateDates(items[position], itemPath);
+            ValidateRecurrence(items[position], itemPath);
             ValidatePlacement(items[position], itemPath, folderIds, byId);
             valueValidator.Validate(items[position].FieldValues.OrEmpty(), project.Id, $"{itemPath}.fieldValues");
             linkValidator.Validate(items[position].Links, $"{itemPath}.links");
@@ -60,6 +63,30 @@ internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet
         if (hasPriority && index.FindPriority(item) is null)
         {
             issues.Add($"{path}.priority", "The priority is not in this file's priority levels.");
+        }
+    }
+
+    private void ValidateRecurrence(ItemDocument item, string path)
+    {
+        if (item.RecurrenceSeriesId == Guid.Empty || (item.Recurrence is null && item.RecurrenceSeriesId.HasValue))
+        {
+            issues.Add($"{path}.recurrenceSeriesId", "A series ID must be nonempty and belong to a repeat rule.");
+        }
+
+        if (item.Recurrence is not { } rule)
+        {
+            return;
+        }
+
+        if (item.DueDate is null && item.ScheduledStart is null)
+        {
+            issues.Add($"{path}.recurrence", "A repeating item needs a due date or a scheduled start.");
+        }
+
+        foreach (var error in rule.ValidationErrors())
+        {
+            var property = JsonNamingPolicy.CamelCase.ConvertName(error.Property);
+            issues.Add($"{path}.recurrence.{property}", error.Message);
         }
     }
 

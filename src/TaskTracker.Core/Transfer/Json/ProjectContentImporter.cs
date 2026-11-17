@@ -86,10 +86,31 @@ internal sealed class ProjectContentImporter(
         item.SetDue(ImportParse.Date(document.DueDate), ImportParse.Time(document.DueTime), clock);
         item.SetSchedule(ImportParse.Local(document.ScheduledStart), ImportParse.Local(document.ScheduledEnd), clock);
 
+        if (document.Recurrence is { } rule)
+        {
+            item.SetRecurrence(rule, clock, MapSeries(document.RecurrenceSeriesId));
+        }
+
         if (ImportParse.Utc(document.CompletedAtUtc) is DateTime completedAt)
         {
             item.SetCompletion(completedAt, clock);
         }
+    }
+
+    private Guid? MapSeries(Guid? original)
+    {
+        if (original is not Guid id)
+        {
+            return null;
+        }
+
+        if (!map.RecurrenceSeries.TryGetValue(id, out var mapped))
+        {
+            mapped = Guid.CreateVersion7();
+            map.RecurrenceSeries.Add(id, mapped);
+        }
+
+        return mapped;
     }
 
     private Guid? ItemTypeId(ItemDocument document)

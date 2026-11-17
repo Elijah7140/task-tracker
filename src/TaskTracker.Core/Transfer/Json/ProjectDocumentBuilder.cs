@@ -85,6 +85,8 @@ internal sealed class ProjectDocumentBuilder(ExportCatalogue catalogue)
             CreatedAtUtc = TransferTimeFormat.FormatUtc(item.CreatedAtUtc),
             UpdatedAtUtc = TransferTimeFormat.FormatUtc(item.UpdatedAtUtc),
             FieldValues = BuildValues(values),
+            Recurrence = item.Recurrence,
+            RecurrenceSeriesId = item.RecurrenceSeriesId,
             Links = BuildLinks(links)
         };
     }
