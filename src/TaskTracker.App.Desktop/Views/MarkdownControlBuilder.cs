@@ -18,6 +18,7 @@ internal sealed class MarkdownControlBuilder(Action<string> openLink)
     private const double BlockSpacing = 8;
     private const double ListIndent = 20;
     private const double LinkMaxWidth = 260;
+    private const double TaskBoxTemplateOffset = 6;
     private static readonly double[] HeadingSizes = [22, 19, 17, 15, 14, 14];
 
     /// <summary>Builds the controls for a block list, stacked with a little space between them.</summary>
@@ -55,17 +56,20 @@ internal sealed class MarkdownControlBuilder(Action<string> openLink)
         return text;
     }
 
+    /// <summary>
+    /// A code block wraps long lines. The preview sits in a narrow details pane, where a horizontal scroller
+    /// hid the end of a line and its auto-hiding scroll bar looked like an underline.
+    /// </summary>
     private static Border BuildCodeBlock(MarkdownCodeBlock code)
     {
-        var text = new TextBlock { Text = code.Text, FontFamily = CodeFont() };
-        var scroll = new ScrollViewer
+        var text = new TextBlock
         {
-            Content = text,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+            Text = code.Text,
+            FontFamily = CodeFont(),
+            TextWrapping = TextWrapping.Wrap
         };
 
-        return new Border { Classes = { "mdCode" }, Child = scroll };
+        return new Border { Classes = { "mdCode" }, Child = text };
     }
 
     private Border BuildQuote(MarkdownQuote quote)
@@ -113,7 +117,12 @@ internal sealed class MarkdownControlBuilder(Action<string> openLink)
         return new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Top };
     }
 
-    /// <summary>A task-list box is display only: it cannot take focus or be clicked.</summary>
+    /// <summary>
+    /// A task-list box is display only: it cannot take focus or be clicked. The Fluent template draws its
+    /// 20-pixel box <see cref="TaskBoxTemplateOffset"/> pixels down inside a fixed 32-pixel row. Negative top and
+    /// bottom margins of that size keep the whole template (so nothing is clipped) but take up only the box's
+    /// height, which lines the box up with the first line of text.
+    /// </summary>
     private static CheckBox BuildTaskCheckBox(bool isChecked)
     {
         var box = new CheckBox
@@ -124,6 +133,7 @@ internal sealed class MarkdownControlBuilder(Action<string> openLink)
             MinWidth = 0,
             MinHeight = 0,
             Padding = new Thickness(0),
+            Margin = new Thickness(0, -TaskBoxTemplateOffset, 0, -TaskBoxTemplateOffset),
             VerticalAlignment = VerticalAlignment.Top,
             HorizontalAlignment = HorizontalAlignment.Left
         };

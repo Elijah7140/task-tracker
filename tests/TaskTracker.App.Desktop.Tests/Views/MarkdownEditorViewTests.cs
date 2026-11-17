@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -105,6 +106,49 @@ public sealed class MarkdownEditorViewTests
         var editor = Assert.IsType<ProjectWorkspaceViewModel>(window.DataContext is MainWindowViewModel shell
             ? shell.CurrentPage : null).Editor!;
         Assert.Equal("- [x] done\n- [ ] todo", editor.Description);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_long_code_line_wraps_inside_the_preview_instead_of_being_clipped()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window, linkLauncher: new FakeLinkLauncher());
+        var code = "```\nCREATE INDEX IX_Invoice_CustomerId_With_A_Very_Long_Name\n  ON Invoice (CustomerId);\n```";
+        var seeded = await SeedAsync(services, code);
+        var view = await OpenItemAsync(window, services, seeded.ProjectId);
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "EditorDescriptionPreviewTab"));
+        Dispatcher.UIThread.RunJobs();
+
+        var preview = HeadlessInput.Find<Border>(view, "EditorDescriptionPreview");
+        var codeText = preview.GetVisualDescendants().OfType<TextBlock>()
+            .Single(text => text.Text?.Contains("CREATE INDEX") == true);
+        Assert.Empty(preview.GetVisualDescendants().OfType<ScrollViewer>());
+        Assert.True(RightEdgeIn(preview, codeText) <= preview.Bounds.Width + 0.5);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_task_list_box_lines_up_with_the_first_line_of_its_text()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window, linkLauncher: new FakeLinkLauncher());
+        var seeded = await SeedAsync(services, "- [x] done\n- [ ] todo");
+        var view = await OpenItemAsync(window, services, seeded.ProjectId);
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "EditorDescriptionPreviewTab"));
+        Dispatcher.UIThread.RunJobs();
+
+        var preview = HeadlessInput.Find<Border>(view, "EditorDescriptionPreview");
+        var box = HeadlessInput.FindAll<CheckBox>(view, "MarkdownTaskCheckBox")[0];
+        var drawnBox = box.GetVisualDescendants().OfType<Border>().Single(part => part.Name == "NormalRectangle");
+        var row = (Grid)box.Parent!;
+        var text = row.Children.Single(child => Grid.GetColumn(child) == 1).GetVisualDescendants()
+            .OfType<TextBlock>().First();
+        var boxCentre = TopIn(preview, drawnBox) + (drawnBox.Bounds.Height / 2);
+        var lineCentre = TopIn(preview, text) + (text.Bounds.Height / 2);
+        Assert.InRange(boxCentre - lineCentre, -2, 2);
         window.Close();
     }
 
@@ -255,6 +299,16 @@ public sealed class MarkdownEditorViewTests
             .SelectMany(FlattenRuns);
 
         return string.Concat(runs);
+    }
+
+    private static double TopIn(Visual root, Visual control)
+    {
+        return control.TranslatePoint(new Point(0, 0), root)!.Value.Y;
+    }
+
+    private static double RightEdgeIn(Visual root, Control control)
+    {
+        return control.TranslatePoint(new Point(control.Bounds.Width, 0), root)!.Value.X;
     }
 
     private static IEnumerable<string> FlattenRuns(Avalonia.Controls.Documents.Inline inline)
