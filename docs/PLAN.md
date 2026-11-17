@@ -910,6 +910,78 @@ in saved searches whose scope includes that field, because `link` is now a built
   single spaces (titles are not written); import reads it, each address validated like an editor link (`Row 4, Links`). A custom field
   named "Links" is written as "Links (field)" like any other fixed-header collision.
 
+### 7.11 Recurring items
+
+Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for review):
+
+- **Completing creates the next occurrence.** A repeating item is an ordinary item with a
+  recurrence rule. Completing it leaves it completed, as history that the Completed section and
+  the Today view show. In the **same transaction** it creates the next occurrence as a new open
+  item. Nothing is projected into the future: the calendar and search show only real rows.
+- **What is copied.** The next occurrence copies everything from the completed one except its
+  dates and completion: title, description, ticket number, type, priority, custom field values,
+  links, the rule, and the open/closed subtree. Every copied sub-item starts **open**. The new
+  occurrence goes directly after the completed one in the same area and under the same parent,
+  so manual order is kept.
+- **Series.** Occurrences share a `RecurrenceSeriesId` (Guid). This is used for display ("repeats",
+  ↻ marker) and for future features; no rule depends on it.
+- **Rule.** Frequency is Daily, Weekly, Monthly or Yearly, with an interval "every N". The extra options are:
+  - **Weekly:** a set of weekdays.
+  - **Monthly:** a day of the month (1–31), or "last day". A day that a month lacks clamps to its last
+    day, for example 31 becomes 30 or 28/29.
+  - **Yearly:** a month and day; 29 Feb clamps to 28 Feb.
+  - **Anchor:** **from the due date** (default: the next date strictly after the current due date
+    that fits the rule) or **from the completion date** (the next date after the local completion
+    day, §5.4).
+  - **End:** never, on a date (the last allowed occurrence date, inclusive), or after N occurrences.
+    The remaining count is stored on the rule and decreases on each new occurrence. When the end is
+    reached, completing creates nothing and the status line says "That was the last repeat."
+- **Dates that move.** A rule needs a due date or a scheduled start; the editor says so and won't
+  save a rule without one. The due date moves to the next date. The due time, a floating local time,
+  stays the same. A scheduled block moves by the same number of days as the due date, keeping its
+  start time and length. With only a scheduled block, the block's start date is the anchor. "From
+  the due date" skips missed dates: an item three weeks overdue on a weekly rule gets the first date
+  after the current due date, not one occurrence per missed week.
+- **Skip.** "Skip this one" moves the item's own dates to the next occurrence without completing it
+  or creating a row. It is one undo step.
+- **Completion rules (§6.1).** The next occurrence is created **before** parents are re-evaluated.
+  So when a repeating sub-item completes, its new open sibling stops the parent from
+  auto-completing. A repeating **parent** that auto-completes because its last child completed also
+  creates its next occurrence, with its subtree reset to open. Reopening a completed occurrence by
+  hand does **not** delete the generated next occurrence, because silently deleting data is worse
+  than having two. Undo of the completion removes both, as one step.
+- **Stopping and deleting.** "Stop repeating" removes the rule from that occurrence only. Deleting an
+  occurrence deletes only that row, which goes to the trash as usual; other occurrences are
+  unaffected. Restoring from the trash restores the rule with the row.
+- **Undo.** Completion with its next occurrence, Skip, setting or changing a rule, and Stop repeating
+  are each one labelled undo step (§7.8).
+- **Search (§7.7).** `is:recurring` matches items with a rule. The filter row has a "Repeats" yes/no
+  built-in field.
+- **Import/export (§7.9).** JSON adds an optional `recurrence` object on items and a
+  `recurrenceSeriesId`, still format version 1; validation and JSON paths are as usual. CSV
+  export adds a read-only `Repeats` column with a plain description, for example "Every 2 weeks on
+  Mon, Thu". CSV import ignores that column, and the preview says so.
+- **UI.**
+  - The editor has a **Repeat** section: a frequency dropdown (Does not repeat / Daily / Weekly /
+    Monthly / Yearly), an interval box, weekday toggles (weekly), a day-of-month or "last day" choice
+    (monthly), an anchor choice and end options. A one-line summary of the rule is shown below.
+  - Repeating rows show a ↻ marker with the summary as a tooltip.
+  - The context menu, and the editor, have **Skip this one** and **Stop repeating**.
+  - Every control has an AutomationId.
+  - Completing a repeating item through any path (checkbox, keyboard, search result, calendar) uses
+    the same service operation.
+- **Data.** There is a `RecurrenceRule` value stored in columns on `TodoItem`: `RecurrenceFrequency`,
+  `RecurrenceInterval`, `RecurrenceWeekdays` (bit flags), `RecurrenceMonthDay` (0 = last day),
+  `RecurrenceMonth`, `RecurrenceAnchor`, `RecurrenceEndKind`, `RecurrenceEndDate`,
+  `RecurrenceRemaining`, and `RecurrenceSeriesId`. All are nullable, and the migration is additive.
+  Adding columns to `TodoItem` follows the AGENTS.md rule on the `TodoItemSearch` triggers.
+- **Tests.** Core unit tests cover the next-date calculation: every frequency and interval, weekday
+  sets that wrap past Sunday, month-end clamping, 29 February, both anchors, every end kind, and
+  overdue skipping. They also cover the §6.1 interactions. SQLite tests cover copying, which
+  includes links, custom fields and the subtree, plus undo, trash and the migration. The UI has
+  ViewModel tests, headless interaction tests for the Repeat section, Skip and Stop repeating,
+  snapshot baselines in light and dark, and a smoke step.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -970,7 +1042,7 @@ Phases 0–2 are v1.
   keyboard-equivalent path for every drop, and headless drag tests (§11.1).
 - ~~Trash view with restore~~ (done, §7.6).
 - Reminders / OS notifications for approaching deadlines.
-- Recurring items.
+- Recurring items (decisions in §7.11).
 - ~~Markdown descriptions; attachments/links~~ (done, §7.10; file attachments stay out of scope).
 - ~~Saved searches and the text query syntax~~ (done, §7.7).
 - ~~Undo/redo for recent actions~~ (done, §7.8).
