@@ -33,5 +33,7 @@ public sealed class TaskTrackerDbContext(DbContextOptions<TaskTrackerDbContext> 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TaskTrackerDbContext).Assembly);
+        var fold = typeof(SqliteTextFunctions).GetMethod(nameof(SqliteTextFunctions.Fold))!;
+        modelBuilder.HasDbFunction(fold).HasName("tt_fold");
     }
 }

@@ -44,6 +44,20 @@ public sealed class ItemService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>Finds the current project and folder of an active item, or null when it is gone.</summary>
+    public async Task<ItemLocation?> FindLocationAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var work = unitOfWorkFactory.Begin();
+        var item = await work.Items.FindAsync(id, cancellationToken);
+
+        if (item is null)
+        {
+            return null;
+        }
+
+        return new ItemLocation(item.ProjectId, item.FolderId);
+    }
+
     /// <summary>Loads the custom values for one active item.</summary>
     public async Task<IReadOnlyList<ItemFieldValue>> LoadFieldValuesAsync(Guid id, CancellationToken cancellationToken = default)
     {

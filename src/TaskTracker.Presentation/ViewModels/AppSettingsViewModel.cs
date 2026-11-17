@@ -14,7 +14,7 @@ namespace TaskTracker.Presentation.ViewModels;
 /// Edits global completion and urgency defaults. The defaults save together with the Save button;
 /// the lookup lists on the same page save immediately.
 /// </summary>
-public sealed class AppSettingsViewModel : ViewModelBase
+public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 {
     private readonly SettingsService settings;
     private readonly IDialogService dialogs;
@@ -203,10 +203,21 @@ public sealed class AppSettingsViewModel : ViewModelBase
         return await dialogs.ConfirmAsync("Turn on auto-complete", message);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> ConfirmLeaveAsync()
+    {
+        if (!IsDirty)
+        {
+            return true;
+        }
+
+        return await dialogs.ConfirmAsync("Discard unsaved settings?",
+            "Your changes to the global defaults haven't been saved.", "Discard");
+    }
+
     private async Task BackAsync()
     {
-        if (IsDirty && !await dialogs.ConfirmAsync("Discard unsaved settings?",
-            "Your changes to the global defaults haven't been saved.", "Discard"))
+        if (!await ConfirmLeaveAsync())
         {
             return;
         }

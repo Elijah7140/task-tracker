@@ -11,7 +11,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddTaskTrackerInfrastructure(this IServiceCollection services, string databasePath)
     {
-        services.AddDbContextFactory<TaskTrackerDbContext>(options => options.UseSqlite($"Data Source={databasePath}"));
+        services.AddDbContextFactory<TaskTrackerDbContext>(options =>
+            TaskTrackerSqliteOptions.Configure(options, $"Data Source={databasePath}"));
         services.AddSingleton<IUnitOfWorkFactory, EfUnitOfWorkFactory>();
         services.AddScoped(provider => new DatabaseInitializer(
             provider.GetRequiredService<TaskTrackerDbContext>(),

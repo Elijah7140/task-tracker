@@ -1,0 +1,435 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Input;
+
+using CommunityToolkit.Mvvm.Input;
+
+using TaskTracker.Core;
+using TaskTracker.Core.Lookups;
+using TaskTracker.Core.Projects;
+using TaskTracker.Core.Search;
+using TaskTracker.Presentation.Navigation;
+
+namespace TaskTracker.Presentation.ViewModels;
+
+/// <summary>Builds a scoped query and displays bounded search results.</summary>
+public sealed class SearchViewModel : ViewModelBase, IDisposable
+{
+    /// <summary>The number of matches shown unless a different limit is given.</summary>
+    public const int DefaultResultLimit = 200;
+
+    private const string MissingItemMessage = "This item no longer exists";
+
+    private readonly IItemSearchService search;
+    private readonly IFieldRegistry registry;
+    private readonly INavigationService navigation;
+    private readonly SearchResultFactory resultFactory;
+    private readonly Guid? originProjectId;
+    private readonly Guid? originFolderId;
+    private readonly int resultLimit;
+    private IReadOnlyList<SearchableField> fields = [];
+    private CancellationTokenSource? searchCancellation;
+    private CancellationTokenSource? scopeCancellation;
+    private bool disposed;
+    private SearchScopeOption selectedScope;
+    private string text = string.Empty;
+    private string? error;
+    private int scopeVersion;
+    private int searchVersion;
+    private bool includeSubfolders = true;
+    private bool includeCompleted;
+    private bool isBusy;
+    private bool hasSearched;
+    private bool hasMore;
+
+    /// <summary>Creates the page; the origin ids choose the default scope (see the scope options).</summary>
+    public SearchViewModel(IItemSearchService search, IFieldRegistry registry, ProjectService projects,
+        INavigationService navigation, Guid? projectId, Guid? folderId, LookupService? lookups,
+        int resultLimit = DefaultResultLimit)
+    {
+        this.search = search;
+        this.registry = registry;
+        this.navigation = navigation;
+        this.resultLimit = resultLimit;
+        resultFactory = new SearchResultFactory(projects, lookups);
+        originProjectId = projectId;
+        originFolderId = folderId;
+        ScopeOptions = CreateScopeOptions(projectId, folderId);
+        selectedScope = ScopeOptions[^1];
+        SearchCommand = new AsyncRelayCommand(RunAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        AddFilterCommand = new RelayCommand(AddFilter);
+        BackCommand = new AsyncRelayCommand(navigation.ReturnFromSearchAsync);
+        OpenResultCommand = new AsyncRelayCommand<SearchResultViewModel>(OpenResultAsync);
+    }
+
+    /// <summary>All projects, plus This project and This folder when opened from a workspace.</summary>
+    public IReadOnlyList<SearchScopeOption> ScopeOptions { get; }
+
+    /// <summary>The field-list refresh started by the latest scope change, for callers that must wait for it.</summary>
+    public Task ScopeRefreshTask { get; private set; } = Task.CompletedTask;
+
+    public ObservableCollection<SearchFilterRowViewModel> Filters { get; } = [];
+
+    public ObservableCollection<SearchResultViewModel> Results { get; } = [];
+
+    public ICommand SearchCommand { get; }
+
+    public ICommand AddFilterCommand { get; }
+
+    public ICommand BackCommand { get; }
+
+    public ICommand OpenResultCommand { get; }
+
+    /// <summary>Free text matched against title, description and ticket number.</summary>
+    public string Text
+    {
+        get => text;
+        set => SetProperty(ref text, value);
+    }
+
+    /// <summary>The chosen scope; changing it refreshes the filter fields.</summary>
+    public SearchScopeOption SelectedScope
+    {
+        get => selectedScope;
+        set
+        {
+            if (value is not null && SetProperty(ref selectedScope, value))
+            {
+                OnPropertyChanged(nameof(IsFolderScope));
+                ScopeRefreshTask = RefreshFieldsAsync();
+            }
+        }
+    }
+
+    public bool IsFolderScope => SelectedScope.Kind == SearchScopeKind.Folder;
+
+    public bool IncludeSubfolders
+    {
+        get => includeSubfolders;
+        set => SetProperty(ref includeSubfolders, value);
+    }
+
+    public bool IncludeCompleted
+    {
+        get => includeCompleted;
+        set => SetProperty(ref includeCompleted, value);
+    }
+
+    public bool IsBusy
+    {
+        get => isBusy;
+        private set => SetProperty(ref isBusy, value);
+    }
+
+    /// <summary>True when every filter row is complete and valid.</summary>
+    public bool CanSearch => Filters.All(row => row.IsValid && row.IsComplete);
+
+    /// <summary>The message for the last failed search, filter load or result activation.</summary>
+    public string? Error
+    {
+        get => error;
+        private set => SetProperty(ref error, value);
+    }
+
+    public bool ShowEmpty => hasSearched && !IsBusy && Results.Count == 0;
+
+    /// <summary>True when more items matched than the result limit allows.</summary>
+    public bool HasMore
+    {
+        get => hasMore;
+        private set => SetProperty(ref hasMore, value);
+    }
+
+    /// <summary>The note shown when <see cref="HasMore"/> is true; it names the actual limit.</summary>
+    public string HasMoreMessage => $"Showing the first {resultLimit} matches — narrow your search";
+
+    /// <summary>Loads the filter fields for the starting scope.</summary>
+    public async Task LoadAsync()
+    {
+        ScopeRefreshTask = RefreshFieldsAsync();
+        await ScopeRefreshTask;
+    }
+
+    /// <summary>
+    /// Runs the search. A newer search cancels and replaces an older one; errors appear in
+    /// <see cref="Error"/> instead of escaping.
+    /// </summary>
+    public async Task RunAsync()
+    {
+        if (disposed || !CanSearch)
+        {
+            return;
+        }
+
+        var version = ++searchVersion;
+        searchCancellation?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        searchCancellation = cancellation;
+        BeginSearch();
+
+        try
+        {
+            await SearchAndShowAsync(version, cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!disposed && version == searchVersion)
+            {
+                ShowError(exception);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(searchCancellation, cancellation))
+            {
+                searchCancellation = null;
+            }
+
+            cancellation.Dispose();
+
+            if (!disposed && version == searchVersion)
+            {
+                EndSearch();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Opens the item behind a result. When it was deleted meanwhile, the page stays and says so.
+    /// </summary>
+    public async Task OpenResultAsync(SearchResultViewModel? row)
+    {
+        if (disposed || row is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var outcome = await navigation.OpenSearchResultAsync(row.Item);
+
+            if (!disposed && outcome == SearchOpenOutcome.ItemMissing)
+            {
+                Error = MissingItemMessage;
+            }
+        }
+        catch (Exception exception)
+        {
+            if (!disposed)
+            {
+                ShowError(exception);
+            }
+        }
+    }
+
+    /// <summary>Cancels outstanding search, field, and choice work when the page closes.</summary>
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        searchVersion++;
+        scopeVersion++;
+        searchCancellation?.Cancel();
+        scopeCancellation?.Cancel();
+
+        foreach (var row in Filters)
+        {
+            row.PropertyChanged -= OnFilterChanged;
+            row.Dispose();
+        }
+    }
+
+    private static IReadOnlyList<SearchScopeOption> CreateScopeOptions(Guid? projectId, Guid? folderId)
+    {
+        var options = new List<SearchScopeOption> { new(SearchScopeKind.AllProjects, "All projects") };
+
+        if (projectId is not null)
+        {
+            options.Add(new SearchScopeOption(SearchScopeKind.Project, "This project"));
+        }
+
+        if (folderId is not null)
+        {
+            options.Add(new SearchScopeOption(SearchScopeKind.Folder, "This folder"));
+        }
+
+        return options;
+    }
+
+    private void BeginSearch()
+    {
+        IsBusy = true;
+        Error = null;
+        OnPropertyChanged(nameof(CanSearch));
+    }
+
+    private void EndSearch()
+    {
+        IsBusy = false;
+        OnPropertyChanged(nameof(ShowEmpty));
+        OnPropertyChanged(nameof(CanSearch));
+    }
+
+    private async Task SearchAndShowAsync(int version, CancellationToken cancellationToken)
+    {
+        var result = await search.SearchAsync(CreateQuery(), resultLimit, cancellationToken);
+        var rows = await resultFactory.CreateAsync(result.Items, cancellationToken);
+
+        if (!disposed && version == searchVersion)
+        {
+            ApplyResults(rows, result.HasMore);
+        }
+    }
+
+    private void ApplyResults(IReadOnlyList<SearchResultViewModel> rows, bool moreAvailable)
+    {
+        Results.Clear();
+
+        foreach (var row in rows)
+        {
+            Results.Add(row);
+        }
+
+        HasMore = moreAvailable;
+        hasSearched = true;
+    }
+
+    private void ShowError(Exception exception)
+    {
+        if (exception is DomainRuleException)
+        {
+            Error = exception.Message;
+            return;
+        }
+
+        Error = $"Something went wrong: {exception.Message}";
+    }
+
+    private ItemQuery CreateQuery()
+    {
+        var filters = new List<FieldFilter>();
+
+        foreach (var row in Filters)
+        {
+            var filter = row.ToFilter();
+
+            if (filter is not null)
+            {
+                filters.Add(filter);
+            }
+        }
+
+        return new ItemQuery(CurrentScope(), Text, filters, IncludeCompleted);
+    }
+
+    private SearchScope CurrentScope()
+    {
+        if (originProjectId is not Guid projectId)
+        {
+            return new SearchScope.AllProjects();
+        }
+
+        return SelectedScope.Kind switch
+        {
+            SearchScopeKind.Project => new SearchScope.Project(projectId),
+            SearchScopeKind.Folder => new SearchScope.Area(projectId, originFolderId, IncludeSubfolders),
+            _ => new SearchScope.AllProjects()
+        };
+    }
+
+    private async Task RefreshFieldsAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        var version = ++scopeVersion;
+        scopeCancellation?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        scopeCancellation = cancellation;
+
+        try
+        {
+            var available = await registry.GetFieldsAsync(CurrentScope(), cancellation.Token);
+
+            if (!disposed && version == scopeVersion)
+            {
+                ApplyFields(available);
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!disposed && version == scopeVersion)
+            {
+                ShowError(exception);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(scopeCancellation, cancellation))
+            {
+                scopeCancellation = null;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private void ApplyFields(IReadOnlyList<SearchableField> available)
+    {
+        fields = available;
+
+        foreach (var row in Filters.ToArray())
+        {
+            if (IsUnavailable(row.SelectedField))
+            {
+                RemoveFilter(row);
+            }
+            else
+            {
+                row.UpdateFields(fields);
+            }
+        }
+    }
+
+    private bool IsUnavailable(SearchableField? field)
+    {
+        return field is not null && !fields.Any(candidate => candidate.Key == field.Key);
+    }
+
+    private void AddFilter()
+    {
+        var row = new SearchFilterRowViewModel(registry, fields, RemoveFilter, ShowError);
+        row.PropertyChanged += OnFilterChanged;
+        Filters.Add(row);
+        OnPropertyChanged(nameof(CanSearch));
+    }
+
+    private void RemoveFilter(SearchFilterRowViewModel row)
+    {
+        row.PropertyChanged -= OnFilterChanged;
+        row.Dispose();
+        Filters.Remove(row);
+        OnPropertyChanged(nameof(CanSearch));
+    }
+
+    private void OnFilterChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(SearchFilterRowViewModel.IsValid)
+            or nameof(SearchFilterRowViewModel.IsComplete))
+        {
+            OnPropertyChanged(nameof(CanSearch));
+        }
+    }
+}

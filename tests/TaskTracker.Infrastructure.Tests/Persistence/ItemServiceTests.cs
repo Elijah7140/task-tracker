@@ -512,6 +512,26 @@ public sealed class ItemServiceTests
     }
 
     [Fact]
+    public async Task Find_location_returns_the_current_folder_and_null_once_the_item_is_deleted()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var folder = await store.Folders(context).CreateAsync(project.Id, null, "dbo");
+        var service = store.Items(context);
+        var item = await service.CreateAsync(project.Id, null, null, "Item");
+        await service.MoveToAreaAsync(project.Id, null, folder.Id, item.Id);
+
+        var moved = await service.FindLocationAsync(item.Id);
+        await service.DeleteAsync(project.Id, folder.Id, item.Id);
+        var deleted = await service.FindLocationAsync(item.Id);
+
+        Assert.Equal(new ItemLocation(project.Id, folder.Id), moved);
+        Assert.Null(deleted);
+    }
+
+    [Fact]
     public async Task Custom_value_edit_waits_for_the_field_write_gate()
     {
         await using var store = new SqliteTestStore();

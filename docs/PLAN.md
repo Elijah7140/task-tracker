@@ -377,6 +377,8 @@ Removing a choice archives it; items keep their value.
   `(FieldDefinitionId, DateValue)`, `(FieldDefinitionId, ChoiceId)`.
 - Keys are creation-time lowercase slugs of display names, globally unique with numeric
   collision suffixes, and never change on rename; the database has a unique key index.
+- Built-in search keys (`title`, `ticket`, `type`, `priority`, `due`, `scheduled`,
+  `status`) are reserved. Custom fields use the next numeric collision suffix.
 - Display names are required and trimmed, and are case-insensitively unique among active
   fields visible together (global plus project fields).
 - Fields archive instead of deleting; unarchive rechecks name uniqueness, and archived
@@ -430,20 +432,59 @@ Operator semantics are fixed up front, including missing values:
 
 `FilterValue` is a small typed union (text, number, date, bool, choice id), not `object`.
 
-**Implementation** (Infrastructure): `SqlItemSearch` translates `ItemQuery` into LINQ —
-built-in fields map to columns, custom fields to `EXISTS` subqueries on `ItemFieldValue`.
-Free text uses an SQLite **FTS5** external-content table over title, description and
-ticket number:
+**Implementation** (Infrastructure): `SqlItemSearch` builds one parameterized, bounded
+SQLite query. Built-in fields map to columns; custom fields use `EXISTS` subqueries on
+`ItemFieldValue`. SQLite's `tt_fold` function provides Unicode-aware case-insensitive
+text comparisons, and `instr` implements literal Contains without LIKE wildcards.
+Free text uses a regular SQLite **FTS5** table that stores title, description and
+ticket number. `TodoItemSearchRow` maps each item GUID to a stable integer primary key;
+the same integer is the FTS rowid. This avoids relying on `TodoItem`'s implicit rowid,
+which SQLite may renumber during `VACUUM` or a table rebuild:
 
-- Kept current by `AFTER INSERT/UPDATE/DELETE` triggers on `TodoItem`, created in the
-  migration, so the index updates in the same transaction as the row.
-- Soft-deleted rows stay in the index; search joins FTS hits back to `TodoItem`, so the
-  normal deleted-row filter and the scope filters apply. Restore needs no index work.
-- The migration that creates the index also runs FTS5's `rebuild` command, so items that
+- Kept current by insert/update/delete triggers in the same transaction as the item.
+  The mapping table has a foreign key with `ON DELETE CASCADE`; a mapping-row delete
+  trigger also removes its FTS row when SQLite cascades before the item's delete trigger.
+- Soft-deleted rows stay in the index; search joins FTS hits through the mapping table
+  back to `TodoItem`, so deleted-row and scope filters apply. Restore needs no index work.
+- The migration backfills the mapping and FTS tables from existing items, so items that
   existed before Phase 4 are searchable immediately.
+- The Phase 4 migration renames any existing custom field with a reserved key using
+  the normal numeric suffix rule. No saved searches reference keys yet.
+- A later migration that rebuilds `TodoItem` recreates the search triggers and
+  reconciles mapping and FTS rows; the schema test checks trigger presence.
 - Tests cover pre-existing rows, insert, edit, soft delete, restore and hard delete.
 
 All search code is tested against real SQLite.
+
+- Built-in field types are title and ticket (Text), type and priority (Choice), due
+  and scheduled (Date), and status (Boolean, displayed as "Completed"). Scheduled
+  comparisons use the date of `ScheduledStart`; status true means completed.
+- Text supports Equals and NotEquals (trimmed and case-insensitive), Contains
+  (case-insensitive), IsEmpty and IsNotEmpty. Number and Date also support ordered
+  comparisons and inclusive Between with a valid min ≤ max range. Boolean and Choice
+  support Equals, NotEquals, IsEmpty and IsNotEmpty. Priority alone supports ordered
+  comparisons by current rank, with the top level most important; an absent priority
+  never matches an ordered comparison.
+- IsEmpty and IsNotEmpty take no value. Other operators require the matching typed
+  value. The service rejects unknown fields, incompatible operators or values, invalid
+  ranges, choices outside the field, and nonexistent Project or Area scope projects.
+- Priority Between takes a `FilterValue.ChoiceRange` whose endpoints are active
+  priority-level IDs, ordered from more important to less important.
+- Free text is trimmed; blank text is ignored. Whitespace-separated terms become
+  escaped FTS5 quoted prefix phrases joined by AND. The index uses
+  `unicode61 remove_diacritics 2`; raw user text never reaches `MATCH`.
+- `IncludeCompleted=false` excludes completed items even when another status filter
+  is present. Sub-items are regular results. Deleted items, folders and projects are
+  excluded. An Area with no folder searches the project root, or the whole project
+  when IncludeSubfolders is true; a folder Area can include all descendants.
+- Search returns a compact item result and HasMore, with a default limit of 200.
+  Results order by the actual FTS score when text is present, then project sort order,
+  Unicode-folded title, and item ID. Filtering, ordering, projection and `limit + 1`
+  happen in SQL.
+
+- The search screen keeps its originating page for Back/Escape. Its scope starts at all projects
+  from Home, the project from a workspace root, or the selected folder from a workspace folder.
+  Changing scope removes filters whose fields are unavailable in the new scope.
 
 **Later:** a text syntax (`type:error priority>=high due<2026-12-01 "deadlock"`) that
 parses into an `ItemQuery`, and saved searches.
@@ -551,6 +592,12 @@ When one of these is picked up, its agreed design replaces the sections it confl
 
 - **Calendar view** (Phase 5): month and week grids; due dates as all-day or timed
   entries, scheduled items as blocks; drag to reschedule.
+- **Drag-and-drop items** in the item tree: drag a row up or down to change its order
+  among siblings; onto another item to make it a sub-item (or out of a parent to promote
+  it); onto a folder in the left tree to move it to that area (list) with its subtree.
+  The rules in §6.4 and §6.1 still apply; the view only translates a drop into the
+  existing reorder/move/move-to-area operations (§4). Needs a drop indicator, a
+  keyboard-equivalent path for every drop, and headless drag tests (§11.1).
 - Trash view with restore (data model already supports it, §5.3).
 - Reminders / OS notifications for approaching deadlines.
 - Recurring items.
@@ -638,7 +685,7 @@ All round-1 resolutions were confirmed except #1, which was reopened as round-2 
 | 1 | "No" on the enable prompt left the setting on with data that broke its rule | Accepted. Enabling always reconciles in one transaction; Cancel leaves the setting off |
 | 2 | With the setting off, a completed parent with open sub-items would be hidden in Completed | Accepted. Only *finished* items (self + all descendants complete) move to Completed |
 | 3 | Custom-field values not checked against project scope or choice ownership | Accepted. Validator checks both; composite FK for choices; no cross-project item moves |
-| 4 | FTS5 index maintenance unspecified | Accepted. External-content table with triggers; soft-delete handled by joining back to `TodoItem` |
+| 4 | FTS5 index maintenance unspecified | Accepted. Trigger-maintained index; Phase 4 uses a stable mapping rowid and joins hits back to `TodoItem` |
 | 5 | DST rules untestable with only a fake clock | Accepted. Time zone passed explicitly to `FloatingTime`; fixed-zone tests |
 
 ### Round 3 (gpt-6-sol) → revision 4
@@ -648,5 +695,5 @@ All round-2 resolutions confirmed consistent with the rest of the plan.
 | # | Finding | Decision |
 |---|---------|----------|
 | 1 | `UrgencyCalculator` had no time-zone input, contradicting §5.4 | Accepted. Time zone added to its signature |
-| 2 | FTS triggers would not index items that existed before Phase 4 | Accepted. Migration runs FTS5 `rebuild`; test covers pre-existing rows |
+| 2 | FTS triggers would not index items that existed before Phase 4 | Accepted. Phase 4 migration backfills mapping and FTS rows; test covers pre-existing rows |
 | 3 | Phase 1 exit asked for *unit* tests of database behaviour | Accepted. Split into unit tests (domain) and SQLite integration tests (database) |

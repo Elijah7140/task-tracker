@@ -11,6 +11,7 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Search;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
 
@@ -21,6 +22,102 @@ public sealed class ScreenSnapshotTests
 {
     /// <summary>Tall enough to show a whole settings page or the whole item editor without scrolling.</summary>
     private const int TallWindowHeight = 1500;
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Search_with_filters_and_results_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedSearchableItemsAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenSearchAsync();
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        page.Text = "Review";
+        page.IncludeCompleted = true;
+        AddDueBetweenFilter(page, new DateOnly(2026, 11, 15), new DateOnly(2026, 12, 15));
+        AddTitleContainsFilter(page, "invoice");
+        await page.RunAsync();
+        Assert.Equal(4, page.Results.Count);
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"search-results-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Search_at_minimum_window_size_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedSearchableItemsAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark, 600, 800);
+        await shell.GoHomeAsync();
+        await shell.OpenSearchAsync();
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        page.Text = "Review";
+        page.IncludeCompleted = true;
+        AddDueBetweenFilter(page, new DateOnly(2026, 11, 15), new DateOnly(2026, 12, 15));
+        await page.RunAsync();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"search-narrow-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Search_with_an_invalid_range_and_an_invalid_number_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
+        var effort = await services.GetRequiredService<FieldService>()
+            .CreateAsync("Effort", FieldDataType.Number, project.Id);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.OpenProjectAsync(project.Id);
+        await shell.OpenSearchAsync();
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        var range = AddNumberFilter(page, effort.Key, FilterOperator.Between);
+        range.FirstText = "5";
+        range.SecondText = "1";
+        var invalid = AddNumberFilter(page, effort.Key, FilterOperator.Equals);
+        invalid.FirstText = "twelve";
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(range.ValueError);
+        Assert.NotNull(invalid.ValueError);
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"search-error-{ThemeName(dark)}");
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Search_empty_state_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark);
+        await shell.GoHomeAsync();
+        await shell.OpenSearchAsync();
+        var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
+        page.Text = "missing";
+        await page.RunAsync();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        SnapshotComparer.AssertMatches(frame, $"search-empty-{ThemeName(dark)}");
+        window.Close();
+    }
 
     [AvaloniaTheory]
     [InlineData(false)]
@@ -252,10 +349,70 @@ public sealed class ScreenSnapshotTests
         await fields.AddChoiceAsync(risk.Id, "High");
     }
 
-    private static MainWindow OpenWindow(MainWindowViewModel shell, bool dark, int height = 800)
+    private static async Task SeedSearchableItemsAsync(IServiceProvider services)
+    {
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
+        var folders = services.GetRequiredService<FolderService>();
+        var dbo = await folders.CreateAsync(project.Id, null, "dbo");
+        var tables = await folders.CreateAsync(project.Id, dbo.Id, "Tables");
+        var items = services.GetRequiredService<ItemService>();
+        var lookups = services.GetRequiredService<LookupService>();
+        var types = await lookups.ItemTypesAsync();
+        var priorities = await lookups.PriorityLevelsAsync();
+        var change = types.Single(type => type.Name == "Change").Id;
+        var error = types.Single(type => type.Name == "Error").Id;
+        var high = priorities.Single(level => level.Name == "High").Id;
+        var medium = priorities.Single(level => level.Name == "Medium").Id;
+        var low = priorities.Single(level => level.Name == "Low").Id;
+        var indexes = await items.CreateAsync(project.Id, tables.Id, null, "Review invoice indexes");
+        var archive = await items.CreateAsync(project.Id, dbo.Id, null, "Review invoice archive");
+        var finished = await items.CreateAsync(project.Id, null, null, "Review completed invoice");
+        var longTitle = await items.CreateAsync(project.Id, null, null,
+            "Review invoice reconciliation job with a very long title that has to be trimmed at the column edge");
+        await items.EditAsync(indexes.Id, new ItemEdit(indexes.Title, null, "DB-101", change, high,
+            new DateOnly(2026, 11, 20), new TimeOnly(14, 30), null, null));
+        await items.EditAsync(archive.Id, new ItemEdit(archive.Title, null, "DB-102", error, medium,
+            new DateOnly(2026, 11, 25), null, null, null));
+        await items.EditAsync(finished.Id, new ItemEdit(finished.Title, null, "DB-99", change, high,
+            new DateOnly(2026, 12, 1), null, null, null));
+        await items.EditAsync(longTitle.Id, new ItemEdit(longTitle.Title, null, null, null, low,
+            new DateOnly(2026, 12, 10), null, null, null));
+        await items.SetCompletedAsync(project.Id, null, finished.Id, true);
+    }
+
+    private static void AddDueBetweenFilter(SearchViewModel page, DateOnly first, DateOnly second)
+    {
+        page.AddFilterCommand.Execute(null);
+        var row = page.Filters[^1];
+        row.SelectedField = row.Fields.Single(field => field.Key == "due");
+        row.SelectedOperator = row.Operators.Single(option => option.Operator == FilterOperator.Between);
+        row.FirstDate = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        row.SecondDate = new DateTimeOffset(second.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+    }
+
+    private static void AddTitleContainsFilter(SearchViewModel page, string text)
+    {
+        page.AddFilterCommand.Execute(null);
+        var row = page.Filters[^1];
+        row.SelectedField = row.Fields.Single(field => field.Key == "title");
+        row.SelectedOperator = row.Operators.Single(option => option.Operator == FilterOperator.Contains);
+        row.FirstText = text;
+    }
+
+    private static SearchFilterRowViewModel AddNumberFilter(
+        SearchViewModel page, string fieldKey, FilterOperator operation)
+    {
+        page.AddFilterCommand.Execute(null);
+        var row = page.Filters[^1];
+        row.SelectedField = row.Fields.Single(field => field.Key == fieldKey);
+        row.SelectedOperator = row.Operators.Single(option => option.Operator == operation);
+        return row;
+    }
+
+    private static MainWindow OpenWindow(MainWindowViewModel shell, bool dark, int height = 800, int width = 1200)
     {
         Application.Current!.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
-        var window = new MainWindow { DataContext = shell, Width = 1200, Height = height };
+        var window = new MainWindow { DataContext = shell, Width = width, Height = height };
         window.Show();
         return window;
     }

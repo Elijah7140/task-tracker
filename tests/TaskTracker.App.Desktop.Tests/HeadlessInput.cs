@@ -50,14 +50,21 @@ public static class HeadlessInput
         }
     }
 
-    /// <summary>Opens a combo box with a click and clicks the entry whose text matches.</summary>
+    /// <summary>Opens a combo box with a click and clicks the entry whose displayed text matches.</summary>
     public static void ChooseItem(Window window, ComboBox comboBox, string itemText)
     {
         Click(window, comboBox);
         var item = window.GetVisualDescendants()
             .OfType<ComboBoxItem>()
-            .First(candidate => candidate.IsEffectivelyVisible && candidate.Content?.ToString() == itemText);
+            .First(candidate => candidate.IsEffectivelyVisible && DisplayedText(candidate) == itemText);
         Click(window, item);
+    }
+
+    /// <summary>The text a combo box entry shows, whether its content is a string or a templated object.</summary>
+    private static string? DisplayedText(ComboBoxItem item)
+    {
+        var shown = item.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
+        return shown?.Text ?? item.Content?.ToString();
     }
 
     /// <summary>Returns the visible controls of a type with the given AutomationId.</summary>

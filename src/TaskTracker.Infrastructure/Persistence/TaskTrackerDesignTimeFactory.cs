@@ -8,9 +8,8 @@ public sealed class TaskTrackerDesignTimeFactory : IDesignTimeDbContextFactory<T
 {
     public TaskTrackerDbContext CreateDbContext(string[] args)
     {
-        var options = new DbContextOptionsBuilder<TaskTrackerDbContext>()
-            .UseSqlite("Data Source=tasktracker-design.db")
-            .Options;
+        var options = TaskTrackerSqliteOptions.Configure(
+            new DbContextOptionsBuilder<TaskTrackerDbContext>(), "Data Source=tasktracker-design.db").Options;
 
         return new TaskTrackerDbContext(options);
     }

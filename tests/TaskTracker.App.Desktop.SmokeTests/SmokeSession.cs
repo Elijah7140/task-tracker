@@ -82,6 +82,20 @@ public sealed class SmokeSession : IDisposable
             ?? throw new InvalidOperationException($"Text {name} was not found.");
     }
 
+    /// <summary>Checks whether text is currently displayed in the main window, without waiting.</summary>
+    public bool HasText(string name)
+    {
+        return Window.FindFirstDescendant(query => query.ByName(name)) is not null;
+    }
+
+    /// <summary>Picks the entry of a combo box whose displayed text matches the name.</summary>
+    public void SelectByName(string automationId, string entryName)
+    {
+        var comboBox = Find(automationId).AsComboBox();
+        comboBox.Select(entryName);
+        WaitUntil(() => comboBox.SelectedItem?.Name == entryName, $"{automationId} to show {entryName}");
+    }
+
     /// <summary>
     /// Types into a text box and checks the result. Desktop notifications can steal focus
     /// mid-typing, so a box whose text doesn't match is cleared and typed again.

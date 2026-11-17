@@ -9,6 +9,21 @@ namespace TaskTracker.Infrastructure.Tests.Persistence;
 public sealed class FieldServiceTests
 {
     [Fact]
+    public async Task Built_in_search_keys_receive_collision_suffixes()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var fields = store.Fields(context);
+
+        var title = await fields.CreateAsync("Title", FieldDataType.Text, null);
+        var ticket = await fields.CreateAsync("Ticket", FieldDataType.Text, null);
+
+        Assert.Equal("title-2", title.Key);
+        Assert.Equal("ticket-2", ticket.Key);
+    }
+
+    [Fact]
     public async Task Effective_fields_put_global_fields_before_project_fields()
     {
         await using var store = new SqliteTestStore();

@@ -13,7 +13,7 @@ namespace TaskTracker.Presentation.ViewModels;
 /// Edits a project's optional overrides and shows inherited values. Nothing is saved until
 /// Save; "Reset to global" only edits the form.
 /// </summary>
-public sealed class ProjectSettingsViewModel : ViewModelBase
+public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 {
     private readonly Guid projectId;
     private readonly SettingsService settings;
@@ -251,10 +251,21 @@ public sealed class ProjectSettingsViewModel : ViewModelBase
         return await dialogs.ConfirmAsync("Turn on auto-complete", message);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> ConfirmLeaveAsync()
+    {
+        if (!IsDirty)
+        {
+            return true;
+        }
+
+        return await dialogs.ConfirmAsync("Discard unsaved settings?",
+            "Your changes to this project's settings haven't been saved.", "Discard");
+    }
+
     private async Task BackAsync()
     {
-        if (IsDirty && !await dialogs.ConfirmAsync("Discard unsaved settings?",
-            "Your changes to this project's settings haven't been saved.", "Discard"))
+        if (!await ConfirmLeaveAsync())
         {
             return;
         }
