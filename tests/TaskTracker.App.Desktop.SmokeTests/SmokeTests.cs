@@ -240,7 +240,7 @@ public sealed class SmokeTests
                 ChooseImportExportMenuItem(session, "ImportJsonMenuItem");
                 session.Press(VirtualKeyShort.RETURN);
                 session.FindText("Smoke Project (imported)");
-                session.FindNamed("ProjectCard", "Smoke Project (imported)").DoubleClick();
+                OpenSecondProject(session);
                 session.FindNamed("ItemTitleButton", "Exported item");
             }, environment);
         }
@@ -558,6 +558,17 @@ public sealed class SmokeTests
     {
         CreateProject(session);
         session.Find("OpenProjectButton").Click();
+        session.Find("QuickAddBox");
+    }
+
+    /// <summary>
+    /// Opens the second project card on Home with its Open button. The card itself is a plain border, which
+    /// UI Automation does not expose, so it cannot be found by name.
+    /// </summary>
+    private static void OpenSecondProject(SmokeSession session)
+    {
+        var openButtons = session.Window.FindAllDescendants(query => query.ByAutomationId("OpenProjectButton"));
+        openButtons[1].AsButton().Invoke();
         session.Find("QuickAddBox");
     }
 
