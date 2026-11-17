@@ -968,6 +968,20 @@ Phases 0–2 are v1.
 - ~~Undo/redo for recent actions~~ (done, §7.8).
 - ~~Import/export (JSON, CSV)~~ (done, §7.9).
 - Packaged installers per OS (MSIX/Velopack on Windows, .app on macOS, AppImage on Linux).
+- **Quick reschedule from the context menu.** Right-click an item (tree, search results,
+  calendar) and choose "Push back one day", which moves its due date (and its scheduled
+  block, if any) one day later. A labelled undo step, with a keyboard equivalent.
+- **Tickets view.** A list of tickets that the owner orders by hand ("relative
+  priority"), by dragging or by keyboard, to set the order in which to work on them.
+  That order is stored separately from the tree order and does not change the
+  Priority field. Default assumption: a ticket is an open item that has a ticket number.
+  Confirm this with the owner in the final report.
+- **Today view (done today).** Shows the items completed today (local day, §5.4) that are
+  still completed: an item checked off today and then unchecked does not appear.
+  - Completed sub-items are grouped under their parent and collapsed by default.
+  - A parent that is not itself completed still appears, as context, so its completed
+    children are shown. It is expanded rather than collapsed, and visibly marked as
+    not completed.
 - **Task stack.** Requested by the owner; scope and behaviour still to be agreed. Discuss
   with the owner before designing or building it.
 - Mobile or browser head (Avalonia supports both) reusing the Presentation project.
