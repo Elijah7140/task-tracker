@@ -408,6 +408,57 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
                     b.ToTable("Project", (string)null);
                 });
 
+            modelBuilder.Entity("TaskTracker.Core.SavedSearches.SavedSearch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("FolderId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IncludeCompleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IncludeSubfolders")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("QueryText")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ScopeKind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("SavedSearch", (string)null);
+                });
+
             modelBuilder.Entity("TaskTracker.Infrastructure.Persistence.GlobalSettingRow", b =>
                 {
                     b.Property<string>("Key")

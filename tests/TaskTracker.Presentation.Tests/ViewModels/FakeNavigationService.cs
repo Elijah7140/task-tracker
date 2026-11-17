@@ -95,6 +95,14 @@ internal sealed class FakeNavigationService : INavigationService
         return CalendarItemOutcome;
     }
 
+    public List<Guid> OpenedSavedSearchIds { get; } = [];
+
+    public Task OpenSavedSearchAsync(Guid savedSearchId)
+    {
+        OpenedSavedSearchIds.Add(savedSearchId);
+        return Task.CompletedTask;
+    }
+
     public int ResultRequests { get; private set; }
 
     /// <summary>When set, search result requests stay pending until the test completes it.</summary>

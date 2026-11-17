@@ -52,6 +52,32 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <StackPanel Spacing="8" Margin="0,12,0,0" IsVisible="{Binding SavedSearches.HasItems}"
+                    AutomationProperties.AutomationId="SavedSearchesSection">
+          <TextBlock Text="Saved searches" FontSize="22" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding SavedSearches.Error}" Foreground="{DynamicResource AppDangerBrush}"
+                     TextWrapping="Wrap" AutomationProperties.AutomationId="HomeSavedSearchErrorText" />
+          <ItemsControl ItemsSource="{Binding SavedSearches.Items}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                  <Button Content="{Binding Name}" HorizontalAlignment="Left"
+                          Command="{Binding $parent[UserControl].DataContext.SavedSearches.OpenCommand}"
+                          CommandParameter="{Binding}" AutomationProperties.AutomationId="SavedSearchLink"
+                          AutomationProperties.Name="{Binding Name}" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Rename" Classes="subtle"
+                            Command="{Binding $parent[UserControl].DataContext.SavedSearches.RenameCommand}"
+                            CommandParameter="{Binding}" AutomationProperties.AutomationId="RenameSavedSearchLinkButton" />
+                    <Button Content="Delete" Classes="subtle"
+                            Command="{Binding $parent[UserControl].DataContext.SavedSearches.DeleteCommand}"
+                            CommandParameter="{Binding}" AutomationProperties.AutomationId="DeleteSavedSearchLinkButton" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
   </Grid>

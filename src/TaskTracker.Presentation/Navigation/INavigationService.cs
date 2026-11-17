@@ -49,6 +49,15 @@ public interface INavigationService
     /// </summary>
     Task<SearchOpenOutcome> OpenSearchResultAsync(ItemSearchResult result);
 
+    /// <summary>
+    /// Opens the search page with a saved search applied and run. Opened from the search page it
+    /// replaces it, keeping the original return page.
+    /// </summary>
+    Task OpenSavedSearchAsync(Guid savedSearchId)
+    {
+        return Task.CompletedTask;
+    }
+
     Task OpenAppSettingsAsync(Guid? returnProjectId = null)
     {
         return Task.CompletedTask;

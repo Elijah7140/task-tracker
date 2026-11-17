@@ -1,3 +1,4 @@
+using TaskTracker.Core;
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Search;
@@ -14,6 +15,9 @@ internal sealed class GatedSaveUnitOfWorkFactory(IUnitOfWorkFactory inner) : IUn
     private TaskCompletionSource? saveReached;
     private TaskCompletionSource? release;
     private TaskCompletionSource? armed;
+
+    /// <summary>Makes the held save fail with a rule error after it is released.</summary>
+    public bool FailHeldSaveWithRuleError { get; set; }
 
     /// <summary>Holds the next save. Call before starting the operation under test.</summary>
     public void HoldNextSave()
@@ -51,6 +55,11 @@ internal sealed class GatedSaveUnitOfWorkFactory(IUnitOfWorkFactory inner) : IUn
         armed = null;
         saveReached!.SetResult();
         await held.Task;
+
+        if (FailHeldSaveWithRuleError)
+        {
+            throw new DomainRuleException("Held save failed.");
+        }
     }
 
     private sealed class GatedUnitOfWork(IUnitOfWork unit, GatedSaveUnitOfWorkFactory owner) : IUnitOfWork
@@ -72,6 +81,9 @@ internal sealed class GatedSaveUnitOfWorkFactory(IUnitOfWorkFactory inner) : IUn
         public ICalendarRepository Calendar => unit.Calendar;
 
         public ITrashRepository Trash => unit.Trash;
+
+
+        public ISavedSearchRepository SavedSearches => unit.SavedSearches;
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken)
         {

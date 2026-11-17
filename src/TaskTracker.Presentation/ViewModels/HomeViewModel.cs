@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -16,11 +17,13 @@ public sealed class HomeViewModel : ViewModelBase
     private readonly IDialogService dialogs;
     private readonly INavigationService navigation;
 
-    public HomeViewModel(ProjectService projects, IDialogService dialogs, INavigationService navigation)
+    public HomeViewModel(ProjectService projects, IDialogService dialogs, INavigationService navigation,
+        SavedSearchService? savedSearches = null)
     {
         this.projects = projects;
         this.dialogs = dialogs;
         this.navigation = navigation;
+        SavedSearches = savedSearches is null ? null : new SavedSearchListViewModel(savedSearches, dialogs, navigation);
         CreateCommand = new AsyncRelayCommand(CreateAsync);
         OpenCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenAsync);
         RenameCommand = new AsyncRelayCommand<ProjectCardViewModel>(RenameAsync);
@@ -33,6 +36,9 @@ public sealed class HomeViewModel : ViewModelBase
     }
 
     public ObservableCollection<ProjectCardViewModel> Cards { get; } = [];
+
+    /// <summary>The saved searches shown as quick links, or null when saved searches are unavailable.</summary>
+    public SavedSearchListViewModel? SavedSearches { get; }
 
     public bool IsEmpty => Cards.Count == 0;
 
@@ -70,6 +76,17 @@ public sealed class HomeViewModel : ViewModelBase
         catch (DomainRuleException exception)
         {
             await dialogs.ShowMessageAsync("Project action failed", exception.Message);
+        }
+
+        await ReloadSavedSearchesAsync();
+    }
+
+    /// <summary>Refreshes the saved search quick links, for example after the search page changed them.</summary>
+    public async Task ReloadSavedSearchesAsync()
+    {
+        if (SavedSearches is not null)
+        {
+            await SavedSearches.LoadAsync();
         }
     }
 

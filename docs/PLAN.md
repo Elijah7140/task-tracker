@@ -378,7 +378,9 @@ Removing a choice archives it; items keep their value.
 - Keys are creation-time lowercase slugs of display names, globally unique with numeric
   collision suffixes, and never change on rename; the database has a unique key index.
 - Built-in search keys (`title`, `ticket`, `type`, `priority`, `due`, `scheduled`,
-  `status`) are reserved. Custom fields use the next numeric collision suffix.
+  `status`) and the query-syntax keywords (`has`, `no`, `is`, §7.7) are reserved. Custom fields use the next numeric collision suffix.
+  The saved-search migration renames existing keyword keys with the same first-free suffix rule;
+  field ids and values remain unchanged.
 - Display names are required and trimmed, and are case-insensitively unique among active
   fields visible together (global plus project fields).
 - Fields archive instead of deleting; unarchive rechecks name uniqueness, and archived
@@ -486,8 +488,7 @@ All search code is tested against real SQLite.
   from Home, the project from a workspace root, or the selected folder from a workspace folder.
   Changing scope removes filters whose fields are unavailable in the new scope.
 
-**Later:** a text syntax (`type:error priority>=high due<2026-12-01 "deadlock"`) that
-parses into an `ItemQuery`, and saved searches.
+The text syntax and saved searches are specified in §7.7.
 
 ### 7.3 What v1 does to stay ready
 
@@ -540,7 +541,10 @@ parses into an `ItemQuery`, and saved searches.
   menu offers the same folder picker. Ctrl+Shift+M is already used by Calendar.
 - A move consults the existing unsaved-editor guard before reloading. A cancelled
   guard cancels the move; Save or Discard follows the user's guard choice. The moved
-  item remains selected after a move within the area.
+  item remains selected after a move within the area. A second move is ignored while
+  one is saving. Navigation, a newer selection (even if it returns to the same item),
+  and edits typed during the save take precedence when the move finishes; a newer
+  editor draft also keeps keyboard focus.
 
 ### 7.6 Trash
 
@@ -609,6 +613,87 @@ The trash lists **deletion batches** (§5.3), not individual rows: one row per `
   unit of work each) over `ITrashRepository`, the only place that queries deleted rows across
   projects and removes rows.
 
+### 7.7 Query syntax and saved searches
+
+The Search page has one query box. Plain words work exactly as before (free text); the syntax below adds
+field conditions. `ItemQueryParser` (Core, `Search/Syntax`, pure) turns text into free text plus
+`FieldFilter`s; `ItemQueryFormatter` turns them back into canonical text.
+
+**Grammar.** Terms are separated by whitespace. Keys are matched case-insensitively against the field
+keys visible in the current scope (built-ins and custom slugs); display names are not accepted.
+
+```
+query    = { term }
+term     = word | phrase | clause
+word     = any run of non-space characters that is not a clause   -> free text
+phrase   = '"' chars '"'                                          -> free text (\" and \\ are escapes)
+clause   = key op value | 'has:' key | 'no:' key | 'is:' ('done' | 'open')
+op       = ':'  '!='  '>'  '<'  '>='  '<='  '~'
+value    = endpoint [ '..' endpoint ]                             (a range only after ':')
+endpoint = quoted string | run of characters up to a space or '..'
+```
+
+| Written | Meaning |
+|---------|---------|
+| `key:value` | Equals (exact, trimmed, case-insensitive for text) |
+| `key!=value` | NotEquals |
+| `key~value` | Contains (text fields only) |
+| `key>value`, `key<value` | GreaterThan / LessThan (numbers, dates, priority; `priority>high` = more important than High) |
+| `key>=value`, `key<=value` | Dates and priority only, translated exactly: `due>=D` is `due>(D-1 day)` except at the minimum date, where it means `has:due`; `due<=D` uses the following day except at the maximum date, where it means `has:due`. `priority>=high` is the range from the top level to High, `priority<=high` from High to the bottom level. Numbers reject them with a hint (use `>`, `<` or a range) |
+| `key:a..b` | Between, inclusive (numbers, dates, priority; priority runs more important to less important) |
+| `has:key` / `no:key` | IsNotEmpty / IsEmpty |
+| `is:done` / `is:open` | `status` Equals true / false; a query with `is:done` (or `status:yes`) turns Include completed on |
+
+Values: Text as written (quote when it has spaces); Number with the **invariant** culture (a dot for
+decimals; a saved search must mean the same on every machine); Boolean `yes|no|true|false`; Choice by
+label (case-insensitive) or by unquoted `#<guid>` id (quote an id-shaped label); Date `yyyy-MM-dd`, `today`, `tomorrow`, `yesterday`, or an
+offset such as `+3d` / `-1w`, resolved with the injected `TimeProvider` and the explicit time zone (§5.4).
+Words that contain `:` and are not a field (`http://x`) are errors until quoted. A bare `has`, `no` or `is`
+word is free text; as `has:`, `no:`, `is:` they are keywords, hence reserved (§7.1).
+
+**Errors** never throw. Each `QueryParseError` has a position, a length and a message: unterminated quote,
+unknown field (with "Did you mean" for names within two edits, otherwise the list of fields), operator not
+allowed for the field type (listing the allowed ones, from `SearchOperators`), missing value, bad
+number/date/boolean, unknown choice (listing the choices), reversed range. All errors in the text are
+reported together; nothing runs when there is one.
+
+**Round trip.** `Format(Parse(x))` is stable: free text first, then clauses in order, choices by label,
+dates as ISO, numbers invariant, text quoted only when it would otherwise be misread (spaces, quotes,
+backslashes, `: ~ < > !`, `..`).
+
+**Search page.** The box and the filter rows describe one query. Enter (or Search) parses text typed
+since the last run: on success the rows are rebuilt (incomplete rows are dropped) and the search runs; on
+error the messages appear under the box, each naming the offending token and character, and nothing
+runs. The text stays as typed (so `due<today` stays relative); editing a row, adding or removing one, or
+changing the free text rewrites the box in canonical form from the complete, valid rows. A "?" button opens
+a popup of examples.
+The scope selector offers "Project root only" when a project is available. It represents
+`Area(projectId, null, false)` and excludes items in folders.
+
+**Saved searches.** Table `SavedSearch` (additive migration): `Id`, `Name` (unique, case-insensitive,
+trimmed, ≤ 300), `QueryText`, `ScopeKind` (`AllProjects|Project|Folder`), `ProjectId?`, `FolderId?`,
+`IncludeSubfolders`, `IncludeCompleted`, `SortOrder`, `CreatedAtUtc`, `UpdatedAtUtc`. Project and folder ids
+are deliberately **not** foreign keys.
+
+- **Stable text.** The stored query is the parser's `StableText`: free text and clauses with every choice
+  written as `#<guid>` and dates exactly as typed. Renaming a label never breaks a saved search (§7.1);
+  relative dates keep moving. Ids are never shown: opening a saved search shows `DisplayText` (labels).
+- **Opening** (`INavigationService.OpenSavedSearchAsync`) shows the Search page with the saved scope
+  (a project or folder scope uses it as the page's origin), include-completed, text and rows, and runs it.
+  Opened from the Search page it replaces that page and keeps the original return page (§7.4).
+- **Stale searches** show an inline error instead of results: `The saved search 'X' can't be run.` plus the
+  reason: an archived or deleted field (unknown field), a deleted choice ("no longer exists"), or a
+  deleted project or folder ("Search project does not exist."). A saved search deleted meanwhile reports
+  "This saved search no longer exists." and the lists refresh.
+- **`SavedSearchService`** (one unit of work per operation): `ListAsync`, `FindAsync`, `SaveAsync(name,
+  definition, overwrite)`, `RenameAsync`, `DeleteAsync` (hard delete), `ReorderAsync`. Saving an existing
+  name without `overwrite` is a rule error; the UI asks "Replace it?" first. Names clash case-insensitively
+  (the database backs this with a `NOCASE` unique index). Saving requires the scope's project to exist.
+  Reordering is service-only for now; the lists show the stored order.
+- **UI.** The Search page has Save search, Rename and Delete (acting on the saved search currently open) and
+  a chip per saved search that opens it. Home has a "Saved searches" section (hidden when empty) with each
+  search as a link plus Rename and Delete. Returning to Home reloads the list.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -628,6 +713,7 @@ The trash lists **deletion batches** (§5.3), not individual rows: one row per `
 4. **Project Settings** — per-project overrides (§6.5).
 5. **Calendar** — scoped month and week views of due dates and scheduled blocks; activating an entry opens its item (§7.4).
 6. **Trash** — deletion batches with Restore, Delete permanently and Empty trash, scoped to all projects or one (§7.6).
+7. **Search** — query box with text syntax, filter rows, saved searches (§7.2, §7.7); Home lists saved searches.
 
 ### Keyboard
 
@@ -723,7 +809,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
 - Reminders / OS notifications for approaching deadlines.
 - Recurring items.
 - Markdown descriptions; attachments/links.
-- Saved searches and the text query syntax.
+- ~~Saved searches and the text query syntax~~ (done, §7.7).
 - Undo/redo for recent actions.
 - Import/export (JSON, CSV).
 - Packaged installers per OS (MSIX/Velopack on Windows, .app on macOS, AppImage on Linux).

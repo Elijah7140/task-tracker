@@ -9,6 +9,9 @@ public enum SearchScopeKind
     /// <summary>The project the search was opened from.</summary>
     Project,
 
+    /// <summary>Only items directly in the project, outside folders.</summary>
+    Root,
+
     /// <summary>The folder the search was opened from.</summary>
     Folder
 }

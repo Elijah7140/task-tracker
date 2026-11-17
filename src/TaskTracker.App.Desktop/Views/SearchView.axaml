@@ -10,30 +10,84 @@
       <TextBlock Text="{Binding Label}" />
     </DataTemplate>
   </UserControl.Resources>
-  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="32" RowSpacing="16">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="32" RowSpacing="16">
     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
       <Button Content="← Back" Command="{Binding BackCommand}" AutomationProperties.AutomationId="SearchBackButton" />
       <TextBlock Grid.Column="1" Text="Search" FontSize="30" FontWeight="SemiBold" VerticalAlignment="Center" />
       <Button Grid.Column="2" Content="Search" Classes="accent" Command="{Binding SearchCommand}"
               IsEnabled="{Binding CanSearch}" AutomationProperties.AutomationId="SearchButton" />
     </Grid>
-    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
-      <TextBox x:Name="SearchTextBox" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-               PlaceholderText="Title, description, or ticket" AutomationProperties.AutomationId="SearchTextBox">
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="12">
+      <TextBox x:Name="SearchTextBox" Text="{Binding QueryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               PlaceholderText="Words, or a query like type:error priority&gt;=high due&lt;today"
+               AutomationProperties.AutomationId="SearchTextBox">
         <TextBox.KeyBindings>
           <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
         </TextBox.KeyBindings>
       </TextBox>
-      <ComboBox Grid.Column="1" Width="150" ItemsSource="{Binding ScopeOptions}"
+      <Button Grid.Column="1" Content="?" AutomationProperties.AutomationId="SearchHelpButton"
+              AutomationProperties.Name="Query syntax help" MinWidth="36">
+        <Button.Flyout>
+          <Flyout Placement="BottomEdgeAlignedRight">
+            <StackPanel Spacing="6" Width="420" AutomationProperties.AutomationId="SearchHelpPanel">
+              <TextBlock Text="Query syntax" FontWeight="SemiBold" FontSize="16" />
+              <ItemsControl ItemsSource="{Binding HelpEntries}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="150,*" ColumnSpacing="12" Margin="0,2">
+                      <TextBlock Text="{Binding Example}" FontWeight="SemiBold" />
+                      <TextBlock Grid.Column="1" Text="{Binding Meaning}" TextWrapping="Wrap" Opacity="0.8" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+      <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding ScopeOptions}"
                 SelectedItem="{Binding SelectedScope, Mode=TwoWay}"
                 ItemTemplate="{StaticResource LabelItemTemplate}"
                 AutomationProperties.AutomationId="SearchScopeComboBox" />
-      <CheckBox Grid.Column="2" Content="Include subfolders" IsChecked="{Binding IncludeSubfolders, Mode=TwoWay}"
+      <CheckBox Grid.Column="3" Content="Include subfolders" IsChecked="{Binding IncludeSubfolders, Mode=TwoWay}"
                 IsVisible="{Binding IsFolderScope}" AutomationProperties.AutomationId="IncludeSubfoldersCheckBox" />
-      <CheckBox Grid.Column="3" Content="Include completed" IsChecked="{Binding IncludeCompleted, Mode=TwoWay}"
+      <CheckBox Grid.Column="4" Content="Include completed" IsChecked="{Binding IncludeCompleted, Mode=TwoWay}"
                 AutomationProperties.AutomationId="IncludeCompletedCheckBox" />
     </Grid>
-    <ScrollViewer Grid.Row="2" MaxHeight="210" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Grid.Row="2" Spacing="4" IsVisible="{Binding HasSavedSearchSupport}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Save search" Command="{Binding SavedSearches.SaveCommand}"
+                  AutomationProperties.AutomationId="SaveSearchButton" />
+          <Button Content="Rename" Command="{Binding SavedSearches.RenameCommand}"
+                  IsEnabled="{Binding SavedSearches.HasSelection}"
+                  AutomationProperties.AutomationId="RenameSavedSearchButton" />
+          <Button Content="Delete" Command="{Binding SavedSearches.DeleteCommand}"
+                  IsEnabled="{Binding SavedSearches.HasSelection}"
+                  AutomationProperties.AutomationId="DeleteSavedSearchButton" />
+        </StackPanel>
+        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding SavedSearches.Items}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="6" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Content="{Binding Name}" Classes.accent="{Binding IsSelected}"
+                        Command="{Binding $parent[UserControl].DataContext.SavedSearches.OpenCommand}"
+                        CommandParameter="{Binding}" AutomationProperties.AutomationId="SavedSearchChip"
+                        AutomationProperties.Name="{Binding Name}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+      <TextBlock Text="{Binding SavedSearches.Error}" Foreground="{DynamicResource AppDangerBrush}"
+                 TextWrapping="Wrap" AutomationProperties.AutomationId="SavedSearchErrorText" />
+    </StackPanel>
+    <ScrollViewer Grid.Row="3" MaxHeight="210" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="8">
         <Button Content="+ Add filter" Command="{Binding AddFilterCommand}" HorizontalAlignment="Left"
                 AutomationProperties.AutomationId="AddFilterButton" />
@@ -74,7 +128,7 @@
         </ItemsControl>
       </StackPanel>
     </ScrollViewer>
-    <Grid Grid.Row="3" RowDefinitions="Auto,Auto,*" RowSpacing="4">
+    <Grid Grid.Row="4" RowDefinitions="Auto,Auto,*" RowSpacing="4">
       <TextBlock Text="{Binding Error}" Foreground="{DynamicResource AppDangerBrush}" TextWrapping="Wrap"
                  AutomationProperties.AutomationId="SearchErrorText" />
       <!-- The header and the row template use the same column widths so the columns line up. -->
@@ -115,7 +169,7 @@
       <TextBlock Grid.Row="2" Text="No items match" IsVisible="{Binding ShowEmpty}" HorizontalAlignment="Center"
                  VerticalAlignment="Center" FontSize="18" />
     </Grid>
-    <StackPanel Grid.Row="4">
+    <StackPanel Grid.Row="5">
       <TextBlock Text="Searching…" IsVisible="{Binding IsBusy}" />
       <TextBlock Text="{Binding HasMoreMessage}" IsVisible="{Binding HasMore}"
                  AutomationProperties.AutomationId="SearchHasMoreNote" />

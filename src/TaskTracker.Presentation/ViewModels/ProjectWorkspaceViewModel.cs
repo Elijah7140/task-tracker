@@ -690,18 +690,23 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         }
 
         isMoveRunning = true;
+        ItemMoveOrigin? origin = null;
 
         try
         {
             if (await ResolveDraftAsync())
             {
                 ItemMoveError = null;
-                await body(items, CaptureMoveOrigin());
+                origin = CaptureMoveOrigin();
+                await body(items, origin.Value);
             }
         }
         catch (DomainRuleException exception)
         {
-            ItemMoveError = exception.Message;
+            if (origin is ItemMoveOrigin started && CanShowMoveResult(started))
+            {
+                ItemMoveError = exception.Message;
+            }
         }
         finally
         {
@@ -722,12 +727,17 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
 
     private ItemMoveOrigin CaptureMoveOrigin()
     {
-        return new ItemMoveOrigin(areaVersion, SelectedFolder?.Id, selectedItem?.Id);
+        return new ItemMoveOrigin(areaVersion, SelectedFolder?.Id, selectedItem?.Id, selectionVersion);
     }
 
     private bool IsStale(ItemMoveOrigin origin)
     {
         return origin.AreaVersion != areaVersion;
+    }
+
+    private bool CanShowMoveResult(ItemMoveOrigin origin)
+    {
+        return !IsStale(origin) && selectionVersion == origin.SelectionVersion && !EditorHasEdits();
     }
 
     /// <summary>Reloads the area after a move, unless the user has navigated elsewhere meanwhile.</summary>
@@ -742,7 +752,8 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
 
         ApplyAreaSnapshot(snapshot);
         var selectedId = ChooseSelectionAfterMove(origin, movedId);
-        await SelectAfterMoveAsync(selectedId, selectedId == movedId);
+        var restoreRowFocus = selectedId == movedId && CanShowMoveResult(origin);
+        await SelectAfterMoveAsync(selectedId, restoreRowFocus);
     }
 
     /// <summary>
@@ -763,13 +774,15 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
             return;
         }
 
+        var restoreRowFocus = followsMovedItem && CanShowMoveResult(origin);
+
         if (followsMovedItem)
         {
             SelectFolderById(targetFolderId);
         }
 
         ApplyAreaSnapshot(snapshot);
-        await SelectAfterMoveAsync(selectedId, followsMovedItem);
+        await SelectAfterMoveAsync(selectedId, restoreRowFocus);
     }
 
     private void SelectFolderById(Guid? folderId)
@@ -790,7 +803,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     {
         var currentId = selectedItem?.Id;
 
-        if (currentId != origin.SelectedItemId || EditorHasEdits())
+        if (selectionVersion != origin.SelectionVersion || EditorHasEdits())
         {
             return currentId;
         }

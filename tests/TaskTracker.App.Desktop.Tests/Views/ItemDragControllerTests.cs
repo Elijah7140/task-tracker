@@ -52,6 +52,40 @@ public sealed class ItemDragControllerTests
     }
 
     [AvaloniaFact]
+    public async Task Right_press_during_an_active_drag_does_not_replace_its_source()
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Project");
+        var items = services.GetRequiredService<ItemService>();
+        var first = await items.CreateAsync(project.Id, null, null, "First");
+        var second = await items.CreateAsync(project.Id, null, null, "Second");
+        var third = await items.CreateAsync(project.Id, null, null, "Third");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = await OpenWorkspaceAsync(shell, project.Id);
+        var firstRow = FindRow(window, first.Id);
+        var secondRow = FindRow(window, second.Id);
+        var thirdRow = FindRow(window, third.Id);
+        var target = HeadlessInput.CentreOf(window, firstRow);
+
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, secondRow));
+        HeadlessInput.MoveMouse(window, target);
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, thirdRow),
+            MouseButton.Right, RawInputModifiers.LeftMouseButton);
+        var originalSourceIsDragging = secondRow.Classes.Contains("dragging");
+        var thirdIsDragging = thirdRow.Classes.Contains("dragging");
+        HeadlessInput.ReleaseMouse(window, HeadlessInput.CentreOf(window, thirdRow),
+            MouseButton.Right, RawInputModifiers.LeftMouseButton);
+        HeadlessInput.Press(window, Key.Escape);
+        HeadlessInput.ReleaseMouse(window, target);
+        var snapshot = await items.LoadAreaAsync(project.Id, null);
+
+        Assert.True(originalSourceIsDragging);
+        Assert.False(thirdIsDragging);
+        Assert.Equal([first.Id, second.Id, third.Id], snapshot.Items.Select(node => node.Item.Id));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Rows_scrolled_out_of_the_viewport_are_not_drop_targets()
     {
         using var services = await TestServices.CreateAsync();

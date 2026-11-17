@@ -28,7 +28,7 @@ public sealed class SearchViewModelTests
     }
 
     [Fact]
-    public async Task Search_from_project_root_offers_project_scope_but_not_folder_scope()
+    public async Task Search_from_project_root_offers_project_and_root_only_scopes()
     {
         await using var store = new PresentationTestStore();
         await store.InitializeAsync();
@@ -40,7 +40,7 @@ public sealed class SearchViewModelTests
 
         var page = Assert.IsType<SearchViewModel>(shell.CurrentPage);
         Assert.Equal(SearchScopeKind.Project, page.SelectedScope.Kind);
-        Assert.Equal([SearchScopeKind.AllProjects, SearchScopeKind.Project],
+        Assert.Equal([SearchScopeKind.AllProjects, SearchScopeKind.Project, SearchScopeKind.Root],
             page.ScopeOptions.Select(option => option.Kind));
     }
 

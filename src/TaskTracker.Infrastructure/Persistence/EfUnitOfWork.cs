@@ -22,6 +22,7 @@ public sealed class EfUnitOfWork : IUnitOfWork
         Search = new SqlItemSearch(database);
         Calendar = new EfCalendarRepository(database);
         Trash = new EfTrashRepository(database);
+        SavedSearches = new EfSavedSearchRepository(database);
     }
 
     public IProjectRepository Projects { get; }
@@ -41,6 +42,8 @@ public sealed class EfUnitOfWork : IUnitOfWork
     public ICalendarRepository Calendar { get; }
 
     public ITrashRepository Trash { get; }
+
+    public ISavedSearchRepository SavedSearches { get; }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
