@@ -48,14 +48,26 @@ public sealed class ItemLinksViewModel : ViewModelBase
     public string NewUrl
     {
         get => newUrl;
-        set => SetProperty(ref newUrl, value);
+        set
+        {
+            if (SetProperty(ref newUrl, value))
+            {
+                OnPropertyChanged(nameof(CanCancelEntry));
+            }
+        }
     }
 
     /// <summary>The optional title typed into the add box.</summary>
     public string NewTitle
     {
         get => newTitle;
-        set => SetProperty(ref newTitle, value);
+        set
+        {
+            if (SetProperty(ref newTitle, value))
+            {
+                OnPropertyChanged(nameof(CanCancelEntry));
+            }
+        }
     }
 
     /// <summary>The validation message for the add box, or null.</summary>
@@ -80,6 +92,9 @@ public sealed class ItemLinksViewModel : ViewModelBase
     {
         get { return editingRow is not null; }
     }
+
+    /// <summary>Whether the user can clear typed text or cancel an active edit.</summary>
+    public bool CanCancelEntry => IsEditing || HasPendingEntry();
 
     /// <summary>"Update link" while a link is being edited, otherwise "Add link".</summary>
     public string SubmitText
@@ -133,6 +148,17 @@ public sealed class ItemLinksViewModel : ViewModelBase
 
     internal void BeginEdit(ItemLinkRowViewModel row)
     {
+        if (ReferenceEquals(row, editingRow))
+        {
+            return;
+        }
+
+        if (CanCancelEntry)
+        {
+            Error = "Finish or cancel the link you're editing first.";
+            return;
+        }
+
         editingRow = row;
         NewUrl = row.Url;
         NewTitle = row.Title ?? string.Empty;
@@ -229,6 +255,7 @@ public sealed class ItemLinksViewModel : ViewModelBase
     private void RaiseEditingChanged()
     {
         OnPropertyChanged(nameof(IsEditing));
+        OnPropertyChanged(nameof(CanCancelEntry));
         OnPropertyChanged(nameof(SubmitText));
     }
 

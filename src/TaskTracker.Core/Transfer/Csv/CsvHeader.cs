@@ -14,6 +14,9 @@ internal sealed class CsvHeader
 
     public IReadOnlyList<(int Index, FieldDefinition Field)> FieldColumns => fieldColumns;
 
+    /// <summary>True when a legacy export could have used the unsuffixed Links column for a custom field.</summary>
+    public bool HasCustomLinksField { get; private set; }
+
     /// <summary>The number of cells in the header row, blank ones included.</summary>
     public int ColumnCount { get; private set; }
 
@@ -45,7 +48,12 @@ internal sealed class CsvHeader
 
     public static CsvHeader Read(CsvRecord record, CsvImportContext context, IssueList issues)
     {
-        var header = new CsvHeader { ColumnCount = record.Cells.Count };
+        var header = new CsvHeader
+        {
+            ColumnCount = record.Cells.Count,
+            HasCustomLinksField = context.Fields.Any(field =>
+                field.DisplayName.Equals(CsvColumns.Links, StringComparison.OrdinalIgnoreCase))
+        };
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         for (var index = 0; index < record.Cells.Count; index++)

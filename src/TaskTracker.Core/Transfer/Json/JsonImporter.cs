@@ -39,7 +39,7 @@ internal sealed class JsonImporter(TimeProvider clock)
             itemCount += items;
         }
 
-        var searchCount = await new SavedSearchImporter(work, clock, map).ImportAsync(document, cancellationToken);
+        var searchCount = await new SavedSearchImporter(work, clock, map, issues).ImportAsync(document, cancellationToken);
 
         return new TransferSummary(projects.Count, folderCount, itemCount, searchCount);
     }

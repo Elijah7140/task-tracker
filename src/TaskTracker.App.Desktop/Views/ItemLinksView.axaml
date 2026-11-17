@@ -11,7 +11,7 @@
           <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="2" Margin="0,2">
             <Button Classes="subtle" HorizontalContentAlignment="Left" Padding="4,2" HorizontalAlignment="Stretch" Background="Transparent"
                     Command="{Binding $parent[views:ProjectWorkspaceView].DataContext.OpenLinkCommand}"
-                    CommandParameter="{Binding Url}"
+                    CommandParameter="{Binding Url}" ToolTip.Tip="{Binding Url}"
                     AutomationProperties.AutomationId="EditorLinkOpenButton" AutomationProperties.Name="{Binding DisplayText}">
               <StackPanel Background="Transparent" HorizontalAlignment="Stretch">
                 <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"
@@ -47,7 +47,7 @@
     <StackPanel Orientation="Horizontal" Spacing="8">
       <Button Content="{Binding SubmitText}" Classes="subtle" Command="{Binding SubmitCommand}"
               AutomationProperties.AutomationId="EditorLinkSubmitButton" />
-      <Button Content="Cancel" Classes="subtle" Command="{Binding CancelEditCommand}" IsVisible="{Binding IsEditing}"
+      <Button Content="Cancel" Classes="subtle" Command="{Binding CancelEditCommand}" IsVisible="{Binding CanCancelEntry}"
               AutomationProperties.AutomationId="EditorLinkCancelButton" />
     </StackPanel>
   </StackPanel>

@@ -787,8 +787,9 @@ culture throughout.
   completion and timestamps. Project overrides are imported; **global settings in the file are ignored**. If an override would leave
   the project with invalid thresholds against this database's global settings, the import is refused.
 - *Saved searches* are created as new ones (name clashes suffixed like projects), pointing at the new project and folder ids. The
-  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. A saved search that names a project
-  field whose key had to be renumbered is stale and shows the usual "can't be run" message.
+  `#id` choices in their stored query text (§7.7) are rewritten to the ids the choices now have. If a legacy custom `link` field is
+  renumbered, its saved-search references are rewritten in scopes that include the field. Other renumbered project-field keys can
+  leave a saved search stale, with the usual "can't be run" message.
 - *Completion (§6.1)*: where the project's effective auto-complete setting is on, imported trees are reconciled before saving.
 - *All or nothing:* one unit of work, one save. A failure leaves nothing tracked or stored. Imports are **not undoable** (no undo step
   is recorded). The UI asks for confirmation first and `IDatabaseBackup` (the SQLite backup API, as used before migrations) copies
@@ -806,10 +807,14 @@ current search results (all matches, not just the first 200, in result order) as
 RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
 quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Due date, Due time, Scheduled start, Scheduled end,
 Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), then one column per custom field by
-display name (active fields, and archived ones that have a value; fields sharing a name share a column). A custom field whose
-display name equals a fixed header (any case: Type, Priority, Ticket, ...) is written as "Type (field)" so headers never repeat; an
-import maps that header back to the field. Dates and numbers are ISO and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the
-culture.
+display name (active fields, and archived ones that have a value; fields sharing a name share a column). Dates and numbers are ISO
+and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the culture.
+
+- **Custom-field headers.** Export and import match names case-insensitively and add one ` (field)` suffix to a fixed column
+  name or to a name that already consists of a fixed name followed by one or more such suffixes. For example, the fields
+  `Links` and `Links (field)` use `Links (field)` and `Links (field) (field)`. Plain `Links` imports as item links. If the
+  target has an active custom field named `Links`, an invalid address in that column produces a row error about the ambiguity
+  and explains how to rename the header for legacy custom-field values.
 
 **Formula injection.** Excel runs a cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return as a formula. An export
 therefore puts an apostrophe in front of any text cell (title, description, ticket, type, priority, project, folder path, parent
@@ -861,9 +866,10 @@ newly selected item opens in Edit).
 - **Raw HTML is never interpreted.** The parser has HTML switched off, so `<b>x</b>` or an HTML block reaches the preview as literal text.
 - **Images are never loaded.** An offline desktop app makes no network fetches and reads no local files for a description, so an image
   is shown as a link whose text is the alt text ("image" when empty); it is clickable only under the link rule below.
-- **Limits** keep hostile or huge text from freezing the preview: only the first 100,000 characters are rendered, at most 2,000
-  blocks, containers nested deeper than 16 levels show as plain text, and input Markdig itself refuses as too deeply nested is shown
-  verbatim as a code block. A notice line says when the preview was cut short. The stored text is never changed.
+- **Limits** keep hostile or huge text from freezing the preview. The source is capped at 100,000 characters. Blocks, list entries
+  and inline nodes share a 2,000-node limit and a 100,000-character display text limit that includes expanded link addresses.
+  Containers nested deeper than 16 levels show as plain text. Input Markdig refuses as too deeply nested is shown verbatim as a
+  code block. A notice line says when the preview was cut short. The stored text is never changed.
 
 **Opening links.** Links in the preview open in the OS default handler through `ILinkLauncher` (Presentation; Avalonia's `Launcher` in
 App.Desktop, a fake in tests), and **only for `http`, `https` and `mailto`** (`LinkPolicy`, Core). Any other scheme (`file:`,
@@ -874,15 +880,17 @@ and the address is shown in a tooltip. A failed launch shows a message. Both the
 
 **Item links (attachments).** `ItemLink`: `Id` (Guid v7), `ItemId`, `Url` (at most 2000), `Title?` (at most 300), `SortOrder`,
 `CreatedAtUtc`; table `ItemLink`, index `(ItemId, SortOrder)`, foreign key to `TodoItem` with `ON DELETE CASCADE`. The migration is
-additive (`AddItemLinks`): it does not rebuild `TodoItem`, so the search triggers are untouched; it also gives an existing custom field
-whose key is `link` the first free numeric suffix, because `link` is now a built-in search key (§7.2).
+additive (`AddItemLinks`). It gives an existing custom field whose key is `link` the first free numeric suffix and rewrites references
+in saved searches whose scope includes that field, because `link` is now a built-in search key (§7.2).
 
 - **Rules** (`LinkPolicy`, one place for editor, services, import and the launcher): a trimmed, absolute `http`/`https` address with a
-  host, or a `mailto:` address; no whitespace inside; at most 100 links per item. A blank title is stored as null.
+  host, or a `mailto:` address. Whitespace and control characters inside the address are rejected. An item holds at most 100 links.
+  A blank title is stored as null.
 - **File attachments are out of scope.** The app stores no files and no paths; a `file://` link is rejected, not just unopenable.
 - **Editor.** The "Links" section lists the links (title or address, address underneath a title, tooltip, click opens) with move up,
   move down, Edit and remove buttons, then an address box, a title box and Add link (Enter in a box also adds). Edit loads a link into
-  the boxes (the button becomes Update link; Cancel appears). A message under the boxes explains a rejected link. Link changes are part
+  the boxes and the button becomes Update link. Cancel clears a pending entry or edit. Finish or cancel the current entry before
+  editing another link. A message under the boxes explains a rejected link. Link changes are part
   of the item draft: they make the editor dirty, Revert restores the stored list, and Save writes them with the rest of the item. Text
   still in the boxes at Save is added first; if it is invalid, Save is refused with "Fix the link marked in red first.".
 - **Save.** `ItemService.EditAsync(id, edit, values, links)`: a non-null `links` replaces the whole list in the same unit of work

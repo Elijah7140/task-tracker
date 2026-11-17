@@ -3,7 +3,10 @@ using System.Text.Json.Nodes;
 
 using Microsoft.EntityFrameworkCore;
 
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.SavedSearches;
+using TaskTracker.Core.Search;
 using TaskTracker.Core.Transfer;
 using TaskTracker.Core.Transfer.Csv;
 
@@ -59,6 +62,28 @@ public sealed class ItemLinkTransferTests
 
         Assert.True(result.Succeeded);
         Assert.Empty(await ReadLinksAsync(target, "Fix invoice totals"));
+    }
+
+    [Fact]
+    public async Task Legacy_json_searches_keep_their_custom_link_field_when_its_key_is_renamed()
+    {
+        await using var world = await TransferWorld.CreateAsync();
+        var owner = await world.Projects.CreateAsync("Owner");
+        var other = await world.Projects.CreateAsync("Other");
+        await world.Fields.CreateAsync("Link", FieldDataType.Text, owner.Id);
+        const string query = """ "has:link" has:" LINK " no:link LINK~wiki link:"see \"no:link\"" """;
+        await world.SavedSearches.SaveAsync("Custom", new(query, new SearchScope.Project(owner.Id), false));
+        await world.SavedSearches.SaveAsync("Built-in", new("has:link", new SearchScope.Project(other.Id), false));
+        var json = await world.Transfer.ExportJsonAsync(new TransferScope.AllData());
+        var legacy = TransferJson.Edit(json, document => document["fields"]![0]!["key"] = "link");
+
+        var result = await world.Transfer.ImportJsonAsync(legacy);
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Issues));
+        var searches = (await world.ReadSavedSearchesAsync()).ToDictionary(search => search.Name);
+        Assert.Equal(""" "has:link" has:link-3 no:link-3 link-3~wiki link-3:"see \"no:link\"" """,
+            searches["Custom (imported)"].QueryText);
+        Assert.Equal("has:link", searches["Built-in (imported)"].QueryText);
     }
 
     [Fact]
@@ -208,6 +233,64 @@ public sealed class ItemLinkTransferTests
 
         Assert.Contains("Links (field)", table.Records[0].Cells);
         Assert.Single(table.Records[0].Cells, "Links");
+    }
+
+    [Fact]
+    public async Task Csv_round_trips_links_and_custom_fields_with_colliding_headers()
+    {
+        await using var world = await TransferWorld.CreateAsync();
+        var project = await world.Projects.CreateAsync("Source");
+        var suffixed = await world.Fields.CreateAsync("Links (field)", FieldDataType.Text, null);
+        var plain = await world.Fields.CreateAsync("Links", FieldDataType.Text, null);
+        var item = await world.Items.CreateAsync(project.Id, null, null, "Example");
+        var edit = new ItemEdit(item.Title, null, null, null, null, null, null, null, null);
+        await world.Items.EditAsync(item.Id, edit, [new(plain.Id, TextValue: "plain"), new(suffixed.Id, TextValue: "suffixed")],
+            [new(null, "https://example.com", null)]);
+
+        var csv = await world.Transfer.ExportProjectCsvAsync(project.Id);
+        var target = await world.Projects.CreateAsync("Target");
+        var result = await world.Transfer.ImportCsvAsync(csv, target.Id, null);
+
+        var headers = CsvParser.Parse(csv).Records[0].Cells;
+        Assert.Equal(["Links", "Links (field) (field)", "Links (field)"], headers.TakeLast(3));
+        Assert.True(result.Succeeded, string.Join("; ", result.Issues));
+        var imported = Assert.Single(await world.ReadItemsAsync(target.Id));
+        var values = (await world.ReadValuesAsync(imported.Id)).ToDictionary(value => value.FieldDefinitionId);
+        Assert.Equal("plain", values[plain.Id].TextValue);
+        Assert.Equal("suffixed", values[suffixed.Id].TextValue);
+        Assert.Equal([("https://example.com", null)], await ReadLinksAsync(world, "Example", target.Id));
+    }
+
+    [Fact]
+    public async Task Legacy_csv_text_under_links_reports_the_ambiguous_header()
+    {
+        await using var world = await TransferWorld.CreateAsync();
+        var project = await world.Projects.CreateAsync("Target");
+        await world.Fields.CreateAsync("Links", FieldDataType.Text, project.Id);
+
+        var result = await world.Transfer.ImportCsvAsync("Title,Links\r\nOne,internal wiki\r\n", project.Id, null);
+
+        Assert.False(result.Succeeded);
+        var issue = Assert.Single(result.Issues);
+        Assert.Equal("Row 2, Links", issue.Path);
+        Assert.Contains("ambiguous", issue.Message);
+        Assert.Contains("Links (field)", issue.Message);
+        Assert.Empty(await world.ReadItemsAsync(project.Id));
+    }
+
+    [Fact]
+    public async Task An_overlong_csv_link_list_reports_only_the_count_error()
+    {
+        await using var world = await TransferWorld.CreateAsync();
+        var project = await world.Projects.CreateAsync("Target");
+        var urls = string.Join(' ', Enumerable.Repeat("https://example.com", LinkPolicy.MaxLinksPerItem));
+        var csv = $"Title,Links\r\nOne,{urls} invalid another-invalid\r\n";
+
+        var result = await world.Transfer.ImportCsvAsync(csv, project.Id, null);
+
+        var issue = Assert.Single(result.Issues);
+        Assert.Equal("Row 2, Links", issue.Path);
+        Assert.Equal($"An item may have at most {LinkPolicy.MaxLinksPerItem} links.", issue.Message);
     }
 
     private static async Task SetLinksAsync(TransferWorld world, Guid itemId, params (string Url, string? Title)[] links)

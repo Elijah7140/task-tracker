@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
@@ -11,6 +12,8 @@ namespace TaskTracker.Infrastructure.Persistence;
 /// <summary>SQLite persistence for the task tracker.</summary>
 public sealed class TaskTrackerDbContext(DbContextOptions<TaskTrackerDbContext> options) : DbContext(options)
 {
+    private static readonly SqliteFunctionInterceptor Functions = new();
+
     public DbSet<Project> Projects => Set<Project>();
 
     public DbSet<Folder> Folders => Set<Folder>();
@@ -34,6 +37,13 @@ public sealed class TaskTrackerDbContext(DbContextOptions<TaskTrackerDbContext> 
     public DbSet<GlobalSettingRow> GlobalSettings => Set<GlobalSettingRow>();
 
     public DbSet<ProjectSettingRow> ProjectSettings => Set<ProjectSettingRow>();
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        var relational = optionsBuilder.Options.Extensions.OfType<RelationalOptionsExtension>().FirstOrDefault();
+        SqliteFunctionInterceptor.Register(relational?.Connection);
+        optionsBuilder.AddInterceptors(Functions);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

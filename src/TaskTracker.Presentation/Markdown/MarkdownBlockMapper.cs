@@ -4,14 +4,10 @@ using Markdig.Syntax.Inlines;
 
 namespace TaskTracker.Presentation.Markdown;
 
-/// <summary>Copies Markdig blocks into the display model, enforcing the nesting and block limits.</summary>
-internal sealed class MarkdownBlockMapper
+/// <summary>Copies Markdig blocks and list entries into the bounded display model.</summary>
+internal sealed class MarkdownBlockMapper(MarkdownDisplayBudget budget)
 {
-    private readonly MarkdownInlineMapper inlines = new();
-    private int blockCount;
-
-    /// <summary>True once the block limit stopped the mapping early.</summary>
-    public bool IsTruncated { get; private set; }
+    private readonly MarkdownInlineMapper inlines = new(budget);
 
     public List<MarkdownBlock> MapChildren(ContainerBlock container, int depth)
     {
@@ -19,13 +15,16 @@ internal sealed class MarkdownBlockMapper
 
         foreach (var child in container)
         {
-            if (blockCount >= MarkdownParser.MaxBlocks)
+            if (child is LinkReferenceDefinitionGroup)
             {
-                IsTruncated = true;
+                continue;
+            }
+
+            if (!budget.TakeNode())
+            {
                 break;
             }
 
-            blockCount++;
             var mapped = MapBlock(child, depth);
 
             if (mapped is not null)
@@ -41,42 +40,84 @@ internal sealed class MarkdownBlockMapper
     {
         return block switch
         {
-            HeadingBlock heading => new MarkdownHeading(heading.Level, inlines.Map(heading.Inline)),
-            ParagraphBlock paragraph => new MarkdownParagraph(inlines.Map(paragraph.Inline)),
-            CodeBlock code => new MarkdownCodeBlock(code.Lines.ToString()),
+            HeadingBlock or ParagraphBlock => MapInlineBlock((LeafBlock)block),
+            CodeBlock code => MapCode(code.Lines.ToString()),
             ThematicBreakBlock => new MarkdownRule(),
-            HtmlBlock html => new MarkdownParagraph([new MarkdownText(html.Lines.ToString())]),
-            LinkReferenceDefinitionGroup => null,
+            HtmlBlock html => MapHtml(html.Lines.ToString()),
             ContainerBlock container => MapContainer(container, depth),
             _ => null
         };
+    }
+
+    private MarkdownBlock? MapInlineBlock(LeafBlock block)
+    {
+        var children = inlines.Map(block.Inline);
+
+        if (budget.IsTruncated && children.Count == 0)
+        {
+            return null;
+        }
+
+        return block is HeadingBlock heading
+            ? new MarkdownHeading(heading.Level, children)
+            : new MarkdownParagraph(children);
+    }
+
+    private MarkdownCodeBlock? MapCode(string text)
+    {
+        return budget.TakeText(text.Length) ? new MarkdownCodeBlock(text) : null;
+    }
+
+    private MarkdownParagraph? MapHtml(string text)
+    {
+        return budget.TakeNode(text.Length) ? new MarkdownParagraph([new MarkdownText(text)]) : null;
     }
 
     private MarkdownBlock? MapContainer(ContainerBlock container, int depth)
     {
         if (depth >= MarkdownParser.MaxNesting)
         {
-            return new MarkdownCodeBlock(FlattenToText(container));
+            return MapCode(FlattenToText(container));
         }
 
         return container switch
         {
-            QuoteBlock quote => new MarkdownQuote(MapChildren(quote, depth + 1)),
+            QuoteBlock quote => MapQuote(quote, depth),
             ListBlock list => MapList(list, depth),
             _ => null
         };
     }
 
-    private MarkdownList MapList(ListBlock list, int depth)
+    private MarkdownQuote? MapQuote(QuoteBlock quote, int depth)
+    {
+        var children = MapChildren(quote, depth + 1);
+        return budget.IsTruncated && children.Count == 0 ? null : new MarkdownQuote(children);
+    }
+
+    private MarkdownList? MapList(ListBlock list, int depth)
     {
         var items = new List<MarkdownListItem>();
 
         foreach (var entry in list.OfType<ListItemBlock>())
         {
-            items.Add(new MarkdownListItem(MapChildren(entry, depth + 1), ReadTaskState(entry)));
+            if (!budget.TakeNode())
+            {
+                break;
+            }
+
+            var children = MapChildren(entry, depth + 1);
+
+            if (budget.IsTruncated && children.Count == 0)
+            {
+                break;
+            }
+
+            items.Add(new MarkdownListItem(children, ReadTaskState(entry)));
         }
 
-        return new MarkdownList(list.IsOrdered, ReadStartNumber(list), items);
+        return budget.IsTruncated && items.Count == 0
+            ? null
+            : new MarkdownList(list.IsOrdered, ReadStartNumber(list), items);
     }
 
     private static int ReadStartNumber(ListBlock list)

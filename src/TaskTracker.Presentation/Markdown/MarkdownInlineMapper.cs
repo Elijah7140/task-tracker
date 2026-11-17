@@ -1,6 +1,5 @@
 using System.Text;
 
-using Markdig.Extensions.TaskLists;
 using Markdig.Syntax.Inlines;
 
 using TaskTracker.Core.Items;
@@ -8,7 +7,7 @@ using TaskTracker.Core.Items;
 namespace TaskTracker.Presentation.Markdown;
 
 /// <summary>Copies Markdig inline content into the display model, enforcing the nesting limit.</summary>
-internal sealed class MarkdownInlineMapper
+internal sealed class MarkdownInlineMapper(MarkdownDisplayBudget budget)
 {
     private const string UnnamedImageText = "image";
 
@@ -23,12 +22,17 @@ internal sealed class MarkdownInlineMapper
 
         if (depth >= MarkdownParser.MaxNesting)
         {
-            result.Add(new MarkdownText(PlainText(container)));
+            AddText(result, PlainText(container));
             return result;
         }
 
         for (var child = container.FirstChild; child is not null; child = child.NextSibling)
         {
+            if (budget.IsTruncated)
+            {
+                break;
+            }
+
             AddInline(result, child, depth);
         }
 
@@ -37,58 +41,86 @@ internal sealed class MarkdownInlineMapper
 
     private void AddInline(List<MarkdownInline> result, Inline inline, int depth)
     {
-        switch (inline)
+        if (inline is ContainerInline container and not (EmphasisInline or LinkInline))
         {
-            case LiteralInline literal:
-                result.Add(new MarkdownText(literal.Content.ToString()));
-                break;
-            case LineBreakInline:
-                result.Add(new MarkdownLineBreak());
-                break;
-            case CodeInline code:
-                result.Add(new MarkdownCode(code.Content));
-                break;
-            case EmphasisInline emphasis:
-                result.Add(new MarkdownEmphasis(emphasis.DelimiterCount >= 2, Map(emphasis, depth + 1)));
-                break;
-            case LinkInline link:
-                result.Add(MapLink(link, depth));
-                break;
-            case AutolinkInline autolink:
-                result.Add(MapAutolink(autolink));
-                break;
-            case HtmlEntityInline entity:
-                result.Add(new MarkdownText(entity.Transcoded.ToString()));
-                break;
-            case HtmlInline html:
-                result.Add(new MarkdownText(html.Tag));
-                break;
-            case TaskList:
-                break;
-            case ContainerInline container:
-                result.AddRange(Map(container, depth + 1));
-                break;
+            result.AddRange(Map(container, depth + 1));
+            return;
+        }
+
+        var mapped = MapInline(inline, depth);
+
+        if (mapped is not null)
+        {
+            result.Add(mapped);
         }
     }
 
-    private MarkdownLink MapLink(LinkInline link, int depth)
+    private MarkdownInline? MapInline(Inline inline, int depth)
+    {
+        if (!budget.TakeNode())
+        {
+            return null;
+        }
+
+        return inline switch
+        {
+            LiteralInline literal => MapText(literal.Content.ToString()),
+            LineBreakInline => budget.TakeText(1) ? new MarkdownLineBreak() : null,
+            CodeInline code => budget.TakeText(code.Content.Length) ? new MarkdownCode(code.Content) : null,
+            EmphasisInline emphasis => MapEmphasis(emphasis, depth),
+            LinkInline link => MapLink(link, depth),
+            AutolinkInline autolink => MapAutolink(autolink),
+            HtmlEntityInline entity => MapText(entity.Transcoded.ToString()),
+            HtmlInline html => MapText(html.Tag),
+            _ => null
+        };
+    }
+
+    private MarkdownText? MapText(string text)
+    {
+        return budget.TakeText(text.Length) ? new MarkdownText(text) : null;
+    }
+
+    private void AddText(List<MarkdownInline> result, string text)
+    {
+        if (budget.TakeNode(text.Length))
+        {
+            result.Add(new MarkdownText(text));
+        }
+    }
+
+    private MarkdownEmphasis? MapEmphasis(EmphasisInline emphasis, int depth)
+    {
+        var children = Map(emphasis, depth + 1);
+        return budget.IsTruncated && children.Count == 0
+            ? null
+            : new MarkdownEmphasis(emphasis.DelimiterCount >= 2, children);
+    }
+
+    private bool TakeLinkAddress(string url, bool isOpenable)
+    {
+        // Blocked addresses are shown with a leading space and parentheses.
+        return budget.TakeText(url.Length + (isOpenable ? 0 : 3));
+    }
+
+    private MarkdownLink? MapLink(LinkInline link, int depth)
     {
         var url = link.Url ?? string.Empty;
         var isOpenable = LinkPolicy.IsOpenable(url);
 
-        if (link.IsImage)
+        if (!TakeLinkAddress(url, isOpenable))
         {
-            return new MarkdownLink(url, isOpenable, true, [new MarkdownText(ImageText(link))]);
+            return null;
         }
 
-        var children = Map(link, depth + 1);
+        var children = link.IsImage ? [] : Map(link, depth + 1);
 
         if (children.Count == 0)
         {
-            children.Add(new MarkdownText(url));
+            AddText(children, link.IsImage ? ImageText(link) : url);
         }
 
-        return new MarkdownLink(url, isOpenable, false, children);
+        return children.Count == 0 ? null : new MarkdownLink(url, isOpenable, link.IsImage, children);
     }
 
     /// <summary>An image is never loaded; its alt text stands in for it, or a generic word when there is none.</summary>
@@ -98,12 +130,16 @@ internal sealed class MarkdownInlineMapper
         return alt.Length == 0 ? UnnamedImageText : alt;
     }
 
-    private static MarkdownLink MapAutolink(AutolinkInline autolink)
+    private MarkdownLink? MapAutolink(AutolinkInline autolink)
     {
         var shown = autolink.Url;
         var url = autolink.IsEmail ? "mailto:" + shown : shown;
 
-        return new MarkdownLink(url, LinkPolicy.IsOpenable(url), false, [new MarkdownText(shown)]);
+        var isOpenable = LinkPolicy.IsOpenable(url);
+
+        return TakeLinkAddress(url, isOpenable) && budget.TakeNode(shown.Length)
+            ? new MarkdownLink(url, isOpenable, false, [new MarkdownText(shown)])
+            : null;
     }
 
     /// <summary>The visible text of an inline tree without any formatting.</summary>

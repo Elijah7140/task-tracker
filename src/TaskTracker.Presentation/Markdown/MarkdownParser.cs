@@ -16,8 +16,11 @@ public static class MarkdownParser
     /// <summary>Containers (quotes, lists, emphasis) nested deeper than this are shown as plain text.</summary>
     public const int MaxNesting = 16;
 
-    /// <summary>The preview stops after this many blocks.</summary>
-    public const int MaxBlocks = 2_000;
+    /// <summary>The maximum number of blocks, list entries and inline nodes in a preview.</summary>
+    public const int MaxNodes = 2_000;
+
+    /// <summary>The maximum length of preview text after counted link addresses and labels are expanded.</summary>
+    public const int MaxDisplayTextLength = MaxSourceLength;
 
     /// <summary>The line added after a preview that was cut short.</summary>
     public const string TruncationNotice = "(The preview was shortened because the description is very long.)";
@@ -46,21 +49,27 @@ public static class MarkdownParser
         catch (ArgumentException)
         {
             // Markdig refuses input nested beyond its own depth limit; show such text as it was written.
-            return [new MarkdownCodeBlock(text)];
+            return isCut ? [new MarkdownCodeBlock(text), TruncationParagraph()] : [new MarkdownCodeBlock(text)];
         }
     }
 
     private static List<MarkdownBlock> ParseText(string text, bool isCut)
     {
         var document = Markdig.Markdown.Parse(text, Pipeline);
-        var mapper = new MarkdownBlockMapper();
+        var budget = new MarkdownDisplayBudget();
+        var mapper = new MarkdownBlockMapper(budget);
         var blocks = mapper.MapChildren(document, 0);
 
-        if (isCut || mapper.IsTruncated)
+        if (isCut || budget.IsTruncated)
         {
-            blocks.Add(new MarkdownParagraph([new MarkdownText(TruncationNotice)]));
+            blocks.Add(TruncationParagraph());
         }
 
         return blocks;
+    }
+
+    private static MarkdownParagraph TruncationParagraph()
+    {
+        return new MarkdownParagraph([new MarkdownText(TruncationNotice)]);
     }
 }

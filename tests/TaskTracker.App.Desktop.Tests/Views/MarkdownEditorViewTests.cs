@@ -170,8 +170,10 @@ public sealed class MarkdownEditorViewTests
         window.Close();
     }
 
-    [AvaloniaFact]
-    public async Task Pressing_Enter_in_the_address_box_adds_the_link()
+    [AvaloniaTheory]
+    [InlineData(null)]
+    [InlineData("Spec")]
+    public async Task Pressing_Enter_in_either_link_box_adds_the_link(string? title)
     {
         var window = new MainWindow();
         using var services = await TestServices.CreateAsync(window, linkLauncher: new FakeLinkLauncher());
@@ -179,9 +181,38 @@ public sealed class MarkdownEditorViewTests
         var view = await OpenItemAsync(window, services, seeded.ProjectId);
 
         HeadlessInput.TypeInto(window, HeadlessInput.Find<TextBox>(view, "EditorLinkUrlBox"), "https://example.com/a");
+
+        if (title is not null)
+        {
+            HeadlessInput.TypeInto(window, HeadlessInput.Find<TextBox>(view, "EditorLinkTitleBox"), title);
+        }
+
         HeadlessInput.Press(window, Key.Enter);
 
-        Assert.Single(HeadlessInput.FindAll<Button>(view, "EditorLinkOpenButton"));
+        var link = HeadlessInput.Find<Button>(view, "EditorLinkOpenButton");
+        Assert.Equal(title ?? "https://example.com/a", Avalonia.Automation.AutomationProperties.GetName(link));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_Edit_keeps_pending_link_text_and_shows_how_to_continue()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window, linkLauncher: new FakeLinkLauncher());
+        var seeded = await SeedAsync(services, null, ("https://existing.example", null));
+        var view = await OpenItemAsync(window, services, seeded.ProjectId);
+        var address = HeadlessInput.Find<TextBox>(view, "EditorLinkUrlBox");
+        HeadlessInput.TypeInto(window, address, "https://pending.example");
+        var edit = HeadlessInput.Find<Button>(view, "EditorLinkEditButton");
+
+        HeadlessInput.Click(window, edit);
+
+        Assert.Equal("https://pending.example", address.Text);
+        var error = HeadlessInput.Find<TextBlock>(view, "EditorLinkError");
+        Assert.Equal("Finish or cancel the link you're editing first.", error.Text);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "EditorLinkCancelButton"));
+        HeadlessInput.Click(window, edit);
+        Assert.Equal("https://existing.example", address.Text);
         window.Close();
     }
 
@@ -283,7 +314,9 @@ public sealed class MarkdownEditorViewTests
         var seeded = await SeedAsync(services, null, ("mailto:team@example.com", "Team"));
         var view = await OpenItemAsync(window, services, seeded.ProjectId);
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "EditorLinkOpenButton"));
+        var link = HeadlessInput.Find<Button>(view, "EditorLinkOpenButton");
+        Assert.Equal("mailto:team@example.com", ToolTip.GetTip(link));
+        HeadlessInput.Click(window, link);
         await HeadlessInput.WaitUntilAsync(() => launcher.Launched.Count == 1);
 
         Assert.Equal(new Uri("mailto:team@example.com"), launcher.Launched.Single());

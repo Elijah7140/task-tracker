@@ -3,6 +3,8 @@ namespace TaskTracker.Core.Transfer.Csv;
 /// <summary>The fixed column headers of the CSV format; custom fields add columns named after their display names.</summary>
 internal static class CsvColumns
 {
+    private const string FieldSuffix = " (field)";
+
     public const string Title = "Title";
     public const string Description = "Description";
     public const string Ticket = "Ticket";
@@ -27,14 +29,19 @@ internal static class CsvColumns
     ];
 
     /// <summary>
-    /// The header of the column for a custom field: its display name, or "name (field)" when the name equals a
-    /// fixed header, so the header row never holds the same name twice and an import can tell them apart.
+    /// Adds one suffix to fixed names and their suffixed variants, giving each display name a stable header
+    /// even when other custom fields are absent from the export or import.
     /// </summary>
     public static string FieldHeader(string displayName)
     {
-        var collides = Standard.Any(column => string.Equals(column, displayName.Trim(), StringComparison.OrdinalIgnoreCase));
+        var baseName = displayName;
 
-        return collides ? $"{displayName} (field)" : displayName;
+        while (baseName.EndsWith(FieldSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            baseName = baseName[..^FieldSuffix.Length];
+        }
+
+        return Standard.Contains(baseName, StringComparer.OrdinalIgnoreCase) ? displayName + FieldSuffix : displayName;
     }
 
     /// <summary>Columns an export writes for context that an import recognises but does not use.</summary>

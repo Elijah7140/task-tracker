@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Infrastructure.Persistence;
 
@@ -308,6 +309,48 @@ public sealed class ItemLinkTests
         await items.EditAsync(itemId, EditOf("Existing item"), [], [Link("https://after.example", null)]);
         Assert.Single(await upgraded.ItemLinks.ToListAsync());
         Assert.Equal(4, await CountTriggersAsync(connection));
+    }
+
+    [Fact]
+    public async Task The_link_migration_rewrites_field_references_and_preserves_quoted_text_and_other_scopes()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<TaskTrackerDbContext>().UseSqlite(connection).Options;
+        await using var previous = new TaskTrackerDbContext(options);
+        await previous.GetService<IMigrator>().MigrateAsync("20261114032356_AddCustomFields");
+        var owner = await AddLegacyLinkFieldAsync(previous);
+        await previous.GetService<IMigrator>().MigrateAsync("20261115054310_AddSavedSearches");
+        const string query = """ "has:link" HAS:link no:" LiNk " link~wiki LiNk:"link~other" """;
+        previous.SavedSearches.AddRange(
+            SavedSearch.Create("Owner", new(query, new SearchScope.Area(owner, null, false), false), TimeProvider.System, 0),
+            SavedSearch.Create("All", new(query, new SearchScope.AllProjects(), false), TimeProvider.System, 1),
+            SavedSearch.Create("Other", new(query, new SearchScope.Project(Guid.CreateVersion7()), false), TimeProvider.System, 2));
+        await previous.SaveChangesAsync();
+
+        await using var upgraded = new TaskTrackerDbContext(options);
+        await upgraded.Database.MigrateAsync();
+
+        const string rewritten = """ "has:link" HAS:link-3 no:link-3 link-3~wiki link-3:"link~other" """;
+        var searches = await upgraded.SavedSearches.ToDictionaryAsync(search => search.Name, search => search.QueryText);
+        Assert.Equal(rewritten, searches["Owner"]);
+        Assert.Equal(rewritten, searches["All"]);
+        Assert.Equal(query, searches["Other"]);
+    }
+
+    private static async Task<Guid> AddLegacyLinkFieldAsync(TaskTrackerDbContext database)
+    {
+        var owner = Guid.CreateVersion7();
+        var stamp = "2026-11-13 12:00:00";
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Project (Id, Name, SortOrder, CreatedAtUtc, UpdatedAtUtc) VALUES ({owner}, {"Owner"}, {0}, {stamp}, {stamp})");
+        foreach (var key in new[] { "link", "link-2" })
+        {
+            await database.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO FieldDefinition (Id, Key, DisplayName, DataType, IsArchived, SortOrder, ProjectId) VALUES ({Guid.CreateVersion7()}, {key}, {key}, {"Text"}, {false}, {0}, {owner})");
+        }
+
+        return owner;
     }
 
     [Fact]

@@ -3,14 +3,15 @@ using System.Text.RegularExpressions;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Search.Syntax;
 
 namespace TaskTracker.Core.Transfer.Json;
 
 /// <summary>
 /// Creates the file's saved searches as new ones, pointing at the new projects and folders and
-/// rewriting the <c>#id</c> choices in their query text to the ids the choices now have (§7.7).
+/// rewriting choice IDs and legacy custom link keys in their query text (§7.7).
 /// </summary>
-internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider clock, ImportMap map)
+internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider clock, ImportMap map, IssueList issues)
 {
     public async Task<int> ImportAsync(ExportDocument document, CancellationToken cancellationToken)
     {
@@ -21,22 +22,52 @@ internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider
 
         foreach (var position in ImportOrder.Positions(documents, search => search.SortOrder))
         {
-            work.SavedSearches.Add(CreateSearch(documents[position], takenNames, nextOrder++));
+            var path = ImportChecks.Element("$.savedSearches", position);
+            AddSearch(documents[position], takenNames, nextOrder++, path);
         }
 
         return documents.Count;
     }
 
-    private SavedSearch CreateSearch(SavedSearchDocument document, TakenNames takenNames, int sortOrder)
+    private void AddSearch(SavedSearchDocument document, TakenNames takenNames, int sortOrder, string path)
     {
-        var definition = new SavedSearchDefinition(
-            RewriteIds(document.QueryText!), CreateScope(document), document.IncludeCompleted == true);
+        var scope = CreateScope(document);
+        var query = RewriteLegacyLinkKey(RewriteIds(document.QueryText!), scope);
+
+        if (query.Length > SavedSearch.QueryTextMaxLength)
+        {
+            issues.Add($"{path}.queryText",
+                $"Renaming the custom link field makes the query longer than {SavedSearch.QueryTextMaxLength} characters.");
+            return;
+        }
+
+        var definition = new SavedSearchDefinition(query, scope, document.IncludeCompleted == true);
         var search = SavedSearch.Create(takenNames.Reserve(document.Name!), definition, clock, sortOrder);
         search.RestoreTimestamps(
             ImportTimestamps.Created(document.CreatedAtUtc, clock),
             ImportTimestamps.Updated(document.UpdatedAtUtc, document.CreatedAtUtc, clock));
 
-        return search;
+        work.SavedSearches.Add(search);
+    }
+
+    private string RewriteLegacyLinkKey(string query, SearchScope scope)
+    {
+        const string legacyKey = "link";
+
+        if (!map.Fields.TryGetValue(legacyKey, out var field) || field.Key == legacyKey)
+        {
+            return query;
+        }
+
+        var owner = field.ProjectId;
+        var inScope = scope switch
+        {
+            SearchScope.Project project => owner is null || owner == project.ProjectId,
+            SearchScope.Area area => owner is null || owner == area.ProjectId,
+            _ => true
+        };
+
+        return inScope ? QueryFieldKeyRewriter.Rename(query, legacyKey, field.Key) : query;
     }
 
     private SearchScope CreateScope(SavedSearchDocument document)

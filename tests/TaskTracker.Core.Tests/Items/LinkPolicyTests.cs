@@ -10,6 +10,7 @@ public sealed class LinkPolicyTests
     [InlineData("HTTPS://EXAMPLE.COM")]
     [InlineData("mailto:team@example.com")]
     [InlineData("  https://example.com  ")]
+    [InlineData("https://example.com/a%20b")]
     public void Web_and_mail_addresses_are_openable(string url)
     {
         Assert.True(LinkPolicy.IsOpenable(url));
@@ -42,6 +43,18 @@ public sealed class LinkPolicyTests
     {
         Assert.Equal("A link address cannot contain spaces; write a space as %20.",
             LinkPolicy.Validate("https://example.com/a b", null));
+    }
+
+    [Theory]
+    [InlineData("https://example.com/a b")]
+    [InlineData("https://example.com/a\tb")]
+    [InlineData("https://example.com/a\u0001b")]
+    [InlineData("mailto:team@example.com?subject=a\u0001b")]
+    public void Validation_and_launching_both_reject_whitespace_or_controls_inside_an_address(string url)
+    {
+        Assert.NotNull(LinkPolicy.Validate(url, null));
+        Assert.False(LinkPolicy.IsOpenable(url));
+        Assert.False(LinkPolicy.TryCreateUri(url, out _));
     }
 
     [Fact]

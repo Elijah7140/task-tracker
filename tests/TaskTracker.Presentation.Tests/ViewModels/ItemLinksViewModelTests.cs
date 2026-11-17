@@ -156,6 +156,33 @@ public sealed class ItemLinksViewModelTests
         Assert.Equal("https://a.example", links.Items[0].Url);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Starting_another_edit_keeps_pending_text_until_it_is_cancelled(bool editingExistingLink)
+    {
+        var links = Stored(("https://a.example", null), ("https://b.example", "Bee"));
+
+        if (editingExistingLink)
+        {
+            links.Items[0].EditCommand.Execute(null);
+        }
+
+        links.NewUrl = "https://pending.example";
+        links.NewTitle = "Pending";
+
+        links.Items[1].EditCommand.Execute(null);
+
+        Assert.Equal("Finish or cancel the link you're editing first.", links.Error);
+        Assert.Equal(editingExistingLink, links.IsEditing);
+        Assert.Equal("https://pending.example", links.NewUrl);
+        Assert.Equal("Pending", links.NewTitle);
+        links.CancelEditCommand.Execute(null);
+        links.Items[1].EditCommand.Execute(null);
+        Assert.Equal("https://b.example", links.NewUrl);
+        Assert.Null(links.Error);
+    }
+
     [Fact]
     public void Text_left_in_the_add_box_makes_the_list_dirty()
     {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using Microsoft.EntityFrameworkCore.Migrations;
 
@@ -45,19 +45,34 @@ namespace TaskTracker.Infrastructure.Persistence.Migrations
         /// <summary>"link" is now a built-in search key; an existing custom field with that key gets the first free numeric suffix.</summary>
         private static void RenameLinkKey(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("""
+            const string candidate = """
                 WITH RECURSIVE candidates(suffix, candidate) AS (
                     SELECT 2, 'link-2'
                     UNION ALL
                     SELECT suffix + 1, 'link-' || (suffix + 1)
                     FROM candidates
-                    WHERE EXISTS (SELECT 1 FROM FieldDefinition WHERE Key = candidates.candidate)
+                    WHERE EXISTS (SELECT 1 FROM FieldDefinition WHERE Key = candidates.candidate COLLATE NOCASE)
+                ),
+                renamed(Key) AS (
+                    SELECT candidate FROM candidates
+                    WHERE NOT EXISTS (SELECT 1 FROM FieldDefinition WHERE Key = candidates.candidate COLLATE NOCASE)
+                    LIMIT 1
                 )
+                """;
+            migrationBuilder.Sql($"""
+                {candidate}
+                UPDATE SavedSearch
+                SET QueryText = tt_rename_query_field(QueryText, 'link', (SELECT Key FROM renamed))
+                FROM FieldDefinition AS legacy
+                WHERE legacy.Key = 'link' COLLATE NOCASE
+                    AND (legacy.ProjectId IS NULL OR SavedSearch.ScopeKind = 'AllProjects'
+                        OR SavedSearch.ProjectId = legacy.ProjectId)
+                """);
+            migrationBuilder.Sql($"""
+                {candidate}
                 UPDATE FieldDefinition
-                SET Key = (SELECT candidate FROM candidates
-                    WHERE NOT EXISTS (SELECT 1 FROM FieldDefinition WHERE Key = candidates.candidate)
-                    LIMIT 1)
-                WHERE Key = 'link'
+                SET Key = (SELECT Key FROM renamed)
+                WHERE Key = 'link' COLLATE NOCASE
                 """);
         }
 

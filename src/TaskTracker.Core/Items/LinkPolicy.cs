@@ -20,26 +20,11 @@ public static class LinkPolicy
     /// <summary>Returns the first problem with a link, or null when it is acceptable.</summary>
     public static string? Validate(string? url, string? title)
     {
-        var trimmedUrl = NormalizeUrl(url);
+        var problem = ReadAddress(url, out _);
 
-        if (trimmedUrl.Length == 0)
+        if (problem is not null)
         {
-            return "Enter a link address.";
-        }
-
-        if (trimmedUrl.Length > UrlMaxLength)
-        {
-            return $"A link address must be {UrlMaxLength} characters or fewer.";
-        }
-
-        if (trimmedUrl.Any(char.IsWhiteSpace))
-        {
-            return "A link address cannot contain spaces; write a space as %20.";
-        }
-
-        if (!IsOpenable(trimmedUrl))
-        {
-            return "A link must be a full http, https or mailto address.";
+            return problem;
         }
 
         if (NormalizeTitle(title)?.Length > TitleMaxLength)
@@ -59,25 +44,49 @@ public static class LinkPolicy
     /// <summary>Parses an address, accepting only the schemes in the policy and a host for web links.</summary>
     public static bool TryCreateUri(string? url, out Uri uri)
     {
+        return ReadAddress(url, out uri) is null;
+    }
+
+    private static string? ReadAddress(string? url, out Uri uri)
+    {
         uri = null!;
+        var address = NormalizeUrl(url);
+        var problem = AddressTextProblem(address);
 
-        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url.Trim(), UriKind.Absolute, out var parsed))
+        if (problem is not null)
         {
-            return false;
+            return problem;
         }
 
-        if (!OpenableSchemes.Contains(parsed.Scheme))
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var parsed)
+            || !OpenableSchemes.Contains(parsed.Scheme)
+            || (parsed.Scheme != Uri.UriSchemeMailto && string.IsNullOrEmpty(parsed.Host)))
         {
-            return false;
-        }
-
-        if (parsed.Scheme != Uri.UriSchemeMailto && string.IsNullOrEmpty(parsed.Host))
-        {
-            return false;
+            return "A link must be a full http, https or mailto address.";
         }
 
         uri = parsed;
-        return true;
+        return null;
+    }
+
+    private static string? AddressTextProblem(string address)
+    {
+        if (address.Length == 0)
+        {
+            return "Enter a link address.";
+        }
+
+        if (address.Length > UrlMaxLength)
+        {
+            return $"A link address must be {UrlMaxLength} characters or fewer.";
+        }
+
+        if (address.Any(char.IsWhiteSpace))
+        {
+            return "A link address cannot contain spaces; write a space as %20.";
+        }
+
+        return address.Any(char.IsControl) ? "A link address cannot contain control characters." : null;
     }
 
     /// <summary>Trims an address; null becomes empty.</summary>

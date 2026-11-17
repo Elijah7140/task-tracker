@@ -222,13 +222,44 @@ public sealed class MarkdownParserTests
     }
 
     [Fact]
-    public void Too_many_blocks_are_cut_with_a_notice()
+    public void Paragraph_blocks_and_their_inline_nodes_share_the_limit()
     {
-        var source = string.Join("\n\n", Enumerable.Range(0, MarkdownParser.MaxBlocks + 50).Select(number => $"p{number}"));
+        var source = string.Join("\n\n", Enumerable.Range(0, MarkdownParser.MaxNodes + 50).Select(number => $"p{number}"));
 
         var blocks = MarkdownParser.Parse(source);
 
-        Assert.Equal(MarkdownParser.MaxBlocks + 1, blocks.Count);
+        Assert.Equal(MarkdownParser.MaxNodes / 2 + 1, blocks.Count);
+        Assert.Equal([new MarkdownText(MarkdownParser.TruncationNotice)],
+            Assert.IsType<MarkdownParagraph>(blocks[^1]).Inlines);
+    }
+
+    [Fact]
+    public void A_large_list_stops_at_the_shared_node_budget_without_empty_rows()
+    {
+        var source = string.Concat(Enumerable.Repeat("- item\n", 2500));
+
+        var blocks = MarkdownParser.Parse(source);
+
+        var list = Assert.IsType<MarkdownList>(blocks[0]);
+        Assert.InRange(list.Items.Count, 1, (MarkdownParser.MaxNodes - 1) / 3);
+        Assert.All(list.Items, entry => Assert.NotEmpty(entry.Blocks));
+        Assert.Equal([new MarkdownText(MarkdownParser.TruncationNotice)],
+            Assert.IsType<MarkdownParagraph>(blocks[^1]).Inlines);
+    }
+
+    [Fact]
+    public void Repeated_reference_links_are_cut_when_their_expanded_addresses_exceed_the_text_budget()
+    {
+        var address = "ftp://example.com/" + new string('a', 10_000);
+        var source = string.Concat(Enumerable.Repeat("[docs][ref] ", 100)) + $"\n\n[ref]: {address}";
+
+        var blocks = MarkdownParser.Parse(source);
+
+        var links = AllInlines(blocks).OfType<MarkdownLink>().ToArray();
+        Assert.InRange(links.Length, 1, MarkdownParser.MaxDisplayTextLength / address.Length);
+        Assert.All(links, link => Assert.False(link.IsOpenable));
+        Assert.Equal([new MarkdownText(MarkdownParser.TruncationNotice)],
+            Assert.IsType<MarkdownParagraph>(blocks[^1]).Inlines);
     }
 
     [Fact]
