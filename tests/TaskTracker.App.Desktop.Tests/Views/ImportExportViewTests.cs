@@ -28,11 +28,9 @@ public sealed class ImportExportViewTests
         var shell = Show(window, services);
         await shell.GoHomeAsync();
 
-        ChooseMenuItem(window, "ExportAllMenuItem");
+        await ChooseMenuItemAsync(window, "ExportAllMenuItem");
 
-        await HeadlessInput.WaitUntilAsync(() => File.Exists(folder.File("all.json")));
-        var status = HeadlessInput.Find<TextBlock>(window, "TransferStatusText");
-        await HeadlessInput.WaitUntilAsync(() => status.Text?.Contains("Exported everything") == true);
+        await WaitForStatusAsync(window, "TransferStatusText", "Exported everything");
         Assert.Contains("Billing", await File.ReadAllTextAsync(folder.File("all.json")));
         window.Close();
     }
@@ -47,7 +45,7 @@ public sealed class ImportExportViewTests
         await shell.GoHomeAsync();
         var home = Assert.IsType<HomeViewModel>(shell.CurrentPage);
 
-        ChooseMenuItem(window, "ExportAllMenuItem");
+        await ChooseMenuItemAsync(window, "ExportAllMenuItem");
 
         await HeadlessInput.WaitUntilAsync(() => files.SaveTitles.Count == 1 && !home.Transfer!.IsBusy);
         Assert.Null(home.Transfer!.StatusMessage);
@@ -70,7 +68,7 @@ public sealed class ImportExportViewTests
         await shell.GoHomeAsync();
         var home = Assert.IsType<HomeViewModel>(shell.CurrentPage);
 
-        ChooseMenuItem(window, "ImportJsonMenuItem");
+        await ChooseMenuItemAsync(window, "ImportJsonMenuItem");
         var dialog = await WaitForDialogAsync(window);
         Assert.Equal("Import data", dialog.Title);
         HeadlessInput.Press(dialog, Key.Enter);
@@ -202,7 +200,7 @@ public sealed class ImportExportViewTests
         Dispatcher.UIThread.RunJobs();
         var button = HeadlessInput.Find<Button>(window, "ImportExportButton");
 
-        ChooseMenuItem(window, "ExportAllMenuItem");
+        await ChooseMenuItemAsync(window, "ExportAllMenuItem");
         await HeadlessInput.WaitUntilAsync(() => files.SaveTitles.Count == 1);
         HeadlessInput.Click(window, button);
         HeadlessInput.Click(window, button);
@@ -236,10 +234,8 @@ public sealed class ImportExportViewTests
         await HeadlessInput.WaitUntilAsync(() => page.Results.Count == 1);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ExportResultsButton"));
 
-        await HeadlessInput.WaitUntilAsync(() => File.Exists(folder.File("results.csv")));
+        await WaitForStatusAsync(window, "ExportResultsStatusText", "Exported 1 results");
         Assert.Contains("Pay invoice", await File.ReadAllTextAsync(folder.File("results.csv")));
-        var status = HeadlessInput.Find<TextBlock>(window, "ExportResultsStatusText");
-        await HeadlessInput.WaitUntilAsync(() => status.Text?.Contains("Exported 1 results") == true);
         window.Close();
     }
 
@@ -266,11 +262,23 @@ public sealed class ImportExportViewTests
         return shell;
     }
 
-    private static void ChooseMenuItem(MainWindow window, string menuItemId)
+    /// <summary>Opens the Import / Export menu and clicks the item once the flyout has created it.</summary>
+    private static async Task ChooseMenuItemAsync(MainWindow window, string menuItemId)
     {
         Dispatcher.UIThread.RunJobs();
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ImportExportButton"));
+        await HeadlessInput.WaitUntilAsync(() => HeadlessInput.FindAll<MenuItem>(window, menuItemId).Count == 1);
         HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, menuItemId));
+    }
+
+    /// <summary>
+    /// Waits for the status line, which the app sets only after the file is written and closed. Waiting for the
+    /// file to exist is not enough: it exists while it is still being written.
+    /// </summary>
+    private static async Task WaitForStatusAsync(Window window, string statusId, string expected)
+    {
+        await HeadlessInput.WaitUntilAsync(() => HeadlessInput.FindAll<TextBlock>(window, statusId)
+            .Any(status => status.Text?.Contains(expected) == true));
     }
 
     private static async Task<Window> WaitForDialogAsync(Window owner, string? title = null)
