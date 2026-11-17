@@ -138,8 +138,6 @@ public sealed class LookupListViewTests
 
     private static void Click(Window window, Control control)
     {
-        var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(point, MouseButton.Left, RawInputModifiers.None);
-        window.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
+        HeadlessInput.Click(window, control);
     }
 }

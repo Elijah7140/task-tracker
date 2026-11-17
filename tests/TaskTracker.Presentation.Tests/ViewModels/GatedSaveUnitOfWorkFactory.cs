@@ -83,6 +83,8 @@ internal sealed class GatedSaveUnitOfWorkFactory(IUnitOfWorkFactory inner) : IUn
         public ITrashRepository Trash => unit.Trash;
 
 
+        public TaskTracker.Core.Reminders.IReminderRepository Reminders => unit.Reminders;
+
         public ISavedSearchRepository SavedSearches => unit.SavedSearches;
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken)

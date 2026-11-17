@@ -30,6 +30,7 @@ public sealed class TodoItemConfiguration : IEntityTypeConfiguration<TodoItem>
         builder.Property(item => item.DeletedAtUtc)
             .HasConversion(value => value, value => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null);
         ConfigureRecurrence(builder);
+        ConfigureReminderTimes(builder);
         builder.HasIndex(item => new { item.ProjectId, item.FolderId });
         builder.HasIndex(item => item.ParentItemId);
         builder.HasIndex(item => item.TicketNumber);
@@ -40,6 +41,19 @@ public sealed class TodoItemConfiguration : IEntityTypeConfiguration<TodoItem>
         builder.HasOne<ItemType>().WithMany().HasForeignKey(item => item.ItemTypeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<PriorityLevel>().WithMany().HasForeignKey(item => item.PriorityLevelId).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(item => item.DeletedAtUtc == null);
+    }
+
+    private static void ConfigureReminderTimes(EntityTypeBuilder<TodoItem> builder)
+    {
+        builder.Property(item => item.ReminderDeliveredFor).HasConversion(
+            value => value.HasValue ? value.Value.Ticks : (long?)null,
+            value => value.HasValue ? new DateTime(value.Value, DateTimeKind.Utc) : null);
+        builder.Property(item => item.SnoozedUntilUtc).HasConversion(
+            value => value.HasValue ? value.Value.Ticks : (long?)null,
+            value => value.HasValue ? new DateTime(value.Value, DateTimeKind.Utc) : null);
+        builder.Property(item => item.SnoozedForUtc).HasConversion(
+            value => value.HasValue ? value.Value.Ticks : (long?)null,
+            value => value.HasValue ? new DateTime(value.Value, DateTimeKind.Utc) : null);
     }
 
     private static void ConfigureRecurrence(EntityTypeBuilder<TodoItem> builder)

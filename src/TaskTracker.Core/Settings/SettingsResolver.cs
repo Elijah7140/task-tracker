@@ -11,7 +11,12 @@ public static class SettingsResolver
         return new EffectiveSettings(
             ResolveValue(SettingsCatalogue.AutoCompleteParents, global, project),
             ResolveValue(SettingsCatalogue.UrgencyYellowThreshold, global, project),
-            ResolveValue(SettingsCatalogue.UrgencyRedThreshold, global, project));
+            ResolveValue(SettingsCatalogue.UrgencyRedThreshold, global, project))
+        {
+            RemindersEnabled = ResolveValue(SettingsCatalogue.RemindersEnabled, global, project),
+            DefaultReminderOffset = ResolveValue(SettingsCatalogue.DefaultReminderOffset, global, project),
+            DateOnlyReminderTime = ResolveValue(SettingsCatalogue.DateOnlyReminderTime, global, project),
+        };
     }
 
     /// <summary>Selects a project override when allowed, then global text, then the default.</summary>

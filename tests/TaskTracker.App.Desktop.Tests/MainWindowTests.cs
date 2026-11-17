@@ -273,6 +273,8 @@ public sealed class MainWindowTests
         await lookups.ArchiveItemTypeAsync(archived.Id);
         await settings.SetProjectOverrideAsync(project.Id,
             TaskTracker.Core.Settings.SettingsCatalogue.UrgencyYellowThreshold, TimeSpan.FromDays(5));
+        await settings.SetProjectOverrideAsync(project.Id,
+            TaskTracker.Core.Settings.SettingsCatalogue.DefaultReminderOffset, TimeSpan.FromMinutes(15));
         var shell = services.GetRequiredService<MainWindowViewModel>();
         var window = new MainWindow { DataContext = shell };
         var application = Avalonia.Application.Current!;
@@ -322,8 +324,9 @@ public sealed class MainWindowTests
             .Where(button => Equals(button.Content, "Reset to global"))
             .ToArray();
 
-        Assert.Equal(3, resets.Length);
-        Assert.Single(resets, button => button.IsVisible);
+        Assert.Equal(6, resets.Length);
+        Assert.Equal(2, resets.Count(button => button.IsVisible));
+        Assert.NotNull(HeadlessInput.Find<Button>(window, "ProjectReminderOffsetReset"));
     }
 
     private static void AssertSubItemsAndClearButtons(Window window, ScrollViewer editorScroll)

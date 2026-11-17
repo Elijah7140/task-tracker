@@ -6,11 +6,11 @@ using TaskTracker.Core.Undo;
 namespace TaskTracker.Infrastructure.Persistence;
 
 /// <summary>Creates independent EF contexts for application operations.</summary>
-public sealed class EfUnitOfWorkFactory(IDbContextFactory<TaskTrackerDbContext> contexts, IUndoRecorder recorder)
+public sealed class EfUnitOfWorkFactory(IDbContextFactory<TaskTrackerDbContext> contexts, IUndoRecorder recorder, DataSaved? saved = null)
     : IUnitOfWorkFactory
 {
     public IUnitOfWork Begin()
     {
-        return new EfUnitOfWork(contexts.CreateDbContext(), contexts, recorder);
+        return new EfUnitOfWork(contexts.CreateDbContext(), contexts, recorder, saved);
     }
 }

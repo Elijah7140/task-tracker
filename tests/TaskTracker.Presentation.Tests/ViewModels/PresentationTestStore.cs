@@ -8,6 +8,7 @@ using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
@@ -46,6 +47,10 @@ internal sealed class PresentationTestStore : IAsyncDisposable
     public UndoHistory History => services.GetRequiredService<UndoHistory>();
 
     public TrashService Trash => services.GetRequiredService<TrashService>();
+
+    public ReminderService Reminders => services.GetRequiredService<ReminderService>();
+
+    public DataSaved Saves => services.GetRequiredService<DataSaved>();
 
     public ItemService Items => services.GetRequiredService<ItemService>();
 

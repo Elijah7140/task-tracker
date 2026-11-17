@@ -279,6 +279,11 @@ public sealed class ItemService(
         item.SetDue(edit.DueDate, edit.DueTime, clock);
         item.SetSchedule(edit.ScheduledStart, edit.ScheduledEnd, clock);
 
+        if (edit.UpdateReminder)
+        {
+            item.SetReminder(edit.ReminderMode, edit.ReminderOffsetMinutes);
+        }
+
         if (edit.UpdateRecurrence)
         {
             item.SetRecurrence(edit.Recurrence, clock);

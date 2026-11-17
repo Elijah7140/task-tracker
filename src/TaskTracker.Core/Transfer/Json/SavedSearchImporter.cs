@@ -34,6 +34,7 @@ internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider
         var scope = CreateScope(document);
         var query = RewriteLegacyKey(RewriteIds(document.QueryText!), scope, "link");
         query = RewriteLegacyKey(query, scope, "repeats");
+        query = RewriteLegacyKey(query, scope, "reminder");
 
         if (query.Length > SavedSearch.QueryTextMaxLength)
         {

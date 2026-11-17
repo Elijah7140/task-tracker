@@ -46,6 +46,8 @@ internal sealed class GatedTrashUnitOfWorkFactory(IUnitOfWorkFactory inner) : IU
         public ITrashRepository Trash => new GatedTrashRepository(unit.Trash, gate);
 
 
+        public TaskTracker.Core.Reminders.IReminderRepository Reminders => unit.Reminders;
+
         public ISavedSearchRepository SavedSearches => unit.SavedSearches;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken)

@@ -1064,6 +1064,15 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   instead of quitting, so reminders keep firing. The tray menu has **Open** and **Quit**.
   Starting with the OS is out of scope; it belongs with installers.
 - **Search (§7.7).** `has:reminder` matches open items whose effective reminder is not None.
+- **Implementation decisions.** Offsets are subtracted in floating local time before converting to UTC.
+  The 24-hour startup window includes its lower boundary. The panel keeps a session list, and a
+  grouped notification opens that panel. A snooze applies to the base instant it deferred, so a
+  different base instant re-arms the item. Undoing a pending snooze restores its panel entry.
+  Version 1 JSON carries the optional item choice and project settings. Snoozes are local to the
+  database. An existing custom field keyed `reminder` gets a free numeric suffix, and its saved
+  searches are rewritten as for `repeats`. Windows uses system change messages, Linux uses logind
+  for resume where available, and the scheduler checks the wall clock against monotonic time once
+  a second to catch clock jumps. Linux activation uses the notification server's default action.
 - **Tests.**
   - **Core:** instant calculation (timed and date-only, offsets, DST gap and repeat in fixed zones,
     and the effective-setting precedence) and the re-arming rule.

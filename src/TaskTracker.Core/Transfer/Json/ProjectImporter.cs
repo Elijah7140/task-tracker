@@ -68,6 +68,14 @@ internal sealed class ProjectImporter(IUnitOfWork work, TimeProvider clock, Impo
         await StoreOverrideAsync(imported.Project.Id, SettingsCatalogue.AutoCompleteParents, overrides, cancellationToken);
         await StoreOverrideAsync(imported.Project.Id, SettingsCatalogue.UrgencyYellowThreshold, overrides, cancellationToken);
         await StoreOverrideAsync(imported.Project.Id, SettingsCatalogue.UrgencyRedThreshold, overrides, cancellationToken);
+        if (overrides.ContainsKey(SettingsCatalogue.RemindersEnabled.Key))
+        {
+            var text = SettingsCatalogue.RemindersEnabled.Format(effective.RemindersEnabled.Value);
+            await work.Settings.SetProjectAsync(imported.Project.Id, SettingsCatalogue.RemindersEnabled.Key, text, cancellationToken);
+        }
+
+        await StoreOverrideAsync(imported.Project.Id, SettingsCatalogue.DefaultReminderOffset, overrides, cancellationToken);
+        await StoreOverrideAsync(imported.Project.Id, SettingsCatalogue.DateOnlyReminderTime, overrides, cancellationToken);
         imported.EffectiveSettings = effective;
     }
 

@@ -13,6 +13,11 @@ public static class SearchOperators
             return [FilterOperator.Contains, FilterOperator.IsEmpty, FilterOperator.IsNotEmpty];
         }
 
+        if (field.IsBuiltIn && field.Key == "reminder")
+        {
+            return [FilterOperator.IsNotEmpty, FilterOperator.IsEmpty];
+        }
+
         var operators = new List<FilterOperator> { FilterOperator.Equals, FilterOperator.NotEquals };
 
         if (field.DataType == FieldDataType.Text)

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
+using TaskTracker.Core.Items;
+
 namespace TaskTracker.Infrastructure.Persistence;
 
 /// <summary>
@@ -51,7 +53,10 @@ internal sealed class UndoRowSnapshot
 
         foreach (var property in values.Properties)
         {
-            result[property.Name] = values[property.Name];
+            if (property.Name != nameof(TodoItem.ReminderDeliveredFor))
+            {
+                result[property.Name] = values[property.Name];
+            }
         }
 
         return result;

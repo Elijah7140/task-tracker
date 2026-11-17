@@ -29,7 +29,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void OnPreviewKeyDown(object? sender, KeyEventArgs args)
     {
-        if (await TryHandleUndoShortcutAsync(args))
+        if (TryHandleReminderShortcut(args) || await TryHandleUndoShortcutAsync(args))
         {
             return;
         }
@@ -61,6 +61,30 @@ public sealed partial class MainWindow : Window
     /// Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z undo and redo, except while a text box has focus, where they
     /// keep their text-editing meaning. Returns true when the key was taken.
     /// </summary>
+    private bool TryHandleReminderShortcut(KeyEventArgs args)
+    {
+        if (DataContext is not MainWindowViewModel { Reminders: { } reminders })
+        {
+            return false;
+        }
+
+        if (args.Key == Key.R && args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
+        {
+            reminders.IsOpen = !reminders.IsOpen;
+        }
+        else if (args.Key == Key.Escape && args.KeyModifiers == KeyModifiers.None && reminders.IsOpen)
+        {
+            reminders.IsOpen = false;
+        }
+        else
+        {
+            return false;
+        }
+
+        args.Handled = true;
+        return true;
+    }
+
     private async Task<bool> TryHandleUndoShortcutAsync(KeyEventArgs args)
     {
         var isUndo = IsUndoShortcut(args);

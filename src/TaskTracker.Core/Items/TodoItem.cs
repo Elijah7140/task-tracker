@@ -1,4 +1,5 @@
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Reminders;
 
 namespace TaskTracker.Core.Items;
 
@@ -34,6 +35,17 @@ public sealed class TodoItem
     public Guid? ItemTypeId { get; private set; }
 
     public DateOnly? DueDate { get; private set; }
+
+    public ReminderMode? ReminderMode { get; private set; }
+
+    public int? ReminderOffsetMinutes { get; private set; }
+
+    public DateTime? ReminderDeliveredFor { get; private set; }
+
+    public DateTime? SnoozedUntilUtc { get; private set; }
+
+    /// <summary>The base reminder instant that the snooze overrides.</summary>
+    public DateTime? SnoozedForUtc { get; private set; }
 
     public TimeOnly? DueTime { get; private set; }
 
@@ -162,6 +174,29 @@ public sealed class TodoItem
         ItemTypeId = typeId;
         PriorityLevelId = priorityId;
         Touch(clock);
+    }
+
+    /// <summary>Changes the reminder choice without altering its delivery history.</summary>
+    public void SetReminder(ReminderMode? mode, int? offsetMinutes)
+    {
+        if (!ReminderTiming.IsValid(mode, offsetMinutes))
+        {
+            throw new DomainRuleException("Choose a valid reminder mode and offset.");
+        }
+
+        ReminderMode = mode;
+        ReminderOffsetMinutes = offsetMinutes;
+    }
+
+    public void RecordReminderDelivery(DateTime instantUtc)
+    {
+        ReminderDeliveredFor = instantUtc;
+    }
+
+    public void SnoozeReminder(DateTime originalUtc, DateTime untilUtc)
+    {
+        SnoozedForUtc = originalUtc;
+        SnoozedUntilUtc = untilUtc;
     }
 
     public void SetDue(DateOnly? date, TimeOnly? time, TimeProvider clock)

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Undo;
 
@@ -15,7 +16,7 @@ namespace TaskTracker.Infrastructure.Persistence;
 internal sealed class EfUndoableChange(
     IDbContextFactory<TaskTrackerDbContext> contexts,
     IReadOnlyList<UndoRowSnapshot> rows,
-    string description) : IUndoableChange
+    string description, DataSaved? saved = null) : IUndoableChange
 {
     public string Description => description;
 
@@ -40,6 +41,7 @@ internal sealed class EfUndoableChange(
         }
 
         await SaveAsync(database, forward, cancellationToken);
+        saved?.Publish();
     }
 
     /// <summary>A write that breaks a foreign key means a lookup, choice or field the step used has since been removed.</summary>

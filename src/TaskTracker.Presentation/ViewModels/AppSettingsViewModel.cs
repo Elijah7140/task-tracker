@@ -48,6 +48,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
             CustomFields = new FieldManagerViewModel(fields, dialogs, null);
         }
 
+        Reminders.PropertyChanged += (_, _) => Validate();
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         BackCommand = new AsyncRelayCommand(BackAsync);
     }
@@ -121,6 +122,8 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     public FieldManagerViewModel? CustomFields { get; }
 
+    public ReminderSettingsViewModel Reminders { get; } = new();
+
     public ICommand SaveCommand { get; }
 
     public ICommand BackCommand { get; }
@@ -132,6 +135,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         RedAmount = (await settings.GetGlobalAsync(SettingsCatalogue.UrgencyRedThreshold)).TotalHours;
         YellowUnit = "days";
         RedUnit = "hours";
+        await Reminders.LoadGlobalAsync(settings);
         saved = CurrentDefaults();
         Validate();
 
@@ -165,7 +169,8 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
             if (await ConfirmCompletionAsync())
             {
                 var defaults = CurrentDefaults();
-                await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true);
+                await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
+                    reminders: defaults.Reminders);
                 saved = defaults;
                 Validate();
             }
@@ -179,7 +184,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     private GlobalDefaults CurrentDefaults()
     {
-        return new GlobalDefaults(AutoCompleteParents, Duration(YellowAmount, YellowUnit), Duration(RedAmount, RedUnit));
+        return new GlobalDefaults(AutoCompleteParents, Duration(YellowAmount, YellowUnit), Duration(RedAmount, RedUnit), Reminders.Preferences);
     }
 
     private async Task<bool> ConfirmCompletionAsync()
@@ -237,7 +242,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         Error = YellowAmount < 0 || RedAmount < 0 ||
             Duration(RedAmount, RedUnit) > Duration(YellowAmount, YellowUnit)
             ? "Red threshold must be no greater than yellow."
-            : null;
+            : Reminders.Error;
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(CanSave));
     }
@@ -247,5 +252,5 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         return unit == "days" ? TimeSpan.FromDays(amount) : TimeSpan.FromHours(amount);
     }
 
-    private readonly record struct GlobalDefaults(bool AutoCompleteParents, TimeSpan Yellow, TimeSpan Red);
+    private readonly record struct GlobalDefaults(bool AutoCompleteParents, TimeSpan Yellow, TimeSpan Red, ReminderPreferences Reminders);
 }

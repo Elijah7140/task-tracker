@@ -86,6 +86,7 @@ internal sealed class ProjectContentImporter(
         item.SetDue(ImportParse.Date(document.DueDate), ImportParse.Time(document.DueTime), clock);
         item.SetSchedule(ImportParse.Local(document.ScheduledStart), ImportParse.Local(document.ScheduledEnd), clock);
 
+        item.SetReminder(document.ReminderMode, document.ReminderOffsetMinutes);
         if (document.Recurrence is { } rule)
         {
             item.SetRecurrence(rule, clock, MapSeries(document.RecurrenceSeriesId));

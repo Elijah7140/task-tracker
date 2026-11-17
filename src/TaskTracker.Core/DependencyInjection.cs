@@ -4,7 +4,9 @@ using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
+using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
@@ -33,6 +35,8 @@ public static class DependencyInjection
         services.AddSingleton<FieldService>();
         services.AddSingleton<LookupService>();
         services.AddSingleton<SettingsService>();
+        services.AddSingleton<DataSaved>();
+        services.AddSingleton<ReminderService>();
         services.AddSingleton<IFieldRegistry, FieldRegistry>();
         services.AddSingleton<ItemQueryValidator>();
         services.AddSingleton<ItemSearchService>();

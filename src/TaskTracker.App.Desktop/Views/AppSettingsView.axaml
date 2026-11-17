@@ -23,6 +23,21 @@
             <ComboBox Grid.Row="1" Grid.Column="2" ItemsSource="{Binding DurationUnits}"
                       SelectedItem="{Binding RedUnit, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="GlobalRedUnitBox" />
           </Grid>
+          <StackPanel DataContext="{Binding Reminders}" Spacing="8">
+            <TextBlock Text="Reminders" Classes="cardTitle" />
+            <CheckBox Content="Enable reminders" IsChecked="{Binding Enabled, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="GlobalRemindersEnabled" />
+            <Grid ColumnDefinitions="220,120" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+              <TextBlock Text="Default offset (minutes)" VerticalAlignment="Center" />
+              <TextBox Grid.Column="1" Text="{Binding OffsetMinutes, Mode=TwoWay}"
+                       AutomationProperties.Name="Default offset in minutes" AutomationProperties.AutomationId="GlobalReminderOffset" />
+              <TextBlock Grid.Row="1" Text="Date-only reminder time" VerticalAlignment="Center" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding DateOnlyTime, Mode=TwoWay}"
+                       AutomationProperties.Name="Date-only reminder time" AutomationProperties.AutomationId="GlobalDateOnlyReminderTime" />
+            </Grid>
+            <CheckBox Content="Keep running in tray when the window closes" IsChecked="{Binding KeepRunningInTray, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="KeepRunningInTray" />
+          </StackPanel>
           <TextBlock Text="{Binding Error}" TextWrapping="Wrap"
                      IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
                      Foreground="{DynamicResource AppDangerBrush}" />

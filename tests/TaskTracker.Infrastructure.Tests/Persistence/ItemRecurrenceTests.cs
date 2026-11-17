@@ -5,6 +5,7 @@ using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
 
@@ -40,6 +41,33 @@ public sealed class ItemRecurrenceTests
         Assert.Equal(1, (await world.ReadItemAsync(sibling.Id)).SortOrder);
         await world.History.RedoAsync();
         await AssertCopiedTreeAsync(world, parent, sibling);
+    }
+
+    [Fact]
+    public async Task The_next_occurrence_copies_the_reminder_choice_without_delivery_or_snooze()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Audit");
+        var edit = RepeatEdit(item.Title, Weekly) with
+        {
+            UpdateReminder = true,
+            ReminderMode = ReminderMode.Offset,
+            ReminderOffsetMinutes = 15,
+        };
+        await world.Items.EditAsync(item.Id, edit);
+        var now = world.Clock.GetUtcNow().UtcDateTime;
+        var reminder = Assert.Single(await world.Reminders.DueAsync(now.AddDays(2), null));
+        await world.Reminders.RecordDeliveryAsync([reminder]);
+        await world.Reminders.SnoozeAsync(reminder, ReminderSnooze.TenMinutes);
+
+        await world.Items.SetCompletedAsync(world.Project.Id, null, item.Id, true);
+
+        await using var reader = world.OpenContext();
+        var next = await reader.TodoItems.AsNoTracking().SingleAsync(row => row.Id != item.Id);
+        Assert.Equal(ReminderMode.Offset, next.ReminderMode);
+        Assert.Equal(15, next.ReminderOffsetMinutes);
+        Assert.Null(next.ReminderDeliveredFor);
+        Assert.Null(next.SnoozedUntilUtc);
     }
 
     [Fact]

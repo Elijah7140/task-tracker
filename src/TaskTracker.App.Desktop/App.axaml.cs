@@ -7,6 +7,7 @@ using Avalonia.Threading;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using TaskTracker.App.Desktop.Reminders;
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Infrastructure.Persistence;
 using TaskTracker.Presentation.Navigation;
@@ -35,15 +36,36 @@ public sealed partial class App : Application
         {
             DataTemplates.Add(_services.GetRequiredService<ViewLocator>());
             var shell = _services.GetRequiredService<MainWindowViewModel>();
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = shell,
-            };
-            desktop.MainWindow.Opened += async (_, _) => await shell.GoHomeAsync();
-            desktop.Exit += (_, _) => _services.Dispose();
+            InitializeWindow(desktop, shell, _services);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void InitializeWindow(IClassicDesktopStyleApplicationLifetime desktop,
+        MainWindowViewModel shell, ServiceProvider services)
+    {
+        var window = new MainWindow
+        {
+            DataContext = shell,
+            ExtendClientAreaToDecorationsHint = true,
+            ExtendClientAreaTitleBarHeightHint = 36,
+        };
+        desktop.MainWindow = window;
+        var reminders = new DesktopReminderHost(services, desktop, window, shell);
+        window.Opened += StartAsync;
+        desktop.Exit += (_, _) =>
+        {
+            reminders.Dispose();
+            services.Dispose();
+        };
+
+        async void StartAsync(object? sender, EventArgs args)
+        {
+            window.Opened -= StartAsync;
+            await shell.GoHomeAsync();
+            await reminders.StartAsync();
+        }
     }
 
     /// <summary>

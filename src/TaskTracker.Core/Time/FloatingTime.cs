@@ -23,7 +23,8 @@ public static class FloatingTime
             ? zone.GetAmbiguousTimeOffsets(value).Max()
             : zone.GetUtcOffset(value);
 
-        return new DateTimeOffset(value, offset).UtcDateTime;
+        var utcTicks = Math.Clamp(value.Ticks - offset.Ticks, DateTime.MinValue.Ticks, DateTime.MaxValue.Ticks);
+        return new DateTime(utcTicks, DateTimeKind.Utc);
     }
 
     private static DateTime FirstValidLocalTime(DateTime invalid, TimeZoneInfo zone)
