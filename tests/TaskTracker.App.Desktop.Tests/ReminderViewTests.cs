@@ -87,7 +87,6 @@ public sealed class ReminderViewTests
     [InlineData(true)]
     public async Task Panel_with_two_reminders_matches_the_approved_image(bool dark)
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "Reminder snapshot baselines are approved on Windows.");
         using var services = await TestServices.CreateAsync();
         await SeedAsync(services, "Review invoices");
         await SeedAsync(services, "Send the weekly report", minutesBeforeNow: 1);
@@ -109,7 +108,6 @@ public sealed class ReminderViewTests
     [InlineData(true)]
     public async Task Editor_reminder_section_matches_the_approved_image(bool dark)
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "Reminder snapshot baselines are approved on Windows.");
         using var services = await TestServices.CreateAsync();
         var item = await SeedAsync(services, "Review invoices");
         var shell = services.GetRequiredService<MainWindowViewModel>();
