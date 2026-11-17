@@ -971,11 +971,24 @@ Phases 0–2 are v1.
 - **Quick reschedule from the context menu.** Right-click an item (tree, search results,
   calendar) and choose "Push back one day", which moves its due date (and its scheduled
   block, if any) one day later. A labelled undo step, with a keyboard equivalent.
-- **Tickets view.** A list of tickets that the owner orders by hand ("relative
-  priority"), by dragging or by keyboard, to set the order in which to work on them.
-  That order is stored separately from the tree order and does not change the
-  Priority field. A ticket is an open item that has a ticket number (confirmed by the
-  owner; an explicit ticket flag may come later but is not needed now).
+- **Tickets view.** A list of tickets in the order the owner wants to work on them. A
+  ticket is an open item that has a ticket number (confirmed by the owner; an explicit
+  ticket flag may come later but is not needed now).
+  - **Numbered priority levels.** Extend the existing Priority field (§6.2) so it supports
+    numbered levels (e.g. 1, 2, 3) alongside or instead of the named ones. Levels keep
+    their own editable sort order. This is the same Priority used everywhere, not a
+    separate ticket priority.
+  - **Ordering.** Items with no priority come first, ordered only by drag and drop. Below
+    them are the prioritized items, grouped into one section per level in level sort
+    order, and within a section by drag-and-drop order. The drag order is stored
+    separately from the tree order.
+  - **Dropping into a section.** Dragging an item to a spot below a prioritized item puts
+    it in that section and sets its Priority to that level. Assumption: dragging an item
+    up into the no-priority group clears its Priority. Every drop has a keyboard
+    equivalent.
+  - **Context menu.** "Set priority" on each item. If the level changes, the item moves to
+    the bottom of the drag order in its new section.
+  - Priority changes made here are labelled undo steps.
 - **Today view (done today).** Shows the items completed today (local day, §5.4) that are
   still completed: an item checked off today and then unchecked does not appear.
   - Completed sub-items are grouped under their parent and collapsed by default.
