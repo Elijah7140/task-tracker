@@ -6,8 +6,9 @@
 .DESCRIPTION
     Closes any running Task Tracker before pulling: the pull and build cannot overwrite files a
     running exe holds open, and the single-instance guard would hand the new launch to the old
-    window. Each copy gets 10 seconds
-    to close (it may only minimise to the tray) before it is stopped.
+    window. Each copy in this Windows session is asked to close its window and gets 3 seconds to
+    exit; a copy that hid to the tray, or was already hidden there, is then stopped. Each change is
+    saved as it is made, so only text still being typed in an open dialog could be lost.
 
     When the Set-MpgAssemblySigned cmdlet is available, the built exe is signed with the first
     certificate in Cert:\CurrentUser\My whose friendly name matches *PCA MAD*. Without the
@@ -35,9 +36,22 @@ function Invoke-Native
     }
 }
 
+function Get-TaskTrackerProcess
+{
+    $sessionId = (Get-Process -Id $PID).SessionId
+    Get-Process -Name $processName -ErrorAction SilentlyContinue |
+        Where-Object SessionId -eq $sessionId
+}
+
 function Stop-TaskTracker
 {
-    $running = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+    $running = @(Get-TaskTrackerProcess)
+    if ($running.Count -eq 0)
+    {
+        return
+    }
+
+    Write-Host "Closing $($running.Count) running Task Tracker window(s)..."
     foreach ($process in $running)
     {
         if ($process.MainWindowHandle -ne 0)
@@ -48,12 +62,23 @@ function Stop-TaskTracker
 
     foreach ($process in $running)
     {
-        if (-not $process.WaitForExit(10000))
-        {
-            Stop-Process -Id $process.Id -Force
-            $process.WaitForExit()
-        }
+        Wait-TaskTrackerExit $process
     }
+}
+
+function Wait-TaskTrackerExit
+{
+    param([System.Diagnostics.Process] $Process)
+
+    # A copy that keeps running in the tray hides instead of exiting, and a hidden copy has no
+    # window to close, so whatever is still running after a short wait is stopped.
+    if ($Process.WaitForExit(3000))
+    {
+        return
+    }
+
+    $Process.Kill()
+    $Process.WaitForExit()
 }
 
 function Set-ExeSignature
