@@ -11,6 +11,13 @@ namespace TaskTracker.App.Desktop.Tests;
 /// <summary>Simulated mouse and keyboard input, and lookups by AutomationId, for headless view tests.</summary>
 public static class HeadlessInput
 {
+    /// <summary>Opens a top-level menu and selects an item with the pointer.</summary>
+    public static void ClickMenuItem(Window window, string menuId, string itemId)
+    {
+        Click(window, Find<MenuItem>(window, menuId));
+        Click(window, Find<MenuItem>(window, itemId));
+    }
+
     /// <summary>Scrolls the control into view and clicks its centre with the left mouse button.</summary>
     public static void Click(Window window, Control control)
     {

@@ -277,29 +277,31 @@ public sealed class AppSettingsViewTests
     }
 
     [AvaloniaFact]
-    public async Task Title_bar_settings_button_opens_settings_from_home_and_Back_returns_home()
+    public async Task File_menu_opens_settings_from_home_and_Back_returns_home()
     {
         var window = new MainWindow();
         using var services = await TestServices.CreateAsync(window);
-        var shell = await ShowHomeWithTitleBarAsync(window, services);
+        var shell = await ShowHomeAsync(window, services);
 
-        await ClickAndWaitForPageAsync<AppSettingsViewModel>(window, shell, "TopSettingsButton");
-        await ClickAndWaitForPageAsync<HomeViewModel>(window, shell, "AppSettingsBackButton");
+        await ClickAndWaitForPageAsync<AppSettingsViewModel>(window, shell, "FileMenu", "AppSettingsMenuItem");
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AppSettingsBackButton"));
+        await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is HomeViewModel);
 
         window.Close();
     }
 
     [AvaloniaFact]
-    public async Task Title_bar_settings_button_from_a_workspace_returns_to_that_project()
+    public async Task Settings_opened_from_a_workspace_return_to_that_project()
     {
         var window = new MainWindow();
         using var services = await TestServices.CreateAsync(window);
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
-        var shell = await ShowHomeWithTitleBarAsync(window, services);
+        var shell = await ShowHomeAsync(window, services);
         await shell.OpenProjectAsync(project.Id);
 
-        await ClickAndWaitForPageAsync<AppSettingsViewModel>(window, shell, "TopSettingsButton");
-        await ClickAndWaitForPageAsync<ProjectWorkspaceViewModel>(window, shell, "AppSettingsBackButton");
+        await ClickAndWaitForPageAsync<AppSettingsViewModel>(window, shell, "FileMenu", "AppSettingsMenuItem");
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AppSettingsBackButton"));
+        await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is ProjectWorkspaceViewModel);
 
         var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
         Assert.Equal(project.Id, workspace.ProjectId);
@@ -307,17 +309,18 @@ public sealed class AppSettingsViewTests
     }
 
     [AvaloniaFact]
-    public async Task Title_bar_settings_button_leaves_search_for_settings_that_return_to_the_project_behind_it()
+    public async Task Settings_opened_from_search_return_to_the_project_behind_it()
     {
         var window = new MainWindow();
         using var services = await TestServices.CreateAsync(window);
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
-        var shell = await ShowHomeWithTitleBarAsync(window, services);
+        var shell = await ShowHomeAsync(window, services);
         await shell.OpenProjectAsync(project.Id);
-        await ClickAndWaitForPageAsync<SearchViewModel>(window, shell, "TopSearchButton");
+        await ClickAndWaitForPageAsync<SearchViewModel>(window, shell, "ViewMenu", "SearchMenuItem");
 
-        await ClickAndWaitForPageAsync<AppSettingsViewModel>(window, shell, "TopSettingsButton");
-        await ClickAndWaitForPageAsync<ProjectWorkspaceViewModel>(window, shell, "AppSettingsBackButton");
+        await ClickAndWaitForPageAsync<AppSettingsViewModel>(window, shell, "FileMenu", "AppSettingsMenuItem");
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AppSettingsBackButton"));
+        await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is ProjectWorkspaceViewModel);
 
         var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
         Assert.Equal(project.Id, workspace.ProjectId);
@@ -325,22 +328,21 @@ public sealed class AppSettingsViewTests
     }
 
     [AvaloniaFact]
-    public async Task Title_bar_hides_the_reminder_bell_when_reminders_are_off()
+    public async Task View_menu_hides_reminders_when_reminders_are_off()
     {
         var window = new MainWindow();
         using var services = await TestServices.CreateAsync(window);
 
-        await ShowHomeWithTitleBarAsync(window, services);
+        await ShowHomeAsync(window, services);
 
-        Assert.True(HeadlessInput.Find<Button>(window, "TopSettingsButton").IsEffectivelyVisible);
-        Assert.Empty(HeadlessInput.FindAll<Button>(window, "ReminderBell"));
+        HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "ViewMenu"));
+        Assert.Empty(HeadlessInput.FindAll<MenuItem>(window, "RemindersMenuItem"));
         window.Close();
     }
 
-    private static async Task<MainWindowViewModel> ShowHomeWithTitleBarAsync(MainWindow window, IServiceProvider services)
+    private static async Task<MainWindowViewModel> ShowHomeAsync(MainWindow window, IServiceProvider services)
     {
         var shell = services.GetRequiredService<MainWindowViewModel>();
-        shell.ShowsTitleBar = true;
         window.DataContext = shell;
         window.Show();
         await shell.GoHomeAsync();
@@ -348,9 +350,10 @@ public sealed class AppSettingsViewTests
         return shell;
     }
 
-    private static async Task ClickAndWaitForPageAsync<TPage>(MainWindow window, MainWindowViewModel shell, string automationId)
+    private static async Task ClickAndWaitForPageAsync<TPage>(MainWindow window, MainWindowViewModel shell,
+        string menuId, string itemId)
     {
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, automationId));
+        HeadlessInput.ClickMenuItem(window, menuId, itemId);
         await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is TPage);
         Dispatcher.UIThread.RunJobs();
     }

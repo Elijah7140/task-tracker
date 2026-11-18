@@ -610,7 +610,7 @@ The trash lists **deletion batches** (§5.3), not individual rows: one row per `
 - **Empty trash** (behind a confirmation) permanently deletes everything in scope in one
   transaction: all deleted folders and items, and deleted projects with all they own. Live rows
   are never touched; one that points at a deleted row stops the operation.
-- **Navigation.** A Trash button in the title bar and in the workspace header, and Ctrl+Shift+T (exact
+- **Navigation.** View → Trash and Ctrl+Shift+T (exact
   modifiers). Back or Escape (no modifiers) returns. Search, Calendar and Trash share the
   single return page described in §7.4, so Back always lands on the page the first of them was
   opened from. Opening the trash keeps the page behind it, including an unsaved editor draft,
@@ -744,8 +744,8 @@ permanently deleted since; can't undo." A refused step changes nothing; there is
 **UI.** Ctrl+Z undoes; Ctrl+Y and Ctrl+Shift+Z redo. The shortcuts work anywhere in the main window
 (workspace, calendar, search, trash, settings, Home) except while a text box has focus (quick add, search
 box, a date picker's text, an editable combo box), where Ctrl+Z keeps its normal text-editing
-meaning. With nothing to undo or redo the keys do nothing at all, silently. The workspace header
-has Undo and Redo buttons whose tooltips name the action ("Undo: Complete 'Write report'"); they
+meaning. With nothing to undo or redo the keys do nothing at all, silently. The Edit menu
+has Undo and Redo entries whose labels name the action ("Undo: Complete 'Write report'"); they
 are disabled when there is nothing to do. A status toast at the bottom of the workspace (an
 overlay, so nothing moves) shows "Undid: ...", "Redid: ..." or a refusal. It clears on the next
 recorded action and when the user goes to another screen. Refusals on screens without the toast
@@ -901,13 +901,13 @@ more is an error. Row numbers count like a spreadsheet (header = row 1) and appe
 The **preview** (`PreviewCsvAsync`, no writes) reports row count, columns used, unknown and ignored columns, the first five rows and
 every error; nothing is imported while there is an error. Commit re-checks the file and creates all rows in one save, after a backup.
 
-**UI.** Home has an Import / Export menu: Export everything (JSON), Export project (JSON), Export project (CSV), Import JSON, Import
-CSV into project. A project is chosen from a list, a folder from the usual folder list (only when the project has folders), the file
+**UI.** From Home, File offers Export everything (JSON) and Import JSON. Project offers Export project (JSON),
+Export project (CSV), and Import CSV into project. A project is chosen from a list, a folder from the usual folder list (only when the project has folders), the file
 through the platform file picker (`IFilePickerService`, implemented with Avalonia's `StorageProvider`; no Avalonia types in
 Presentation). Cancelling any picker or confirmation does nothing. A JSON import first shows the validation errors, or asks
 "Import N projects ...? ... can't be undone ... a backup is saved first". The CSV preview is a dialog with an Import button only when
 it has no errors; its rows with errors are marked. Home reloads after an import and shows a status line. Reading, checking, exporting and importing run
-off the UI thread; while one runs, the menu and every command are disabled (a second click is ignored) and a progress bar shows.
+off the UI thread; while one runs, transfer commands are disabled and a progress bar shows.
 The Search page's "Export results (CSV)" re-runs the last search without the 200-row limit. For end-to-end tests only,
 `CompositionRoot` swaps in a picker that answers with a fixed path, and only when **both** `TASKTRACKER_TEST_FILE_PATH` and
 `TASKTRACKER_SMOKE=1` are set (README.md); the real picker never reads those variables.
@@ -1121,7 +1121,7 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
     so a retry never notifies twice.
 - **Snooze and dismiss.** The in-app **Reminders** panel offers **Snooze**, **Mark complete**,
   **Open** and **Dismiss** for each reminder.
-  - The panel opens from a bell button in the title bar, with a count badge, and with Ctrl+Shift+R.
+  - The panel opens from View → Reminders, which displays the pending count, and with Ctrl+Shift+R.
   - Snooze options are 10 minutes, 1 hour or tomorrow at `DateOnlyReminderTime`. Snooze sets a
     nullable `SnoozedUntilUtc`, which overrides the computed instant once; it is a labelled undo step.
   - Dismiss clears the entry from the panel.
@@ -1343,7 +1343,7 @@ were made autonomously; they are listed for review.
 - **Undo.** Each push back is one labelled undo step, "Push back ⟨title⟩" (§7.8).
 
 **Today view**
-- **Opening it.** A **Today** button in the title bar, and **Ctrl+Shift+D**,
+- **Opening it.** **View → Today** and **Ctrl+Shift+D**,
   open it. It uses the shared transient page and the stale-page rules (§7.2 shell navigation).
 - **What it lists.** Items completed today that are still completed: `CompletedAtUtc` falls within
   today's local day, which is computed with the explicitly passed time zone (§5.4). Reopening an
@@ -1515,7 +1515,7 @@ the decisions below were made autonomously; they are listed for review.
 This is the owner's request from 2026-11-17, with the details the owner gave in §10. Where the
 request was silent, the decisions below were made autonomously; they are listed for review.
 
-- **Opening it.** A **Tickets** button in the title bar, and **Ctrl+Shift+K**. It uses the
+- **Opening it.** **View → Tickets** and **Ctrl+Shift+K**. It uses the
   shared transient page.
 - **What it lists.** Open, non-deleted items that have a ticket number, across all projects, with a
   project filter (All or one project). The columns are ticket number, title, project, status and
@@ -1652,12 +1652,16 @@ the owner is working on.
 
 ## 8. User interface (Avalonia)
 
+The desktop menu bar sits below the system title bar on every screen. **File** contains App Settings
+and app-wide import and export from Home. **Edit** contains Undo and Redo. **Project** contains New
+Project and project import and export on Home, and Project Settings in the workspace. **View**
+contains Search, Calendar, Today, Tickets, Trash, and Reminders.
+
 ### Screens
 
-1. **Home** — project cards (name, open count, overdue count). New project button. App-wide navigation
-   (Search, Calendar, Trash, Today, Tickets, the reminder bell and a Settings gear) lives in the custom
-   title bar on every page, as in other Windows apps; Settings returns to the project it was opened from. An **Import / Export** menu
-   (§7.9) and a status line for its last result. The **Search** page has an "Export results (CSV)" button.
+1. **Home** — project cards (name, open count, overdue count) and a status line for the last import or
+   export (§7.9). App Settings returns to the page it was opened from. The **Search** page has an
+   "Export results (CSV)" button.
 2. **Project workspace** — three panes:
    - **Left:** folder tree (project root at top). Right-click: new folder, rename, move, delete.
    - **Center:** the selected area's items.

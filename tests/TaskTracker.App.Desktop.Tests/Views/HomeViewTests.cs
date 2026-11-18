@@ -44,7 +44,7 @@ public sealed class HomeViewTests
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task New_project_dialog_obeys_enter_and_escape(bool cancel)
+    public async Task New_project_from_the_project_menu_obeys_enter_and_escape(bool cancel)
     {
         var window = new MainWindow();
         using var services = await TestServices.CreateAsync(window);
@@ -53,20 +53,14 @@ public sealed class HomeViewTests
 
         window.Show();
         await shell.GoHomeAsync();
-        Dispatcher.UIThread.RunJobs();
-        var button = window.GetVisualDescendants().OfType<Button>()
-            .Single(control => Equals(control.Content, "+ New project"));
-        var point = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(point, MouseButton.Left, RawInputModifiers.None);
-        window.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
-        Dispatcher.UIThread.RunJobs();
+        HeadlessInput.ClickMenuItem(window, "ProjectMenu", "NewProjectMenuItem");
         var dialog = Assert.Single(window.OwnedWindows);
         Assert.Equal("New project", dialog.Title);
         dialog.KeyTextInput("Billing DB");
-        dialog.KeyPress(cancel ? Key.Escape : Key.Enter, RawInputModifiers.None, PhysicalKey.None, null);
-        Dispatcher.UIThread.RunJobs();
+        HeadlessInput.Press(dialog, cancel ? Key.Escape : Key.Enter);
         var home = Assert.IsType<HomeViewModel>(shell.CurrentPage);
 
+        await HeadlessInput.WaitUntilAsync(() => !dialog.IsVisible && home.Cards.Count == (cancel ? 0 : 1));
         Assert.Equal(cancel ? 0 : 1, home.Cards.Count);
         window.Close();
     }

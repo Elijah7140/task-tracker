@@ -55,12 +55,9 @@ public sealed partial class App : Application
         var window = new MainWindow
         {
             DataContext = shell,
-            ExtendClientAreaToDecorationsHint = true,
-            ExtendClientAreaTitleBarHeightHint = 36,
         };
         desktop.MainWindow = window;
         _shell = shell;
-        shell.ShowsTitleBar = true;
         _reminders = new DesktopReminderHost(services, desktop, window, shell);
         window.Opened += OnWindowOpened;
         desktop.Exit += OnExit;

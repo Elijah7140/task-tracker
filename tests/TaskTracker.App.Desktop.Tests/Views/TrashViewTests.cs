@@ -109,18 +109,17 @@ public sealed class TrashViewTests
         using var services = await TestServices.CreateAsync(window);
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
         var shell = ShowShell(window, services);
-        shell.ShowsTitleBar = true;
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopTrashButton"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "TrashMenuItem");
         Assert.IsType<TrashViewModel>(shell.CurrentPage);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TrashBackButton"));
         Assert.IsType<HomeViewModel>(shell.CurrentPage);
 
         await shell.OpenProjectAsync(project.Id);
         Dispatcher.UIThread.RunJobs();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "WorkspaceTrashButton"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "TrashMenuItem");
         Assert.IsType<TrashViewModel>(shell.CurrentPage);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TrashBackButton"));
         Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
@@ -137,7 +136,7 @@ public sealed class TrashViewTests
         await shell.OpenProjectAsync(projectId);
         Dispatcher.UIThread.RunJobs();
         var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "WorkspaceTrashButton"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "TrashMenuItem");
         var page = Assert.IsType<TrashViewModel>(shell.CurrentPage);
         await WaitForRowsAsync(page);
 

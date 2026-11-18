@@ -101,7 +101,7 @@ internal sealed class UndoScenario : IDisposable
 
     public void FocusSomethingOtherThanATextBox()
     {
-        HeadlessInput.Find<Button>(Window, "WorkspaceSearchButton").Focus();
+        HeadlessInput.Find<MenuItem>(Window, "ViewMenu").Focus();
     }
 
     public void ClickTitle(string title)

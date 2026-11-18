@@ -1,6 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:chrome="using:Avalonia.Controls.Chrome"
         xmlns:views="using:TaskTracker.App.Desktop.Views"
         xmlns:vm="using:TaskTracker.Presentation.ViewModels"
         x:Class="TaskTracker.App.Desktop.Views.MainWindow"
@@ -9,54 +8,61 @@
         Title="{Binding Title}"
         Width="1200" Height="800" MinWidth="800" MinHeight="500">
     <Grid RowDefinitions="Auto,*">
-      <Grid x:Name="AppTitleBar" Height="36" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,146"
-            Background="{DynamicResource AppCardBackgroundBrush}" IsVisible="{Binding ShowsTitleBar}">
-        <!-- Drag area only: the window's drawn decorations already render the title here. -->
-        <Border Background="Transparent" chrome:WindowDecorationProperties.ElementRole="TitleBar" />
-        <Button Grid.Column="1" Content="Search" Classes="subtle" VerticalAlignment="Center"
-                Command="{Binding SearchCommand}" chrome:WindowDecorationProperties.ElementRole="User"
-                AutomationProperties.AutomationId="TopSearchButton" ToolTip.Tip="Search (Ctrl+F)" />
-        <Button Grid.Column="2" Content="Calendar" Classes="subtle" VerticalAlignment="Center"
-                Command="{Binding CalendarCommand}" chrome:WindowDecorationProperties.ElementRole="User"
-                AutomationProperties.AutomationId="TopCalendarButton" ToolTip.Tip="Calendar (Ctrl+Shift+C)" />
-        <Button Grid.Column="3" Content="Trash" Classes="subtle" VerticalAlignment="Center"
-                Command="{Binding TrashCommand}" chrome:WindowDecorationProperties.ElementRole="User"
-                AutomationProperties.AutomationId="TopTrashButton" ToolTip.Tip="Trash (Ctrl+Shift+T)" />
-        <Button Grid.Column="4" Content="Today" Classes="subtle" VerticalAlignment="Center"
-                Command="{Binding TodayCommand}" chrome:WindowDecorationProperties.ElementRole="User"
-                AutomationProperties.AutomationId="TopTodayButton" ToolTip.Tip="Today (Ctrl+Shift+D)" />
-        <Button Grid.Column="5" Content="Tickets" Classes="subtle" VerticalAlignment="Center"
-                Command="{Binding TicketsCommand}" chrome:WindowDecorationProperties.ElementRole="User"
-                AutomationProperties.AutomationId="TopTicketsButton" ToolTip.Tip="Tickets (Ctrl+Shift+K)" />
-        <Button Grid.Column="7" Background="Transparent"
-                Classes="subtle icon" VerticalAlignment="Center" Command="{Binding SettingsCommand}"
-                chrome:WindowDecorationProperties.ElementRole="User"
-                AutomationProperties.AutomationId="TopSettingsButton" AutomationProperties.Name="Settings"
-                ToolTip.Tip="Settings">
-          <Border Background="Transparent">
-            <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="1.3" StrokeJoin="Round"
-                  Stroke="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                  Data="M 12.97,6.48 L 15.11,6.87 L 15.11,9.13 L 12.97,9.52 L 12.59,10.44 L 13.82,12.23 L 12.23,13.82 L 10.44,12.59 L 9.52,12.97 L 9.13,15.11 L 6.87,15.11 L 6.48,12.97 L 5.56,12.59 L 3.77,13.82 L 2.18,12.23 L 3.41,10.44 L 3.03,9.52 L 0.89,9.13 L 0.89,6.87 L 3.03,6.48 L 3.41,5.56 L 2.18,3.77 L 3.77,2.18 L 5.56,3.41 L 6.48,3.03 L 6.87,0.89 L 9.13,0.89 L 9.52,3.03 L 10.44,3.41 L 12.23,2.18 L 13.82,3.77 L 12.59,5.56 Z M 10.3,8 A 2.3,2.3 0 1 0 5.7,8 A 2.3,2.3 0 1 0 10.3,8 Z" />
-          </Border>
-        </Button>
-        <Button Grid.Column="6" Background="Transparent"
-                Classes="subtle icon" VerticalAlignment="Center" Command="{Binding Reminders.ToggleCommand}"
-                IsVisible="{Binding Reminders, Converter={x:Static ObjectConverters.IsNotNull}}"
-                chrome:WindowDecorationProperties.ElementRole="User"
-                AutomationProperties.AutomationId="ReminderBell" AutomationProperties.Name="{Binding Reminders.BellName}"
-                ToolTip.Tip="Reminders (Ctrl+Shift+R)">
-          <StackPanel Orientation="Horizontal" Spacing="5" Background="Transparent">
-            <Path Width="16" Height="16" Stretch="Uniform" StrokeThickness="1.5"
-                  Stroke="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                  Data="M 3,12 L 4,10 L 4,6 A 4,4 0 0 1 12,6 L 12,10 L 13,12 Z M 6.5,14 A 1.5,1.5 0 0 0 9.5,14" />
-            <Border CornerRadius="9" Background="#006ABB"
-                    Padding="5,0" MinWidth="17" IsVisible="{Binding Reminders.HasReminders}">
-              <TextBlock Foreground="White" FontSize="11" FontWeight="SemiBold" Text="{Binding Reminders.Count}"
-                         HorizontalAlignment="Center" AutomationProperties.AutomationId="ReminderBadge" />
-            </Border>
-          </StackPanel>
-        </Button>
-      </Grid>
+      <Menu Background="{DynamicResource AppCardBackgroundBrush}" AutomationProperties.AutomationId="MainMenu">
+        <MenuItem Header="_File" AutomationProperties.AutomationId="FileMenu">
+          <MenuItem Header="Settings…" Command="{Binding SettingsCommand}"
+                    AutomationProperties.AutomationId="AppSettingsMenuItem" />
+          <MenuItem Header="Import JSON…" Command="{Binding HomePage.Transfer.ImportJsonCommand}"
+                    IsVisible="{Binding HomePage.Transfer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    IsEnabled="{Binding HomePage.Transfer.IsIdle}"
+                    AutomationProperties.AutomationId="ImportJsonMenuItem" />
+          <MenuItem Header="Export everything (JSON)…" Command="{Binding HomePage.Transfer.ExportAllCommand}"
+                    IsVisible="{Binding HomePage.Transfer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    IsEnabled="{Binding HomePage.Transfer.IsIdle}"
+                    AutomationProperties.AutomationId="ExportAllMenuItem" />
+        </MenuItem>
+        <MenuItem Header="_Edit" AutomationProperties.AutomationId="EditMenu" IsVisible="{Binding Undo, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <MenuItem Header="{Binding Undo.UndoTooltip}" Command="{Binding Undo.UndoCommand}"
+                    InputGesture="Ctrl+Z" AutomationProperties.AutomationId="UndoMenuItem" />
+          <MenuItem Header="{Binding Undo.RedoTooltip}" Command="{Binding Undo.RedoCommand}"
+                    InputGesture="Ctrl+Y" AutomationProperties.AutomationId="RedoMenuItem" />
+        </MenuItem>
+        <MenuItem Header="_Project" AutomationProperties.AutomationId="ProjectMenu" IsEnabled="{Binding HasProjectMenuActions}">
+          <MenuItem Header="New project…" Command="{Binding HomePage.CreateCommand}"
+                    IsVisible="{Binding HomePage, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    AutomationProperties.AutomationId="NewProjectMenuItem" />
+          <MenuItem Header="Project settings…" Command="{Binding WorkspacePage.ProjectSettingsCommand}"
+                    IsVisible="{Binding WorkspacePage, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    AutomationProperties.AutomationId="ProjectSettingsMenuItem" />
+          <MenuItem Header="Import CSV into project…" Command="{Binding HomePage.Transfer.ImportCsvCommand}"
+                    IsVisible="{Binding HomePage.Transfer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    IsEnabled="{Binding HomePage.Transfer.IsIdle}"
+                    AutomationProperties.AutomationId="ImportCsvMenuItem" />
+          <MenuItem Header="Export project (JSON)…" Command="{Binding HomePage.Transfer.ExportProjectJsonCommand}"
+                    IsVisible="{Binding HomePage.Transfer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    IsEnabled="{Binding HomePage.Transfer.IsIdle}"
+                    AutomationProperties.AutomationId="ExportProjectJsonMenuItem" />
+          <MenuItem Header="Export project (CSV)…" Command="{Binding HomePage.Transfer.ExportProjectCsvCommand}"
+                    IsVisible="{Binding HomePage.Transfer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    IsEnabled="{Binding HomePage.Transfer.IsIdle}"
+                    AutomationProperties.AutomationId="ExportProjectCsvMenuItem" />
+        </MenuItem>
+        <MenuItem Header="_View" AutomationProperties.AutomationId="ViewMenu">
+          <MenuItem Header="Search" Command="{Binding SearchCommand}"
+                    InputGesture="Ctrl+F" AutomationProperties.AutomationId="SearchMenuItem" />
+          <MenuItem Header="Calendar" Command="{Binding CalendarCommand}"
+                    InputGesture="Ctrl+Shift+C" AutomationProperties.AutomationId="CalendarMenuItem" />
+          <MenuItem Header="Today" Command="{Binding TodayCommand}"
+                    InputGesture="Ctrl+Shift+D" AutomationProperties.AutomationId="TodayMenuItem" />
+          <MenuItem Header="Tickets" Command="{Binding TicketsCommand}"
+                    InputGesture="Ctrl+Shift+K" AutomationProperties.AutomationId="TicketsMenuItem" />
+          <MenuItem Header="Trash" Command="{Binding TrashCommand}"
+                    InputGesture="Ctrl+Shift+T" AutomationProperties.AutomationId="TrashMenuItem" />
+          <MenuItem Header="{Binding Reminders.BellName}" Command="{Binding Reminders.ToggleCommand}"
+                    IsVisible="{Binding Reminders, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    InputGesture="Ctrl+Shift+R" AutomationProperties.AutomationId="RemindersMenuItem" />
+        </MenuItem>
+      </Menu>
       <ContentControl Grid.Row="1" Content="{Binding CurrentPage}" />
       <Border Grid.Row="1" IsVisible="{Binding Reminders.IsOpen, FallbackValue=False}"
               HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,12,0">

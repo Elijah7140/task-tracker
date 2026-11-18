@@ -14,11 +14,11 @@ using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests;
 
-/// <summary>Drives the bell, shortcut, snooze menu, and editor using headless pointer and keyboard input.</summary>
+/// <summary>Drives the View menu, shortcut, snooze menu, and editor using headless pointer and keyboard input.</summary>
 public sealed class ReminderViewTests
 {
     [AvaloniaFact]
-    public async Task Bell_badge_and_keyboard_shortcut_track_the_panel()
+    public async Task Menu_count_and_keyboard_shortcut_track_the_panel()
     {
         using var services = await TestServices.CreateAsync();
         await SeedAsync(services, "Review invoices");
@@ -27,10 +27,12 @@ public sealed class ReminderViewTests
         var window = ScreenSnapshotTests.OpenWindow(shell, false);
         await scheduler.StartAsync();
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+        HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "ViewMenu"));
+        var reminders = HeadlessInput.Find<MenuItem>(window, "RemindersMenuItem");
+        Assert.Equal("Reminders (1)", reminders.Header);
+        HeadlessInput.Click(window, reminders);
 
         Assert.True(shell.Reminders!.IsOpen);
-        Assert.Equal("1", HeadlessInput.Find<TextBlock>(window, "ReminderBadge").Text);
         Assert.NotNull(HeadlessInput.Find<UserControl>(window, "RemindersPanel"));
         HeadlessInput.Press(window, Key.R, RawInputModifiers.Control | RawInputModifiers.Shift);
         Assert.Empty(HeadlessInput.FindAll<UserControl>(window, "RemindersPanel"));
@@ -40,7 +42,7 @@ public sealed class ReminderViewTests
     }
 
     [AvaloniaFact]
-    public async Task Snoozing_from_the_panel_removes_the_badge_and_defers_delivery()
+    public async Task Snoozing_from_the_panel_clears_the_menu_count_and_defers_delivery()
     {
         using var services = await TestServices.CreateAsync();
         var item = await SeedAsync(services, "Review invoices");
@@ -48,13 +50,14 @@ public sealed class ReminderViewTests
         using var scheduler = StartPanel(services, shell);
         var window = ScreenSnapshotTests.OpenWindow(shell, false);
         await scheduler.StartAsync();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "RemindersMenuItem");
 
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderSnooze"));
         HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "ReminderSnoozeTenMinutes"));
 
         await HeadlessInput.WaitUntilAsync(() => shell.Reminders!.Count == 0);
-        Assert.Empty(HeadlessInput.FindAll<TextBlock>(window, "ReminderBadge"));
+        HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "ViewMenu"));
+        Assert.Equal("Reminders", HeadlessInput.Find<MenuItem>(window, "RemindersMenuItem").Header);
         var reminders = services.GetRequiredService<ReminderService>();
         var later = TestServices.Clock.GetUtcNow().UtcDateTime.AddMinutes(10);
         Assert.Equal(item.Id, Assert.Single(await reminders.DueAsync(later, null)).ItemId);
@@ -71,7 +74,7 @@ public sealed class ReminderViewTests
         var window = ScreenSnapshotTests.OpenWindow(shell, false);
         await shell.GoHomeAsync();
         await scheduler.StartAsync();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "RemindersMenuItem");
 
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderOpen"));
 
@@ -92,7 +95,7 @@ public sealed class ReminderViewTests
         var window = ScreenSnapshotTests.OpenWindow(shell, false);
         await shell.GoHomeAsync();
         await scheduler.StartAsync();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "RemindersMenuItem");
 
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderComplete"));
 
@@ -104,7 +107,7 @@ public sealed class ReminderViewTests
     }
 
     [AvaloniaFact]
-    public async Task Clicking_dismiss_in_the_panel_removes_the_entry_and_the_badge()
+    public async Task Clicking_dismiss_in_the_panel_removes_the_entry_and_clears_the_menu_count()
     {
         using var services = await TestServices.CreateAsync();
         await SeedAsync(services, "Review invoices");
@@ -112,12 +115,13 @@ public sealed class ReminderViewTests
         using var scheduler = StartPanel(services, shell);
         var window = ScreenSnapshotTests.OpenWindow(shell, false);
         await scheduler.StartAsync();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "RemindersMenuItem");
 
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderDismiss"));
 
         Assert.Equal(0, shell.Reminders!.Count);
-        Assert.Empty(HeadlessInput.FindAll<TextBlock>(window, "ReminderBadge"));
+        HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "ViewMenu"));
+        Assert.Equal("Reminders", HeadlessInput.Find<MenuItem>(window, "RemindersMenuItem").Header);
         Assert.Empty(HeadlessInput.FindAll<Button>(window, "ReminderOpen"));
         window.Close();
     }
@@ -131,7 +135,7 @@ public sealed class ReminderViewTests
         using var scheduler = StartPanel(services, shell);
         var window = ScreenSnapshotTests.OpenWindow(shell, false);
         await scheduler.StartAsync();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "RemindersMenuItem");
 
         HeadlessInput.Press(window, Key.Escape);
 
@@ -198,7 +202,7 @@ public sealed class ReminderViewTests
         var window = ScreenSnapshotTests.OpenWindow(shell, dark);
         await shell.GoHomeAsync();
         await scheduler.StartAsync();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+        HeadlessInput.ClickMenuItem(window, "ViewMenu", "RemindersMenuItem");
 
         Assert.True(shell.Reminders!.IsOpen);
         Assert.Equal(2, HeadlessInput.FindAll<Button>(window, "ReminderOpen").Count);
@@ -226,7 +230,6 @@ public sealed class ReminderViewTests
     private static ReminderScheduler StartPanel(IServiceProvider services, MainWindowViewModel shell)
     {
         var panel = shell.EnableReminders(services.GetRequiredService<ReminderService>());
-        shell.ShowsTitleBar = true;
         var scheduler = services.GetRequiredService<ReminderScheduler>();
         scheduler.Delivered += panel.Add;
         scheduler.RefreshPanelAsync = panel.RefreshAsync;

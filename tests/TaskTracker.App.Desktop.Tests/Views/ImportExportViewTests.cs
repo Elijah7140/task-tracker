@@ -14,7 +14,7 @@ using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests.Views;
 
-/// <summary>The Import / Export menu and the search export button, driven by simulated clicks and keys.</summary>
+/// <summary>Transfer commands and the search export button, driven by simulated clicks and keys.</summary>
 public sealed class ImportExportViewTests
 {
     [AvaloniaFact]
@@ -187,7 +187,7 @@ public sealed class ImportExportViewTests
     }
 
     [AvaloniaFact]
-    public async Task While_an_export_waits_for_its_dialog_the_menu_is_disabled_and_a_second_click_is_ignored()
+    public async Task While_an_export_waits_for_its_dialog_the_command_is_disabled_and_a_second_click_is_ignored()
     {
         using var folder = new TempFolder();
         var gate = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -198,20 +198,19 @@ public sealed class ImportExportViewTests
         await shell.GoHomeAsync();
         var home = Assert.IsType<HomeViewModel>(shell.CurrentPage);
         Dispatcher.UIThread.RunJobs();
-        var button = HeadlessInput.Find<Button>(window, "ImportExportButton");
 
         await ChooseMenuItemAsync(window, "ExportAllMenuItem");
         await HeadlessInput.WaitUntilAsync(() => files.SaveTitles.Count == 1);
-        HeadlessInput.Click(window, button);
-        HeadlessInput.Click(window, button);
+        HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "FileMenu"));
+        var export = HeadlessInput.Find<MenuItem>(window, "ExportAllMenuItem");
+        HeadlessInput.Click(window, export);
 
-        Assert.False(button.IsEnabled);
+        Assert.False(export.IsEnabled);
         Assert.True(home.Transfer!.IsBusy);
-        Assert.Empty(HeadlessInput.FindAll<MenuItem>(window, "ExportAllMenuItem"));
         Assert.Single(files.SaveTitles);
         gate.SetResult(folder.File("late.json"));
         await HeadlessInput.WaitUntilAsync(() => File.Exists(folder.File("late.json")) && !home.Transfer.IsBusy);
-        Assert.True(button.IsEnabled);
+        Assert.True(export.IsEnabled);
         Assert.Single(files.SaveTitles);
         window.Close();
     }
@@ -262,11 +261,11 @@ public sealed class ImportExportViewTests
         return shell;
     }
 
-    /// <summary>Opens the Import / Export menu and clicks the item once the flyout has created it.</summary>
+    /// <summary>Invokes an application-wide transfer command from File.</summary>
     private static async Task ChooseMenuItemAsync(MainWindow window, string menuItemId)
     {
         Dispatcher.UIThread.RunJobs();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ImportExportButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "FileMenu"));
         await HeadlessInput.WaitUntilAsync(() => HeadlessInput.FindAll<MenuItem>(window, menuItemId).Count == 1);
         HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, menuItemId));
     }

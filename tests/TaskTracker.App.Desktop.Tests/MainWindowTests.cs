@@ -16,7 +16,6 @@ using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
-using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
 using TaskTracker.Infrastructure.Persistence;
@@ -27,6 +26,23 @@ namespace TaskTracker.App.Desktop.Tests;
 
 public sealed class MainWindowTests
 {
+    [AvaloniaFact]
+    public async Task Project_menu_opens_settings_for_the_current_project()
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = shell };
+        window.Show();
+        await shell.OpenProjectAsync(project.Id);
+
+        HeadlessInput.ClickMenuItem(window, "ProjectMenu", "ProjectSettingsMenuItem");
+        await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is ProjectSettingsViewModel);
+
+        Assert.Equal(project.Id, Assert.IsType<ProjectSettingsViewModel>(shell.CurrentPage).ProjectId);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Home_renders_project_cards()
     {
@@ -49,23 +65,20 @@ public sealed class MainWindowTests
     }
 
     [AvaloniaFact]
-    public async Task App_title_bar_leaves_the_window_title_to_the_drawn_decorations()
+    public async Task System_title_bar_and_menu_are_available_on_home_and_in_the_workspace()
     {
         using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
         var shell = services.GetRequiredService<MainWindowViewModel>();
-        shell.EnableReminders(services.GetRequiredService<ReminderService>());
-        shell.ShowsTitleBar = true;
         var window = new MainWindow { DataContext = shell };
 
         window.Show();
         await shell.GoHomeAsync();
-        var titleBar = window.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == "AppTitleBar");
-        var titleTexts = titleBar.GetVisualDescendants()
-            .OfType<TextBlock>()
-            .Where(block => block.Text == window.Title);
+        var menu = HeadlessInput.Find<Menu>(window, "MainMenu");
+        await shell.OpenProjectAsync(project.Id);
 
-        Assert.True(titleBar.IsEffectivelyVisible);
-        Assert.Empty(titleTexts);
+        Assert.False(window.ExtendClientAreaToDecorationsHint);
+        Assert.Same(menu, HeadlessInput.Find<Menu>(window, "MainMenu"));
         window.Close();
     }
 

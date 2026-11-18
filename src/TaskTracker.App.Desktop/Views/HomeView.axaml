@@ -2,42 +2,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="TaskTracker.App.Desktop.Views.HomeView"
              x:CompileBindings="False">
-  <UserControl.Styles>
-    <Style Selector="WrapPanel.homeActions > Button">
-      <Setter Property="Margin" Value="8,4,0,4" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="Padding" Value="14,10" />
-    </Style>
-  </UserControl.Styles>
   <Grid RowDefinitions="Auto,*" Margin="40,32">
-    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,28" ColumnSpacing="8">
-      <StackPanel Spacing="6" VerticalAlignment="Center">
-        <TextBlock Text="Projects" FontSize="30" FontWeight="SemiBold" />
-        <TextBlock Text="Choose a space to continue your work." Opacity="0.7" />
-      </StackPanel>
-      <WrapPanel Grid.Column="1" Classes="homeActions" HorizontalAlignment="Right" VerticalAlignment="Center">
-        <Button Content="Import / Export ▾" AutomationProperties.AutomationId="ImportExportButton"
-                IsVisible="{Binding Transfer, Converter={x:Static ObjectConverters.IsNotNull}}"
-                IsEnabled="{Binding Transfer.IsIdle}">
-          <Button.Flyout>
-            <MenuFlyout Placement="BottomEdgeAlignedRight">
-              <MenuItem Header="Export everything (JSON)…" Command="{Binding Transfer.ExportAllCommand}"
-                        AutomationProperties.AutomationId="ExportAllMenuItem" />
-              <MenuItem Header="Export project (JSON)…" Command="{Binding Transfer.ExportProjectJsonCommand}"
-                        AutomationProperties.AutomationId="ExportProjectJsonMenuItem" />
-              <MenuItem Header="Export project (CSV)…" Command="{Binding Transfer.ExportProjectCsvCommand}"
-                        AutomationProperties.AutomationId="ExportProjectCsvMenuItem" />
-              <Separator />
-              <MenuItem Header="Import JSON…" Command="{Binding Transfer.ImportJsonCommand}"
-                        AutomationProperties.AutomationId="ImportJsonMenuItem" />
-              <MenuItem Header="Import CSV into project…" Command="{Binding Transfer.ImportCsvCommand}"
-                        AutomationProperties.AutomationId="ImportCsvMenuItem" />
-            </MenuFlyout>
-          </Button.Flyout>
-        </Button>
-        <Button Content="+ New project" Command="{Binding CreateCommand}" AutomationProperties.AutomationId="NewProjectButton" />
-      </WrapPanel>
-    </Grid>
+    <StackPanel Spacing="6" Margin="0,0,0,28">
+      <TextBlock Text="Projects" FontSize="30" FontWeight="SemiBold" />
+      <TextBlock Text="Choose a space to continue your work." Opacity="0.7" />
+    </StackPanel>
     <ScrollViewer Grid.Row="1">
       <StackPanel Spacing="12">
         <ProgressBar IsIndeterminate="True" IsVisible="{Binding Transfer.IsWorking}"

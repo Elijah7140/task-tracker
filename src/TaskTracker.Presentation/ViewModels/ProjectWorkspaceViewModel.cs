@@ -61,10 +61,6 @@ public sealed partial class ProjectWorkspaceViewModel : ViewModelBase, IDisposab
             timeZone ?? TimeZoneInfo.Utc, RefreshUrgency,
             dispatcher ?? new SynchronizationContextDispatcher(SynchronizationContext.Current));
         HomeCommand = new AsyncRelayCommand(GoHomeAsync);
-        SettingsCommand = new AsyncRelayCommand(OpenSettingsAsync);
-        SearchCommand = new AsyncRelayCommand(navigation.OpenSearchAsync);
-        CalendarCommand = new AsyncRelayCommand(navigation.OpenCalendarAsync);
-        TrashCommand = new AsyncRelayCommand(navigation.OpenTrashAsync);
         ProjectSettingsCommand = new AsyncRelayCommand(OpenProjectSettingsAsync);
         QuickAddCommand = new AsyncRelayCommand(QuickAddAsync);
         AddSubItemCommand = new AsyncRelayCommand(AddSubItemAsync);
@@ -103,10 +99,8 @@ public sealed partial class ProjectWorkspaceViewModel : ViewModelBase, IDisposab
     /// <summary>Whether the item editor has a draft that undo must preserve.</summary>
     public bool HasUnsavedChanges => EditorHasEdits();
 
-    /// <summary>Undo and redo buttons and the status toast; null in a window that has no history.</summary>
+    /// <summary>Provides undo and redo status for the workspace toast.</summary>
     public UndoCoordinator? Undo { get; }
-
-    public bool HasUndo => Undo is not null;
 
     public ICommand SkipRepeatCommand { get; }
 
@@ -133,14 +127,6 @@ public sealed partial class ProjectWorkspaceViewModel : ViewModelBase, IDisposab
     }
 
     public ICommand HomeCommand { get; }
-
-    public ICommand SettingsCommand { get; }
-
-    public ICommand SearchCommand { get; }
-
-    public ICommand CalendarCommand { get; }
-
-    public ICommand TrashCommand { get; }
 
     public ICommand ProjectSettingsCommand { get; }
 

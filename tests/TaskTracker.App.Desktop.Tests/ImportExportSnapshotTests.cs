@@ -49,18 +49,17 @@ public sealed class ImportExportSnapshotTests
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Home_with_the_import_export_menu_open_matches_approved_image(bool dark)
+    public async Task Home_with_the_file_menu_open_matches_approved_image(bool dark)
     {
         using var services = await TestServices.CreateAsync();
         await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
         var shell = services.GetRequiredService<MainWindowViewModel>();
-        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark);
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ImportExportButton"));
-        await HeadlessInput.WaitUntilAsync(() => HeadlessInput.FindAll<MenuItem>(window, "ImportCsvMenuItem").Count == 1);
+        HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "FileMenu"));
+        await HeadlessInput.WaitUntilAsync(() => HeadlessInput.FindAll<MenuItem>(window, "ImportJsonMenuItem").Count == 1);
         var first = HeadlessInput.Find<MenuItem>(window, "ExportAllMenuItem");
         first.Focus(NavigationMethod.Directional);
         await HeadlessInput.WaitUntilAsync(() => first.IsFocused);

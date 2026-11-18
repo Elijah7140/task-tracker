@@ -64,7 +64,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, INavigationServ
     private bool isOpeningToday;
     private bool isOpeningTickets;
     private bool isOpeningSettings;
-    private bool showsTitleBar;
     private bool isChangingTransientItem;
     private ViewModelBase? currentPage;
     private RemindersViewModel? reminders;
@@ -117,7 +116,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, INavigationServ
         TrashCommand = new AsyncRelayCommand(OpenTrashAsync);
         TicketsCommand = new AsyncRelayCommand(OpenTicketsAsync);
         TodayCommand = new AsyncRelayCommand(OpenTodayAsync);
-        SettingsCommand = new AsyncRelayCommand(OpenSettingsFromTitleBarAsync);
+        SettingsCommand = new AsyncRelayCommand(OpenSettingsFromMenuAsync);
     }
 
     public RemindersViewModel? Reminders
@@ -185,15 +184,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase, INavigationServ
     /// <summary>Opens App Settings from whichever page is on show.</summary>
     public ICommand SettingsCommand { get; }
 
-    /// <summary>
-    /// True when the window draws its own title bar, which holds the navigation buttons. The desktop
-    /// app turns it on when it extends the client area into the system title bar.
-    /// </summary>
-    public bool ShowsTitleBar
-    {
-        get => showsTitleBar;
-        set => SetProperty(ref showsTitleBar, value);
-    }
+    /// <summary>The project list and its commands when Home is visible.</summary>
+    public HomeViewModel? HomePage => CurrentPage as HomeViewModel;
+
+    /// <summary>The workspace commands for the visible project.</summary>
+    public ProjectWorkspaceViewModel? WorkspacePage => CurrentPage as ProjectWorkspaceViewModel;
+
+    public bool HasProjectMenuActions => HomePage is not null || WorkspacePage is not null;
 
     /// <summary>Undo and redo for the whole window; null when the shell was built without a history.</summary>
     public UndoCoordinator? Undo { get; }
@@ -303,6 +300,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, INavigationServ
             if (SetProperty(ref currentPage, value))
             {
                 pageVersion++;
+                OnPropertyChanged(nameof(HomePage));
+                OnPropertyChanged(nameof(WorkspacePage));
+                OnPropertyChanged(nameof(HasProjectMenuActions));
                 Undo?.ClearStatus();
             }
         }
@@ -715,11 +715,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, INavigationServ
     }
 
     /// <summary>
-    /// Opens App Settings from the title bar. A transient page first returns to the page behind it,
+    /// Opens App Settings from the File menu. A transient page first returns to the page behind it,
     /// and the page being left gets its usual unsaved-changes guard. Back from settings returns to
     /// the project the user was in, if any.
     /// </summary>
-    public async Task OpenSettingsFromTitleBarAsync()
+    public async Task OpenSettingsFromMenuAsync()
     {
         if (settings is null || isOpeningSettings || CurrentPage is AppSettingsViewModel)
         {

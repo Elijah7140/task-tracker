@@ -23,11 +23,11 @@ namespace TaskTracker.App.Desktop.SmokeTests;
 public sealed class SmokeTests
 {
     [Fact]
-    public void Settings_opens_when_clicked_next_to_the_Windows_caption_buttons()
+    public void Settings_opens_from_the_File_menu()
     {
         Run(session =>
         {
-            session.Find("TopSettingsButton").Click();
+            ClickMenuItem(session, "FileMenu", "AppSettingsMenuItem");
 
             session.Find("AppSettingsBackButton");
         });
@@ -39,7 +39,7 @@ public sealed class SmokeTests
         const string title = "Reconcile payments";
         Run(session =>
         {
-            session.Find("TopTicketsButton").AsButton().Invoke();
+            ClickMenuItem(session, "ViewMenu", "TicketsMenuItem");
             session.FindNamed("TicketRow", title).Click();
             session.TypeChord(VirtualKeyShort.ALT, VirtualKeyShort.DOWN);
 
@@ -94,7 +94,7 @@ public sealed class SmokeTests
             OpenProject(session);
             AddItem(session, "Filed report");
             session.FindRowCheckbox("Filed report").Click();
-            session.Find("TopTodayButton").AsButton().Invoke();
+            ClickMenuItem(session, "ViewMenu", "TodayMenuItem");
             session.FindNamed("TodayOpenItemButton", "Filed report");
             session.Find("TodayBackButton").AsButton().Invoke();
 
@@ -125,17 +125,17 @@ public sealed class SmokeTests
             session.Find("CompletedItemsExpander").Click();
             DeleteSelectedItem(session, "Undo smoke item");
 
-            session.Find("WorkspaceUndoButton").Focus();
+            session.Find("EditMenu").Focus();
             session.TypeChord(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
             session.Find("CompletedItemsExpander").Click();
             session.WaitUntil(() => HasItemRow(session, "Undo smoke item"), "deleted item to return");
 
-            session.Find("WorkspaceUndoButton").Focus();
+            session.Find("EditMenu").Focus();
             session.TypeChord(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Z);
             session.WaitUntil(() => session.FindRowCheckbox("Undo smoke item").IsChecked == false,
                 "completed item to reopen");
 
-            session.Find("WorkspaceRedoButton").Focus();
+            session.Find("EditMenu").Focus();
             session.TypeChord(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_Y);
             session.Find("CompletedItemsExpander").Click();
             session.WaitUntil(() => session.FindRowCheckbox("Undo smoke item").IsChecked == true,
@@ -238,7 +238,7 @@ public sealed class SmokeTests
             session.Press(VirtualKeyShort.TAB);
             session.Find("EditorSaveButton").AsButton().Invoke();
 
-            session.Find("WorkspaceCalendarButton").AsButton().Invoke();
+            ClickMenuItem(session, "ViewMenu", "CalendarMenuItem");
             session.SelectByName("CalendarScopeComboBox", "This project");
             session.FindText("Calendar due item");
             session.FindText("00:00 Calendar scheduled item");
@@ -305,7 +305,7 @@ public sealed class SmokeTests
         {
             session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
             CreateProject(session);
-            session.Find("TopSettingsButton").Click();
+            ClickMenuItem(session, "FileMenu", "AppSettingsMenuItem");
             AddField(session, "Effort", FieldDataType.Number);
             session.Find("AppSettingsBackButton").AsButton().Invoke();
             session.WaitUntil(() => session.HasControl("OpenProjectButton"), "home after settings");
@@ -315,7 +315,7 @@ public sealed class SmokeTests
             AddItemWithPriorityAndEffort(session, "Effort match", "Low", "10");
 
             session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
-            session.Find("TopSearchButton").AsButton().Invoke();
+            ClickMenuItem(session, "ViewMenu", "SearchMenuItem");
             AddSearchFilter(session, "Priority", "is");
             session.SelectByName("FilterValueChoiceComboBox", "High");
             session.Find("SearchButton").AsButton().Invoke();
@@ -396,7 +396,7 @@ public sealed class SmokeTests
             AddItem(session, "Invoice review");
             AddItem(session, "Other task");
             session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
-            session.Find("TopSearchButton").AsButton().Invoke();
+            ClickMenuItem(session, "ViewMenu", "SearchMenuItem");
 
             session.TypeInto("SearchTextBox", query);
             session.Press(VirtualKeyShort.RETURN);
@@ -544,7 +544,7 @@ public sealed class SmokeTests
             CreateFolderAndSelectIt(session, "Doomed folder");
             DeleteFolder(session, "Doomed folder");
 
-            session.Find("WorkspaceTrashButton").AsButton().Invoke();
+            ClickMenuItem(session, "ViewMenu", "TrashMenuItem");
             session.WaitUntil(() => HasTrashRow(session, "Restore me") && HasTrashRow(session, "Doomed folder"),
                 "both deleted nodes to be listed in the trash");
             ClickTrashRowButton(session, "Restore me", "RestoreBatchButton");
@@ -565,7 +565,7 @@ public sealed class SmokeTests
     {
         Run(session =>
         {
-            session.Find("TopSettingsButton").Click();
+            ClickMenuItem(session, "FileMenu", "AppSettingsMenuItem");
 
             ReplaceText(session, "GlobalYellowThresholdBox", "4");
             Assert.True(session.Find("AppSettingsSaveButton").Properties.IsEnabled.Value);
@@ -574,7 +574,7 @@ public sealed class SmokeTests
             session.WaitUntil(() => !session.Find("AppSettingsSaveButton").Properties.IsEnabled.Value,
                 "app settings to finish saving");
             session.Find("AppSettingsBackButton").Click();
-            session.Find("TopSettingsButton").Click();
+            ClickMenuItem(session, "FileMenu", "AppSettingsMenuItem");
 
             var amount = session.Find("GlobalYellowThresholdBox")
                 .FindFirstDescendant(query => query.ByControlType(ControlType.Edit));
@@ -588,13 +588,13 @@ public sealed class SmokeTests
     {
         Run(session =>
         {
-            session.Find("NewProjectButton").Click();
+            ClickMenuItem(session, "ProjectMenu", "NewProjectMenuItem");
             session.TypeInto("DialogInput", "Cancelled Project");
 
             session.Press(VirtualKeyShort.ESCAPE);
             session.WaitUntil(() => !session.HasControl("DialogInput"), "the new-project dialog to close");
 
-            Assert.True(session.Find("NewProjectButton").Properties.IsEnabled.Value);
+            Assert.True(session.Find("ProjectMenu").Properties.IsEnabled.Value);
             Assert.Null(session.Window.FindFirstDescendant(query => query.ByName("Cancelled Project")));
         });
     }
@@ -637,7 +637,7 @@ public sealed class SmokeTests
         const string title = "Send the smoke report";
         Run(session =>
         {
-            session.Find("ReminderBell").AsButton().Invoke();
+            ClickMenuItem(session, "ViewMenu", "RemindersMenuItem");
             var panel = session.Find("RemindersPanel");
             session.WaitUntil(() => panel.FindFirstDescendant(query => query.ByName(title)) is not null,
                 "the due item to appear in the Reminders panel", TimeSpan.FromSeconds(85));
@@ -702,7 +702,7 @@ public sealed class SmokeTests
         ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(due));
         session.Press(VirtualKeyShort.TAB);
         session.Find("EditorSaveButton").AsButton().Invoke();
-        session.Find("WorkspaceCalendarButton").AsButton().Invoke();
+        ClickMenuItem(session, "ViewMenu", "CalendarMenuItem");
         session.SelectByName("CalendarScopeComboBox", "This project");
         session.FindNamed("CalendarEntryButton", title);
     }
@@ -718,13 +718,19 @@ public sealed class SmokeTests
 
     private static void ChooseImportExportMenuItem(SmokeSession session, string menuItemId)
     {
-        session.Find("ImportExportButton").Click();
-        session.Find(menuItemId).Click();
+        var menuId = menuItemId is "ImportJsonMenuItem" or "ExportAllMenuItem" ? "FileMenu" : "ProjectMenu";
+        ClickMenuItem(session, menuId, menuItemId);
+    }
+
+    private static void ClickMenuItem(SmokeSession session, string menuId, string itemId)
+    {
+        session.Find(menuId).Click();
+        session.Find(itemId).Click();
     }
 
     private static void CreateProject(SmokeSession session)
     {
-        session.Find("NewProjectButton").Click();
+        ClickMenuItem(session, "ProjectMenu", "NewProjectMenuItem");
         session.TypeInto("DialogInput", "Smoke Project");
         session.Press(VirtualKeyShort.RETURN);
         session.FindText("Smoke Project");
@@ -783,7 +789,7 @@ public sealed class SmokeTests
 
     private static void CreateOneFieldOfEachTypeInAppSettings(SmokeSession session)
     {
-        session.Find("TopSettingsButton").Click();
+        ClickMenuItem(session, "FileMenu", "AppSettingsMenuItem");
         AddField(session, "Summary", FieldDataType.Text);
         AddField(session, "Effort", FieldDataType.Number);
         AddField(session, "Review date", FieldDataType.Date);

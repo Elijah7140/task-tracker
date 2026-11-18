@@ -37,7 +37,7 @@ public sealed class UndoInputTests
         HeadlessInput.Press(dialog, Key.Enter);
         await HeadlessInput.WaitUntilAsync(() => home.Cards.Single().Name == "Renamed");
 
-        HeadlessInput.Find<Button>(window, "NewProjectButton").Focus();
+        HeadlessInput.Find<MenuItem>(window, "ProjectMenu").Focus();
         HeadlessInput.Press(window, Key.Z, RawInputModifiers.Control);
         await HeadlessInput.WaitUntilAsync(() => home.Cards.Single().Name == "Project");
 
@@ -175,11 +175,12 @@ public sealed class UndoInputTests
 
 
     [AvaloniaFact]
-    public async Task Undo_and_redo_buttons_show_tooltips_and_work_with_the_mouse()
+    public async Task Undo_and_redo_menu_items_show_descriptions_and_work_with_the_mouse()
     {
         using var scenario = await UndoScenario.OpenWorkspaceAsync();
-        var undo = HeadlessInput.Find<Button>(scenario.Window, "WorkspaceUndoButton");
-        var redo = HeadlessInput.Find<Button>(scenario.Window, "WorkspaceRedoButton");
+        HeadlessInput.Click(scenario.Window, HeadlessInput.Find<MenuItem>(scenario.Window, "EditMenu"));
+        var undo = HeadlessInput.Find<MenuItem>(scenario.Window, "UndoMenuItem");
+        var redo = HeadlessInput.Find<MenuItem>(scenario.Window, "RedoMenuItem");
         Assert.False(undo.IsEffectivelyEnabled);
         Assert.False(redo.IsEffectivelyEnabled);
 
@@ -187,16 +188,16 @@ public sealed class UndoInputTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(undo.IsEffectivelyEnabled);
-        Assert.Equal("Undo: Complete 'Task'", ToolTip.GetTip(undo));
+        Assert.Equal("Undo: Complete 'Task'", undo.Header);
         HeadlessInput.Click(scenario.Window, undo);
         await HeadlessInput.WaitUntilAsync(() => scenario.History.CanRedo);
 
         Assert.Null(await scenario.ReadCompletionAsync());
         Assert.True(redo.IsEffectivelyEnabled);
-        Assert.Equal("Redo: Complete 'Task'", ToolTip.GetTip(redo));
+        Assert.Equal("Redo: Complete 'Task'", redo.Header);
         Assert.Equal("Undid: Complete 'Task'", HeadlessInput.Find<TextBlock>(scenario.Window, "WorkspaceUndoStatus").Text);
 
-        HeadlessInput.Click(scenario.Window, redo);
+        HeadlessInput.ClickMenuItem(scenario.Window, "EditMenu", "RedoMenuItem");
         await HeadlessInput.WaitUntilAsync(() => !scenario.History.CanRedo);
 
         Assert.NotNull(await scenario.ReadCompletionAsync());
