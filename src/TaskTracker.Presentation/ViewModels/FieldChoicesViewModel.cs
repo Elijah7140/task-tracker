@@ -66,8 +66,13 @@ public sealed class FieldChoicesViewModel : ViewModelBase
 
     public IAsyncRelayCommand<FieldChoiceRowViewModel> RenameCommand { get; }
 
+    /// <summary>
+    /// Swaps the choice with the active choice above it and saves the order at once. Archived choices keep
+    /// their places in the saved order.
+    /// </summary>
     public IAsyncRelayCommand<FieldChoiceRowViewModel> MoveUpCommand { get; }
 
+    /// <summary>Swaps the choice with the active choice below it; see <see cref="MoveUpCommand"/>.</summary>
     public IAsyncRelayCommand<FieldChoiceRowViewModel> MoveDownCommand { get; }
 
     public IAsyncRelayCommand<FieldChoiceRowViewModel> ArchiveCommand { get; }

@@ -3,6 +3,7 @@ using TaskTracker.Core.Items;
 #pragma warning disable xUnit1051
 using Microsoft.EntityFrameworkCore;
 
+using TaskTracker.Core;
 using TaskTracker.Core.Lookups;
 
 namespace TaskTracker.Infrastructure.Tests.Persistence;
@@ -49,7 +50,7 @@ public sealed class LookupServiceTests
         await store.Items(writer).EditAsync(item.Id, new ItemEdit("Task", null, null,
             type.Id, priority.Id, null, null, null, null));
 
-        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => lookups.ArchiveItemTypeAsync(BuiltInLookups.ChangeId));
+        await Assert.ThrowsAsync<DomainRuleException>(() => lookups.ArchiveItemTypeAsync(BuiltInLookups.ChangeId));
         await lookups.ArchiveItemTypeAsync(type.Id);
         await lookups.ArchivePriorityLevelAsync(priority.Id);
         await using var reader = store.Open();
@@ -71,13 +72,56 @@ public sealed class LookupServiceTests
         var service = store.Lookups(writer);
         var custom = await service.AddItemTypeAsync("Custom");
 
-        var added = await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
+        var added = await Assert.ThrowsAsync<DomainRuleException>(() =>
             service.AddItemTypeAsync(" custom "));
-        var renamed = await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
+        var renamed = await Assert.ThrowsAsync<DomainRuleException>(() =>
             service.RenameItemTypeAsync(custom.Id, "Change"));
 
         Assert.Equal("The name 'custom' is already used by another item type.", added.Message);
         Assert.Equal("The name 'Change' is already used by another item type.", renamed.Message);
+    }
+
+    [Fact]
+    public async Task Adding_an_archived_name_says_to_restore_the_archived_entry()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var writer = store.Open();
+        var service = store.Lookups(writer);
+        await AddArchivedReviewLaterAndBlockedAsync(service);
+
+        var addedType = await Assert.ThrowsAsync<DomainRuleException>(() => service.AddItemTypeAsync("review"));
+        var addedLevel = await Assert.ThrowsAsync<DomainRuleException>(() => service.AddPriorityLevelAsync("LATER"));
+        var addedStatus = await Assert.ThrowsAsync<DomainRuleException>(() =>
+            service.AddStatusAsync("blocked", StatusKind.Open));
+
+        Assert.Equal("The name 'review' is used by an archived item type. Restore it instead.", addedType.Message);
+        Assert.Equal("The name 'LATER' is used by an archived priority level. Restore it instead.", addedLevel.Message);
+        Assert.Equal("The name 'blocked' is used by an archived status. Restore it instead.", addedStatus.Message);
+    }
+
+    [Fact]
+    public async Task Renaming_to_an_archived_name_says_to_restore_or_rename_the_archived_entry_first()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var writer = store.Open();
+        var service = store.Lookups(writer);
+        await AddArchivedReviewLaterAndBlockedAsync(service);
+
+        var renamedType = await Assert.ThrowsAsync<DomainRuleException>(() =>
+            service.RenameItemTypeAsync(BuiltInLookups.ChangeId, "review"));
+        var renamedLevel = await Assert.ThrowsAsync<DomainRuleException>(() =>
+            service.RenamePriorityLevelAsync(BuiltInLookups.LowId, "LATER"));
+        var renamedStatus = await Assert.ThrowsAsync<DomainRuleException>(() =>
+            service.RenameStatusAsync(BuiltInLookups.CompletedId, "blocked"));
+
+        Assert.Equal("The name 'review' is used by an archived item type. Restore or rename that one first.",
+            renamedType.Message);
+        Assert.Equal("The name 'LATER' is used by an archived priority level. Restore or rename that one first.",
+            renamedLevel.Message);
+        Assert.Equal("The name 'blocked' is used by an archived status. Restore or rename that one first.",
+            renamedStatus.Message);
     }
 
     [Fact]
@@ -93,5 +137,18 @@ public sealed class LookupServiceTests
         await using var reader = store.Open();
 
         Assert.Contains(await store.Lookups(reader).PriorityLevelsAsync(), row => row.Name == "later");
+    }
+
+    /// <summary>Adds and archives an item type "Review", a priority level "Later" and a status "Blocked".</summary>
+    private static async Task AddArchivedReviewLaterAndBlockedAsync(LookupService service)
+    {
+        var type = await service.AddItemTypeAsync("Review");
+        var level = await service.AddPriorityLevelAsync("Later");
+        await service.AddStatusAsync("Blocked", StatusKind.Open);
+        var status = (await service.StatusesAsync()).Single(row => row.Name == "Blocked");
+
+        await service.ArchiveItemTypeAsync(type.Id);
+        await service.ArchivePriorityLevelAsync(level.Id);
+        await service.SetStatusArchivedAsync(status.Id, archived: true);
     }
 }

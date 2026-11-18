@@ -1,3 +1,5 @@
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -12,6 +14,7 @@ using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Undo;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests.Views;
@@ -291,7 +294,7 @@ public sealed class FieldManagerViewTests
         await SeedFieldWithValueAsync(services);
         var view = await OpenAppSettingsAsync(window, services);
 
-        HeadlessInput.ChooseEntry(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), downPresses: 1);
+        ChooseNextType(window, view);
 
         var dialog = Assert.Single(window.OwnedWindows);
         var texts = dialog.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text).ToList();
@@ -306,11 +309,11 @@ public sealed class FieldManagerViewTests
         using var services = await TestServices.CreateAsync(window);
         await SeedFieldWithValueAsync(services);
         var view = await OpenAppSettingsAsync(window, services);
-        HeadlessInput.ChooseEntry(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), downPresses: 1);
+        ChooseNextType(window, view);
 
         HeadlessInput.Press(Assert.Single(window.OwnedWindows), Key.Enter);
 
-        var typeBox = HeadlessInput.Find<ComboBox>(view, "FieldTypeBox");
+        var typeBox = TypeBox(view);
         Assert.Equal(FieldDataType.Text, typeBox.SelectedItem);
         window.Close();
     }
@@ -324,10 +327,220 @@ public sealed class FieldManagerViewTests
         await fields.CreateAsync("Effort", FieldDataType.Text, null);
         var view = await OpenAppSettingsAsync(window, services);
 
-        HeadlessInput.ChooseEntry(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), downPresses: 1);
+        ChooseNextType(window, view);
 
         var saved = Assert.Single(await fields.ListAllAsync(null));
         Assert.Equal(FieldDataType.Number, saved.DataType);
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Pressing_down_twice_on_a_closed_type_box_applies_only_the_final_type(bool inProjectSettings)
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings);
+        HeadlessInput.Click(window, TypeBox(view));
+        HeadlessInput.Press(window, Key.Escape);
+
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, Key.Down);
+        var savedWhileBrowsing = await SavedTypeAsync(services, field);
+        HeadlessInput.Press(window, Key.Enter);
+
+        Assert.Equal(FieldDataType.Text, savedWhileBrowsing);
+        Assert.Equal(FieldDataType.Date, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Text, await TypeAfterOneUndoAsync(services, field));
+        Assert.Empty(window.OwnedWindows);
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Pressing_down_twice_in_an_open_type_box_applies_only_the_final_type(bool inProjectSettings)
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings);
+        HeadlessInput.Click(window, TypeBox(view));
+
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, Key.Down);
+        var savedWhileBrowsing = await SavedTypeAsync(services, field);
+        HeadlessInput.Press(window, Key.Enter);
+
+        Assert.Equal(FieldDataType.Text, savedWhileBrowsing);
+        Assert.Equal(FieldDataType.Date, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Text, await TypeAfterOneUndoAsync(services, field));
+        Assert.Empty(window.OwnedWindows);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Tab_applies_a_browsed_type()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+        BrowseToNextType(window, view);
+
+        HeadlessInput.Press(window, Key.Tab);
+
+        Assert.Equal(FieldDataType.Number, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Number, TypeBox(view).SelectedItem);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Escape_puts_the_saved_type_back_after_browsing()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+        BrowseToNextType(window, view);
+
+        HeadlessInput.Press(window, Key.Escape);
+
+        Assert.Equal(FieldDataType.Text, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Text, TypeBox(view).SelectedItem);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Escape_in_a_type_box_reopened_after_browsing_puts_the_saved_type_back()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+        BrowseToNextType(window, view);
+        HeadlessInput.Click(window, TypeBox(view));
+
+        HeadlessInput.Press(window, Key.Escape);
+
+        Assert.Equal(FieldDataType.Text, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Text, TypeBox(view).SelectedItem);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_an_area_that_takes_no_focus_applies_a_browsed_type()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+        BrowseToNextType(window, view);
+
+        HeadlessInput.Click(window, FieldNameText(view, "Effort"));
+
+        Assert.Equal(FieldDataType.Number, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Number, TypeBox(view).SelectedItem);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Leaving_the_page_with_a_browsed_type_saves_nothing()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+        BrowseToNextType(window, view);
+
+        await GoBackWithoutMovingFocusAsync(window, services);
+
+        Assert.Equal(FieldDataType.Text, await SavedTypeAsync(services, field));
+        Assert.Empty(window.OwnedWindows);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_wheel_over_a_closed_focused_type_box_scrolls_the_page_and_keeps_the_type()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+        var typeBox = TypeBox(view);
+        HeadlessInput.Click(window, typeBox);
+        HeadlessInput.Press(window, Key.Escape);
+        var page = view.FindAncestorOfType<ScrollViewer>()!;
+        var offsetBefore = page.Offset.Y;
+
+        HeadlessInput.Wheel(window, HeadlessInput.CentreOf(window, typeBox), deltaY: -1, held: RawInputModifiers.None);
+
+        Assert.True(typeBox.IsFocused);
+        Assert.Equal(FieldDataType.Text, typeBox.SelectedItem);
+        Assert.Equal(FieldDataType.Text, await SavedTypeAsync(services, field));
+        Assert.True(page.Offset.Y > offsetBefore, $"The page did not scroll from offset {offsetBefore}.");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_type_refused_after_tab_puts_the_saved_type_back_and_shows_one_message()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var field = await SeedFieldWithValueAsync(services);
+        var view = await OpenAppSettingsAsync(window, services);
+        BrowseToNextType(window, view);
+
+        HeadlessInput.Press(window, Key.Tab);
+        var messages = window.OwnedWindows.Count;
+        HeadlessInput.Press(Assert.Single(window.OwnedWindows), Key.Enter);
+
+        Assert.Equal(1, messages);
+        Assert.Empty(window.OwnedWindows);
+        Assert.Equal(FieldDataType.Text, TypeBox(view).SelectedItem);
+        Assert.Equal(FieldDataType.Text, await SavedTypeAsync(services, field));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Selecting_a_type_from_code_on_a_closed_box_saves_it()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+
+        TypeBox(view).SelectedItem = FieldDataType.Number;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(FieldDataType.Number, await SavedTypeAsync(services, field));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Expanding_selecting_and_collapsing_through_ui_automation_saves_the_type()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+
+        SelectThroughAutomation(TypeBox(view), "Number");
+
+        Assert.Equal(FieldDataType.Number, await SavedTypeAsync(services, field));
+        Assert.False(TypeBox(view).IsDropDownOpen);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Browsing_the_type_box_of_a_field_with_values_shows_one_message_only_when_committed()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        await SeedFieldWithValueAsync(services);
+        var view = await OpenAppSettingsAsync(window, services);
+        HeadlessInput.Click(window, TypeBox(view));
+        HeadlessInput.Press(window, Key.Escape);
+
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, Key.Down);
+        var messagesWhileBrowsing = window.OwnedWindows.Count;
+        HeadlessInput.Press(window, Key.Enter);
+
+        Assert.Equal(0, messagesWhileBrowsing);
+        Assert.Single(window.OwnedWindows);
         window.Close();
     }
 
@@ -339,7 +552,7 @@ public sealed class FieldManagerViewTests
         await services.GetRequiredService<FieldService>().CreateAsync("Status", FieldDataType.Text, null);
         var view = await OpenAppSettingsAsync(window, services);
 
-        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), "Choice");
+        HeadlessInput.ChooseItem(window, TypeBox(view), "Choice");
 
         var expander = HeadlessInput.Find<Expander>(view, "FieldChoicesExpander");
         Assert.True(expander.IsExpanded);
@@ -378,7 +591,7 @@ public sealed class FieldManagerViewTests
         window.Close();
     }
 
-    private static async Task SeedFieldWithValueAsync(IServiceProvider services)
+    private static async Task<FieldDefinition> SeedFieldWithValueAsync(IServiceProvider services)
     {
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
         var items = services.GetRequiredService<ItemService>();
@@ -386,6 +599,97 @@ public sealed class FieldManagerViewTests
         var field = await services.GetRequiredService<FieldService>().CreateAsync("Effort", FieldDataType.Text, null);
         var edit = new ItemEdit(item.Title, null, null, null, null, null, null, null, null);
         await items.EditAsync(item.Id, edit, [new FieldValueInput(field.Id, TextValue: "big")]);
+
+        return field;
+    }
+
+    private static ComboBox TypeBox(FieldManagerView view)
+    {
+        return HeadlessInput.Find<ComboBox>(view, "FieldTypeBox");
+    }
+
+    private static TextBlock FieldNameText(FieldManagerView view, string fieldName)
+    {
+        return view.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == fieldName);
+    }
+
+    /// <summary>Focuses the field's closed type box and browses one entry down without choosing it.</summary>
+    private static void BrowseToNextType(Window window, FieldManagerView view)
+    {
+        HeadlessInput.ChooseEntry(window, TypeBox(view), downPresses: 1);
+    }
+
+    /// <summary>Invokes Back through UI Automation, which leaves focus where it is; a click would move it.</summary>
+    private static async Task GoBackWithoutMovingFocusAsync(MainWindow window, IServiceProvider services)
+    {
+        var back = HeadlessInput.Find<Button>(window, "AppSettingsBackButton");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+
+        ControlAutomationPeer.CreatePeerForElement(back).GetProvider<IInvokeProvider>()!.Invoke();
+
+        await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is not AppSettingsViewModel);
+    }
+
+    /// <summary>Picks an entry the way the smoke tests' SelectByName does: expand, select the entry, collapse.</summary>
+    private static void SelectThroughAutomation(ComboBox comboBox, string entryName)
+    {
+        var peer = ControlAutomationPeer.CreatePeerForElement(comboBox);
+        var expandCollapse = peer.GetProvider<IExpandCollapseProvider>()!;
+
+        expandCollapse.Expand();
+        Dispatcher.UIThread.RunJobs();
+        var entry = Descendants(peer).OfType<ListItemAutomationPeer>().Single(item => item.GetName() == entryName);
+        entry.GetProvider<ISelectionItemProvider>()!.Select();
+        Dispatcher.UIThread.RunJobs();
+        expandCollapse.Collapse();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Every automation peer below this one; the drop-down's entries sit under the popup.</summary>
+    private static IEnumerable<AutomationPeer> Descendants(AutomationPeer peer)
+    {
+        foreach (var child in peer.GetChildren())
+        {
+            yield return child;
+
+            foreach (var descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    /// <summary>Creates a text field (global, or in a new project) and opens the settings page that manages it.</summary>
+    private static async Task<(FieldManagerView View, FieldDefinition Field)> OpenSettingsWithTextFieldAsync(
+        MainWindow window, IServiceProvider services, bool inProjectSettings)
+    {
+        var fields = services.GetRequiredService<FieldService>();
+
+        if (!inProjectSettings)
+        {
+            var globalField = await fields.CreateAsync("Effort", FieldDataType.Text, null);
+            return (await OpenAppSettingsAsync(window, services), globalField);
+        }
+
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        var projectField = await fields.CreateAsync("Effort", FieldDataType.Text, project.Id);
+
+        return (await OpenProjectSettingsAsync(window, services, project.Id), projectField);
+    }
+
+    private static async Task<FieldDataType> SavedTypeAsync(IServiceProvider services, FieldDefinition field)
+    {
+        var saved = await services.GetRequiredService<FieldService>().ListAllAsync(field.ProjectId);
+
+        return saved.Single(candidate => candidate.Id == field.Id).DataType;
+    }
+
+    /// <summary>Undoes the last recorded step; one undo returns to Text only when a single type change was saved.</summary>
+    private static async Task<FieldDataType> TypeAfterOneUndoAsync(IServiceProvider services, FieldDefinition field)
+    {
+        await services.GetRequiredService<UndoHistory>().UndoAsync();
+
+        return await SavedTypeAsync(services, field);
     }
 
     private static async Task<FieldManagerView> OpenAppSettingsAsync(MainWindow window, IServiceProvider services)
@@ -430,6 +734,13 @@ public sealed class FieldManagerViewTests
         var typeBox = HeadlessInput.Find<ComboBox>(view, "FieldNewTypeBox");
         HeadlessInput.ChooseEntry(window, typeBox, downPresses: 1);
         AddField(window, view, name, pressEnter: false);
+    }
+
+    /// <summary>Browses the field's type list one entry down with the keyboard and commits it with Enter.</summary>
+    private static void ChooseNextType(Window window, FieldManagerView view)
+    {
+        HeadlessInput.ChooseEntry(window, TypeBox(view), downPresses: 1);
+        HeadlessInput.Press(window, Key.Enter);
     }
 
     private static void OpenChoicesPanel(Window window, FieldManagerView view)

@@ -161,6 +161,14 @@ order, so reordering levels needs no data migration.
 `ItemType` and `PriorityLevel` share a small `LookupEntity` base (name, color, sort
 order, archive flag) and one generic "manage list" ViewModel and view.
 
+Lookup names (item types, priority levels and statuses) are unique within their list ignoring
+case, **archived entries included**: archiving keeps the name reserved. This is intended. Restoring
+an entry then never collides with a newer one, the database unique indexes need no archive filter,
+and imports and searches that match lookups by name (§7.9, §7.15) always find one entry. Adding or
+renaming to an archived name is refused with "The name 'X' is used by an archived item type.
+Restore it instead." (A number-only priority level has an empty name and reserves nothing.)
+Custom fields differ: their display names are unique only among active fields (§7.1).
+
 **GlobalSetting** — `Key`, `Value` (text). **ProjectSetting** — `ProjectId`, `Key`,
 `Value`. A missing project row means "inherit the global value". See §6.5.
 
@@ -387,7 +395,8 @@ Removing a choice archives it; items keep their value.
   The saved-search migration renames existing keyword keys with the same first-free suffix rule;
   field ids and values remain unchanged.
 - Display names are required and trimmed, and are case-insensitively unique among active
-  fields visible together (global plus project fields).
+  fields visible together (global plus project fields). Unlike lookup names (§5), an archived
+  field's name is not reserved; unarchiving rechecks it.
 - Fields archive instead of deleting; unarchive rechecks name uniqueness, and archived
   fields retain existing values.
 - A field's type changes only before any value exists.

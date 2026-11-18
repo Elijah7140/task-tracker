@@ -203,6 +203,11 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
         }
     }
 
+    /// <summary>
+    /// Saves every override on the page in one operation, including rows reset to global. Turning
+    /// auto-complete on first asks to reconcile disagreeing parents; a cancelled prompt or a refused
+    /// save stores nothing and keeps the edits.
+    /// </summary>
     public async Task SaveAsync()
     {
         Validate();

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
              x:Class="TaskTracker.App.Desktop.Views.FieldManagerView"
              x:CompileBindings="False">
   <UserControl.Styles>
@@ -26,7 +27,7 @@
                     <TextBlock Text="{Binding Name}" Classes.archived="{Binding IsArchived}" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="(archived)" Classes="caption" IsVisible="{Binding IsArchived}" VerticalAlignment="Center" />
                   </StackPanel>
-                  <ComboBox Grid.Column="1" ItemsSource="{Binding Types}" SelectedItem="{Binding SelectedType, Mode=TwoWay}"
+                  <views:CommitOnChoiceComboBox Grid.Column="1" ItemsSource="{Binding Types}" CommittedItem="{Binding SelectedType, Mode=TwoWay}"
                             IsEnabled="{Binding !IsArchived}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="FieldTypeBox" />
                   <Button Grid.Column="2" Classes="subtle icon" ToolTip.Tip="Move up" AutomationProperties.AutomationId="FieldMoveUpButton"
                           Command="{Binding $parent[UserControl].DataContext.MoveUpCommand}" CommandParameter="{Binding}">

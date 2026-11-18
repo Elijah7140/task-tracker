@@ -91,8 +91,13 @@ public sealed class FieldManagerViewModel : ViewModelBase
     /// <summary>Saves the type currently selected in the given row; the row shows the saved type afterwards.</summary>
     public IAsyncRelayCommand<FieldRowViewModel> ChangeTypeCommand { get; }
 
+    /// <summary>
+    /// Swaps the field with the active field above it and saves the order at once. Archived fields keep
+    /// their places in the saved order.
+    /// </summary>
     public IAsyncRelayCommand<FieldRowViewModel> MoveUpCommand { get; }
 
+    /// <summary>Swaps the field with the active field below it; see <see cref="MoveUpCommand"/>.</summary>
     public IAsyncRelayCommand<FieldRowViewModel> MoveDownCommand { get; }
 
     public IAsyncRelayCommand<FieldRowViewModel> ArchiveCommand { get; }

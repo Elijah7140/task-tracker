@@ -148,6 +148,66 @@ public sealed class LookupListViewModelTests
         Assert.Equal("change", page.NewName);
     }
 
+    [Fact]
+    public async Task Moving_a_level_up_when_archived_levels_come_first_reorders_the_active_levels()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var dialogs = new FakeDialogService();
+        var page = await LoadPriorityLevelsAsync(store, dialogs);
+        await page.ArchiveCommand.ExecuteAsync(page.Active.Single(row => row.Name == "Critical"));
+        await page.ArchiveCommand.ExecuteAsync(page.Active.Single(row => row.Name == "High"));
+
+        await page.MoveUpCommand.ExecuteAsync(page.Active.Single(row => row.Name == "Low"));
+
+        Assert.Empty(dialogs.Messages);
+        Assert.Equal(["Low", "Medium"], page.Active.Select(row => row.Name));
+        Assert.Equal(["Low", "Medium"], await SavedActiveNamesAsync(store));
+        Assert.Equal(["Critical", "High"], page.Archived.Select(row => row.Name));
+    }
+
+    [Fact]
+    public async Task Moving_a_level_down_past_an_archived_level_between_them_swaps_the_active_levels()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var dialogs = new FakeDialogService();
+        var page = await LoadPriorityLevelsAsync(store, dialogs);
+        await page.ArchiveCommand.ExecuteAsync(page.Active.Single(row => row.Name == "High"));
+
+        await page.MoveDownCommand.ExecuteAsync(page.Active.Single(row => row.Name == "Critical"));
+
+        Assert.Empty(dialogs.Messages);
+        Assert.Equal(["Medium", "Critical", "Low"], page.Active.Select(row => row.Name));
+        Assert.Equal(["Medium", "Critical", "Low"], await SavedActiveNamesAsync(store));
+    }
+
+    [Fact]
+    public async Task An_archived_name_stays_reserved_and_adding_it_again_shows_a_message()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var dialogs = new FakeDialogService();
+        var page = await LoadItemTypesAsync(store, dialogs);
+        page.NewName = "Review";
+        await page.AddCommand.ExecuteAsync(null);
+        await page.ArchiveCommand.ExecuteAsync(page.Active.Single(row => row.Name == "Review"));
+
+        page.NewName = "review";
+        await page.AddCommand.ExecuteAsync(null);
+
+        Assert.Equal("The name 'review' is used by an archived item type. Restore it instead.", Assert.Single(dialogs.Messages));
+        Assert.DoesNotContain(page.Active, row => row.Name == "review");
+        Assert.Equal("review", page.NewName);
+    }
+
+    private static async Task<List<string>> SavedActiveNamesAsync(PresentationTestStore store)
+    {
+        var levels = await store.Lookups.PriorityLevelsAsync();
+
+        return levels.Where(level => !level.IsArchived).OrderBy(level => level.SortOrder).Select(level => level.Name).ToList();
+    }
+
     private static async Task<LookupListViewModel> LoadItemTypesAsync(PresentationTestStore store, FakeDialogService dialogs)
     {
         var page = new LookupListViewModel(store.Lookups, dialogs, LookupListKind.ItemTypes);
@@ -156,9 +216,10 @@ public sealed class LookupListViewModelTests
         return page;
     }
 
-    private static async Task<LookupListViewModel> LoadPriorityLevelsAsync(PresentationTestStore store)
+    private static async Task<LookupListViewModel> LoadPriorityLevelsAsync(PresentationTestStore store,
+        FakeDialogService? dialogs = null)
     {
-        var page = new LookupListViewModel(store.Lookups, new FakeDialogService(), LookupListKind.PriorityLevels);
+        var page = new LookupListViewModel(store.Lookups, dialogs ?? new FakeDialogService(), LookupListKind.PriorityLevels);
         await page.LoadAsync();
 
         return page;

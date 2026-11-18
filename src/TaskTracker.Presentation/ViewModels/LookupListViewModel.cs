@@ -84,8 +84,13 @@ public sealed class LookupListViewModel : ViewModelBase
 
     public IAsyncRelayCommand<LookupRowViewModel> RenameCommand { get; }
 
+    /// <summary>
+    /// Swaps the row with the active row above it and saves the order at once. Archived entries keep
+    /// their places in the saved order, wherever they sit.
+    /// </summary>
     public IAsyncRelayCommand<LookupRowViewModel> MoveUpCommand { get; }
 
+    /// <summary>Swaps the row with the active row below it; see <see cref="MoveUpCommand"/>.</summary>
     public IAsyncRelayCommand<LookupRowViewModel> MoveDownCommand { get; }
 
     public IAsyncRelayCommand<LookupRowViewModel> ArchiveCommand { get; }

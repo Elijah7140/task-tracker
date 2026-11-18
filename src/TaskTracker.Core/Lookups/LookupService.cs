@@ -164,15 +164,40 @@ public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, 
         }
     }
 
+    /// <summary>
+    /// Rejects a name already used by another entry of the list, ignoring case. Archived entries keep
+    /// their names reserved, so restoring one never collides (§5).
+    /// </summary>
     private static void EnsureUniqueName(IEnumerable<LookupEntity> rows, LookupEntity candidate, string kind)
     {
-        var duplicate = candidate.Name.Length > 0 && rows.Any(row => row.Id != candidate.Id &&
+        if (candidate.Name.Length == 0)
+        {
+            return;
+        }
+
+        var duplicate = rows.FirstOrDefault(row => row.Id != candidate.Id &&
             LookupEntity.NameComparer.Equals(row.Name, candidate.Name));
 
-        if (duplicate)
+        if (duplicate is { IsArchived: true })
+        {
+            var isRenaming = rows.Any(row => row.Id == candidate.Id);
+            throw new DomainRuleException(ArchivedNameMessage(candidate.Name, kind, isRenaming));
+        }
+
+        if (duplicate is not null)
         {
             throw new DomainRuleException($"The name '{candidate.Name}' is already used by another {kind}.");
         }
+    }
+
+    /// <summary>A new entry can be replaced by restoring the archived one; a renamed entry cannot.</summary>
+    private static string ArchivedNameMessage(string name, string kind, bool isRenaming)
+    {
+        var usedBy = $"The name '{name}' is used by an archived {kind}.";
+
+        return isRenaming
+            ? $"{usedBy} Restore or rename that one first."
+            : $"{usedBy} Restore it instead.";
     }
 
     private static void Reorder<T>(IReadOnlyList<T> rows, IReadOnlyList<Guid> ids) where T : LookupEntity

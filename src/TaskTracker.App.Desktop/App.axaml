@@ -1,5 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
              x:Class="TaskTracker.App.Desktop.App"
              RequestedThemeVariant="Default">
     <!-- "Default" follows the OS light/dark setting. -->
@@ -58,6 +59,10 @@
         </Style>
         <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+        </Style>
+        <!-- An empty time picker shows dashes for AM/PM instead of the current period, which looked like a value. -->
+        <Style Selector="TimePicker">
+            <Setter Property="views:TimePickerPlaceholder.ShowsNeutralPeriod" Value="True" />
         </Style>
         <!-- Fluent's picker button draws today's day number on its icon, which changes every day; a static icon keeps the UI and its snapshots stable. -->
         <Style Selector="CalendarDatePicker /template/ Button#PART_Button">

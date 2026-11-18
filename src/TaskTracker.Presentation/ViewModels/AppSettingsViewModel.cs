@@ -175,6 +175,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     public ReminderSettingsViewModel Reminders { get; } = new();
 
+    /// <summary>Runs <see cref="SaveAsync"/>; bound to the Save defaults button.</summary>
     public ICommand SaveCommand { get; }
 
     public ICommand BackCommand { get; }
@@ -205,6 +206,10 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         }
     }
 
+    /// <summary>
+    /// Saves the global defaults in one operation. Turning auto-complete on first asks to reconcile
+    /// disagreeing parents; a cancelled prompt or a refused save stores nothing and keeps the edits.
+    /// </summary>
     public async Task SaveAsync()
     {
         Validate();
