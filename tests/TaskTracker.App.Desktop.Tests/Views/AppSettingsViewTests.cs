@@ -48,6 +48,25 @@ public sealed class AppSettingsViewTests
     }
 
     [AvaloniaFact]
+    public async Task Choosing_cards_per_row_and_saving_stores_the_new_count()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var view = await OpenAppSettingsAsync(window, services);
+
+        HeadlessInput.ChooseItem(window, HeadlessInput.Find<ComboBox>(view, "GlobalCardColumnsBox"), "6");
+        Dispatcher.UIThread.RunJobs();
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "AppSettingsSaveButton"));
+
+        var page = Assert.IsType<AppSettingsViewModel>(view.DataContext);
+        await HeadlessInput.WaitUntilAsync(() => !page.IsDirty);
+
+        var settings = services.GetRequiredService<SettingsService>();
+        Assert.Equal(6, await settings.GetGlobalAsync(SettingsCatalogue.WorkspaceCardColumns));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Save_defaults_persists_the_changed_setting()
     {
         var window = new MainWindow();

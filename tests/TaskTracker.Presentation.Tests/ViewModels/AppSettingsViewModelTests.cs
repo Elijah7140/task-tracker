@@ -23,6 +23,25 @@ public sealed class AppSettingsViewModelTests
     }
 
     [Fact]
+    public async Task Cards_per_row_starts_at_four_and_saves_with_the_defaults()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var page = new AppSettingsViewModel(store.Settings, new FakeDialogService(), new FakeNavigationService());
+        await page.LoadAsync();
+        var initial = page.CardColumns;
+
+        page.CardColumns = 3;
+        var dirtyBeforeSave = page.IsDirty;
+        await page.SaveAsync();
+
+        Assert.Equal(4, initial);
+        Assert.True(dirtyBeforeSave);
+        Assert.False(page.IsDirty);
+        Assert.Equal(3, await store.Settings.GetGlobalAsync(SettingsCatalogue.WorkspaceCardColumns));
+    }
+
+    [Fact]
     public async Task Red_greater_than_yellow_disables_save()
     {
         await using var store = new PresentationTestStore();

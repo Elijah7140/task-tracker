@@ -296,7 +296,7 @@ public sealed class MainWindowTests
         Assert.Contains(controls.OfType<TextBlock>(), text => text.Text == "Overdue");
         Assert.Contains(controls.OfType<TextBlock>(), text => text.Text == "↳ sub");
         Assert.Contains(controls.OfType<Border>(), border => border.Classes.Contains("selected"));
-        Assert.Contains(controls.OfType<ToggleButton>(), toggle => Equals(toggle.Content, "▾"));
+        Assert.Contains(controls.OfType<Border>(), border => border.Classes.Contains("itemCard"));
         Assert.True(save.Bounds.Bottom <= window.Bounds.Bottom);
         Assert.True(revert.Bounds.Bottom <= window.Bounds.Bottom);
         Assert.Equal(3, controls.OfType<CalendarDatePicker>().Count());

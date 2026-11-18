@@ -80,20 +80,9 @@
         </ContextMenu>
       </Border.ContextMenu>
       <Grid>
-      <!-- Detail columns share their width across all rows (scope set in ProjectWorkspaceView),
-           so they align without reserving space for values no row has. -->
-      <Grid ColumnSpacing="5" IsVisible="{Binding !IsFinished}">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="22" />
-          <ColumnDefinition Width="26" />
-          <ColumnDefinition Width="18" />
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" SharedSizeGroup="Ticket" />
-          <ColumnDefinition Width="Auto" SharedSizeGroup="Priority" />
-          <ColumnDefinition Width="Auto" SharedSizeGroup="Deadline" />
-          <ColumnDefinition Width="Auto" SharedSizeGroup="Urgency" />
-          <ColumnDefinition Width="Auto" SharedSizeGroup="Source" />
-        </Grid.ColumnDefinitions>
+      <!-- Sub-item rows sit inside a card (§7.17), so the details go on a small second line under
+           the title instead of fixed columns that would squeeze the title out at card width. -->
+      <Grid ColumnSpacing="5" ColumnDefinitions="22,26,18,*" IsVisible="{Binding !IsFinished}">
         <ToggleButton Grid.Column="0" Content="{Binding ExpanderGlyph}"
                       AutomationProperties.AutomationId="ItemExpandButton"
                       IsVisible="{Binding HasOpenChildren}"
@@ -110,33 +99,28 @@
             <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
                        AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />
           </Border>
-          <Panel>
-            <Button Classes.repeating="{Binding Repeats}" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
-                    AutomationProperties.Name="{Binding Title}"
-                    BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Stretch">
-              <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
-                         HorizontalAlignment="Stretch"
-                         ToolTip.Tip="{Binding Title}"
-                         TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}"
-                         FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}"
-                         />
-            </Button>
-            <TextBlock Text="↻" IsVisible="{Binding Repeats}" ToolTip.Tip="{Binding RepeatSummary}"
-                       Margin="0,0,3,0" HorizontalAlignment="Right" VerticalAlignment="Center"
-                       AutomationProperties.AutomationId="ItemRepeatMarker" />
-          </Panel>
+          <StackPanel VerticalAlignment="Center">
+            <Panel>
+              <Button Classes.repeating="{Binding Repeats}" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
+                      AutomationProperties.Name="{Binding Title}"
+                      BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch">
+                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Stretch"
+                           ToolTip.Tip="{Binding Title}"
+                           TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}"
+                           FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}"
+                           />
+              </Button>
+              <TextBlock Text="↻" IsVisible="{Binding Repeats}" ToolTip.Tip="{Binding RepeatSummary}"
+                         Margin="0,0,3,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                         AutomationProperties.AutomationId="ItemRepeatMarker" />
+            </Panel>
+            <TextBlock Text="{Binding RowDetails}" IsVisible="{Binding HasRowDetails}" FontSize="11" Opacity="0.75"
+                       Margin="2,0,2,2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding RowDetailsTip}"
+                       AutomationProperties.AutomationId="ItemRowDetails" />
+          </StackPanel>
         </DockPanel>
-        <TextBlock Grid.Column="4" Text="{Binding TicketNumber}" TextTrimming="CharacterEllipsis"
-                   ToolTip.Tip="{Binding TicketNumber}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="5" Text="{Binding PriorityName}" TextTrimming="CharacterEllipsis"
-                   ToolTip.Tip="{Binding PriorityName}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="6" Text="{Binding Deadline}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="7" Text="{Binding UrgencyLabel}" VerticalAlignment="Center"
-                   FontWeight="SemiBold" FontSize="11" />
-        <TextBlock Grid.Column="8" Text="↳ sub" FontSize="11"
-                   IsVisible="{Binding HasSource}" ToolTip.Tip="{Binding SourceTitle}"
-                   VerticalAlignment="Center" />
       </Grid>
       <Grid ColumnDefinitions="22,26,18,*" ColumnSpacing="3" IsVisible="{Binding IsFinished}">
         <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}" AutomationProperties.AutomationId="ItemCompleteCheckBox"

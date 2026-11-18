@@ -337,6 +337,7 @@ otherwise the global value.
 | `AutoCompleteParents` | bool | on | yes |
 | `UrgencyYellowThreshold` | duration | 3 days | yes |
 | `UrgencyRedThreshold` | duration | 24 hours | yes |
+| `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
 
 Design:
 
@@ -1566,6 +1567,52 @@ request was silent, the decisions below were made autonomously; they are listed 
   - Light and dark snapshots.
   - A smoke scenario.
 
+### 7.17 Workspace card grid
+
+This is the owner's request from 2026-11-18: the workspace's main area becomes a grid of cards
+grouped by priority. The owner chose what a card holds, which cards share a height, where
+"No priority" goes, and that dragging between sections changes priority. The other decisions
+below were made while building it and are listed for review.
+
+- **Cards.** Each open top-level item in the area is one card. The card header has the
+  completion checkbox, the title (up to three lines), the status chip, and a line with the
+  type icon, ticket number, due or scheduled date, urgency label, the "from sub-item" marker and
+  the repeat marker. Urgency tints the header (§6.3). Below the header are a short
+  description preview (up to four lines) and the item's sub-items as the usual rows (expand,
+  complete, drag, menus), with their own collapsed "n completed" expander. Sub-items never get
+  cards of their own.
+- **Sections.** "No priority" comes first, then one section per priority level in level sort
+  order (never by number, §7.15). Archived levels get a section while items still use them. A
+  section shows its name and item count. Empty sections are hidden; use **Set priority ▸** to
+  move an item to an unused level.
+- **Columns.** A global setting, **Cards per row** (1–8, default 4), in App Settings (§6.5).
+  When the pane is too narrow for that many cards at least 220 px wide, the grid uses fewer
+  columns.
+- **Height.** Every card in a grid row is as tall as the row's tallest card. A row is never
+  shorter than half the item pane's height (less room for a section header), so about two
+  rows show at once. Taller content makes its row taller; the pane scrolls.
+- **Completed.** The area's "Completed (n)" expander (§6.2) stays below the sections. It shows
+  finished top-level items as cards in the same grid, sized only by their content.
+- **Dragging.**
+  - Cards are split into thirds from left to right. The left third inserts before the card,
+    the right third inserts after it, and the middle third makes the dragged item a sub-item
+    (§7.5). Sub-item rows inside a card keep their top, middle and bottom thirds.
+  - Dropping before or after a card puts the item in that card's section and sets its Priority
+    to that section's level, or clears it in "No priority". A dragged sub-item is promoted to
+    the top level. Dropping on a section header appends the item to that section.
+  - The order inside a section is the area's normal sibling order (`SortOrder`, §6.4). The
+    position and the priority are saved together as one undo step, labelled "Set priority of
+    ⟨title⟩" when the priority changes and "Move ⟨title⟩" otherwise (§7.8). Changing priority
+    clears the item's ticket rank, as everywhere else (§7.16).
+- **Keyboard.** Alt+↑ and Alt+↓ move the selected card one place in reading order. Inside a
+  section the card swaps with its neighbour. At a section edge it enters the neighbouring
+  section: at the end of the section above, or at the start of the section below, taking that
+  section's priority. On a sub-item or a completed card, Alt+↑/↓ still reorders siblings.
+- **Tests.** Core: the move operation on real SQLite, including undo, sub-item promotion and
+  an archived level. ViewModel: the section order (with a 1, 7, 2 numbering), the drop and step
+  mapping, header drops and the setting. Headless: the grid layout, card and header drags, and
+  Alt+↓ across a section. Light and dark snapshots of the grid.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -1576,14 +1623,17 @@ request was silent, the decisions below were made autonomously; they are listed 
    - **Left:** folder tree (project root at top). Right-click: new folder, rename, move, delete.
    - **Center:** the selected area's items.
      - Quick-add box at top (type a title, Enter).
-     - Open items as an expandable tree, each row showing checkbox, type icon, title, a status
-       chip when the item has a status, ticket, priority, due/scheduled date, with (rolled-up)
-       urgency background. Every item row menu here and on Search, Calendar, Today and Tickets has
-       **Set status ▸** and **Set priority ▸** (§7.15).
-     - **Completed (n)** expander at the bottom, collapsed by default (§6.2).
+     - Open top-level items as a grid of cards, grouped into priority sections, "No priority"
+       first (§7.17). A card shows the checkbox, title, status chip, type icon, ticket,
+       due/scheduled date and (rolled-up) urgency, a description preview, and its sub-items as an
+       expandable tree of rows. Cards per row is a setting (default 4); each grid row is as tall
+       as its tallest card. Every item row and card menu here and on Search, Calendar, Today and
+       Tickets has **Set status ▸** and **Set priority ▸** (§7.15).
+     - **Completed (n)** expander at the bottom, collapsed by default, with finished items as
+       cards (§6.2).
    - **Right:** detail editor for the selected item (all fields, including Status below Priority, the Markdown description with Edit and Preview, links, sub-item list; §7.10, §7.15).
    - Breadcrumb at top: `Home › Billing DB › dbo › Tables`.
-3. **App Settings** — global auto-complete and urgency thresholds; manage item types, priority
+3. **App Settings** — global auto-complete, urgency thresholds and cards per row; manage item types, priority
    levels and statuses (add, rename, move up and down, archive). Priority rows have a Number box;
    the status add row picks Open or Done (§7.15).
 4. **Project Settings** — per-project overrides (§6.5).
@@ -1597,7 +1647,8 @@ request was silent, the decisions below were made autonomously; they are listed 
 
 Ctrl+Z undo, Ctrl+Y or Ctrl+Shift+Z redo (§7.8; not while a text box has focus, where text
 editing keeps its own undo). Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
-Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outdent,
+Delete delete (with confirm), Alt+↑/↓ reorder (an open card moves in reading order and can cross
+into the next priority section, §7.17), Alt+→ indent, Alt+← outdent,
 Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
 Ctrl+Shift+T trash (§7.6), Ctrl+Shift+D Today and Ctrl+Shift+P push back one day (§7.14),
@@ -1756,6 +1807,9 @@ When one of these is picked up, its agreed design replaces the sections it confl
   Each feature added from here on ships with undo unless that is infeasible. Operations
   left out, such as import (§7.9) and permanent purge, are listed in §7.8 with the
   reason.
+- **Workspace card grid** (owner, 2026-11-18; decisions in §7.17). The primary area becomes a
+  grid of cards grouped by priority: four across on a 1440p monitor by default, configurable in
+  settings, and about two rows visible. A grid row is as tall as its tallest card.
 - **Task stack.** Requested by the owner; scope and behaviour still to be agreed. Discuss
   with the owner before designing or building it.
 - Mobile or browser head (Avalonia supports both) reusing the Presentation project.

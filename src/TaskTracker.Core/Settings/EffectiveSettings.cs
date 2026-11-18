@@ -14,4 +14,7 @@ public sealed record EffectiveSettings(
 
     public EffectiveValue<TimeOnly> DateOnlyReminderTime { get; init; } =
         new(SettingsCatalogue.DateOnlyReminderTime.DefaultValue, SettingSource.Global);
+
+    public EffectiveValue<int> WorkspaceCardColumns { get; init; } =
+        new(SettingsCatalogue.WorkspaceCardColumns.DefaultValue, SettingSource.Global);
 }
