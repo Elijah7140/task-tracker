@@ -12,6 +12,7 @@ using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Undo;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests.Views;
@@ -291,7 +292,7 @@ public sealed class FieldManagerViewTests
         await SeedFieldWithValueAsync(services);
         var view = await OpenAppSettingsAsync(window, services);
 
-        HeadlessInput.ChooseEntry(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), downPresses: 1);
+        ChooseNextType(window, view);
 
         var dialog = Assert.Single(window.OwnedWindows);
         var texts = dialog.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text).ToList();
@@ -306,7 +307,7 @@ public sealed class FieldManagerViewTests
         using var services = await TestServices.CreateAsync(window);
         await SeedFieldWithValueAsync(services);
         var view = await OpenAppSettingsAsync(window, services);
-        HeadlessInput.ChooseEntry(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), downPresses: 1);
+        ChooseNextType(window, view);
 
         HeadlessInput.Press(Assert.Single(window.OwnedWindows), Key.Enter);
 
@@ -324,10 +325,96 @@ public sealed class FieldManagerViewTests
         await fields.CreateAsync("Effort", FieldDataType.Text, null);
         var view = await OpenAppSettingsAsync(window, services);
 
-        HeadlessInput.ChooseEntry(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), downPresses: 1);
+        ChooseNextType(window, view);
 
         var saved = Assert.Single(await fields.ListAllAsync(null));
         Assert.Equal(FieldDataType.Number, saved.DataType);
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Pressing_down_twice_on_a_closed_type_box_applies_only_the_final_type(bool inProjectSettings)
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings);
+        HeadlessInput.Click(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"));
+        HeadlessInput.Press(window, Key.Escape);
+
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, Key.Down);
+        var savedWhileBrowsing = await SavedTypeAsync(services, field);
+        HeadlessInput.Press(window, Key.Enter);
+
+        Assert.Equal(FieldDataType.Text, savedWhileBrowsing);
+        Assert.Equal(FieldDataType.Date, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Text, await TypeAfterOneUndoAsync(services, field));
+        Assert.Empty(window.OwnedWindows);
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Pressing_down_twice_in_an_open_type_box_applies_only_the_final_type(bool inProjectSettings)
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings);
+        HeadlessInput.Click(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"));
+
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, Key.Down);
+        var savedWhileBrowsing = await SavedTypeAsync(services, field);
+        HeadlessInput.Press(window, Key.Enter);
+
+        Assert.Equal(FieldDataType.Text, savedWhileBrowsing);
+        Assert.Equal(FieldDataType.Date, await SavedTypeAsync(services, field));
+        Assert.Equal(FieldDataType.Text, await TypeAfterOneUndoAsync(services, field));
+        Assert.Empty(window.OwnedWindows);
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(Key.Tab, FieldDataType.Date)]
+    [InlineData(Key.Escape, FieldDataType.Text)]
+    public async Task Tab_commits_a_browsed_type_and_escape_puts_the_saved_type_back(Key settleKey, FieldDataType expected)
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var (view, field) = await OpenSettingsWithTextFieldAsync(window, services, inProjectSettings: false);
+        var typeBox = HeadlessInput.Find<ComboBox>(view, "FieldTypeBox");
+        HeadlessInput.Click(window, typeBox);
+        HeadlessInput.Press(window, Key.Escape);
+
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, settleKey);
+
+        Assert.Equal(expected, await SavedTypeAsync(services, field));
+        Assert.Equal(expected, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox").SelectedItem);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Browsing_the_type_box_of_a_field_with_values_shows_one_message_only_when_committed()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        await SeedFieldWithValueAsync(services);
+        var view = await OpenAppSettingsAsync(window, services);
+        HeadlessInput.Click(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"));
+        HeadlessInput.Press(window, Key.Escape);
+
+        HeadlessInput.Press(window, Key.Down);
+        HeadlessInput.Press(window, Key.Down);
+        var messagesWhileBrowsing = window.OwnedWindows.Count;
+        HeadlessInput.Press(window, Key.Enter);
+
+        Assert.Equal(0, messagesWhileBrowsing);
+        Assert.Single(window.OwnedWindows);
         window.Close();
     }
 
@@ -388,6 +475,39 @@ public sealed class FieldManagerViewTests
         await items.EditAsync(item.Id, edit, [new FieldValueInput(field.Id, TextValue: "big")]);
     }
 
+    /// <summary>Creates a text field (global, or in a new project) and opens the settings page that manages it.</summary>
+    private static async Task<(FieldManagerView View, FieldDefinition Field)> OpenSettingsWithTextFieldAsync(
+        MainWindow window, IServiceProvider services, bool inProjectSettings)
+    {
+        var fields = services.GetRequiredService<FieldService>();
+
+        if (!inProjectSettings)
+        {
+            var globalField = await fields.CreateAsync("Effort", FieldDataType.Text, null);
+            return (await OpenAppSettingsAsync(window, services), globalField);
+        }
+
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        var projectField = await fields.CreateAsync("Effort", FieldDataType.Text, project.Id);
+
+        return (await OpenProjectSettingsAsync(window, services, project.Id), projectField);
+    }
+
+    private static async Task<FieldDataType> SavedTypeAsync(IServiceProvider services, FieldDefinition field)
+    {
+        var saved = await services.GetRequiredService<FieldService>().ListAllAsync(field.ProjectId);
+
+        return saved.Single(candidate => candidate.Id == field.Id).DataType;
+    }
+
+    /// <summary>Undoes the last recorded step; one undo returns to Text only when a single type change was saved.</summary>
+    private static async Task<FieldDataType> TypeAfterOneUndoAsync(IServiceProvider services, FieldDefinition field)
+    {
+        await services.GetRequiredService<UndoHistory>().UndoAsync();
+
+        return await SavedTypeAsync(services, field);
+    }
+
     private static async Task<FieldManagerView> OpenAppSettingsAsync(MainWindow window, IServiceProvider services)
     {
         var shell = services.GetRequiredService<MainWindowViewModel>();
@@ -430,6 +550,13 @@ public sealed class FieldManagerViewTests
         var typeBox = HeadlessInput.Find<ComboBox>(view, "FieldNewTypeBox");
         HeadlessInput.ChooseEntry(window, typeBox, downPresses: 1);
         AddField(window, view, name, pressEnter: false);
+    }
+
+    /// <summary>Browses the field's type list one entry down with the keyboard and commits it with Enter.</summary>
+    private static void ChooseNextType(Window window, FieldManagerView view)
+    {
+        HeadlessInput.ChooseEntry(window, HeadlessInput.Find<ComboBox>(view, "FieldTypeBox"), downPresses: 1);
+        HeadlessInput.Press(window, Key.Enter);
     }
 
     private static void OpenChoicesPanel(Window window, FieldManagerView view)

@@ -634,8 +634,8 @@ public sealed class ScreenSnapshotTests
         var lookups = services.GetRequiredService<LookupService>();
         var change = (await lookups.ItemTypesAsync()).Single(type => type.Name == "Change");
         var high = (await lookups.PriorityLevelsAsync()).Single(level => level.Name == "High");
-        // The selected item fills every date and time field, built-in and custom: empty pickers
-        // show today's date and AM/PM, which would make the image depend on when the test runs.
+        // The selected item fills every date and time field, built-in and custom, so this image shows
+        // filled pickers; the editor snapshots of other items cover the empty "hour minute --" state.
         var customFields = await CreateCustomFieldsAsync(services);
         await items.EditAsync(parent.Id, new ItemEdit(parent.Title, null, null, null, null,
             new DateOnly(2026, 11, 20), new TimeOnly(9, 30),

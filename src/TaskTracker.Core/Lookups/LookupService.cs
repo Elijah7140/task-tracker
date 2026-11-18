@@ -164,12 +164,26 @@ public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, 
         }
     }
 
+    /// <summary>
+    /// Rejects a name already used by another entry of the list, ignoring case. Archived entries keep
+    /// their names reserved, so restoring one never collides (§5).
+    /// </summary>
     private static void EnsureUniqueName(IEnumerable<LookupEntity> rows, LookupEntity candidate, string kind)
     {
-        var duplicate = candidate.Name.Length > 0 && rows.Any(row => row.Id != candidate.Id &&
+        if (candidate.Name.Length == 0)
+        {
+            return;
+        }
+
+        var duplicate = rows.FirstOrDefault(row => row.Id != candidate.Id &&
             LookupEntity.NameComparer.Equals(row.Name, candidate.Name));
 
-        if (duplicate)
+        if (duplicate is { IsArchived: true })
+        {
+            throw new DomainRuleException($"The name '{candidate.Name}' is used by an archived {kind}. Restore it instead.");
+        }
+
+        if (duplicate is not null)
         {
             throw new DomainRuleException($"The name '{candidate.Name}' is already used by another {kind}.");
         }

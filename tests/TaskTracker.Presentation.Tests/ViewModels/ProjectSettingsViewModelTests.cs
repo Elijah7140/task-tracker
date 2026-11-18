@@ -127,6 +127,30 @@ public sealed class ProjectSettingsViewModelTests
     }
 
     [Fact]
+    public async Task Reset_clears_only_its_own_row_and_saves_no_other_draft()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Billing");
+        await store.Settings.SetProjectOverrideAsync(project.Id, SettingsCatalogue.UrgencyYellowThreshold, TimeSpan.FromDays(5));
+        await store.Settings.SetProjectOverrideAsync(project.Id, SettingsCatalogue.UrgencyRedThreshold, TimeSpan.FromHours(30));
+        var page = await LoadPageAsync(store, project, new FakeDialogService(), new FakeNavigationService());
+        page.RedHours = 40;
+        page.OverrideAutoComplete = true;
+
+        page.ResetYellowCommand.Execute(null);
+
+        var effective = await store.Settings.GetEffectiveAsync(project.Id);
+        Assert.False(page.OverrideYellow);
+        Assert.True(page.OverrideRed);
+        Assert.Equal(40, page.RedHours);
+        Assert.True(page.OverrideAutoComplete);
+        Assert.Equal(TimeSpan.FromDays(5), effective.UrgencyYellowThreshold.Value);
+        Assert.Equal(TimeSpan.FromHours(30), effective.UrgencyRedThreshold.Value);
+        Assert.Equal(SettingSource.Global, effective.AutoCompleteParents.Source);
+    }
+
+    [Fact]
     public async Task Reset_is_available_only_on_overridden_rows()
     {
         await using var store = new PresentationTestStore();
@@ -212,6 +236,31 @@ public sealed class ProjectSettingsViewModelTests
         var effective = await store.Settings.GetEffectiveAsync(project.Id);
         Assert.False(effective.AutoCompleteParents.Value);
         Assert.Equal(SettingSource.Global, effective.UrgencyYellowThreshold.Source);
+        Assert.NotNull(parent.Item.CompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task Confirmed_enable_that_then_fails_threshold_validation_saves_nothing()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var (project, parentId) = await CreateDisagreeingProjectAsync(store);
+        var dialogs = new FakeDialogService { ConfirmResult = true };
+        var page = await LoadPageAsync(store, project, dialogs, new FakeNavigationService());
+        await store.Settings.SetGlobalAsync(SettingsCatalogue.UrgencyYellowThreshold, TimeSpan.FromDays(1));
+
+        page.AutoCompleteParents = true;
+        page.OverrideRed = true;
+        page.RedHours = 48;
+        await page.SaveAsync();
+
+        var parent = Assert.Single((await store.Items.LoadAreaAsync(project.Id, null)).Items, row => row.Item.Id == parentId);
+        var effective = await store.Settings.GetEffectiveAsync(project.Id);
+        Assert.Equal("Turn on auto-complete", Assert.Single(dialogs.ConfirmTitles));
+        Assert.NotNull(page.Error);
+        Assert.True(page.IsDirty);
+        Assert.False(effective.AutoCompleteParents.Value);
+        Assert.Equal(SettingSource.Global, effective.UrgencyRedThreshold.Source);
         Assert.NotNull(parent.Item.CompletedAtUtc);
     }
 

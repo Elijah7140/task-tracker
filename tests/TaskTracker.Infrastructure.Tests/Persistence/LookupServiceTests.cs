@@ -81,6 +81,31 @@ public sealed class LookupServiceTests
     }
 
     [Fact]
+    public async Task Archived_names_stay_reserved_and_reusing_one_is_a_validation_error_not_a_database_error()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var writer = store.Open();
+        var service = store.Lookups(writer);
+        var type = await service.AddItemTypeAsync("Review");
+        var level = await service.AddPriorityLevelAsync("Later");
+        await service.AddStatusAsync("Blocked", StatusKind.Open);
+        var status = (await service.StatusesAsync()).Single(row => row.Name == "Blocked");
+        await service.ArchiveItemTypeAsync(type.Id);
+        await service.ArchivePriorityLevelAsync(level.Id);
+        await service.SetStatusArchivedAsync(status.Id, archived: true);
+
+        var addedType = await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => service.AddItemTypeAsync("review"));
+        var addedLevel = await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() => service.AddPriorityLevelAsync("LATER"));
+        var renamedStatus = await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
+            service.RenameStatusAsync(BuiltInLookups.CompletedId, "blocked"));
+
+        Assert.Equal("The name 'review' is used by an archived item type. Restore it instead.", addedType.Message);
+        Assert.Equal("The name 'LATER' is used by an archived priority level. Restore it instead.", addedLevel.Message);
+        Assert.Equal("The name 'blocked' is used by an archived status. Restore it instead.", renamedStatus.Message);
+    }
+
+    [Fact]
     public async Task Renaming_a_lookup_to_its_own_name_is_allowed()
     {
         await using var store = new SqliteTestStore();

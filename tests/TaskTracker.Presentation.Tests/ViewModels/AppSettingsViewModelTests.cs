@@ -200,6 +200,34 @@ public sealed class AppSettingsViewModelTests
     }
 
     [Fact]
+    public async Task Confirmed_enable_that_then_fails_threshold_validation_saves_nothing()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        await store.Settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, false);
+        var project = await store.Projects.CreateAsync("Billing");
+        await store.Settings.SetProjectOverrideAsync(project.Id, SettingsCatalogue.UrgencyYellowThreshold, TimeSpan.FromDays(2));
+        var parentId = await CreateCompletedParentWithOpenChildAsync(store, project.Id);
+        var dialogs = new FakeDialogService { ConfirmResult = true };
+        var page = new AppSettingsViewModel(store.Settings, dialogs, new FakeNavigationService());
+        await page.LoadAsync();
+
+        page.AutoCompleteParents = true;
+        page.YellowAmount = 4;
+        page.RedAmount = 72;
+        await page.SaveAsync();
+
+        var savedParent = Assert.Single((await store.Items.LoadAreaAsync(project.Id, null)).Items, row => row.Item.Id == parentId);
+        Assert.Equal("Turn on auto-complete", Assert.Single(dialogs.ConfirmTitles));
+        Assert.NotNull(page.Error);
+        Assert.True(page.HasUnsavedChanges);
+        Assert.False(await store.Settings.GetGlobalAsync(SettingsCatalogue.AutoCompleteParents));
+        Assert.Equal(TimeSpan.FromDays(3), await store.Settings.GetGlobalAsync(SettingsCatalogue.UrgencyYellowThreshold));
+        Assert.Equal(TimeSpan.FromHours(24), await store.Settings.GetGlobalAsync(SettingsCatalogue.UrgencyRedThreshold));
+        Assert.NotNull(savedParent.Item.CompletedAtUtc);
+    }
+
+    [Fact]
     public async Task Save_is_disabled_until_something_changes_and_after_saving()
     {
         await using var store = new PresentationTestStore();
@@ -395,6 +423,16 @@ public sealed class AppSettingsViewModelTests
         await page.LoadAsync();
 
         Assert.Null(page.CustomFields);
+    }
+
+    /// <summary>Creates a completed parent with an open child, which turning auto-complete on would reopen.</summary>
+    private static async Task<Guid> CreateCompletedParentWithOpenChildAsync(PresentationTestStore store, Guid projectId)
+    {
+        var parent = await store.Items.CreateAsync(projectId, null, null, "Parent");
+        await store.Items.CreateAsync(projectId, null, parent.Id, "Open child");
+        await store.Items.SetCompletedAsync(projectId, null, parent.Id, true);
+
+        return parent.Id;
     }
 
     private static AppSettingsViewModel CreatePage(PresentationTestStore store, FakeStartupRegistration startup)
