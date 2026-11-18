@@ -28,3 +28,34 @@ jobs:
           name: received-snapshots-${{ matrix.os }}
           path: tests/**/Snapshots/*.received.png
           if-no-files-found: ignore
+
+  # Publishes self-contained and runs vpk pack to catch packaging breakage (§7.13). Pull requests
+  # publish no release; the installer is kept as a workflow artifact for manual testing.
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Pack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/pack.ps1 -Runtime ${{ matrix.runtime }}
+      - name: Pack (Linux)
+        if: runner.os != 'Windows'
+        run: bash scripts/pack.sh ${{ matrix.runtime }}
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.runtime }}
+          path: artifacts/releases/${{ matrix.runtime }}
+          if-no-files-found: error

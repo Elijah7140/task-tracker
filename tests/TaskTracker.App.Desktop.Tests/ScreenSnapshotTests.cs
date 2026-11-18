@@ -61,6 +61,9 @@ public sealed class ScreenSnapshotTests
     /// <summary>Tall enough to show a whole settings page or the whole item editor without scrolling.</summary>
     private const int TallWindowHeight = 1500;
 
+    /// <summary>App Settings also has the About card, so the expanded choice editor needs more room.</summary>
+    private const int AppSettingsWindowHeight = 1700;
+
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
@@ -523,10 +526,11 @@ public sealed class ScreenSnapshotTests
     [InlineData(true)]
     public async Task App_settings_match_approved_image(bool dark)
     {
-        using var services = await TestServices.CreateAsync();
+        var startup = new FakeStartupRegistration { IsAvailable = true };
+        using var services = await TestServices.CreateAsync(installation: TestServices.CreateInstallation(startup: startup));
         await SeedGlobalFieldsAsync(services);
         var shell = services.GetRequiredService<MainWindowViewModel>();
-        var window = OpenWindow(shell, dark, TallWindowHeight);
+        var window = OpenWindow(shell, dark, AppSettingsWindowHeight);
 
         await shell.OpenAppSettingsAsync();
         var page = Assert.IsType<AppSettingsViewModel>(shell.CurrentPage);

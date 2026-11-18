@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Dialogs;
+using TaskTracker.App.Desktop.Installation;
 using TaskTracker.App.Desktop.Reminders;
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core;
@@ -9,6 +10,7 @@ using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Transfer;
 using TaskTracker.Infrastructure;
 using TaskTracker.Infrastructure.Persistence;
+using TaskTracker.Presentation.Installation;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.Reminders;
 using TaskTracker.Presentation.ViewModels;
@@ -27,7 +29,8 @@ public static class CompositionRoot
         IFilePickerService? filePicker = null,
         IDatabaseBackup? backup = null,
         ILinkLauncher? linkLauncher = null,
-        IReminderNotifier? reminderNotifier = null)
+        IReminderNotifier? reminderNotifier = null,
+        InstallationServices? installation = null)
     {
         var services = new ServiceCollection();
 
@@ -64,6 +67,7 @@ public static class CompositionRoot
         services.AddSingleton(linkLauncher ?? new AvaloniaLinkLauncher());
         services.AddSingleton(provider => new TransferServices(
             provider.GetRequiredService<DataTransferService>(), provider.GetRequiredService<IFilePickerService>()));
+        services.AddSingleton(_ => installation ?? CreateInstallation());
 
         return services.BuildServiceProvider(new ServiceProviderOptions
         {
@@ -76,6 +80,16 @@ public static class CompositionRoot
     public static string ResolveDatabasePath(string? databasePath = null)
     {
         return databasePath ?? Environment.GetEnvironmentVariable("TASKTRACKER_DB_PATH") ?? DatabaseInitializer.DefaultPath;
+    }
+
+    /// <summary>The app version, the GitHub Releases update source and this OS's start-with-system entry.</summary>
+    private static InstallationServices CreateInstallation()
+    {
+        var version = AppVersion.FromAssembly(typeof(CompositionRoot).Assembly);
+        var updates = new VelopackUpdateService();
+        var startup = new StartupRegistration(StartupEntries.ForInstalledApp(updates.IsInstalled));
+
+        return new InstallationServices(version, updates, startup);
     }
 
     /// <summary>

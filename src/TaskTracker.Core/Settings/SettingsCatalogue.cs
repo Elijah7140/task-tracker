@@ -15,6 +15,10 @@ public static class SettingsCatalogue
     public static readonly SettingDefinition<bool> KeepRunningInTray =
         new("keepRunningInTray", false, false, new BoolCodec());
 
+    /// <summary>Whether an installed app starts when the user signs in (§7.13).</summary>
+    public static readonly SettingDefinition<bool> StartWithSystem =
+        new("startWithSystem", false, false, new BoolCodec());
+
     public static readonly SettingDefinition<bool> AutoCompleteParents =
         new("autoCompleteParents", true, true, new BoolCodec());
 

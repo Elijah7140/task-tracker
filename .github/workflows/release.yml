@@ -1,0 +1,82 @@
+name: Release
+
+# Pushing a tag such as v0.2.0 builds the Windows, Linux and macOS packages for version 0.2.0 and
+# publishes them as a GitHub Release. Update checks in the app read these release files (§7.13).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            channel: win
+          - os: ubuntu-latest
+            runtime: linux-x64
+            channel: linux
+          - os: macos-latest
+            runtime: osx-arm64
+            channel: osx
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Take the version from the tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Pack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/pack.ps1 -Runtime ${{ matrix.runtime }} -Version $env:VERSION
+      - name: Pack (Linux and macOS)
+        if: runner.os != 'Windows'
+        run: bash scripts/pack.sh ${{ matrix.runtime }} "$VERSION"
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.channel }}
+          path: artifacts/releases/${{ matrix.runtime }}
+          if-no-files-found: error
+
+  # One job uploads every channel in turn, so the three packages never race to create the release.
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet tool restore
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: artifacts/releases
+      - name: Publish the GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for channel in win linux osx; do
+            dotnet vpk upload github \
+              --outputDir "artifacts/releases/release-$channel" \
+              --channel "$channel" \
+              --repoUrl "${{ github.server_url }}/${{ github.repository }}" \
+              --token "$GITHUB_TOKEN" \
+              --tag "$GITHUB_REF_NAME" \
+              --releaseName "Task Tracker $version" \
+              --publish \
+              --merge
+          done

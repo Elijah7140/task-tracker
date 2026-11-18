@@ -39,12 +39,35 @@
             </Grid>
             <CheckBox Content="Keep running in tray when the window closes" IsChecked="{Binding KeepRunningInTray, Mode=TwoWay}"
                       AutomationProperties.AutomationId="KeepRunningInTray" />
+            <!-- Saved with the page's defaults, so it binds to the page rather than to Reminders. -->
+            <CheckBox Content="Start Task Tracker when I sign in"
+                      IsChecked="{Binding $parent[views:AppSettingsView].DataContext.StartWithSystem, Mode=TwoWay}"
+                      IsVisible="{Binding $parent[views:AppSettingsView].DataContext.IsStartWithSystemAvailable}"
+                      AutomationProperties.AutomationId="StartWithSystem" />
           </StackPanel>
           <TextBlock Text="{Binding Error}" TextWrapping="Wrap"
                      IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
                      Foreground="{DynamicResource AppDangerBrush}" />
           <Button Content="Save defaults" Classes="accent" Command="{Binding SaveCommand}"
                   IsEnabled="{Binding CanSave}" HorizontalAlignment="Left" AutomationProperties.AutomationId="AppSettingsSaveButton" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card" IsVisible="{Binding About, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="About" Classes="cardTitle" />
+          <TextBlock Text="{Binding About}" AutomationProperties.AutomationId="AboutVersion" />
+          <StackPanel DataContext="{Binding Updates}" Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Content="Check for updates" Command="{Binding CheckCommand}"
+                      AutomationProperties.AutomationId="CheckForUpdatesButton" />
+              <Button Content="Download and restart" Classes="accent" Command="{Binding DownloadAndRestartCommand}"
+                      IsVisible="{Binding IsUpdateAvailable}" AutomationProperties.AutomationId="DownloadAndRestartButton" />
+            </StackPanel>
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+                       IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}"
+                       AutomationProperties.AutomationId="UpdateStatus" />
+          </StackPanel>
         </StackPanel>
       </Border>
 

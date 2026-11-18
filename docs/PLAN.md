@@ -1192,6 +1192,47 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - App Settings snapshot updates.
   - The CI pack job proves the package builds.
   - Installing, updating and uninstalling are checked by hand on Windows; the README has a checklist.
+- **Implementation decisions** (made where the bullets above are silent):
+  - **Velopack 1.2.161** is used for both the package and `vpk`. It was the newest stable release at
+    least two weeks old on 2026-11-17. The GitHub update source (`GithubSource`) ships in the main
+    package.
+  - **The pack id is `TaskTrackerApp`, not `TaskTracker`.** Velopack installs to
+    `%LocalAppData%\<packId>` and deletes that whole folder on uninstall, so the id `TaskTracker`
+    would delete the database. A test guards both pack scripts.
+    - The main executable stays `TaskTracker.App.Desktop`, and shortcuts show the title "Task Tracker".
+    - The exe embeds `app.ico`. Linux and macOS packages use Velopack's default icon, because the
+      repository has no `.png` or `.icns` icon yet.
+  - **Packages.**
+    - `osx-x64` is not built: it would share the `osx` update channel with `osx-arm64`.
+    - Releases carry full packages only, with no deltas.
+    - Each OS packs on its own runner. One `publish` job then uploads the three channels in turn with
+      `vpk upload github --publish --merge`, so they never race to create the release.
+  - **StartWithSystem saving.** It saves with the other global defaults on **Save defaults**.
+    - After a successful save, the entry is written or removed. This happens on every save while the
+      option is available; the operation is idempotent.
+    - If the system refuses, the setting stays saved and the page shows a message.
+    - While the option is unavailable, the stored value is left unchanged.
+  - **The entries.**
+    - Windows: a `TaskTracker` value under the `HKCU` `Run` key, holding the quoted path of the running
+      exe. Velopack keeps that path stable across updates (`…\current\`).
+    - Linux: `Exec` is the AppImage path from Velopack's locator, quoted as the desktop entry
+      specification requires. The mounted copy's path changes on every run, so it can't be used.
+    - `XDG_CONFIG_HOME` is used only when it is an absolute path.
+  - **Hooks.** Only Windows has a Velopack uninstall hook, which removes the `Run` value. No install or
+    update hooks are needed, because the exe path does not change on update.
+    - On Linux the user deletes the AppImage, and the README says to delete the autostart file too.
+    - A reinstall keeps the stored setting but not the entry; saving the setting again recreates it.
+  - **Download and restart.**
+    - If the page has unsaved defaults, the app asks before closing.
+    - It downloads the update, then starts Velopack's updater with `WaitExitThenApplyUpdates`.
+    - It then shuts the app down normally, so the tray icon and services are disposed.
+    - While downloading, it shows "Downloading version X…", without a percentage.
+  - **Uninstalled builds** never call the network. They say "Updates are available only in installed
+    builds."
+  - **App Settings layout.** The About card sits between the global defaults and the lookup lists. UI
+    tests use a fixed version (0.1.0) and fakes, so snapshots do not change when the version does.
+  - The tool manifest moved from the repository root to `.config/dotnet-tools.json`. The `dotnet-ef`
+    entry is unchanged.
 
 ## 8. User interface (Avalonia)
 

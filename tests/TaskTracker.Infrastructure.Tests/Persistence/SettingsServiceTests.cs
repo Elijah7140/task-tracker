@@ -162,6 +162,49 @@ public sealed class SettingsServiceTests
     }
 
     [Fact]
+    public async Task Saving_global_defaults_persists_start_with_system()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var writer = store.Open();
+
+        await store.Settings(writer).SaveGlobalAsync(true, TimeSpan.FromDays(3), TimeSpan.FromHours(24), startWithSystem: true);
+        await using var reader = store.Open();
+
+        Assert.True(await store.Settings(reader).GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+    }
+
+    [Fact]
+    public async Task Saving_global_defaults_without_start_with_system_leaves_it_unchanged()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var writer = store.Open();
+        await store.Settings(writer).SetGlobalAsync(SettingsCatalogue.StartWithSystem, true);
+
+        await store.Settings(writer).SaveGlobalAsync(true, TimeSpan.FromDays(3), TimeSpan.FromHours(24));
+        await using var reader = store.Open();
+
+        Assert.True(await store.Settings(reader).GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+    }
+
+    [Fact]
+    public async Task Start_with_system_defaults_to_off_and_cannot_be_overridden_per_project()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        await using var context = store.Open();
+        var project = await store.Projects(context).CreateAsync("Project");
+        var settings = store.Settings(context);
+
+        var initial = await settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem);
+
+        Assert.False(initial);
+        await Assert.ThrowsAsync<TaskTracker.Core.DomainRuleException>(() =>
+            settings.SetProjectOverrideAsync(project.Id, SettingsCatalogue.StartWithSystem, true));
+    }
+
+    [Fact]
     public async Task Saving_global_defaults_with_an_invalid_combination_persists_nothing()
     {
         await using var store = new SqliteTestStore();

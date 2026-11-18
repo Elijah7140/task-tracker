@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Settings;
+using TaskTracker.Presentation.Installation;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests.Views;
@@ -116,6 +117,103 @@ public sealed class AppSettingsViewTests
         var autoComplete = await settings.GetGlobalAsync(SettingsCatalogue.AutoCompleteParents);
         Assert.True(autoComplete);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_about_line_shows_the_app_version()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+
+        var view = await OpenAppSettingsAsync(window, services);
+
+        Assert.Equal("Task Tracker version 0.1.0", HeadlessInput.Find<TextBlock>(view, "AboutVersion").Text);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_check_for_updates_offers_a_newer_release()
+    {
+        var window = new MainWindow();
+        var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0") };
+        using var services = await TestServices.CreateAsync(window, installation: TestServices.CreateInstallation(updates));
+        var view = await OpenAppSettingsAsync(window, services);
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "CheckForUpdatesButton"));
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "DownloadAndRestartButton"));
+
+        Assert.Equal("Version 0.2.0 is available.", HeadlessInput.Find<TextBlock>(view, "UpdateStatus").Text);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_check_for_updates_in_an_uninstalled_build_explains_why_there_are_none()
+    {
+        var window = new MainWindow();
+        var updates = new FakeUpdateService { IsInstalled = false };
+        using var services = await TestServices.CreateAsync(window, installation: TestServices.CreateInstallation(updates));
+        var view = await OpenAppSettingsAsync(window, services);
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "CheckForUpdatesButton"));
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "UpdateStatus"));
+
+        Assert.Equal(AppUpdateViewModel.NotInstalledText, HeadlessInput.Find<TextBlock>(view, "UpdateStatus").Text);
+        Assert.False(IsShown(view, "DownloadAndRestartButton"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_download_and_restart_hands_over_to_the_updater()
+    {
+        var window = new MainWindow();
+        var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0") };
+        using var services = await TestServices.CreateAsync(window, installation: TestServices.CreateInstallation(updates));
+        var view = await OpenAppSettingsAsync(window, services);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "CheckForUpdatesButton"));
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "DownloadAndRestartButton"));
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "DownloadAndRestartButton"));
+        await HeadlessInput.WaitUntilAsync(() => updates.DownloadCount == 1);
+
+        Assert.Equal(AppUpdateViewModel.RestartingText, HeadlessInput.Find<TextBlock>(view, "UpdateStatus").Text);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Start_with_system_is_hidden_where_it_is_unavailable()
+    {
+        var window = new MainWindow();
+        var startup = new FakeStartupRegistration { IsAvailable = false };
+        using var services = await TestServices.CreateAsync(window, installation: TestServices.CreateInstallation(startup: startup));
+
+        var view = await OpenAppSettingsAsync(window, services);
+
+        Assert.False(IsShown(view, "StartWithSystem"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Ticking_start_with_system_and_saving_persists_it_and_writes_the_entry()
+    {
+        var window = new MainWindow();
+        var startup = new FakeStartupRegistration { IsAvailable = true };
+        using var services = await TestServices.CreateAsync(window, installation: TestServices.CreateInstallation(startup: startup));
+        var view = await OpenAppSettingsAsync(window, services);
+        var page = Assert.IsType<AppSettingsViewModel>(view.DataContext);
+
+        HeadlessInput.Click(window, HeadlessInput.Find<CheckBox>(view, "StartWithSystem"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "AppSettingsSaveButton"));
+        await HeadlessInput.WaitUntilAsync(() => !page.IsDirty);
+
+        var settings = services.GetRequiredService<SettingsService>();
+        Assert.True(await settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+        Assert.Equal([true], startup.Applied);
+        window.Close();
+    }
+
+    private static bool IsShown(AppSettingsView view, string automationId)
+    {
+        return HeadlessInput.FindAll<Control>(view, automationId).Count == 1;
     }
 
     private static async Task<AppSettingsView> OpenAppSettingsAsync(MainWindow window, IServiceProvider services)
