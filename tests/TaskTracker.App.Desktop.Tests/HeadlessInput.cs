@@ -131,6 +131,14 @@ public static class HeadlessInput
         Click(window, item);
     }
 
+    /// <summary>Opens the time picker and advances the selected hour by one.</summary>
+    public static void AdvanceTimePickerHour(Window window, TimePicker picker)
+    {
+        Click(window, picker);
+        Press(window, Key.Down);
+        Press(window, Key.Enter);
+    }
+
     /// <summary>The text a combo box entry shows, whether its content is a string or a templated object.</summary>
     private static string? DisplayedText(ComboBoxItem item)
     {

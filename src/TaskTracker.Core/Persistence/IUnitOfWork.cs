@@ -1,4 +1,5 @@
 using TaskTracker.Core.Calendar;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Trash;
 
@@ -26,6 +27,8 @@ public interface IUnitOfWork : IAsyncDisposable
     ITrashRepository Trash { get; }
 
     ISavedSearchRepository SavedSearches { get; }
+
+    IReminderRepository Reminders { get; }
 
     /// <summary>Saves without recording an undo step; settings, lookups, field definitions, saved searches and purges use this.</summary>
     Task SaveChangesAsync(CancellationToken cancellationToken);

@@ -7,6 +7,7 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Transfer;
@@ -54,6 +55,8 @@ internal sealed class UndoWorld : IAsyncDisposable
 
     public TrashService Trash { get; private set; } = null!;
 
+    public ReminderService Reminders { get; private set; } = null!;
+
     public ItemSearchService Search { get; private set; } = null!;
 
     public DataTransferService Transfer { get; private set; } = null!;
@@ -82,6 +85,7 @@ internal sealed class UndoWorld : IAsyncDisposable
         Items = new ItemService(units, store.Clock, TimeZoneInfo.Utc);
         Fields = new FieldService(units);
         Settings = new SettingsService(units, store.Clock);
+        Reminders = new ReminderService(units, store.Clock, TimeZoneInfo.Utc);
         Rescheduler = new CalendarRescheduleService(units, store.Clock);
         CalendarQueries = new CalendarService(units);
         Trash = new TrashService(units, store.Clock);

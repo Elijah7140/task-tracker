@@ -79,7 +79,7 @@ public sealed class SettingsService(
     /// Throws if auto-complete turns on for some project and <paramref name="confirmed"/> is false.
     /// </summary>
     public async Task SaveGlobalAsync(bool autoCompleteParents, TimeSpan yellow, TimeSpan red,
-        bool confirmed = false, CancellationToken cancellationToken = default)
+        bool confirmed = false, ReminderPreferences reminders = default, CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
@@ -92,6 +92,7 @@ public sealed class SettingsService(
         await StoreGlobalAsync(store, SettingsCatalogue.AutoCompleteParents, proposed, cancellationToken);
         await StoreGlobalAsync(store, SettingsCatalogue.UrgencyYellowThreshold, proposed, cancellationToken);
         await StoreGlobalAsync(store, SettingsCatalogue.UrgencyRedThreshold, proposed, cancellationToken);
+        await SaveReminderSettingsAsync(store, null, reminders, cancellationToken);
         await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
     }
 
@@ -101,7 +102,7 @@ public sealed class SettingsService(
     /// <see cref="SaveGlobalAsync"/>, applied to that project.
     /// </summary>
     public async Task SaveProjectAsync(Guid projectId, bool? autoCompleteParents, TimeSpan? yellow, TimeSpan? red,
-        bool confirmed = false, CancellationToken cancellationToken = default)
+        bool confirmed = false, ReminderPreferences? reminders = null, CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
@@ -114,7 +115,37 @@ public sealed class SettingsService(
         await StoreProjectAsync(store, projectId, SettingsCatalogue.AutoCompleteParents, proposed, cancellationToken);
         await StoreProjectAsync(store, projectId, SettingsCatalogue.UrgencyYellowThreshold, proposed, cancellationToken);
         await StoreProjectAsync(store, projectId, SettingsCatalogue.UrgencyRedThreshold, proposed, cancellationToken);
+        if (reminders is { } preferences)
+        {
+            await SaveReminderSettingsAsync(store, projectId, preferences, cancellationToken);
+        }
+
         await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+    }
+
+    private static async Task SaveReminderSettingsAsync(ISettingsStore store, Guid? projectId,
+        ReminderPreferences preferences, CancellationToken cancellationToken)
+    {
+        await SaveReminderSettingAsync(store, projectId, SettingsCatalogue.RemindersEnabled, preferences.Enabled, cancellationToken);
+        await SaveReminderSettingAsync(store, projectId, SettingsCatalogue.DefaultReminderOffset, preferences.Offset, cancellationToken);
+        await SaveReminderSettingAsync(store, projectId, SettingsCatalogue.DateOnlyReminderTime, preferences.DateOnlyTime, cancellationToken);
+        if (projectId is null)
+        {
+            await SaveReminderSettingAsync(store, null, SettingsCatalogue.KeepRunningInTray,
+                preferences.KeepRunningInTray, cancellationToken);
+        }
+    }
+
+    private static Task SaveReminderSettingAsync<T>(ISettingsStore store, Guid? projectId,
+        SettingDefinition<T> definition, T? value, CancellationToken cancellationToken) where T : struct
+    {
+        var text = value.HasValue ? definition.Format(value.Value) : null;
+        if (projectId is Guid id)
+        {
+            return store.SetProjectAsync(id, definition.Key, text, cancellationToken);
+        }
+
+        return text is null ? Task.CompletedTask : store.SetGlobalAsync(definition.Key, text, cancellationToken);
     }
 
     private static void Propose<T>(Dictionary<string, string> proposed, SettingDefinition<T> definition, T value)

@@ -52,6 +52,47 @@ public sealed class AppSettingsViewModelTests
         Assert.Equal(TimeSpan.FromHours(30), await store.Settings.GetGlobalAsync(SettingsCatalogue.UrgencyRedThreshold));
     }
 
+    [Fact]
+    public async Task Saving_reminder_defaults_persists_the_selected_offset_and_time()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var page = new AppSettingsViewModel(store.Settings, new FakeDialogService(), new FakeNavigationService());
+        await page.LoadAsync();
+        var offset = TimeSpan.FromMinutes(15);
+        var time = new TimeOnly(10, 30);
+
+        page.Reminders.SelectedOffset = page.Reminders.OffsetChoices.Single(choice => choice.Offset == offset);
+        page.Reminders.DateOnlyTime = time.ToTimeSpan();
+        await page.SaveAsync();
+
+        Assert.Equal(ReminderChoice.Options.Skip(2), page.Reminders.OffsetChoices);
+        Assert.Equal(offset, await store.Settings.GetGlobalAsync(SettingsCatalogue.DefaultReminderOffset));
+        Assert.Equal(time, await store.Settings.GetGlobalAsync(SettingsCatalogue.DateOnlyReminderTime));
+    }
+
+    [Fact]
+    public async Task Saving_other_settings_preserves_an_unlisted_offset_and_a_time_with_seconds()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var offset = TimeSpan.FromMinutes(45);
+        var time = new TimeOnly(9, 0, 17);
+        await store.Settings.SetGlobalAsync(SettingsCatalogue.DefaultReminderOffset, offset);
+        await store.Settings.SetGlobalAsync(SettingsCatalogue.DateOnlyReminderTime, time);
+        var page = new AppSettingsViewModel(store.Settings, new FakeDialogService(), new FakeNavigationService());
+
+        await page.LoadAsync();
+        page.AutoCompleteParents = false;
+        await page.SaveAsync();
+
+        var extra = Assert.Single(page.Reminders.OffsetChoices.Except(ReminderChoice.OffsetOptions));
+        Assert.Equal("45 minutes before", extra.Label);
+        Assert.Same(extra, page.Reminders.SelectedOffset);
+        Assert.Equal(offset, await store.Settings.GetGlobalAsync(SettingsCatalogue.DefaultReminderOffset));
+        Assert.Equal(time, await store.Settings.GetGlobalAsync(SettingsCatalogue.DateOnlyReminderTime));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

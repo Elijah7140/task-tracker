@@ -7,6 +7,8 @@ namespace TaskTracker.Core.Undo;
 /// </summary>
 public static class UndoLabels
 {
+    public static string SnoozeReminder(string title) => $"Snooze reminder for '{title}'";
+
     public static string SetRecurrence(string title) => $"Set repeat for '{title}'";
 
     public static string SkipRepeat(string title) => $"Skip repeat for '{title}'";

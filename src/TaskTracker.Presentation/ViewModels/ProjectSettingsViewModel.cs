@@ -45,6 +45,8 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
         {
             CustomFields = new FieldManagerViewModel(fields, dialogs, projectId);
         }
+
+        Reminders.PropertyChanged += (_, _) => Validate();
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         BackCommand = new AsyncRelayCommand(BackAsync);
         resetAutoCommand = new RelayCommand(() => OverrideAutoComplete = false, () => OverrideAutoComplete);
@@ -158,6 +160,8 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
 
     public bool CanSave => Error is null && IsDirty;
 
+    public ReminderSettingsViewModel Reminders { get; } = new() { IsProject = true };
+
     public ICommand SaveCommand { get; }
 
     public ICommand BackCommand { get; }
@@ -187,6 +191,7 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
         OverrideRed = effective.UrgencyRedThreshold.Source == SettingSource.Project;
         YellowDays = effective.UrgencyYellowThreshold.Value.TotalDays;
         RedHours = effective.UrgencyRedThreshold.Value.TotalHours;
+        await Reminders.LoadProjectAsync(settings, effective);
         saved = CurrentOverrides();
         Validate();
         if (CustomFields is not null)
@@ -210,7 +215,8 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
 
             if (await ConfirmAutoCompleteAsync(values))
             {
-                await settings.SaveProjectAsync(projectId, values.AutoComplete, values.Yellow, values.Red, confirmed: true);
+                await settings.SaveProjectAsync(projectId, values.AutoComplete, values.Yellow, values.Red, confirmed: true,
+                    reminders: values.Reminders);
                 await LoadAsync(ProjectName);
             }
         }
@@ -226,7 +232,8 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
         return new Overrides(
             OverrideAutoComplete ? AutoCompleteParents : null,
             OverrideYellow ? TimeSpan.FromDays(YellowDays) : null,
-            OverrideRed ? TimeSpan.FromHours(RedHours) : null);
+            OverrideRed ? TimeSpan.FromHours(RedHours) : null,
+            Reminders.Preferences);
     }
 
     private async Task<bool> ConfirmAutoCompleteAsync(Overrides values)
@@ -277,7 +284,7 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
     {
         Error = YellowDays < 0 || RedHours < 0 || TimeSpan.FromHours(RedHours) > TimeSpan.FromDays(YellowDays)
             ? "Red threshold must be no greater than yellow."
-            : null;
+            : Reminders.Error;
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(CanSave));
     }
@@ -287,5 +294,5 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
         return isOverridden ? "Project override" : "Inherited from global";
     }
 
-    private readonly record struct Overrides(bool? AutoComplete, TimeSpan? Yellow, TimeSpan? Red);
+    private readonly record struct Overrides(bool? AutoComplete, TimeSpan? Yellow, TimeSpan? Red, ReminderPreferences Reminders);
 }

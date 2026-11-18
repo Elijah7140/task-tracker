@@ -147,6 +147,8 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
             "status" => BooleanColumnFilter(filter, "t.CompletedAtUtc"),
             "repeats" => BooleanColumnFilter(filter, "t.RecurrenceFrequency"),
             "link" => LinkFilter(filter),
+            "reminder" => filter.Operator == FilterOperator.IsNotEmpty
+                ? $"({ReminderSql.Eligible})" : $"NOT ({ReminderSql.Eligible})",
             _ => throw new InvalidOperationException("Unknown built-in search field.")
         };
     }

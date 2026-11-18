@@ -35,6 +35,7 @@ internal sealed class OccurrenceCopies(ItemTree tree, TimeProvider clock)
         copy.SetSchedule(source.ScheduledStart, source.ScheduledEnd, clock);
         OccurrenceDates.Shift(copy, days, clock);
         copy.SetRecurrence(rule, clock, seriesId);
+        copy.SetReminder(source.ReminderMode, source.ReminderOffsetMinutes);
         tree.Add(copy);
         copies.Add((source, copy));
 

@@ -17,6 +17,8 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Markdown parsing for the description preview (§7.10). 1.5.1 is the newest release older than two weeks; 1.6.0 is too new. -->
     <PackageVersion Include="Markdig" Version="1.5.1" />
+    <!-- Linux reminders (§7.12) use the D-Bus client Avalonia already brings in; pinned to the same version. -->
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <!-- Data -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$(EfCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EfCoreVersion)" />

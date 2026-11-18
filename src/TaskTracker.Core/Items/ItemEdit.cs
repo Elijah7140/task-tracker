@@ -1,4 +1,5 @@
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Reminders;
 
 namespace TaskTracker.Core.Items;
 
@@ -18,4 +19,11 @@ public sealed record ItemEdit(
     public bool UpdateRecurrence { get; init; }
 
     public RecurrenceRule? Recurrence { get; init; }
+
+    /// <summary>When true, applies the reminder choice, including resetting to Default.</summary>
+    public bool UpdateReminder { get; init; }
+
+    public ReminderMode? ReminderMode { get; init; }
+
+    public int? ReminderOffsetMinutes { get; init; }
 }

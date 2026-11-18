@@ -60,6 +60,8 @@ public sealed class ImportExportSnapshotTests
         var first = HeadlessInput.Find<MenuItem>(window, "ExportAllMenuItem");
         first.Focus(NavigationMethod.Directional);
         await HeadlessInput.WaitUntilAsync(() => first.IsFocused);
+        // The pop-up can settle a pixel after it first appears; let pending layout finish before capturing.
+        Dispatcher.UIThread.RunJobs();
         using var frame = window.CaptureRenderedFrame();
 
         Assert.NotNull(frame);

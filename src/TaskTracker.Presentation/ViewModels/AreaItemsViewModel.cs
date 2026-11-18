@@ -199,18 +199,11 @@ public sealed class AreaItemsViewModel
             return;
         }
 
-        var result = await items.SetCompletedAsync(projectId, workspace.SelectedFolder?.Id, row.Id, !row.IsComplete);
-
-        if (result is CompletionResult.NeedsConfirmation confirmation)
+        var location = new ItemLocation(projectId, workspace.SelectedFolder?.Id);
+        var result = await ItemCompletion.SetAsync(items, dialogs, location, row.Id, !row.IsComplete);
+        if (result is null)
         {
-            var message = $"Also complete {confirmation.OpenSubItemCount} open sub-items?";
-
-            if (!await dialogs.ConfirmAsync("Complete sub-items", message, "Complete"))
-            {
-                return;
-            }
-
-            result = await items.SetCompletedAsync(projectId, workspace.SelectedFolder?.Id, row.Id, true, true);
+            return;
         }
 
         if (result is CompletionResult.Blocked blocked)

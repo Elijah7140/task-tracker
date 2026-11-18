@@ -44,6 +44,8 @@ internal sealed class GatedCalendarUnitOfWorkFactory(IUnitOfWorkFactory inner) :
         public ITrashRepository Trash => unit.Trash;
 
 
+        public TaskTracker.Core.Reminders.IReminderRepository Reminders => unit.Reminders;
+
         public ISavedSearchRepository SavedSearches => unit.SavedSearches;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken)

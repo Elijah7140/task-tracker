@@ -209,6 +209,7 @@
                         Classes="subtle icon" VerticalAlignment="Center" Command="{Binding ClearEndCommand}" AutomationProperties.AutomationId="EditorClearEndButton" />
               </Grid>
               <views:ItemRecurrenceView />
+              <views:ItemReminderView />
               <views:CustomFieldsView />
               <views:ItemLinksView />
               <TextBlock Text="Sub-items" FontWeight="SemiBold" Margin="0,12,0,0" />

@@ -49,6 +49,41 @@
             <Button Grid.Row="2" Grid.Column="4" Content="Reset to global" Classes="subtle"
                     Command="{Binding ResetRedCommand}" IsVisible="{Binding OverrideRed}" AutomationProperties.AutomationId="ProjectRedResetButton" />
           </Grid>
+          <StackPanel DataContext="{Binding Reminders}" Spacing="8">
+            <TextBlock Text="Reminders" Classes="cardTitle" />
+            <Grid ColumnDefinitions="210,100,190,150,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+              <TextBlock Text="Enable reminders" VerticalAlignment="Center" />
+              <CheckBox Grid.Column="1" Content="Override" IsChecked="{Binding OverrideEnabled, Mode=TwoWay}"
+                        AutomationProperties.AutomationId="ProjectRemindersEnabledOverride" />
+              <CheckBox Grid.Column="2" Content="On" IsChecked="{Binding Enabled, Mode=TwoWay}" IsEnabled="{Binding OverrideEnabled}"
+                        AutomationProperties.AutomationId="ProjectRemindersEnabled" />
+              <TextBlock Grid.Column="3" Text="{Binding EnabledSource}" Classes="caption" VerticalAlignment="Center" />
+              <Button Grid.Column="4" Content="Reset to global" Classes="subtle"
+                      IsVisible="{Binding OverrideEnabled}" Command="{Binding ResetEnabledCommand}"
+                      AutomationProperties.AutomationId="ProjectRemindersEnabledReset" />
+              <TextBlock Grid.Row="1" Text="Default offset" VerticalAlignment="Center" />
+              <CheckBox Grid.Row="1" Grid.Column="1" Content="Override" IsChecked="{Binding OverrideOffset, Mode=TwoWay}"
+                        AutomationProperties.AutomationId="ProjectReminderOffsetOverride" />
+              <ComboBox Grid.Row="1" Grid.Column="2" ItemsSource="{Binding OffsetChoices}" DisplayMemberBinding="{Binding Label}"
+                        SelectedItem="{Binding SelectedOffset, Mode=TwoWay}" IsEnabled="{Binding OverrideOffset}"
+                        HorizontalAlignment="Stretch" AutomationProperties.Name="Default offset"
+                        AutomationProperties.AutomationId="ProjectReminderOffset" />
+              <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding OffsetSource}" Classes="caption" VerticalAlignment="Center" />
+              <Button Grid.Row="1" Grid.Column="4" Content="Reset to global" Classes="subtle"
+                      IsVisible="{Binding OverrideOffset}" Command="{Binding ResetOffsetCommand}"
+                      AutomationProperties.AutomationId="ProjectReminderOffsetReset" />
+              <TextBlock Grid.Row="2" Text="Date-only reminder time" VerticalAlignment="Center" />
+              <CheckBox Grid.Row="2" Grid.Column="1" Content="Override" IsChecked="{Binding OverrideTime, Mode=TwoWay}"
+                        AutomationProperties.AutomationId="ProjectDateOnlyReminderTimeOverride" />
+              <TimePicker Grid.Row="2" Grid.Column="2" SelectedTime="{Binding DateOnlyTime, Mode=TwoWay}"
+                          IsEnabled="{Binding OverrideTime}" HorizontalAlignment="Stretch" MinWidth="0"
+                          AutomationProperties.Name="Date-only reminder time" AutomationProperties.AutomationId="ProjectDateOnlyReminderTime" />
+              <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding TimeSource}" Classes="caption" VerticalAlignment="Center" />
+              <Button Grid.Row="2" Grid.Column="4" Content="Reset to global" Classes="subtle"
+                      IsVisible="{Binding OverrideTime}" Command="{Binding ResetTimeCommand}"
+                      AutomationProperties.AutomationId="ProjectDateOnlyReminderTimeReset" />
+            </Grid>
+          </StackPanel>
           <TextBlock Text="{Binding Error}" TextWrapping="Wrap"
                      IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
                      Foreground="{DynamicResource AppDangerBrush}" />

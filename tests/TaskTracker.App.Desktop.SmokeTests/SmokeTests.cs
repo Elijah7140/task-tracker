@@ -6,7 +6,13 @@ using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using FlaUI.Core.WindowsAPI;
 
+using Microsoft.Extensions.DependencyInjection;
+
 using TaskTracker.Core.Fields;
+using TaskTracker.Core.Items;
+using TaskTracker.Core.Projects;
+using TaskTracker.Core.Reminders;
+using TaskTracker.Infrastructure.Persistence;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
@@ -532,14 +538,56 @@ public sealed class SmokeTests
         });
     }
 
-    private static void Run(Action<SmokeSession> scenario, IReadOnlyDictionary<string, string>? environment = null)
+    [Fact]
+    public void An_upcoming_reminder_appears_in_the_in_app_panel()
+    {
+        const string title = "Send the smoke report";
+        Run(session =>
+        {
+            session.Find("ReminderBell").AsButton().Invoke();
+            var panel = session.Find("RemindersPanel");
+            session.WaitUntil(() => panel.FindFirstDescendant(query => query.ByName(title)) is not null,
+                "the due item to appear in the Reminders panel", TimeSpan.FromSeconds(85));
+        }, seed: path => SeedReminderAsync(path, title).GetAwaiter().GetResult());
+    }
+
+    private static async Task SeedReminderAsync(string path, string title)
+    {
+        var clock = TimeProvider.System;
+        using var services = CompositionRoot.BuildServices(clock: clock, databasePath: path);
+        await InitializeDatabaseAsync(services);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Reminder Smoke");
+        var items = services.GetRequiredService<ItemService>();
+        var item = await items.CreateAsync(project.Id, null, null, title);
+        var due = clock.GetLocalNow().DateTime.AddSeconds(45);
+        await items.EditAsync(item.Id, new ItemEdit(title, null, null, null, null,
+            DateOnly.FromDateTime(due), TimeOnly.FromDateTime(due), null, null)
+        {
+            UpdateReminder = true,
+            ReminderMode = ReminderMode.Offset,
+            ReminderOffsetMinutes = 0,
+        });
+
+        // Pooled connections would keep the file open and stop the session deleting it afterwards.
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    /// <summary>The initializer is a scoped service, so it is resolved in a scope, as the app does at startup.</summary>
+    private static async Task InitializeDatabaseAsync(IServiceProvider services)
+    {
+        using var scope = services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
+    }
+
+    private static void Run(Action<SmokeSession> scenario, IReadOnlyDictionary<string, string>? environment = null,
+        Action<string>? seed = null)
     {
         if (Environment.GetEnvironmentVariable("TASKTRACKER_SMOKE") != "1")
         {
             Assert.Skip("Set TASKTRACKER_SMOKE=1 on an interactive Windows desktop.");
         }
 
-        using var session = new SmokeSession(environment);
+        using var session = new SmokeSession(environment, seed);
 
         try
         {

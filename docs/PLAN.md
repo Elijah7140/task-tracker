@@ -1004,6 +1004,142 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   with the other imported identities. Search and calendar entries open the workspace editor, so
   completing an item from either view uses the workspace's existing completion action.
 
+### 7.12 Reminders and notifications
+
+Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for review):
+
+- **What reminds.** Only open, non-deleted items that have a due date. Scheduled blocks do not
+  remind in this phase. Completed, deleted and archived-project items never remind. A repeating
+  item's next occurrence reminds through its own due date.
+- **When.** The reminder instant is the due moment minus an offset.
+  - A timed due item's due moment is its due date and time.
+  - A date-only item's due moment is the setting `DateOnlyReminderTime`, a local time with default
+    09:00, on the due date.
+  - Floating local values become instants with `FloatingTime` and an explicitly passed zone (§5.4).
+    A reminder that falls in a DST gap fires at the first valid instant after it.
+- **Settings (§6.5).**
+
+  | Setting | Type | Default | Per-project override |
+  |---------|------|---------|----------------------|
+  | `RemindersEnabled` | bool | on | yes |
+  | `DefaultReminderOffset` | duration (0 = at the due moment) | 1 hour | yes |
+  | `DateOnlyReminderTime` | local time | 09:00 | yes |
+  | `KeepRunningInTray` | bool | off | no |
+- **Per item.** The editor has a **Reminder** choice:
+  - **Default**, which uses the effective setting;
+  - **None**;
+  - an offset: at the due moment, 5/15/30 minutes, 1/2 hours, 1/2 days or 1 week before.
+
+  It is stored as nullable `ReminderMode` and `ReminderOffsetMinutes` columns on `TodoItem`. The
+  migration is additive and follows the AGENTS.md trigger rule. Recurring copies (§7.11) and
+  import/export (§7.9, JSON only) carry it. A change is part of the item edit's undo step.
+- **Delivery state.** `ReminderDeliveredFor` records the reminder instant (UTC) that was last
+  delivered for the item. A reminder is due when its instant is ≤ now and differs from
+  `ReminderDeliveredFor`. Changing the due date, time or offset therefore re-arms the reminder
+  without extra bookkeeping. Recording delivery is application state, not user data: it is not
+  undoable and not exported.
+- **Scheduler.** `ReminderScheduler` lives in Presentation and uses the injected `TimeProvider`.
+  - It checks every 30 seconds, and also immediately after any save, on wake from sleep and on a
+    clock change, so long timers can't drift.
+  - It reads due reminders with one bounded query and hands them to `IReminderNotifier`.
+  - It delivers each reminder once, then records delivery.
+- **Missed while closed.** At startup, reminders whose instant passed while the app was closed are
+  handled as follows:
+  - those from the last 24 hours are delivered as **one** grouped notification ("3 reminders while
+    you were away");
+  - older ones are marked delivered without a notification; their items still show as overdue
+    through urgency colours (§6.3).
+- **Live checks use the same window.** Every later check follows the same rule. This covers
+  turning reminders on, an import or restore of old overdue items, a changed offset or
+  date-only time, and creating a past-due item.
+  - Only reminders from the last 24 hours notify, and older ones are recorded silently.
+  - One due reminder gets its own notification. Several due in one check get one grouped
+    notification ("3 reminders due") that opens the panel.
+  - The recent read is bounded by the window itself. If recording the older ones fails, the
+    check still notifies only recent reminders, and the next check retries the rest.
+  - A notifier that throws is logged. The reminder is still recorded and shown in the panel,
+    so a retry never notifies twice.
+- **Snooze and dismiss.** The in-app **Reminders** panel offers **Snooze**, **Mark complete**,
+  **Open** and **Dismiss** for each reminder.
+  - The panel opens from a bell button in the title bar, with a count badge, and with Ctrl+Shift+R.
+  - Snooze options are 10 minutes, 1 hour or tomorrow at `DateOnlyReminderTime`. Snooze sets a
+    nullable `SnoozedUntilUtc`, which overrides the computed instant once; it is a labelled undo step.
+  - Dismiss clears the entry from the panel.
+  - Escape closes the panel only after focused controls have had it. An open combo box or a
+    drag in progress takes Escape first. While the panel is open, Escape closes it before it
+    can leave search, the calendar or the trash.
+  - If **Mark complete** is blocked, the reason is shown in a message.
+- **OS notifications.** `IReminderNotifier` is implemented in App.Desktop, and the in-app panel
+  always shows reminders as well.
+  - **Windows:** a native notification through the notification-area icon (Shell_NotifyIcon with a
+    balloon, which Windows 10/11 shows as a toast). No packaging and no AUMID registration are
+    needed.
+    - The main window owns one persistent icon, added on the first reminder. It stays hidden
+      except while a balloon shows.
+    - Each balloon is an `NIM_MODIFY` with `NIF_INFO`. A click opens the item of the latest
+      balloon.
+    - The icon is deleted and the window subclass removed when the window closes, at the latest
+      on `WM_DESTROY`. Disposal is idempotent.
+  - **Linux:** the freedesktop `org.freedesktop.Notifications` D-Bus service through a managed D-Bus
+    client. A connection is kept only once it has connected, and a failed call drops it so the
+    next attempt reconnects. `Tmds.DBus.Protocol` is pinned to 0.94.1, the version Avalonia
+    12.1.6 brings in.
+  - **Elsewhere, or when the platform call fails:** in-app only. The failure is logged once.
+    Platform notifications pause for 5 minutes (measured with `TimeProvider`) and are then
+    tried again. The app keeps working throughout.
+  - Clicking a notification brings the window forward and opens the item.
+  - Any new package needs an exact, at least two-weeks-old version in
+    `Directory.Packages.props`. Prefer no new dependency on Windows.
+- **Tray.** With `KeepRunningInTray` on, closing the window hides it to a notification-area icon
+  instead of quitting, so reminders keep firing. The tray menu has **Open** and **Quit**.
+  Starting with the OS is out of scope; it belongs with installers.
+  - The window hides only when a tray host really shows the icon. Windows and macOS always
+    have one. On Linux, a `StatusNotifierWatcher` must own its name on the session bus.
+  - Without a tray host, closing minimises instead, so the window is never unreachable.
+    Closing an already minimised window, for example from the taskbar, quits.
+  - The tray re-reads the setting only after a save that changed a global setting
+    (`DataSaved.GlobalSettingsCommitted`), not after every save.
+- **Single instance.** One app runs per user and database file.
+  - The first launch holds a named mutex and listens on a named pipe. Both names come from a
+    hash of the user name and the full database path.
+  - A second launch on the same database connects to that pipe, which brings the running
+    window forward, and then exits.
+  - Different databases, such as test and smoke runs with their own `TASKTRACKER_DB_PATH`, run
+    side by side.
+  - If the running instance does not answer within 3 seconds (still starting, or stuck), the
+    new launch starts normally rather than vanish.
+- **Search (§7.7).** `has:reminder` matches open items whose effective reminder is not None.
+- **Implementation decisions.** Offsets are subtracted in floating local time before converting to UTC.
+  The 24-hour startup window includes its lower boundary. The panel keeps a session list, and a
+  grouped notification opens that panel. A snooze applies to the base instant it deferred, so a
+  different base instant re-arms the item. Undoing a pending snooze restores its panel entry.
+  Version 1 JSON carries the optional item choice and project settings. Snoozes are local to the
+  database. An existing custom field keyed `reminder` gets a free numeric suffix, and its saved
+  searches are rewritten as for `repeats`. Windows uses system change messages, Linux uses logind
+  for resume where available, and the scheduler checks the wall clock against monotonic time once
+  a second to catch clock jumps. Linux activation uses the notification server's default action.
+- **Query robustness.**
+  - A stored reminder setting that cannot be parsed falls back to its default for that row.
+    It does not stop every reminder.
+  - The due query first skips items whose due date is later than a horizon, so it does not
+    resolve every open dated item. The horizon is the local date plus the largest possible
+    offset (the 1-week item maximum, or any larger stored default), plus one day of time-zone
+    slack. Results are unchanged.
+- **Tests.**
+  - **Core:** instant calculation (timed and date-only, offsets, DST gap and repeat in fixed zones,
+    and the effective-setting precedence) and the re-arming rule.
+  - **SQLite:** due-reminder query, delivery recording, snooze, undo of snooze, the migration with
+    its FTS triggers, recurrence copy and import/export.
+  - **ViewModel:** the scheduler with a fake `TimeProvider`, the missed-while-closed grouping and
+    the panel actions.
+  - **Headless interaction:** the bell button, Ctrl+Shift+R, snooze, Open, Mark complete, Dismiss,
+    Escape (including an open combo box keeping its Escape) and the editor Reminder choice.
+  - **Desktop units:** the single-instance name and handshake, the hide-or-minimise decision and
+    the notifier cool-down.
+  - **Snapshots:** the panel and the editor, light and dark.
+  - **Smoke:** a reminder due in under a minute appears in the in-app panel; the OS toast itself
+    is checked by hand.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -1118,7 +1254,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
   existing reorder/move/move-to-area operations (§4). Needs a drop indicator, a
   keyboard-equivalent path for every drop, and headless drag tests (§11.1).
 - ~~Trash view with restore~~ (done, §7.6).
-- Reminders / OS notifications for approaching deadlines.
+- Reminders / OS notifications for approaching deadlines (decisions in §7.12).
 - Recurring items (decisions in §7.11).
 - ~~Markdown descriptions; attachments/links~~ (done, §7.10; file attachments stay out of scope).
 - ~~Saved searches and the text query syntax~~ (done, §7.7).

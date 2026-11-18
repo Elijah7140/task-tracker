@@ -41,6 +41,9 @@ and ICU library on the path when present).
   gets a headless interaction test (simulated input, not a direct command call); a new
   or changed screen gets a reviewed snapshot baseline; interactive controls get an
   `AutomationProperties.AutomationId`. A bug found by hand gets a regression test.
+- Snapshot tests run on both Windows and Linux; never skip one on an OS. Approve only the
+  `*.windows.png` baselines locally. The project lead adds `*.linux.png` from the CI run's
+  `received-snapshots-ubuntu-latest` artifact.
 - Do not commit; the project lead reviews and commits.
 - A migration that makes EF rebuild `TodoItem` must recreate the `TodoItemSearch`
   triggers and reconcile `TodoItemSearchRow`/`TodoItemSearch`; the schema test catches

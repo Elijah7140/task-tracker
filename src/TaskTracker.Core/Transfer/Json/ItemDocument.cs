@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Reminders;
 
 namespace TaskTracker.Core.Transfer.Json;
 
@@ -48,6 +49,12 @@ public sealed class ItemDocument
     public string? UpdatedAtUtc { get; init; }
 
     public IReadOnlyList<FieldValueDocument>? FieldValues { get; init; }
+
+    /// <summary>The item's reminder choice (§7.12). Optional: absent means Default.</summary>
+    public ReminderMode? ReminderMode { get; init; }
+
+    /// <summary>The fixed offset when <see cref="ReminderMode"/> selects one.</summary>
+    public int? ReminderOffsetMinutes { get; init; }
 
     public RecurrenceRule? Recurrence { get; init; }
 

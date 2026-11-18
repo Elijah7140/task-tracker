@@ -20,7 +20,7 @@ public sealed class SmokeSession : IDisposable
     private readonly Process process;
 
     /// <summary>Starts the app with a fresh database and waits for its main window.</summary>
-    public SmokeSession(IReadOnlyDictionary<string, string>? environment = null)
+    public SmokeSession(IReadOnlyDictionary<string, string>? environment = null, Action<string>? seed = null)
     {
         databasePath = Path.Combine(Path.GetTempPath(), $"tasktracker-smoke-{Guid.NewGuid():N}.db");
         Application? startedApplication = null;
@@ -38,6 +38,7 @@ public sealed class SmokeSession : IDisposable
                 startInfo.Environment[variable.Key] = variable.Value;
             }
 
+            seed?.Invoke(databasePath);
             startedApplication = Application.Launch(startInfo);
             startedProcess = Process.GetProcessById(startedApplication.ProcessId);
             startedAutomation = new UIA3Automation();
@@ -191,9 +192,9 @@ public sealed class SmokeSession : IDisposable
     }
 
     /// <summary>Waits until the supplied UI condition becomes true.</summary>
-    public void WaitUntil(Func<bool> condition, string description)
+    public void WaitUntil(Func<bool> condition, string description, TimeSpan? timeout = null)
     {
-        if (!Retry.WhileFalse(condition, TimeSpan.FromSeconds(10)).Success)
+        if (!Retry.WhileFalse(condition, timeout ?? TimeSpan.FromSeconds(10)).Success)
         {
             throw new InvalidOperationException($"Timed out waiting for {description}.");
         }

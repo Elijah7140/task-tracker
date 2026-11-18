@@ -36,6 +36,8 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
     private bool preserveArchivedType = true;
     private bool preserveArchivedPriority = true;
 
+    private ReminderChoice selectedReminder;
+
     public ItemEditorViewModel(TodoItem item)
     {
         Id = item.Id;
@@ -53,6 +55,8 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
         scheduledStartText = scheduledStart?.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
         scheduledEndText = scheduledEnd?.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
         Repeat = new RecurrenceDraftViewModel(item, ReadRecurrenceDate);
+        selectedReminder = ReminderChoices.First(choice =>
+            choice.Mode == item.ReminderMode && choice.OffsetMinutes == item.ReminderOffsetMinutes);
         ClearTypeCommand = new RelayCommand(ClearType);
         ClearPriorityCommand = new RelayCommand(ClearPriority);
         ClearDueDateCommand = new RelayCommand(() => DueDateText = string.Empty);
@@ -64,6 +68,14 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
     public Guid Id { get; }
 
     public RecurrenceDraftViewModel Repeat { get; }
+
+    public IReadOnlyList<ReminderChoice> ReminderChoices => ReminderChoice.Options;
+
+    public ReminderChoice SelectedReminder
+    {
+        get => selectedReminder;
+        set => SetProperty(ref selectedReminder, value ?? ReminderChoice.Options[0]);
+    }
 
     /// <summary>The inputs for the item's active custom fields, in display order.</summary>
     public ObservableCollection<CustomFieldInputViewModel> CustomFields { get; } = [];
@@ -405,7 +417,10 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
             date, time, start, end)
         {
             UpdateRecurrence = true,
-            Recurrence = Repeat.ToRule()
+            Recurrence = Repeat.ToRule(),
+            UpdateReminder = true,
+            ReminderMode = SelectedReminder.Mode,
+            ReminderOffsetMinutes = SelectedReminder.OffsetMinutes,
         };
     }
 
@@ -422,7 +437,10 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
             item.ScheduledStart, item.ScheduledEnd)
         {
             UpdateRecurrence = true,
-            Recurrence = item.Recurrence
+            Recurrence = item.Recurrence,
+            UpdateReminder = true,
+            ReminderMode = item.ReminderMode,
+            ReminderOffsetMinutes = item.ReminderOffsetMinutes,
         };
 
         return ToEdit() != stored;

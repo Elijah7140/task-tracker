@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
@@ -17,16 +18,19 @@ public sealed class EfUnitOfWork : IUnitOfWork
     private readonly TaskTrackerDbContext database;
     private readonly IDbContextFactory<TaskTrackerDbContext> contexts;
     private readonly IUndoRecorder recorder;
+    private readonly DataSaved? saved;
 
     /// <param name="database">The context this unit of work owns.</param>
     /// <param name="contexts">Opens the fresh contexts that undo and redo write through.</param>
     /// <param name="recorder">Receives labelled saves; pass <see cref="NullUndoRecorder.Instance"/> for none.</param>
+    /// <param name="saved">Signals committed writes to application observers.</param>
     public EfUnitOfWork(TaskTrackerDbContext database, IDbContextFactory<TaskTrackerDbContext> contexts,
-        IUndoRecorder recorder)
+        IUndoRecorder recorder, DataSaved? saved = null)
     {
         this.database = database;
         this.contexts = contexts;
         this.recorder = recorder;
+        this.saved = saved;
         Projects = new EfProjectRepository(database);
         Folders = new EfFolderRepository(database);
         Items = new EfItemRepository(database);
@@ -37,6 +41,7 @@ public sealed class EfUnitOfWork : IUnitOfWork
         Calendar = new EfCalendarRepository(database);
         Trash = new EfTrashRepository(database);
         SavedSearches = new EfSavedSearchRepository(database);
+        Reminders = new EfReminderRepository(database);
     }
 
     public IProjectRepository Projects { get; }
@@ -59,20 +64,40 @@ public sealed class EfUnitOfWork : IUnitOfWork
 
     public ISavedSearchRepository SavedSearches { get; }
 
+    public IReminderRepository Reminders { get; }
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
-        await database.SaveChangesAsync(cancellationToken);
+        var settingsChanged = HasGlobalSettingChanges();
+        if (await database.SaveChangesAsync(cancellationToken) > 0)
+        {
+            saved?.Publish(settingsChanged);
+        }
     }
 
     public async Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
     {
         var rows = UndoRowCollector.Collect(database.ChangeTracker);
-        await database.SaveChangesAsync(cancellationToken);
+        var settingsChanged = HasGlobalSettingChanges();
+        var changed = await database.SaveChangesAsync(cancellationToken);
 
         if (rows.Count > 0)
         {
-            recorder.Record(new EfUndoableChange(contexts, rows, undoLabel));
+            recorder.Record(new EfUndoableChange(contexts, rows, undoLabel, saved));
         }
+
+        if (changed > 0)
+        {
+            saved?.Publish(settingsChanged);
+        }
+    }
+
+    /// <summary>Settings are never part of an undo step, so only these direct saves can change one.</summary>
+    private bool HasGlobalSettingChanges()
+    {
+        database.ChangeTracker.DetectChanges();
+        return database.ChangeTracker.Entries<GlobalSettingRow>()
+            .Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
     }
 
     public ValueTask DisposeAsync()

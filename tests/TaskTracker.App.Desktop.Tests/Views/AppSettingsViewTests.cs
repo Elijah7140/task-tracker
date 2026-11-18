@@ -63,6 +63,29 @@ public sealed class AppSettingsViewTests
     }
 
     [AvaloniaFact]
+    public async Task Saving_reminder_defaults_persists_the_offset_and_time_chosen_in_the_view()
+    {
+        var window = new MainWindow();
+        using var services = await TestServices.CreateAsync(window);
+        var settings = services.GetRequiredService<SettingsService>();
+        await settings.SetGlobalAsync(SettingsCatalogue.DefaultReminderOffset, TimeSpan.FromMinutes(45));
+        var view = await OpenAppSettingsAsync(window, services);
+        var offset = HeadlessInput.Find<ComboBox>(view, "GlobalReminderOffset");
+        var time = HeadlessInput.Find<TimePicker>(view, "GlobalDateOnlyReminderTime");
+        var page = Assert.IsType<AppSettingsViewModel>(view.DataContext);
+        Assert.Equal("45 minutes before", Assert.IsType<ReminderChoice>(offset.SelectedItem).Label);
+
+        HeadlessInput.ChooseItem(window, offset, "15 minutes before");
+        HeadlessInput.AdvanceTimePickerHour(window, time);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "AppSettingsSaveButton"));
+        await HeadlessInput.WaitUntilAsync(() => !page.IsDirty);
+
+        Assert.Equal(TimeSpan.FromMinutes(15), await settings.GetGlobalAsync(SettingsCatalogue.DefaultReminderOffset));
+        Assert.Equal(new TimeOnly(10, 0), await settings.GetGlobalAsync(SettingsCatalogue.DateOnlyReminderTime));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Discarding_unsaved_defaults_navigates_home()
     {
         var window = new MainWindow();

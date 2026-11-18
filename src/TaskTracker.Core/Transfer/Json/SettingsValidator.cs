@@ -15,6 +15,9 @@ internal static class SettingsValidator
         Check(SettingsCatalogue.AutoCompleteParents, settings, path, issues);
         Check(SettingsCatalogue.UrgencyYellowThreshold, settings, path, issues);
         Check(SettingsCatalogue.UrgencyRedThreshold, settings, path, issues);
+        Check(SettingsCatalogue.RemindersEnabled, settings, path, issues);
+        Check(SettingsCatalogue.DefaultReminderOffset, settings, path, issues);
+        Check(SettingsCatalogue.DateOnlyReminderTime, settings, path, issues);
     }
 
     private static void Check<T>(SettingDefinition<T> definition, IReadOnlyDictionary<string, string> settings,

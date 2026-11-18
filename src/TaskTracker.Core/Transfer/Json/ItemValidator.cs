@@ -2,6 +2,8 @@ using System.Text.Json;
 
 using TaskTracker.Core.Items;
 
+using TaskTracker.Core.Reminders;
+
 namespace TaskTracker.Core.Transfer.Json;
 
 /// <summary>
@@ -29,6 +31,7 @@ internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet
             ValidateLookups(items[position], itemPath);
             ValidateDates(items[position], itemPath);
             ValidateRecurrence(items[position], itemPath);
+            ValidateReminder(items[position], itemPath);
             ValidatePlacement(items[position], itemPath, folderIds, byId);
             valueValidator.Validate(items[position].FieldValues.OrEmpty(), project.Id, $"{itemPath}.fieldValues");
             linkValidator.Validate(items[position].Links, $"{itemPath}.links");
@@ -63,6 +66,14 @@ internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet
         if (hasPriority && index.FindPriority(item) is null)
         {
             issues.Add($"{path}.priority", "The priority is not in this file's priority levels.");
+        }
+    }
+
+    private void ValidateReminder(ItemDocument item, string path)
+    {
+        if (!ReminderTiming.IsValid(item.ReminderMode, item.ReminderOffsetMinutes))
+        {
+            issues.Add($"{path}.reminderOffsetMinutes", "Choose a supported offset for offset mode only.");
         }
     }
 

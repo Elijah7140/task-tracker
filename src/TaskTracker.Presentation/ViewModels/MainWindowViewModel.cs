@@ -4,10 +4,12 @@ using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Calendar;
+using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
@@ -47,6 +49,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private bool isOpeningCalendar;
     private bool isOpeningTrash;
     private ViewModelBase? currentPage;
+    private RemindersViewModel? reminders;
     private int pageVersion;
 
     public MainWindowViewModel(ProjectService projectService, FolderService folderService, IDialogService dialogs,
@@ -81,6 +84,56 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
         TrashCommand = new AsyncRelayCommand(OpenTrashAsync);
+    }
+
+    public RemindersViewModel? Reminders
+    {
+        get => reminders;
+        private set => SetProperty(ref reminders, value);
+    }
+
+    public RemindersViewModel EnableReminders(ReminderService service)
+    {
+        Reminders ??= new RemindersViewModel(service, dialogs, OpenReminderItemAsync, CompleteReminderItemAsync);
+        return Reminders;
+    }
+
+    private Task<SearchOpenOutcome> OpenReminderItemAsync(Guid itemId)
+    {
+        var previous = IsTransientPage(CurrentPage) ? transientReturnPage : CurrentPage;
+        return OpenItemFromTransientPageAsync(itemId, previous);
+    }
+
+    /// <summary>
+    /// Completes an item from the reminder panel. Returns null when the user cancels; the panel
+    /// reports a blocked result and dismisses the entry once the change is applied.
+    /// </summary>
+    private async Task<CompletionResult?> CompleteReminderItemAsync(Guid itemId)
+    {
+        if (itemService is null || await FindItemLocationAsync(itemId) is not { } location)
+        {
+            throw new DomainRuleException("This item is no longer available.");
+        }
+
+        var workspace = CurrentPage as ProjectWorkspaceViewModel;
+        if (workspace is not null && !await workspace.ResolveDraftAsync())
+        {
+            return null;
+        }
+
+        var result = await ItemCompletion.SetAsync(itemService, dialogs, location, itemId, true);
+        if (result is not CompletionResult.Applied applied)
+        {
+            return result;
+        }
+
+        await ((IUndoHost)this).ReloadAsync();
+        if (applied.LastRepeat && CurrentPage is ProjectWorkspaceViewModel current)
+        {
+            current.ReportLastRepeat();
+        }
+
+        return applied;
     }
 
     public string Title => "Task Tracker";

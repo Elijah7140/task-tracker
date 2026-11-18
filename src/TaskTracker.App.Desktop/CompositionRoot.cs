@@ -1,13 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Dialogs;
+using TaskTracker.App.Desktop.Reminders;
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Transfer;
 using TaskTracker.Infrastructure;
 using TaskTracker.Infrastructure.Persistence;
 using TaskTracker.Presentation.Navigation;
+using TaskTracker.Presentation.Reminders;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop;
@@ -23,15 +26,15 @@ public static class CompositionRoot
         IDialogService? dialogs = null,
         IFilePickerService? filePicker = null,
         IDatabaseBackup? backup = null,
-        ILinkLauncher? linkLauncher = null)
+        ILinkLauncher? linkLauncher = null,
+        IReminderNotifier? reminderNotifier = null)
     {
         var services = new ServiceCollection();
 
         services.AddSingleton(clock ?? TimeProvider.System);
         services.AddSingleton(timeZone ?? TimeZoneInfo.Local);
         services.AddTaskTrackerCore();
-        var path = databasePath ?? Environment.GetEnvironmentVariable("TASKTRACKER_DB_PATH") ?? DatabaseInitializer.DefaultPath;
-        services.AddTaskTrackerInfrastructure(path);
+        services.AddTaskTrackerInfrastructure(ResolveDatabasePath(databasePath));
 
         if (backup is not null)
         {
@@ -48,6 +51,12 @@ public static class CompositionRoot
             .Register<CalendarViewModel, CalendarView>()
             .Register<TrashViewModel, TrashView>());
 
+        services.AddSingleton<DesktopReminderNotifier>();
+        services.AddSingleton<IReminderNotifier>(provider =>
+            reminderNotifier ?? provider.GetRequiredService<DesktopReminderNotifier>());
+        services.AddSingleton<ReminderScheduler>(provider => new ReminderScheduler(
+            provider.GetRequiredService<ReminderService>(), provider.GetRequiredService<DataSaved>(),
+            provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<IReminderNotifier>(), new AvaloniaUiDispatcher()));
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<INavigationService>(provider => provider.GetRequiredService<MainWindowViewModel>());
         services.AddSingleton<IDialogService>(dialogs ?? new AvaloniaDialogService());
@@ -61,6 +70,12 @@ public static class CompositionRoot
             ValidateOnBuild = true,
             ValidateScopes = true,
         });
+    }
+
+    /// <summary>The database file: the given path, else TASKTRACKER_DB_PATH, else the default location.</summary>
+    public static string ResolveDatabasePath(string? databasePath = null)
+    {
+        return databasePath ?? Environment.GetEnvironmentVariable("TASKTRACKER_DB_PATH") ?? DatabaseInitializer.DefaultPath;
     }
 
     /// <summary>
