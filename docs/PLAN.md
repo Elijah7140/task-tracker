@@ -725,8 +725,11 @@ permanently deleted since; can't undo." A refused step changes nothing; there is
 
 - Undo and redo hold the same write gate as ticket moves, item edits and completion, from
   selecting a step until the history position has been updated. The step uses the history's
-  lease for its verification and save. Replay also refuses a step if newer related rows would
-  be left in a deleted branch, invalidate custom fields or choices, or violate settings rules.
+  lease and one database transaction for its verification and save. A replayed hard delete
+  requires every dependent user-data row to be part of the same removal. The search index is
+  maintained by its triggers. Replay refuses to activate a row beneath a deleted ancestor and
+  uses the same restore-first message as Trash. It also refuses to leave newer rows in a
+  deleted branch or invalidate custom fields, choices, lookup lists or settings.
 
 **UI.** Ctrl+Z undoes; Ctrl+Y and Ctrl+Shift+Z redo. The shortcuts work anywhere in the main window
 (workspace, calendar, search, trash, settings, Home) except while a text box has focus (quick add, search
@@ -743,14 +746,17 @@ break a foreign key (a choice or lookup the step used was removed since), it is 
 "This change references something that was removed; can't undo."
 
 **Reloading.** After a step the screen on show reloads: the workspace keeps its folder and the
-selected item when they still exist, the calendar and trash lists reload, a search that has run runs again, saved-search lists and settings reload, and Home recounts. A search,
-calendar or trash page also marks the page behind it out of date, so going back reloads it
-through the existing unsaved-changes guard.
+selected item when they still exist, the calendar and trash lists reload, saved-search lists and
+settings reload, and Home recounts. Search refreshes field and choice metadata, drops invalid
+filters and reruns a query that already ran. Search, Calendar, Trash, Today and Tickets also
+mark the page behind them out of date. Back reloads the return page, including App Settings
+and Project Settings, through its unsaved-changes guard.
 
 **Dirty editor rule.** While the item editor holds unsaved edits, undo and redo are blocked with
 "Save or discard your item edits before undoing or redoing." The draft is untouched. (Reloading
 under a draft would either lose it or ask a question the user did not trigger.) Unsaved global
-or project settings also block undo and redo until the form is saved or discarded.
+or project settings also block undo and redo until saved or discarded. In App Settings this
+includes pending lookup entries, number edits and renames.
 
 #### Undo coverage
 
@@ -765,18 +771,18 @@ or project settings also block undo and redo until the form is saved or discarde
 | ProjectService | `RenameAsync`, `DeleteAsync` | Yes | Undoable | |
 | FolderService | `CreateAsync`, `RestoreAsync` | No | Undoable | |
 | FolderService | `RenameAsync`, `MoveAsync`, `ReorderAsync`, `DeleteAsync` | Yes | Undoable | |
-| LookupService | `AddItemTypeAsync`, `RenameItemTypeAsync`, `ArchiveItemTypeAsync`, `UnarchiveItemTypeAsync`, `ReorderItemTypesAsync` | No | Undoable | |
-| LookupService | `AddPriorityLevelAsync` (both overloads), `SetPriorityNumberAsync` | Yes | Undoable | |
-| LookupService | `RenamePriorityLevelAsync`, `ArchivePriorityLevelAsync`, `UnarchivePriorityLevelAsync`, `ReorderPriorityLevelsAsync` | No | Undoable | |
-| LookupService | `AddStatusAsync`, `RenameStatusAsync`, `SetStatusArchivedAsync` (archive and restore), `ReorderStatusesAsync` | Yes | Undoable | |
+| LookupService | `AddItemTypeAsync`, `RenameItemTypeAsync`, `ArchiveItemTypeAsync`, `UnarchiveItemTypeAsync`, `ReorderItemTypesAsync` | No | Undoable subject to lookup uniqueness | |
+| LookupService | `AddPriorityLevelAsync` (both overloads), `SetPriorityNumberAsync` | Yes | Undoable subject to lookup uniqueness | |
+| LookupService | `RenamePriorityLevelAsync`, `ArchivePriorityLevelAsync`, `UnarchivePriorityLevelAsync`, `ReorderPriorityLevelsAsync` | No | Undoable subject to lookup uniqueness | |
+| LookupService | `AddStatusAsync`, `RenameStatusAsync`, `SetStatusArchivedAsync` (archive and restore), `ReorderStatusesAsync` | Yes | Undoable subject to lookup uniqueness | |
 | FieldService | `CreateAsync`, `RenameAsync`, `ChangeTypeAsync`, `ArchiveAsync`, `UnarchiveAsync`, `ReorderAsync` | No | Undoable | |
 | FieldService | `AddChoiceAsync`, `RenameChoiceAsync`, `ArchiveChoiceAsync`, `UnarchiveChoiceAsync`, `ReorderChoicesAsync` | No | Undoable | |
-| SettingsService | `SetGlobalAsync`, `SaveGlobalAsync` (database-only preferences) | No | Undoable | |
-| SettingsService | `SaveProjectAsync`, `SetProjectOverrideAsync`, `ClearProjectOverrideAsync` | No | Undoable | |
+| SettingsService | `SetGlobalAsync`, `SaveGlobalAsync` (database-only preferences) | No | Undoable, including recorded effective auto-completion transitions | |
+| SettingsService | `SaveProjectAsync`, `SetProjectOverrideAsync`, `ClearProjectOverrideAsync` | No | Undoable, including recorded effective auto-completion transitions | |
 | SettingsService | Start with system, through `SetGlobalAsync` or `SaveGlobalAsync` | No | Excluded | The OS sign-in entry is outside the database transaction and its update can fail independently. Its stored preference is excluded from any mixed step. |
 | SavedSearchService | `SaveAsync` (new or overwrite), `RenameAsync`, `DeleteAsync`, `ReorderAsync` | No | Undoable | |
 | TrashService | `RestoreAsync` | Yes | Undoable | |
-| TrashService | `PurgeAsync`, `EmptyAsync` | No | Excluded | Intentional permanent removal of rows, including owned data. Purging also prevents undo of the preceding soft delete. |
+| TrashService | `PurgeAsync`, `EmptyAsync` | No | Excluded | Intentional permanent removal of rows, including owned data. A purge prevents replay of any soft delete or restore that needs those rows. |
 | CalendarRescheduleService | `MoveDueAsync`, `MoveScheduleAsync` | Yes | Undoable | |
 | TicketService | `MoveAsync`, `SetPriorityAsync` | Yes | Undoable | |
 | ReminderService | `SnoozeAsync` | Yes | Undoable | |
@@ -788,8 +794,11 @@ or project settings also block undo and redo until the form is saved or discarde
 Project and folder deletion captures the whole soft-delete batch, preserving earlier batches.
 Undoing a delete restores the exact prior order. Restoring from Trash appends the top node
 as specified in §7.6 and records its own step. Undoing that restore reinstates the batch and
-makes the delete the next step. Setting changes and any auto-complete reconciliation are
-recorded together.
+makes the delete the next step. Lookup replay checks the final list for duplicate ranks,
+names (using Core's case-insensitive comparison, including archived names) and active priority
+numbers. Setting changes and any auto-complete reconciliation are recorded together. Replay
+requires the recorded before and after effective values for each reconciled project. Bulk
+global saves skip unchanged effective defaults, so a startup-only save leaves history intact.
 
 ### 7.9 Import and export
 

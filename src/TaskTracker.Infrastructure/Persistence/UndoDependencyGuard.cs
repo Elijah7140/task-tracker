@@ -14,6 +14,8 @@ internal static class UndoDependencyGuard
         bool forward, CancellationToken cancellationToken)
     {
         await VerifySoftDeletionAsync(database, rows, forward, cancellationToken);
+        await UndoHierarchyGuard.VerifyAsync(database, rows, forward, cancellationToken);
+        await UndoLookupGuard.VerifyAsync(database, rows, forward, cancellationToken);
 
         foreach (var row in rows)
         {

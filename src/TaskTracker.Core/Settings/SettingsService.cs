@@ -91,17 +91,26 @@ public sealed class SettingsService(
         using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
-        var proposed = new Dictionary<string, string>(await store.GetGlobalAsync(cancellationToken));
-        Propose(proposed, SettingsCatalogue.AutoCompleteParents, autoCompleteParents);
-        Propose(proposed, SettingsCatalogue.UrgencyYellowThreshold, yellow);
-        Propose(proposed, SettingsCatalogue.UrgencyRedThreshold, red);
+        var current = await store.GetGlobalAsync(cancellationToken);
+        var proposed = new Dictionary<string, string>(current);
+        ProposeGlobal(proposed, SettingsCatalogue.AutoCompleteParents, autoCompleteParents);
+        ProposeGlobal(proposed, SettingsCatalogue.UrgencyYellowThreshold, yellow);
+        ProposeGlobal(proposed, SettingsCatalogue.UrgencyRedThreshold, red);
+        ProposeGlobal(proposed, SettingsCatalogue.RemindersEnabled, reminders.Enabled);
+        ProposeGlobal(proposed, SettingsCatalogue.DefaultReminderOffset, reminders.Offset);
+        ProposeGlobal(proposed, SettingsCatalogue.DateOnlyReminderTime, reminders.DateOnlyTime);
+        ProposeGlobal(proposed, SettingsCatalogue.KeepRunningInTray, reminders.KeepRunningInTray);
+        ProposeGlobal(proposed, SettingsCatalogue.StartWithSystem, startWithSystem);
 
         var enabledProjects = await ValidateChangeAsync(unitOfWork, proposed, proposedProject: null, confirmed, cancellationToken);
-        await StoreGlobalAsync(store, SettingsCatalogue.AutoCompleteParents, proposed, cancellationToken);
-        await StoreGlobalAsync(store, SettingsCatalogue.UrgencyYellowThreshold, proposed, cancellationToken);
-        await StoreGlobalAsync(store, SettingsCatalogue.UrgencyRedThreshold, proposed, cancellationToken);
-        await SaveReminderSettingsAsync(store, null, reminders, cancellationToken);
-        await SaveOptionalSettingAsync(store, null, SettingsCatalogue.StartWithSystem, startWithSystem, cancellationToken);
+        foreach (var (key, value) in proposed)
+        {
+            if (current.GetValueOrDefault(key) != value)
+            {
+                await store.SetGlobalAsync(key, value, cancellationToken);
+            }
+        }
+
         await ReconcileAndSaveAsync(unitOfWork, enabledProjects, UndoLabels.EditGlobalSettings(), cancellationToken);
     }
 
@@ -133,34 +142,34 @@ public sealed class SettingsService(
         await ReconcileAndSaveAsync(unitOfWork, enabledProjects, UndoLabels.EditProjectSettings(), cancellationToken);
     }
 
-    private static async Task SaveReminderSettingsAsync(ISettingsStore store, Guid? projectId,
+    private static async Task SaveReminderSettingsAsync(ISettingsStore store, Guid projectId,
         ReminderPreferences preferences, CancellationToken cancellationToken)
     {
-        await SaveOptionalSettingAsync(store, projectId, SettingsCatalogue.RemindersEnabled, preferences.Enabled, cancellationToken);
-        await SaveOptionalSettingAsync(store, projectId, SettingsCatalogue.DefaultReminderOffset, preferences.Offset, cancellationToken);
-        await SaveOptionalSettingAsync(store, projectId, SettingsCatalogue.DateOnlyReminderTime, preferences.DateOnlyTime, cancellationToken);
-        if (projectId is null)
-        {
-            await SaveOptionalSettingAsync(store, null, SettingsCatalogue.KeepRunningInTray,
-                preferences.KeepRunningInTray, cancellationToken);
-        }
+        await SaveReminderOverrideAsync(store, projectId, SettingsCatalogue.RemindersEnabled, preferences.Enabled, cancellationToken);
+        await SaveReminderOverrideAsync(store, projectId, SettingsCatalogue.DefaultReminderOffset, preferences.Offset, cancellationToken);
+        await SaveReminderOverrideAsync(store, projectId, SettingsCatalogue.DateOnlyReminderTime, preferences.DateOnlyTime, cancellationToken);
     }
 
-    private static Task SaveOptionalSettingAsync<T>(ISettingsStore store, Guid? projectId,
+    private static Task SaveReminderOverrideAsync<T>(ISettingsStore store, Guid projectId,
         SettingDefinition<T> definition, T? value, CancellationToken cancellationToken) where T : struct
     {
         var text = value.HasValue ? definition.Format(value.Value) : null;
-        if (projectId is Guid id)
-        {
-            return store.SetProjectAsync(id, definition.Key, text, cancellationToken);
-        }
-
-        return text is null ? Task.CompletedTask : store.SetGlobalAsync(definition.Key, text, cancellationToken);
+        return store.SetProjectAsync(projectId, definition.Key, text, cancellationToken);
     }
 
-    private static void Propose<T>(Dictionary<string, string> proposed, SettingDefinition<T> definition, T value)
+    private static void ProposeGlobal<T>(Dictionary<string, string> proposed, SettingDefinition<T> definition, T? value)
+        where T : struct
     {
-        proposed[definition.Key] = definition.Format(value);
+        if (value is not T requested)
+        {
+            return;
+        }
+
+        var current = proposed.TryGetValue(definition.Key, out var text) ? definition.Parse(text) : definition.DefaultValue;
+        if (!EqualityComparer<T>.Default.Equals(current, requested))
+        {
+            proposed[definition.Key] = definition.Format(requested);
+        }
     }
 
     private static void ProposeOverride<T>(Dictionary<string, string> proposed,
@@ -172,14 +181,8 @@ public sealed class SettingsService(
         }
         else
         {
-            Propose(proposed, definition, value.Value);
+            proposed[definition.Key] = definition.Format(value.Value);
         }
-    }
-
-    private static Task StoreGlobalAsync<T>(ISettingsStore store, SettingDefinition<T> definition,
-        IReadOnlyDictionary<string, string> proposed, CancellationToken cancellationToken)
-    {
-        return store.SetGlobalAsync(definition.Key, proposed[definition.Key], cancellationToken);
     }
 
     private static Task StoreProjectAsync<T>(ISettingsStore store, Guid projectId, SettingDefinition<T> definition,
@@ -374,6 +377,6 @@ public sealed class SettingsService(
             await ProjectCompletionReconciler.ReconcileAsync(unitOfWork, projectId, clock, cancellationToken);
         }
 
-        await unitOfWork.SaveChangesAsync(label, cancellationToken);
+        await unitOfWork.SaveChangesAsync(label, enabledProjects, cancellationToken);
     }
 }

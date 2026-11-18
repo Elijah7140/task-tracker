@@ -11,7 +11,7 @@ namespace TaskTracker.Infrastructure.Persistence;
 internal static class UndoSettingsGuard
 {
     public static async Task VerifyAsync(TaskTrackerDbContext database, IReadOnlyList<UndoRowSnapshot> rows,
-        bool forward, CancellationToken cancellationToken)
+        IReadOnlySet<Guid> autoCompletionEnabledProjects, bool forward, CancellationToken cancellationToken)
     {
         var globalRows = rows.Where(row => row.EntityType == typeof(GlobalSettingRow)).ToArray();
         var projectRows = rows.Where(row => row.EntityType == typeof(ProjectSettingRow)).ToLookup(row => (Guid)row.Key[0]);
@@ -26,6 +26,11 @@ internal static class UndoSettingsGuard
         var nextGlobal = ProjectValues(global, globalRows, forward);
         EnsureValidThresholds(SettingsResolver.Resolve(nextGlobal, new Dictionary<string, string>()));
         var projects = await new EfProjectRepository(database).ListAsync(true, cancellationToken);
+        var activeProjectIds = projects.Where(project => project.DeletedAtUtc is null).Select(project => project.Id);
+        if (!autoCompletionEnabledProjects.IsSubsetOf(activeProjectIds))
+        {
+            throw new DomainRuleException("A project reconciled by this setting is missing or deleted. Restore the project first.");
+        }
 
         foreach (var project in projects.Where(project => globalRows.Length > 0 || projectRows.Contains(project.Id)))
         {
@@ -34,6 +39,11 @@ internal static class UndoSettingsGuard
             var current = SettingsResolver.Resolve(global, overrides);
             var next = SettingsResolver.Resolve(nextGlobal, nextOverrides);
             EnsureValidThresholds(next);
+            if (autoCompletionEnabledProjects.Contains(project.Id)
+                && (current.AutoCompleteParents.Value != !forward || next.AutoCompleteParents.Value != forward))
+            {
+                throw new DomainRuleException($"Automatic completion changed for project '{project.Name}' since this step.");
+            }
 
             if (project.DeletedAtUtc is null && next.AutoCompleteParents.Value && !current.AutoCompleteParents.Value)
             {
@@ -50,7 +60,7 @@ internal static class UndoSettingsGuard
         foreach (var row in changes)
         {
             var key = (string)row.Key[^1];
-            var target = forward ? row.After : row.Before;
+            var target = row.Target(forward);
             if (target is null)
             {
                 proposed.Remove(key);

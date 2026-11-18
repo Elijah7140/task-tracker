@@ -172,6 +172,6 @@ internal static class LookupImporter
 
     private static bool SameName(string existing, string? imported)
     {
-        return string.Equals(existing, imported?.Trim(), StringComparison.OrdinalIgnoreCase);
+        return LookupEntity.NameComparer.Equals(existing, imported?.Trim());
     }
 }

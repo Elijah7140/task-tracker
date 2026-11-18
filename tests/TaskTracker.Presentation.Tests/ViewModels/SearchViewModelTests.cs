@@ -11,6 +11,35 @@ namespace TaskTracker.Presentation.Tests.ViewModels;
 public sealed class SearchViewModelTests
 {
     [Fact]
+    public async Task Refresh_updates_field_and_choice_labels_and_removes_only_invalid_filters()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var field = await store.Fields.CreateAsync("Stage", FieldDataType.Choice, null);
+        var kept = await store.Fields.AddChoiceAsync(field.Id, "Review");
+        var removed = await store.Fields.AddChoiceAsync(field.Id, "Temporary");
+        var page = await OpenPageFromHomeAsync(store);
+        var valid = AddRow(page, field.Key, FilterOperator.Equals);
+        var invalid = AddRow(page, field.Key, FilterOperator.Equals);
+        await valid.ChoicesTask;
+        await invalid.ChoicesTask;
+        valid.SelectedChoice = valid.Choices.Single(choice => choice.Id == kept.Id);
+        invalid.SelectedChoice = invalid.Choices.Single(choice => choice.Id == removed.Id);
+        await page.RunAsync();
+        await store.Fields.RenameAsync(field.Id, "Workflow stage");
+        await store.Fields.RenameChoiceAsync(field.Id, kept.Id, "In review");
+        await store.Fields.ArchiveChoiceAsync(field.Id, removed.Id);
+
+        await page.RefreshAsync();
+
+        var row = Assert.Single(page.Filters);
+        Assert.Equal("Workflow stage", row.SelectedField?.DisplayName);
+        Assert.Equal(kept.Id, row.SelectedChoice?.Id);
+        Assert.Equal("In review", row.SelectedChoice?.Label);
+        Assert.Null(page.Error);
+    }
+
+    [Fact]
     public async Task Search_from_home_defaults_to_all_projects()
     {
         await using var store = new PresentationTestStore();

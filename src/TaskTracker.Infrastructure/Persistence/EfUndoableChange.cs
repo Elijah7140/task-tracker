@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Fields;
@@ -20,7 +21,7 @@ namespace TaskTracker.Infrastructure.Persistence;
 internal sealed class EfUndoableChange(
     IDbContextFactory<TaskTrackerDbContext> contexts,
     IReadOnlyList<UndoRowSnapshot> rows,
-    string description, DataSaved? saved = null) : IUndoableChange
+    string description, IReadOnlySet<Guid> autoCompletionEnabledProjects, DataSaved? saved = null) : IUndoableChange
 {
     public string Description => description;
 
@@ -37,16 +38,20 @@ internal sealed class EfUndoableChange(
     private async Task ApplyAsync(bool forward, CancellationToken cancellationToken)
     {
         await using var database = await contexts.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         var current = await LoadAndVerifyAsync(database, forward, cancellationToken);
-        await UndoSettingsGuard.VerifyAsync(database, rows, forward, cancellationToken);
+        await UndoHardDeleteGuard.VerifyAsync(database, rows, forward, cancellationToken);
+        await UndoSettingsGuard.VerifyAsync(database, rows, autoCompletionEnabledProjects, forward, cancellationToken);
         await UndoDependencyGuard.VerifyAsync(database, rows, forward, cancellationToken);
 
+        database.ChangeTracker.CascadeDeleteTiming = CascadeTiming.OnSaveChanges;
         for (var index = 0; index < rows.Count; index++)
         {
             WriteRow(database, rows[index], current[index], forward);
         }
 
         await SaveAsync(database, forward, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         saved?.Publish(rows.Any(row => row.EntityType == typeof(GlobalSettingRow)));
     }
 
@@ -135,7 +140,7 @@ internal sealed class EfUndoableChange(
 
     private static void Verify(TaskTrackerDbContext database, UndoRowSnapshot row, object? entity, bool forward)
     {
-        var expected = forward ? row.Before : row.After;
+        var expected = row.Source(forward);
 
         if (expected is null && entity is null)
         {
@@ -170,7 +175,7 @@ internal sealed class EfUndoableChange(
         return false;
     }
 
-    private static string SubjectName(UndoRowSnapshot row)
+    internal static string SubjectName(UndoRowSnapshot row)
     {
         if (row.EntityType == typeof(Folder))
         {
@@ -228,7 +233,7 @@ internal sealed class EfUndoableChange(
     private static void WriteRow(TaskTrackerDbContext database, UndoRowSnapshot row, object? existing,
         bool forward)
     {
-        var target = forward ? row.After : row.Before;
+        var target = row.Target(forward);
 
         if (target is null)
         {

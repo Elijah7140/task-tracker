@@ -1,4 +1,5 @@
 #pragma warning disable xUnit1051
+using TaskTracker.Core;
 using TaskTracker.Core.Settings;
 
 namespace TaskTracker.Infrastructure.Tests.Persistence;
@@ -6,6 +7,44 @@ namespace TaskTracker.Infrastructure.Tests.Persistence;
 /// <summary>SQLite replay of global settings and composite-keyed project overrides.</summary>
 public sealed class SettingsUndoTests
 {
+    [Fact]
+    public async Task Startup_only_bulk_save_does_not_record_an_undo_step()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var reminders = new ReminderPreferences(SettingsCatalogue.RemindersEnabled.DefaultValue,
+            SettingsCatalogue.DefaultReminderOffset.DefaultValue, SettingsCatalogue.DateOnlyReminderTime.DefaultValue,
+            SettingsCatalogue.KeepRunningInTray.DefaultValue);
+
+        await world.Settings.SaveGlobalAsync(true, TimeSpan.FromDays(3), TimeSpan.FromHours(24),
+            reminders: reminders, startWithSystem: true);
+
+        Assert.True(await world.Settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+        Assert.False(world.History.CanUndo);
+        Assert.Empty(world.Recorder.Descriptions);
+        await using var database = world.OpenContext();
+        Assert.Equal(SettingsCatalogue.StartWithSystem.Key, Assert.Single(database.GlobalSettings).Key);
+    }
+
+    [Fact]
+    public async Task Redo_refuses_reconciliation_when_the_project_now_opts_out()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var projectId = world.Project.Id;
+        await world.Settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, false);
+        var parent = await world.Items.CreateAsync(projectId, null, null, "Parent");
+        var child = await world.Items.CreateAsync(projectId, null, parent.Id, "Child");
+        await world.Items.SetCompletedAsync(projectId, null, child.Id, true);
+        await world.Settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, true, confirmed: true);
+        Assert.NotNull((await world.ReadItemAsync(parent.Id)).CompletedAtUtc);
+        await world.History.UndoAsync();
+
+        var message = await world.VerifyRefusalAsync(
+            "INSERT INTO ProjectSetting (ProjectId, Key, Value) SELECT Id, 'autoCompleteParents', 'false' FROM Project",
+            redo: true, "GlobalSetting", "ProjectSetting", "TodoItem");
+
+        Assert.Contains("automatic completion", message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Saving_global_defaults_round_trips_all_settings_in_one_step()
     {

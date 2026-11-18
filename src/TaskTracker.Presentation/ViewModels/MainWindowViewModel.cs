@@ -181,7 +181,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
 
     string? IUndoHost.UndoBlockedReason => PageBehind(CurrentPage) switch
     {
-        AppSettingsViewModel { IsDirty: true } or ProjectSettingsViewModel { IsDirty: true }
+        AppSettingsViewModel { HasUnsavedChanges: true } or ProjectSettingsViewModel { IsDirty: true }
             => "Save or discard your settings before undoing or redoing.",
         ProjectWorkspaceViewModel { HasUnsavedChanges: true }
             => "Save or discard your item edits before undoing or redoing.",
@@ -219,11 +219,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
             case SearchViewModel searchPage:
                 await searchPage.RefreshAsync();
                 break;
-            case AppSettingsViewModel appSettings:
-                await appSettings.LoadAsync();
-                break;
-            case ProjectSettingsViewModel projectSettings:
-                await ReloadProjectSettingsAsync(projectSettings);
+            case AppSettingsViewModel or ProjectSettingsViewModel:
+                await ReloadSettingsAsync(CurrentPage);
                 break;
             case HomeViewModel home:
                 await home.LoadAsync();
@@ -231,7 +228,23 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         }
     }
 
-    private async Task ReloadProjectSettingsAsync(ProjectSettingsViewModel page)
+    private async Task<bool> ReloadSettingsAsync(ViewModelBase page)
+    {
+        if (!await ((IUnsavedChangesGuard)page).ConfirmLeaveAsync())
+        {
+            return false;
+        }
+
+        if (page is AppSettingsViewModel appSettings)
+        {
+            await appSettings.LoadAsync();
+            return true;
+        }
+
+        return await ReloadProjectSettingsAsync((ProjectSettingsViewModel)page);
+    }
+
+    private async Task<bool> ReloadProjectSettingsAsync(ProjectSettingsViewModel page)
     {
         ProjectWorkspaceSnapshot project;
         try
@@ -241,10 +254,11 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         catch (DomainRuleException)
         {
             await GoHomeAsync();
-            return;
+            return false;
         }
 
         await page.LoadAsync(project.Name);
+        return true;
     }
 
     /// <summary>The workspace shows a refusal in its status toast; other screens have no such place, so they get a message box.</summary>
@@ -838,6 +852,11 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         if (transientReturnPage is ProjectWorkspaceViewModel workspace)
         {
             return await workspace.LoadAsync(workspace.SelectedFolder?.Id, workspace.SelectedItem?.Id);
+        }
+
+        if (transientReturnPage is AppSettingsViewModel or ProjectSettingsViewModel)
+        {
+            return await ReloadSettingsAsync(transientReturnPage);
         }
 
         return true;

@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -20,6 +21,31 @@ namespace TaskTracker.App.Desktop.Tests;
 /// </summary>
 public sealed class UndoShortcutGuardTests
 {
+    [AvaloniaFact]
+    public async Task Ctrl_Z_after_leaving_a_priority_number_draft_refuses_application_undo()
+    {
+        using var scenario = await UndoScenario.OpenWorkspaceAsync();
+        var step = new CountingStep();
+        scenario.History.Record(step);
+        await scenario.Shell.OpenAppSettingsAsync();
+        Dispatcher.UIThread.RunJobs();
+        var number = scenario.Window.GetVisualDescendants().OfType<TextBox>()
+            .First(box => box.IsEffectivelyVisible && AutomationProperties.GetAutomationId(box) == "PriorityNumberBox");
+        HeadlessInput.TypeInto(scenario.Window, number, "42");
+        scenario.FocusButton("AppSettingsBackButton");
+        Assert.IsType<Button>(scenario.Window.FocusManager!.GetFocusedElement());
+
+        HeadlessInput.Press(scenario.Window, Key.Z, RawInputModifiers.Control);
+        await HeadlessInput.WaitUntilAsync(() => scenario.Shell.Undo!.HasStatus);
+
+        Assert.Equal("Save or discard your settings before undoing or redoing.", scenario.Shell.Undo!.Status);
+        var dialog = Assert.Single(scenario.Window.OwnedWindows);
+        Assert.Equal("Undo and redo", dialog.Title);
+        HeadlessInput.Press(dialog, Key.Enter);
+        Assert.Equal(0, step.UndoCount);
+        Assert.Equal("42", Assert.IsType<LookupRowViewModel>(number.DataContext).Number);
+    }
+
     [AvaloniaTheory]
     [InlineData("quick-add")]
     [InlineData("search")]

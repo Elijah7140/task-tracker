@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Settings;
 using TaskTracker.Core.Undo;
 using TaskTracker.Presentation.ViewModels;
 
@@ -11,6 +12,40 @@ namespace TaskTracker.Presentation.Tests.ViewModels;
 /// <summary>Undo and redo through the shell: commands, labels, status messages and screen reloads.</summary>
 public sealed class MainWindowViewModelUndoTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Returning_from_today_reloads_settings_after_undo(bool projectSettings)
+    {
+        await using var scenario = await Scenario.CreateAsync();
+        var shell = scenario.Shell;
+        if (projectSettings)
+        {
+            await scenario.Store.Settings.SetProjectOverrideAsync(scenario.Project.Id, SettingsCatalogue.AutoCompleteParents, false);
+            await shell.OpenProjectSettingsAsync(scenario.Project.Id);
+        }
+        else
+        {
+            await scenario.Store.Settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, false);
+            await shell.OpenAppSettingsAsync();
+        }
+
+        await shell.OpenTodayAsync();
+        await shell.Undo!.UndoAsync();
+        await shell.ReturnFromTodayAsync();
+
+        if (projectSettings)
+        {
+            var page = Assert.IsType<ProjectSettingsViewModel>(shell.CurrentPage);
+            Assert.False(page.OverrideAutoComplete);
+        }
+        else
+        {
+            var page = Assert.IsType<AppSettingsViewModel>(shell.CurrentPage);
+            Assert.True(page.AutoCompleteParents);
+        }
+    }
+
     private static readonly DateTimeOffset NoonOnTheThirteenth = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]

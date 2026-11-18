@@ -145,6 +145,10 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     /// <summary>True when the form differs from what was last loaded or saved.</summary>
     public bool IsDirty => CurrentDefaults() != saved;
 
+    /// <summary>Includes lookup drafts, which are saved separately from the global defaults.</summary>
+    public bool HasUnsavedChanges => IsDirty || ItemTypes?.HasUnsavedChanges == true
+        || PriorityLevels?.HasUnsavedChanges == true || Statuses?.HasUnsavedChanges == true;
+
     public bool CanSave => Error is null && IsDirty;
 
     public IReadOnlyList<string> DurationUnits { get; } = ["days", "hours"];
@@ -188,6 +192,12 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         Validate();
 
         await LoadLookupsAsync();
+
+        foreach (var list in new[] { ItemTypes, PriorityLevels, Statuses }.OfType<LookupListViewModel>())
+        {
+            list.NewName = string.Empty;
+            list.NewNumber = string.Empty;
+        }
 
         if (CustomFields is not null)
         {
@@ -270,13 +280,13 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     /// <inheritdoc />
     public async Task<bool> ConfirmLeaveAsync()
     {
-        if (!IsDirty)
+        if (!HasUnsavedChanges)
         {
             return true;
         }
 
         return await dialogs.ConfirmAsync("Discard unsaved settings?",
-            "Your changes to the global defaults haven't been saved.", "Discard");
+            "Your changes to App Settings haven't been saved.", "Discard");
     }
 
     private async Task BackAsync()

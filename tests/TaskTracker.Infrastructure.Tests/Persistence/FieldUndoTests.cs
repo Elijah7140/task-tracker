@@ -1,5 +1,6 @@
 #pragma warning disable xUnit1051
 using TaskTracker.Core.Fields;
+using TaskTracker.Core.Items;
 
 namespace TaskTracker.Infrastructure.Tests.Persistence;
 
@@ -43,16 +44,22 @@ public sealed class FieldUndoTests
         var field = await service.CreateAsync("Choice", FieldDataType.Choice, world.Project.Id);
         var first = await service.AddChoiceAsync(field.Id, "First");
         var second = await service.AddChoiceAsync(field.Id, "Second");
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Task");
+        var edit = new ItemEdit("Task", "Description", "T-1", null, null, null, null, null, null);
+        await world.Items.EditAsync(item.Id, edit, [new FieldValueInput(field.Id, ChoiceId: first.Id)]);
         if (operation == "unarchive")
         {
             await service.ArchiveChoiceAsync(field.Id, first.Id);
         }
 
         await world.VerifyRoundTripAsync(
-            () => EditChoiceAsync(service, field.Id, first.Id, second.Id, operation), "FieldChoice");
+            () => EditChoiceAsync(service, field.Id, first.Id, second.Id, operation),
+            "FieldDefinition", "FieldChoice", "TodoItem", "ItemFieldValue");
         await world.VerifyRefusalAsync(
             "UPDATE FieldChoice SET SortOrder = 99 WHERE Label IN ('First', 'Renamed', 'Added')",
-            redo: false, "FieldChoice");
+            redo: false, "FieldDefinition", "FieldChoice", "TodoItem", "ItemFieldValue");
+
+        Assert.Equal(first.Id, Assert.Single(await world.ReadFieldValuesAsync(item.Id)).ChoiceId);
     }
 
     private static Task EditFieldAsync(FieldService service, Guid first, Guid second, string operation)

@@ -41,4 +41,11 @@ public interface IUnitOfWork : IAsyncDisposable
 
     /// <summary>Saves, then records the save as one undo step named by <paramref name="undoLabel"/> (see <c>UndoLabels</c>).</summary>
     Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken);
+
+    /// <summary>Saves a settings step and records the projects whose effective auto-completion turned on.</summary>
+    Task SaveChangesAsync(string undoLabel, IReadOnlyList<Guid> autoCompletionEnabledProjects,
+        CancellationToken cancellationToken)
+    {
+        return SaveChangesAsync(undoLabel, cancellationToken);
+    }
 }

@@ -167,7 +167,7 @@ public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, 
     private static void EnsureUniqueName(IEnumerable<LookupEntity> rows, LookupEntity candidate, string kind)
     {
         var duplicate = candidate.Name.Length > 0 && rows.Any(row => row.Id != candidate.Id &&
-            string.Equals(row.Name, candidate.Name, StringComparison.OrdinalIgnoreCase));
+            LookupEntity.NameComparer.Equals(row.Name, candidate.Name));
 
         if (duplicate)
         {

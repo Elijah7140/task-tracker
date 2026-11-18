@@ -83,7 +83,13 @@ public sealed class EfUnitOfWork : IUnitOfWork
         }
     }
 
-    public async Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
+    public Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
+    {
+        return SaveChangesAsync(undoLabel, [], cancellationToken);
+    }
+
+    public async Task SaveChangesAsync(string undoLabel, IReadOnlyList<Guid> autoCompletionEnabledProjects,
+        CancellationToken cancellationToken)
     {
         var rows = UndoRowCollector.Collect(database.ChangeTracker);
         var settingsChanged = HasGlobalSettingChanges();
@@ -91,7 +97,7 @@ public sealed class EfUnitOfWork : IUnitOfWork
 
         if (rows.Count > 0)
         {
-            recorder.Record(new EfUndoableChange(contexts, rows, undoLabel, saved));
+            recorder.Record(new EfUndoableChange(contexts, rows, undoLabel, autoCompletionEnabledProjects.ToHashSet(), saved));
         }
 
         if (changed > 0)

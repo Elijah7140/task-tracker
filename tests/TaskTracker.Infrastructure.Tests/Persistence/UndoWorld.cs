@@ -141,35 +141,10 @@ internal sealed class UndoWorld : IAsyncDisposable
         return await database.ItemFieldValues.AsNoTracking().Where(value => value.ItemId == itemId).ToListAsync();
     }
 
-    /// <summary>Every item, folder and project row, deleted ones included, as comparable text.</summary>
-    public async Task<string> SnapshotAsync()
+    /// <summary>Every column in the branch and its owned data, including soft-deleted rows.</summary>
+    public Task<string> SnapshotAsync()
     {
-        await using var database = store.Open();
-        var lines = new List<string>();
-        var items = await database.TodoItems.IgnoreQueryFilters().AsNoTracking().OrderBy(item => item.Id).ToListAsync();
-        var folders = await database.Folders.IgnoreQueryFilters().AsNoTracking().OrderBy(folder => folder.Id).ToListAsync();
-        var projects = await database.Projects.IgnoreQueryFilters().AsNoTracking().OrderBy(project => project.Id).ToListAsync();
-
-        foreach (var item in items)
-        {
-            lines.Add($"item {item.Id} {item.Title} {item.Description} {item.FolderId} {item.ParentItemId} " +
-                $"{item.SortOrder} {item.DueDate} {item.DueTime} {item.ScheduledStart:O} {item.ScheduledEnd:O} " +
-                $"{item.CompletedAtUtc:O} {item.DeletedAtUtc:O} {item.DeletionBatchId} {item.UpdatedAtUtc:O}");
-        }
-
-        foreach (var folder in folders)
-        {
-            lines.Add($"folder {folder.Id} {folder.Name} {folder.ParentFolderId} {folder.SortOrder} " +
-                $"{folder.DeletedAtUtc:O} {folder.DeletionBatchId} {folder.UpdatedAtUtc:O}");
-        }
-
-        foreach (var project in projects)
-        {
-            lines.Add($"project {project.Id} {project.Name} {project.SortOrder} " +
-                $"{project.DeletedAtUtc:O} {project.DeletionBatchId} {project.UpdatedAtUtc:O}");
-        }
-
-        return string.Join(Environment.NewLine, lines);
+        return SnapshotTablesAsync(["Project", "Folder", "TodoItem", "ItemLink", "ItemFieldValue", "ProjectSetting"]);
     }
 
     /// <summary>Compares every SQLite column before the action, after undo, and after redo.</summary>
@@ -189,7 +164,7 @@ internal sealed class UndoWorld : IAsyncDisposable
         Assert.Equal(after, await SnapshotTablesAsync(tables));
     }
 
-    public async Task VerifyRefusalAsync(string externalSql, bool redo, params string[] tables)
+    public async Task<string> VerifyRefusalAsync(string externalSql, bool redo, params string[] tables)
     {
         await using var database = OpenContext();
         Assert.True(await database.Database.ExecuteSqlRawAsync(externalSql) > 0);
@@ -197,14 +172,15 @@ internal sealed class UndoWorld : IAsyncDisposable
         var undoDescription = History.UndoDescription;
         var redoDescription = History.RedoDescription;
 
-        await Assert.ThrowsAsync<DomainRuleException>(() => redo ? History.RedoAsync() : History.UndoAsync());
+        var error = await Assert.ThrowsAsync<DomainRuleException>(() => redo ? History.RedoAsync() : History.UndoAsync());
 
         Assert.Equal(before, await SnapshotTablesAsync(tables));
         Assert.Equal(undoDescription, History.UndoDescription);
         Assert.Equal(redoDescription, History.RedoDescription);
+        return error.Message;
     }
 
-    private async Task<string> SnapshotTablesAsync(IEnumerable<string> tables)
+    public async Task<string> SnapshotTablesAsync(IEnumerable<string> tables)
     {
         await using var database = OpenContext();
         var snapshots = new List<string>();
