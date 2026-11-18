@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter @task-tracker/web dev",
     "build": "pnpm -r run build",
+    "test:server-db:electron": "node scripts/test-server-db-electron.mjs",
     "check:electron": "pnpm --filter @task-tracker/desktop check:runtime"
   },
   "devDependencies": {
