@@ -609,7 +609,7 @@ The trash lists **deletion batches** (§5.3), not individual rows: one row per `
 - **Empty trash** (behind a confirmation) permanently deletes everything in scope in one
   transaction: all deleted folders and items, and deleted projects with all they own. Live rows
   are never touched; one that points at a deleted row stops the operation.
-- **Navigation.** A Trash button on Home and in the workspace header, and Ctrl+Shift+T (exact
+- **Navigation.** A Trash button in the title bar and in the workspace header, and Ctrl+Shift+T (exact
   modifiers). Back or Escape (no modifiers) returns. Search, Calendar and Trash share the
   single return page described in §7.4, so Back always lands on the page the first of them was
   opened from. Opening the trash keeps the page behind it, including an unsaved editor draft,
@@ -1341,7 +1341,7 @@ were made autonomously; they are listed for review.
 - **Undo.** Each push back is one labelled undo step, "Push back ⟨title⟩" (§7.8).
 
 **Today view**
-- **Opening it.** A **Today** button in the top navigation and on Home, and **Ctrl+Shift+D**,
+- **Opening it.** A **Today** button in the title bar, and **Ctrl+Shift+D**,
   open it. It uses the shared transient page and the stale-page rules (§7.2 shell navigation).
 - **What it lists.** Items completed today that are still completed: `CompletedAtUtc` falls within
   today's local day, which is computed with the explicitly passed time zone (§5.4). Reopening an
@@ -1513,7 +1513,7 @@ the decisions below were made autonomously; they are listed for review.
 This is the owner's request from 2026-11-17, with the details the owner gave in §10. Where the
 request was silent, the decisions below were made autonomously; they are listed for review.
 
-- **Opening it.** A **Tickets** button on Home and in the top bar, and **Ctrl+Shift+K**. It uses the
+- **Opening it.** A **Tickets** button in the title bar, and **Ctrl+Shift+K**. It uses the
   shared transient page.
 - **What it lists.** Open, non-deleted items that have a ticket number, across all projects, with a
   project filter (All or one project). The columns are ticket number, title, project, status and
@@ -1569,7 +1569,9 @@ request was silent, the decisions below were made autonomously; they are listed 
 
 ### Screens
 
-1. **Home** — project cards (name, open count, overdue count). New project button. An **Import / Export** menu
+1. **Home** — project cards (name, open count, overdue count). New project button. App-wide navigation
+   (Search, Calendar, Trash, Today, Tickets, the reminder bell and a Settings gear) lives in the custom
+   title bar on every page, as in other Windows apps; Settings returns to the project it was opened from. An **Import / Export** menu
    (§7.9) and a status line for its last result. The **Search** page has an "Export results (CSV)" button.
 2. **Project workspace** — three panes:
    - **Left:** folder tree (project root at top). Right-click: new folder, rename, move, delete.

@@ -61,6 +61,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private bool isOpeningTrash;
     private bool isOpeningToday;
     private bool isOpeningTickets;
+    private bool isOpeningSettings;
+    private bool showsTitleBar;
     private bool isChangingTransientItem;
     private ViewModelBase? currentPage;
     private RemindersViewModel? reminders;
@@ -112,6 +114,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         TrashCommand = new AsyncRelayCommand(OpenTrashAsync);
         TicketsCommand = new AsyncRelayCommand(OpenTicketsAsync);
         TodayCommand = new AsyncRelayCommand(OpenTodayAsync);
+        SettingsCommand = new AsyncRelayCommand(OpenSettingsFromTitleBarAsync);
     }
 
     public RemindersViewModel? Reminders
@@ -175,6 +178,19 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     public ICommand TicketsCommand { get; }
 
     public ICommand TodayCommand { get; }
+
+    /// <summary>Opens App Settings from whichever page is on show.</summary>
+    public ICommand SettingsCommand { get; }
+
+    /// <summary>
+    /// True when the window draws its own title bar, which holds the navigation buttons. The desktop
+    /// app turns it on when it extends the client area into the system title bar.
+    /// </summary>
+    public bool ShowsTitleBar
+    {
+        get => showsTitleBar;
+        set => SetProperty(ref showsTitleBar, value);
+    }
 
     /// <summary>Undo and redo for the whole window; null when the shell was built without a history.</summary>
     public UndoCoordinator? Undo { get; }
@@ -693,6 +709,50 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         var page = new AppSettingsViewModel(settings, dialogs, this, lookups, returnProjectId, fields, installation, appUpdates);
         await page.LoadAsync();
         ShowIfCurrent(page, version);
+    }
+
+    /// <summary>
+    /// Opens App Settings from the title bar. A transient page first returns to the page behind it,
+    /// and the page being left gets its usual unsaved-changes guard. Back from settings returns to
+    /// the project the user was in, if any.
+    /// </summary>
+    public async Task OpenSettingsFromTitleBarAsync()
+    {
+        if (settings is null || isOpeningSettings || CurrentPage is AppSettingsViewModel)
+        {
+            return;
+        }
+
+        isOpeningSettings = true;
+        try
+        {
+            await LeaveForSettingsAsync();
+        }
+        finally
+        {
+            isOpeningSettings = false;
+        }
+    }
+
+    private async Task LeaveForSettingsAsync()
+    {
+        if (IsTransientPage(CurrentPage))
+        {
+            await ReturnFromTransientPageAsync();
+        }
+
+        switch (CurrentPage)
+        {
+            case ProjectWorkspaceViewModel workspace:
+                await workspace.OpenSettingsAsync();
+                break;
+            case ProjectSettingsViewModel projectSettings when await projectSettings.ConfirmLeaveAsync():
+                await OpenAppSettingsAsync(projectSettings.ProjectId);
+                break;
+            case HomeViewModel:
+                await OpenAppSettingsAsync();
+                break;
+        }
     }
 
     private async Task<bool> ConfirmUpdateRestartAsync()

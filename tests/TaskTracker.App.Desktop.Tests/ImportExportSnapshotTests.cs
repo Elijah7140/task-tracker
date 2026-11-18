@@ -54,6 +54,7 @@ public sealed class ImportExportSnapshotTests
         using var services = await TestServices.CreateAsync();
         await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
         var shell = services.GetRequiredService<MainWindowViewModel>();
+        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark);
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();

@@ -467,6 +467,7 @@ public sealed class ScreenSnapshotTests
         await projects.CreateAsync("Billing DB");
         await projects.CreateAsync("Website refresh");
         var shell = services.GetRequiredService<MainWindowViewModel>();
+        shell.ShowsTitleBar = true;
         var window = OpenWindow(shell, dark);
 
         await shell.GoHomeAsync();
