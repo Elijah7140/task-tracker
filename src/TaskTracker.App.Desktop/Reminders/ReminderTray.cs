@@ -8,30 +8,37 @@ using TaskTracker.Core.Settings;
 
 namespace TaskTracker.App.Desktop.Reminders;
 
-/// <summary>Keeps the window and its scheduler alive when the user closes to the tray.</summary>
+/// <summary>
+/// Keeps the window and its scheduler alive when the user closes it with <c>KeepRunningInTray</c>
+/// on: hidden to a tray icon when a tray host shows one, minimised otherwise (§7.12).
+/// </summary>
 internal sealed class ReminderTray : IDisposable
 {
     private readonly IClassicDesktopStyleApplicationLifetime lifetime;
     private readonly Window window;
     private readonly SettingsService settings;
     private readonly DataSaved saves;
+    private readonly Func<Exception, Task> reportError;
     private readonly TrayIcon icon;
     private readonly TrayIcons icons;
+    private bool keepRunning;
     private bool quitting;
 
-    public ReminderTray(IClassicDesktopStyleApplicationLifetime lifetime, Window window, SettingsService settings, DataSaved saves)
+    public ReminderTray(IClassicDesktopStyleApplicationLifetime lifetime, Window window, SettingsService settings,
+        DataSaved saves, Func<Exception, Task> reportError)
     {
         this.lifetime = lifetime;
         this.window = window;
         this.settings = settings;
         this.saves = saves;
+        this.reportError = reportError;
         icon = CreateIcon();
         var application = Application.Current ?? throw new InvalidOperationException("Avalonia is not initialized.");
         icons = TrayIcon.GetIcons(application) ?? new TrayIcons();
         TrayIcon.SetIcons(application, icons);
         icons.Add(icon);
         window.Closing += OnClosing;
-        saves.Committed += OnSaved;
+        saves.GlobalSettingsCommitted += OnSettingsSaved;
     }
 
     public void Open()
@@ -49,6 +56,7 @@ internal sealed class ReminderTray : IDisposable
         window.Activate();
     }
 
+    /// <summary>Re-reads <c>KeepRunningInTray</c> and whether a tray host is present.</summary>
     public async Task RefreshAsync()
     {
         if (quitting)
@@ -57,12 +65,14 @@ internal sealed class ReminderTray : IDisposable
         }
 
         var enabled = await settings.GetGlobalAsync(SettingsCatalogue.KeepRunningInTray);
+        var hostAvailable = enabled && await TrayHostProbe.IsAvailableAsync();
         if (quitting)
         {
             return;
         }
 
-        icon.IsVisible = enabled && icon.NativeMenuExporter is not null;
+        keepRunning = enabled;
+        icon.IsVisible = hostAvailable && icon.NativeMenuExporter is not null;
         if (!icon.IsVisible && !window.IsVisible)
         {
             Open();
@@ -86,17 +96,37 @@ internal sealed class ReminderTray : IDisposable
         return tray;
     }
 
-    private void OnSaved()
+    private void OnSettingsSaved()
     {
-        Dispatcher.UIThread.Post(async () => await RefreshAsync());
+        Dispatcher.UIThread.Post(RefreshAfterSettingsSaved);
+    }
+
+    private async void RefreshAfterSettingsSaved()
+    {
+        try
+        {
+            await RefreshAsync();
+        }
+        catch (Exception exception)
+        {
+            await reportError(exception);
+        }
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs args)
     {
-        if (!quitting && icon.IsVisible && args.CloseReason == WindowCloseReason.WindowClosing)
+        var minimized = window.WindowState == WindowState.Minimized;
+        var state = new TrayCloseState(keepRunning, icon.IsVisible, minimized, quitting);
+        var action = TrayCloseDecision.Decide(state, args.CloseReason);
+        if (action == TrayCloseAction.HideToTray)
         {
             args.Cancel = true;
             window.Hide();
+        }
+        else if (action == TrayCloseAction.Minimize)
+        {
+            args.Cancel = true;
+            window.WindowState = WindowState.Minimized;
         }
     }
 
@@ -109,7 +139,7 @@ internal sealed class ReminderTray : IDisposable
     public void Dispose()
     {
         quitting = true;
-        saves.Committed -= OnSaved;
+        saves.GlobalSettingsCommitted -= OnSettingsSaved;
         window.Closing -= OnClosing;
         icons.Remove(icon);
         icon.Dispose();

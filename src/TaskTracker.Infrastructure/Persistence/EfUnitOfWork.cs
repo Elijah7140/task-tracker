@@ -68,15 +68,17 @@ public sealed class EfUnitOfWork : IUnitOfWork
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
+        var settingsChanged = HasGlobalSettingChanges();
         if (await database.SaveChangesAsync(cancellationToken) > 0)
         {
-            saved?.Publish();
+            saved?.Publish(settingsChanged);
         }
     }
 
     public async Task SaveChangesAsync(string undoLabel, CancellationToken cancellationToken)
     {
         var rows = UndoRowCollector.Collect(database.ChangeTracker);
+        var settingsChanged = HasGlobalSettingChanges();
         var changed = await database.SaveChangesAsync(cancellationToken);
 
         if (rows.Count > 0)
@@ -86,8 +88,16 @@ public sealed class EfUnitOfWork : IUnitOfWork
 
         if (changed > 0)
         {
-            saved?.Publish();
+            saved?.Publish(settingsChanged);
         }
+    }
+
+    /// <summary>Settings are never part of an undo step, so only these direct saves can change one.</summary>
+    private bool HasGlobalSettingChanges()
+    {
+        database.ChangeTracker.DetectChanges();
+        return database.ChangeTracker.Entries<GlobalSettingRow>()
+            .Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
     }
 
     public ValueTask DisposeAsync()

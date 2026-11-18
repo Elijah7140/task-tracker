@@ -108,6 +108,58 @@ public sealed class ReminderServiceTests
         Assert.Empty((await world.Search.SearchAsync(query)).Items);
     }
 
+    [Fact]
+    public async Task Malformed_stored_settings_fall_back_to_their_defaults_for_the_due_query()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var yesterday = DateOnly.FromDateTime(world.Clock.GetUtcNow().UtcDateTime).AddDays(-1);
+        var item = await SaveDateOnlyAsync(world, "Corrupt settings", yesterday);
+        await using (var database = world.OpenContext())
+        {
+            await database.Database.ExecuteSqlRawAsync(
+                "INSERT INTO GlobalSetting (Key, Value) VALUES ('defaultReminderOffset', 'not a duration')");
+            await database.Database.ExecuteSqlRawAsync(
+                "INSERT INTO ProjectSetting (ProjectId, Key, Value) VALUES ({0}, 'dateOnlyReminderTime', '25:99')",
+                world.Project.Id.ToString().ToUpperInvariant());
+        }
+
+        var reminder = Assert.Single(await world.Reminders.DueAsync());
+
+        Assert.Equal(item.Id, reminder.ItemId);
+        Assert.Equal(yesterday.ToDateTime(new TimeOnly(8, 0), DateTimeKind.Utc), reminder.InstantUtc);
+    }
+
+    [Fact]
+    public async Task Due_query_still_finds_items_that_only_a_large_default_offset_makes_due()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var today = DateOnly.FromDateTime(world.Clock.GetUtcNow().UtcDateTime);
+        await world.Settings.SetProjectOverrideAsync(world.Project.Id, SettingsCatalogue.DefaultReminderOffset,
+            TimeSpan.FromDays(30));
+        var farAhead = await SaveDateOnlyAsync(world, "Twenty days ahead", today.AddDays(20));
+        await SaveDateOnlyAsync(world, "Forty days ahead", today.AddDays(40));
+        var weekAhead = await world.Items.CreateAsync(world.Project.Id, null, null, "Six days ahead");
+        var edit = new ItemEdit("Six days ahead", null, null, null, null, today.AddDays(6), new TimeOnly(0, 0), null, null)
+        {
+            UpdateReminder = true,
+            ReminderMode = ReminderMode.Offset,
+            ReminderOffsetMinutes = 10080,
+        };
+        await world.Items.EditAsync(weekAhead.Id, edit);
+
+        var due = await world.Reminders.DueAsync();
+
+        Assert.Equal(new[] { farAhead.Id, weekAhead.Id }.Order(), due.Select(entry => entry.ItemId).Order());
+    }
+
+    private static async Task<TodoItem> SaveDateOnlyAsync(UndoWorld world, string title, DateOnly due)
+    {
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, title);
+        var edit = new ItemEdit(title, null, null, null, null, due, null, null, null);
+        await world.Items.EditAsync(item.Id, edit);
+        return item;
+    }
+
     private static async Task<TodoItem> SaveAsync(UndoWorld world, string title, DateTime due,
         ReminderMode mode = ReminderMode.Offset)
     {

@@ -19,15 +19,25 @@ internal sealed class LinuxReminderNotifier(Action<Guid?> activate) : IReminderN
     private IDisposable? actionWatch;
     private IDisposable? closeWatch;
 
+    /// <summary>Posts one notification. A failed call drops the connection so the next attempt reconnects.</summary>
     public async Task NotifyAsync(ReminderNotification notification, CancellationToken cancellationToken)
     {
         var bus = await GetConnectionAsync(cancellationToken);
-        var message = BuildMessage(bus, notification);
-        var reply = bus.CallMethodAsync(message, ReadId);
-        var id = await reply.WaitAsync(Timeout, cancellationToken);
-        pending[id] = notification.ItemId;
+        try
+        {
+            var message = BuildMessage(bus, notification);
+            var reply = bus.CallMethodAsync(message, ReadId);
+            var id = await reply.WaitAsync(Timeout, cancellationToken);
+            pending[id] = notification.ItemId;
+        }
+        catch
+        {
+            ResetConnection();
+            throw;
+        }
     }
 
+    /// <summary>Stores the connection only once it is connected and watching both signals.</summary>
     private async Task<DBusConnection> GetConnectionAsync(CancellationToken cancellationToken)
     {
         if (connection is not null)
@@ -37,13 +47,44 @@ internal sealed class LinuxReminderNotifier(Action<Guid?> activate) : IReminderN
 
         var address = DBusAddress.Session ?? throw new InvalidOperationException("No D-Bus session address.");
         var bus = new DBusConnection(address);
+        try
+        {
+            await bus.ConnectAsync().AsTask().WaitAsync(Timeout, cancellationToken);
+            await WatchSignalsAsync(bus, cancellationToken);
+        }
+        catch
+        {
+            DisposeWatches();
+            bus.Dispose();
+            throw;
+        }
+
         connection = bus;
-        await bus.ConnectAsync().AsTask().WaitAsync(Timeout, cancellationToken);
+        return bus;
+    }
+
+    private async Task WatchSignalsAsync(DBusConnection bus, CancellationToken cancellationToken)
+    {
         actionWatch = await bus.WatchSignalAsync<(uint Id, string Key)>(InterfaceName, Path, InterfaceName, "ActionInvoked",
             ReadAction, OnAction, ObserverFlags.None, true).AsTask().WaitAsync(Timeout, cancellationToken);
         closeWatch = await bus.WatchSignalAsync<uint>(InterfaceName, Path, InterfaceName, "NotificationClosed",
             ReadId, OnClosed, ObserverFlags.None, true).AsTask().WaitAsync(Timeout, cancellationToken);
-        return bus;
+    }
+
+    private void ResetConnection()
+    {
+        DisposeWatches();
+        connection?.Dispose();
+        connection = null;
+        pending.Clear();
+    }
+
+    private void DisposeWatches()
+    {
+        closeWatch?.Dispose();
+        actionWatch?.Dispose();
+        closeWatch = null;
+        actionWatch = null;
     }
 
     private static MessageBuffer BuildMessage(DBusConnection bus, ReminderNotification notification)
@@ -91,8 +132,6 @@ internal sealed class LinuxReminderNotifier(Action<Guid?> activate) : IReminderN
 
     public void Dispose()
     {
-        closeWatch?.Dispose();
-        actionWatch?.Dispose();
-        connection?.Dispose();
+        ResetConnection();
     }
 }

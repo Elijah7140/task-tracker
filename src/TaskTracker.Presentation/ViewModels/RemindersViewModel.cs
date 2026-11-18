@@ -4,6 +4,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Completion;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Presentation.Navigation;
 
@@ -15,12 +16,12 @@ public sealed class RemindersViewModel : ViewModelBase
     private readonly ReminderService service;
     private readonly IDialogService dialogs;
     private readonly Func<Guid, Task<SearchOpenOutcome>> open;
-    private readonly Func<Guid, Task<bool>> complete;
+    private readonly Func<Guid, Task<CompletionResult?>> complete;
     private readonly HashSet<Guid> knownItems = [];
     private bool isOpen;
 
     public RemindersViewModel(ReminderService service, IDialogService dialogs, Func<Guid, Task<SearchOpenOutcome>> open,
-        Func<Guid, Task<bool>> complete)
+        Func<Guid, Task<CompletionResult?>> complete)
     {
         this.service = service;
         this.dialogs = dialogs;
@@ -103,7 +104,12 @@ public sealed class RemindersViewModel : ViewModelBase
     {
         await RunAsync(async () =>
         {
-            if (await complete(row.Entry.ItemId))
+            var result = await complete(row.Entry.ItemId);
+            if (result is CompletionResult.Blocked blocked)
+            {
+                await dialogs.ShowMessageAsync("Cannot complete item", blocked.Reason);
+            }
+            else if (result is CompletionResult.Applied)
             {
                 Dismiss(row);
             }

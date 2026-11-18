@@ -34,8 +34,7 @@ public static class CompositionRoot
         services.AddSingleton(clock ?? TimeProvider.System);
         services.AddSingleton(timeZone ?? TimeZoneInfo.Local);
         services.AddTaskTrackerCore();
-        var path = databasePath ?? Environment.GetEnvironmentVariable("TASKTRACKER_DB_PATH") ?? DatabaseInitializer.DefaultPath;
-        services.AddTaskTrackerInfrastructure(path);
+        services.AddTaskTrackerInfrastructure(ResolveDatabasePath(databasePath));
 
         if (backup is not null)
         {
@@ -71,6 +70,12 @@ public static class CompositionRoot
             ValidateOnBuild = true,
             ValidateScopes = true,
         });
+    }
+
+    /// <summary>The database file: the given path, else TASKTRACKER_DB_PATH, else the default location.</summary>
+    public static string ResolveDatabasePath(string? databasePath = null)
+    {
+        return databasePath ?? Environment.GetEnvironmentVariable("TASKTRACKER_DB_PATH") ?? DatabaseInitializer.DefaultPath;
     }
 
     /// <summary>

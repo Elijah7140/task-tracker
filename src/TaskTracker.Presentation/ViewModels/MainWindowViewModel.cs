@@ -104,7 +104,11 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         return OpenItemFromTransientPageAsync(itemId, previous);
     }
 
-    private async Task<bool> CompleteReminderItemAsync(Guid itemId)
+    /// <summary>
+    /// Completes an item from the reminder panel. Returns null when the user cancels; the panel
+    /// reports a blocked result and dismisses the entry once the change is applied.
+    /// </summary>
+    private async Task<CompletionResult?> CompleteReminderItemAsync(Guid itemId)
     {
         if (itemService is null || await FindItemLocationAsync(itemId) is not { } location)
         {
@@ -114,13 +118,13 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         var workspace = CurrentPage as ProjectWorkspaceViewModel;
         if (workspace is not null && !await workspace.ResolveDraftAsync())
         {
-            return false;
+            return null;
         }
 
         var result = await ItemCompletion.SetAsync(itemService, dialogs, location, itemId, true);
         if (result is not CompletionResult.Applied applied)
         {
-            return false;
+            return result;
         }
 
         await ((IUndoHost)this).ReloadAsync();
@@ -129,7 +133,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
             current.ReportLastRepeat();
         }
 
-        return true;
+        return applied;
     }
 
     public string Title => "Task Tracker";

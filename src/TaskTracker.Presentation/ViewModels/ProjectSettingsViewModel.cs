@@ -45,6 +45,7 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
         {
             CustomFields = new FieldManagerViewModel(fields, dialogs, projectId);
         }
+
         Reminders.PropertyChanged += (_, _) => Validate();
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         BackCommand = new AsyncRelayCommand(BackAsync);

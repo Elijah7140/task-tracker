@@ -6,12 +6,16 @@ using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.Presentation.Reminders;
 
-/// <summary>Runs sequential reminder checks on the UI owner and handles the startup catch-up.</summary>
+/// <summary>
+/// Runs sequential reminder checks on the UI owner. Each check notifies only reminders from the
+/// last 24 hours, grouping several into one notification, and records older ones silently.
+/// </summary>
 public sealed class ReminderScheduler(ReminderService service, DataSaved saves, TimeProvider clock,
     IReminderNotifier notifier, IUiDispatcher dispatcher) : IDisposable
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ClockJump = TimeSpan.FromMilliseconds(250);
+    private const string GroupedBody = "Open Task Tracker to see your reminders.";
 
     private readonly Lock tickGate = new();
     private readonly HashSet<(Guid ItemId, long InstantTicks)> pendingDelivery = [];
@@ -36,13 +40,12 @@ public sealed class ReminderScheduler(ReminderService service, DataSaved saves, 
         }
 
         started = true;
-        var now = clock.GetUtcNow();
-        lastWallTime = now;
+        lastWallTime = clock.GetUtcNow();
         lastCheck = lastTick = clock.GetTimestamp();
         saves.Committed += RequestCheck;
         var pulse = TimeSpan.FromSeconds(1);
         timer = clock.CreateTimer(_ => OnTick(), null, pulse, pulse);
-        await CheckAsync(now.UtcDateTime);
+        await CheckAsync(startup: true);
     }
 
     /// <summary>Schedules a check on a save, resume, or clock change.</summary>
@@ -57,7 +60,7 @@ public sealed class ReminderScheduler(ReminderService service, DataSaved saves, 
     private async void RunRequestedCheck()
     {
         Interlocked.Exchange(ref checkQueued, 0);
-        await CheckAsync();
+        await CheckAsync(startup: false);
     }
 
     private void OnTick()
@@ -82,17 +85,17 @@ public sealed class ReminderScheduler(ReminderService service, DataSaved saves, 
         RequestCheck();
     }
 
-    private async Task CheckAsync(DateTime? startup = null)
+    private async Task CheckAsync(bool startup)
     {
         await checkGate.WaitAsync();
         try
         {
-            if (startup is DateTime now)
+            if (disposed)
             {
-                await CatchUpAsync(now);
+                return;
             }
 
-            await DeliverLiveAsync();
+            await DeliverDueAsync(clock.GetUtcNow().UtcDateTime, startup);
             if (!disposed && RefreshPanelAsync is { } refresh)
             {
                 await refresh();
@@ -108,19 +111,48 @@ public sealed class ReminderScheduler(ReminderService service, DataSaved saves, 
         }
     }
 
-    private async Task CatchUpAsync(DateTime now)
+    /// <summary>
+    /// Discards reminders older than 24 hours, then notifies the recent ones. The recent read is
+    /// bounded by the window itself, so a failed discard can never turn into a flood.
+    /// </summary>
+    private async Task DeliverDueAsync(DateTime now, bool startup)
     {
         var cutoff = new DateTime(Math.Max(0, now.Ticks - TimeSpan.TicksPerDay), DateTimeKind.Utc);
-        await DiscardOlderAsync(now, cutoff);
+        await TryDiscardOlderAsync(now, cutoff);
         var recent = await ReadRecentAsync(now, cutoff);
         if (recent.Count == 0 || disposed)
         {
             return;
         }
 
-        var summary = recent.Count == 1 ? "1 reminder while you were away" : $"{recent.Count} reminders while you were away";
-        await NotifyAsync(new ReminderNotification(summary, "Open Task Tracker to see your reminders.", null), recent);
+        await NotifyAsync(BuildNotification(recent, startup), recent);
         await RecordAndPublishAsync(recent);
+    }
+
+    /// <summary>One reminder found by a live check names its item; anything else is one grouped notification.</summary>
+    private static ReminderNotification BuildNotification(IReadOnlyList<ReminderEntry> entries, bool startup)
+    {
+        if (!startup && entries.Count == 1)
+        {
+            var entry = entries[0];
+            return new ReminderNotification(entry.Title, entry.ProjectName, entry.ItemId);
+        }
+
+        var count = entries.Count == 1 ? "1 reminder" : $"{entries.Count} reminders";
+        var title = startup ? $"{count} while you were away" : $"{count} due";
+        return new ReminderNotification(title, GroupedBody, null);
+    }
+
+    private async Task TryDiscardOlderAsync(DateTime now, DateTime cutoff)
+    {
+        try
+        {
+            await DiscardOlderAsync(now, cutoff);
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceWarning($"Old reminders were not discarded; the next check retries: {exception.Message}");
+        }
     }
 
     private async Task DiscardOlderAsync(DateTime now, DateTime cutoff)
@@ -154,32 +186,27 @@ public sealed class ReminderScheduler(ReminderService service, DataSaved saves, 
         return recent;
     }
 
-    private async Task DeliverLiveAsync()
-    {
-        while (!disposed)
-        {
-            var batch = await service.DueAsync();
-            if (batch.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var entry in batch)
-            {
-                await NotifyAsync(new ReminderNotification(entry.Title, entry.ProjectName, entry.ItemId), [entry]);
-            }
-
-            await RecordAndPublishAsync(batch);
-        }
-    }
-
+    /// <summary>
+    /// Notifies at most once per reminder. A notifier failure is logged and the reminder is still
+    /// recorded, because the in-app panel shows it regardless.
+    /// </summary>
     private async Task NotifyAsync(ReminderNotification notification, IReadOnlyList<ReminderEntry> entries)
     {
-        if (!disposed && entries.Any(entry => !pendingDelivery.Contains(DeliveryKey(entry))))
+        if (disposed || entries.All(entry => pendingDelivery.Contains(DeliveryKey(entry))))
+        {
+            return;
+        }
+
+        try
         {
             await notifier.NotifyAsync(notification, CancellationToken.None);
-            pendingDelivery.UnionWith(entries.Select(DeliveryKey));
         }
+        catch (Exception exception)
+        {
+            Trace.TraceWarning($"Reminder notification failed: {exception.Message}");
+        }
+
+        pendingDelivery.UnionWith(entries.Select(DeliveryKey));
     }
 
     private async Task RecordAndPublishAsync(IReadOnlyList<ReminderEntry> entries)

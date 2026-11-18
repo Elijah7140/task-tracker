@@ -14,13 +14,16 @@ namespace TaskTracker.Infrastructure.Persistence;
 internal sealed class EfReminderRepository(TaskTrackerDbContext database) : IReminderRepository
 {
     private const int BatchSize = 100;
+    private const string DateFormat = "yyyy-MM-dd";
 
     public async Task<IReadOnlyList<ReminderEntry>> DueAsync(DateTime now, TimeZoneInfo zone,
         DateTime? before, DateTime? since, int skip, CancellationToken cancellationToken)
     {
         RegisterClock(zone);
         var beforeTicks = before?.Ticks ?? long.MaxValue;
-        return await database.Database.SqlQueryRaw<ReminderEntry>(DueSql, now.Ticks, beforeTicks, since?.Ticks ?? 0, BatchSize, skip)
+        var horizon = await HorizonAsync(now, zone, cancellationToken);
+        return await database.Database
+            .SqlQueryRaw<ReminderEntry>(DueSql, now.Ticks, beforeTicks, since?.Ticks ?? 0, BatchSize, skip, horizon)
             .ToListAsync(cancellationToken);
     }
 
@@ -35,8 +38,34 @@ internal sealed class EfReminderRepository(TaskTrackerDbContext database) : IRem
     {
         RegisterClock(zone);
         var ids = JsonSerializer.Serialize(itemIds.Select(id => id.ToString().ToUpperInvariant()));
-        return await database.Database.SqlQueryRaw<ReminderEntry>(DeliveredSql, now.Ticks, ids)
+        var horizon = await HorizonAsync(now, zone, cancellationToken);
+        return await database.Database.SqlQueryRaw<ReminderEntry>(DeliveredSql, now.Ticks, ids, horizon)
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The latest due date that can have a reminder at or before <paramref name="now"/>: the local
+    /// date plus the largest possible offset (the item maximum or any stored default), plus one
+    /// day for time-zone and daylight-saving slack. Later items are skipped before resolving.
+    /// </summary>
+    private async Task<string> HorizonAsync(DateTime now, TimeZoneInfo zone, CancellationToken cancellationToken)
+    {
+        var largestOffset = await LargestOffsetAsync(cancellationToken);
+        var localToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(now, zone));
+        var days = (int)Math.Min(Math.Ceiling(largestOffset.TotalDays) + 1, DateOnly.MaxValue.DayNumber - localToday.DayNumber);
+        return localToday.AddDays(days).ToString(DateFormat, CultureInfo.InvariantCulture);
+    }
+
+    private async Task<TimeSpan> LargestOffsetAsync(CancellationToken cancellationToken)
+    {
+        var definition = SettingsCatalogue.DefaultReminderOffset;
+        var global = await database.GlobalSettings.Where(row => row.Key == definition.Key)
+            .Select(row => row.Value).ToListAsync(cancellationToken);
+        var projects = await database.ProjectSettings.Where(row => row.Key == definition.Key)
+            .Select(row => row.Value).ToListAsync(cancellationToken);
+        var itemMaximum = TimeSpan.FromMinutes(ReminderTiming.Offsets.Max());
+        var stored = global.Concat(projects).Select(text => ParseOrDefault(definition, text));
+        return stored.Append(definition.DefaultValue).Append(itemMaximum).Max();
     }
 
     private void RegisterClock(TimeZoneInfo zone)
@@ -49,15 +78,30 @@ internal sealed class EfReminderRepository(TaskTrackerDbContext database) : IRem
 
     private static long Resolve(string date, string time, int? minutes, string duration, TimeZoneInfo zone)
     {
-        var due = DateOnly.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var localTime = SettingsCatalogue.DateOnlyReminderTime.Parse(time);
+        var due = DateOnly.ParseExact(date, DateFormat, CultureInfo.InvariantCulture);
+        var localTime = ParseOrDefault(SettingsCatalogue.DateOnlyReminderTime, time);
         var offset = minutes.HasValue
             ? TimeSpan.FromMinutes(minutes.Value)
-            : SettingsCatalogue.DefaultReminderOffset.Parse(duration);
+            : ParseOrDefault(SettingsCatalogue.DefaultReminderOffset, duration);
         return ReminderTiming.BaseInstant(due, localTime, offset, zone).Ticks;
     }
 
-    private static string ReminderInstantsSql(string itemFilter)
+    /// <summary>A malformed stored setting falls back to its default for that row instead of stopping every reminder.</summary>
+    private static T ParseOrDefault<T>(SettingDefinition<T> definition, string text)
+    {
+        try
+        {
+            return definition.Parse(text);
+        }
+        catch (Exception exception) when (exception is FormatException or OverflowException)
+        {
+            return definition.DefaultValue;
+        }
+    }
+
+    /// <param name="itemFilter">Extra SQL appended to the item filter.</param>
+    /// <param name="horizonParameter">The index of the parameter that holds the due-date horizon.</param>
+    private static string ReminderInstantsSql(string itemFilter, int horizonParameter)
     {
         return $$"""
         WITH eligible AS MATERIALIZED (
@@ -67,7 +111,8 @@ internal sealed class EfReminderRepository(TaskTrackerDbContext database) : IRem
                     t.ReminderOffsetMinutes, {{ReminderSql.Setting(SettingsCatalogue.DefaultReminderOffset)}}) AS BaseTicks
             FROM TodoItem t
             JOIN Project p ON p.Id = t.ProjectId AND p.DeletedAtUtc IS NULL
-            WHERE t.DeletedAtUtc IS NULL AND {{ReminderSql.Eligible}} {{itemFilter}}
+            WHERE t.DeletedAtUtc IS NULL AND t.DueDate <= {{{horizonParameter}}}
+                AND {{ReminderSql.Eligible}} {{itemFilter}}
                 AND (t.FolderId IS NULL OR EXISTS (SELECT 1 FROM Folder f WHERE f.Id = t.FolderId AND f.DeletedAtUtc IS NULL))
         ), reminders AS (
             SELECT ItemId, Title, ProjectName, ReminderDeliveredFor,
@@ -77,7 +122,7 @@ internal sealed class EfReminderRepository(TaskTrackerDbContext database) : IRem
         """;
     }
 
-    private static readonly string DueSql = ReminderInstantsSql(string.Empty) + """
+    private static readonly string DueSql = ReminderInstantsSql(string.Empty, horizonParameter: 5) + """
 
         SELECT ItemId, Title, ProjectName, InstantTicks
         FROM reminders
@@ -86,7 +131,8 @@ internal sealed class EfReminderRepository(TaskTrackerDbContext database) : IRem
         LIMIT {3} OFFSET {4}
         """;
 
-    private static readonly string DeliveredSql = ReminderInstantsSql("AND t.Id IN (SELECT value FROM json_each({1}))") + """
+    private static readonly string DeliveredSql = ReminderInstantsSql(
+        "AND t.Id IN (SELECT value FROM json_each({1}))", horizonParameter: 2) + """
 
         SELECT ItemId, Title, ProjectName, InstantTicks
         FROM reminders

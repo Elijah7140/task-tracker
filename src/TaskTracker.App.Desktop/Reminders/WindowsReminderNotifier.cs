@@ -6,28 +6,47 @@ using TaskTracker.Presentation.Reminders;
 
 namespace TaskTracker.App.Desktop.Reminders;
 
-/// <summary>Posts Shell_NotifyIcon balloons and routes their callbacks through the existing HWND.</summary>
+/// <summary>
+/// Shows reminder balloons through one notification-area icon owned by the main window. The icon is
+/// added once, stays hidden between balloons, and is deleted before the window is destroyed.
+/// </summary>
 internal sealed class WindowsReminderNotifier : IReminderNotifier, IDisposable
 {
-    private const uint Add = 0;
-    private const uint Modify = 1;
-    private const uint Delete = 2;
-    private const uint SetVersion = 4;
+    private const uint IconId = 1;
+    private const uint SubclassId = 1;
     private const uint CallbackMessage = 0x805A;
+
+    private const uint NimAdd = 0;
+    private const uint NimModify = 1;
+    private const uint NimDelete = 2;
+    private const uint NimSetVersion = 4;
+    private const uint NifMessage = 0x0001;
+    private const uint NifIcon = 0x0002;
+    private const uint NifTip = 0x0004;
+    private const uint NifState = 0x0008;
+    private const uint NifInfo = 0x0010;
+    private const uint NisHidden = 0x0001;
+    private const uint NiifInfo = 0x0001;
+    private const uint NotifyIconVersion4 = 4;
+
     private const uint BalloonHide = 0x0403;
     private const uint BalloonTimeout = 0x0404;
     private const uint BalloonClick = 0x0405;
-    private const uint TimeChange = 0x001E;
-    private const uint PowerBroadcast = 0x0218;
-    private const int ResumeAutomatic = 0x0012;
+    private const uint WmDestroy = 0x0002;
+    private const uint WmTimeChange = 0x001E;
+    private const uint WmGetIcon = 0x007F;
+    private const uint WmPowerBroadcast = 0x0218;
+    private const int PbtResumeAutomatic = 0x0012;
+    private const int IdiApplication = 32512;
 
     private readonly nint window;
     private readonly Action<Guid?> activate;
     private readonly Action check;
     private readonly SubclassProcedure procedure;
     private readonly uint taskbarCreated;
-    private readonly Dictionary<uint, Guid?> pending = [];
-    private ushort lastId;
+    private Guid? balloonItem;
+    private bool iconAdded;
+    private bool disposed;
 
     public WindowsReminderNotifier(nint window, Action<Guid?> activate, Action check)
     {
@@ -36,60 +55,57 @@ internal sealed class WindowsReminderNotifier : IReminderNotifier, IDisposable
         this.check = check;
         procedure = HandleMessage;
         taskbarCreated = RegisterWindowMessage("TaskbarCreated");
-        if (!SetWindowSubclass(window, procedure, 1, 0))
+        if (!SetWindowSubclass(window, procedure, SubclassId, 0))
         {
             throw new InvalidOperationException("Could not attach the Windows notification callback.");
         }
     }
 
+    /// <summary>Shows a balloon; clicking it opens the item of the latest balloon.</summary>
     public Task NotifyAsync(ReminderNotification notification, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var id = NextId();
-        var icon = MakeIcon(id);
-        icon.Flags = 0x0001 | 0x0002 | 0x0004; // NIF_MESSAGE | NIF_ICON | NIF_TIP
-        icon.CallbackMessage = CallbackMessage;
-        icon.Icon = SendMessage(window, 0x007F, 0, 0); // WM_GETICON, ICON_SMALL
-        if (icon.Icon == 0)
+        if (disposed)
         {
-            icon.Icon = LoadIcon(0, 32512); // IDI_APPLICATION
+            return Task.CompletedTask;
         }
 
-        SendIcon(Add, ref icon);
-        pending.Add(id, notification.ItemId);
-        try
-        {
-            ShowBalloon(ref icon, notification);
-        }
-        catch
-        {
-            RemoveIcon(id);
-            throw;
-        }
-
+        EnsureIcon();
+        var data = NewData();
+        data.Flags = NifInfo | NifState;
+        data.State = 0;
+        data.StateMask = NisHidden;
+        data.InfoFlags = NiifInfo;
+        data.Title = Limit(notification.Title, 63);
+        data.Body = Limit(notification.Body, 255);
+        SendIcon(NimModify, ref data);
+        balloonItem = notification.ItemId;
         return Task.CompletedTask;
     }
 
-    private static void ShowBalloon(ref NotifyIconData icon, ReminderNotification notification)
+    private void EnsureIcon()
     {
-        icon.Version = 4;
-        SendIcon(SetVersion, ref icon);
-        icon.Flags = 0x0010; // NIF_INFO
-        icon.InfoFlags = 1; // NIIF_INFO
-        icon.Title = Limit(notification.Title, 63);
-        icon.Body = Limit(notification.Body, 255);
-        SendIcon(Modify, ref icon);
+        if (iconAdded)
+        {
+            return;
+        }
+
+        var data = NewData();
+        data.Flags = NifMessage | NifIcon | NifTip | NifState;
+        data.CallbackMessage = CallbackMessage;
+        data.Icon = WindowIcon();
+        data.State = NisHidden;
+        data.StateMask = NisHidden;
+        SendIcon(NimAdd, ref data);
+        iconAdded = true;
+        data.Version = NotifyIconVersion4;
+        SendIcon(NimSetVersion, ref data);
     }
 
-    private uint NextId()
+    private nint WindowIcon()
     {
-        do
-        {
-            lastId++;
-        }
-        while (lastId == 0 || pending.ContainsKey(lastId));
-
-        return lastId;
+        var icon = SendMessage(window, WmGetIcon, 0, 0);
+        return icon != 0 ? icon : LoadIcon(0, IdiApplication);
     }
 
     private nint HandleMessage(nint handle, uint message, nuint word, nint data, nuint subclassId, nuint reference)
@@ -98,48 +114,55 @@ internal sealed class WindowsReminderNotifier : IReminderNotifier, IDisposable
         {
             HandleBalloon((uint)data);
         }
-        else if (message == TimeChange || (message == PowerBroadcast && word == ResumeAutomatic))
+        else if (message == WmTimeChange || (message == WmPowerBroadcast && word == PbtResumeAutomatic))
         {
             check();
         }
+        else if (message == WmDestroy)
+        {
+            Dispose();
+        }
         else if (taskbarCreated != 0 && message == taskbarCreated)
         {
-            pending.Clear();
+            iconAdded = false;
         }
 
         return DefSubclassProc(handle, message, word, data);
     }
 
+    /// <summary>With version 4 callbacks the low word is the event and the high word the icon id.</summary>
     private void HandleBalloon(uint data)
     {
-        var id = data >> 16;
         var action = data & 0xFFFF;
-        if (action is not (BalloonHide or BalloonTimeout or BalloonClick) || !pending.TryGetValue(id, out var item))
+        if (data >> 16 != IconId || action is not (BalloonHide or BalloonTimeout or BalloonClick))
         {
             return;
         }
 
-        RemoveIcon(id);
+        HideIcon();
         if (action == BalloonClick)
         {
+            var item = balloonItem;
             Dispatcher.UIThread.Post(() => activate(item));
         }
     }
 
-    private void RemoveIcon(uint id)
+    private void HideIcon()
     {
-        pending.Remove(id);
-        var icon = MakeIcon(id);
-        ShellNotifyIcon(Delete, ref icon);
+        var data = NewData();
+        data.Flags = NifState;
+        data.State = NisHidden;
+        data.StateMask = NisHidden;
+        ShellNotifyIcon(NimModify, ref data);
     }
 
-    private NotifyIconData MakeIcon(uint id)
+    private NotifyIconData NewData()
     {
         return new NotifyIconData
         {
             Size = (uint)Marshal.SizeOf<NotifyIconData>(),
             Window = window,
-            Id = id,
+            Id = IconId,
             Tip = "Task Tracker",
             Body = string.Empty,
             Title = string.Empty,
@@ -157,22 +180,31 @@ internal sealed class WindowsReminderNotifier : IReminderNotifier, IDisposable
         return text[..(char.IsHighSurrogate(text[length - 1]) ? length - 1 : length)];
     }
 
-    private static void SendIcon(uint operation, ref NotifyIconData icon)
+    private static void SendIcon(uint operation, ref NotifyIconData data)
     {
-        if (!ShellNotifyIcon(operation, ref icon))
+        if (!ShellNotifyIcon(operation, ref data))
         {
             throw new InvalidOperationException("The Windows notification area did not accept the reminder.");
         }
     }
 
+    /// <summary>Deletes the icon and detaches from the window. Safe to call more than once.</summary>
     public void Dispose()
     {
-        foreach (var id in pending.Keys.ToArray())
+        if (disposed)
         {
-            RemoveIcon(id);
+            return;
         }
 
-        RemoveWindowSubclass(window, procedure, 1);
+        disposed = true;
+        if (iconAdded)
+        {
+            var data = NewData();
+            ShellNotifyIcon(NimDelete, ref data);
+            iconAdded = false;
+        }
+
+        RemoveWindowSubclass(window, procedure, SubclassId);
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]

@@ -62,6 +62,109 @@ public sealed class ReminderViewTests
     }
 
     [AvaloniaFact]
+    public async Task Clicking_open_in_the_panel_shows_the_item_in_its_project()
+    {
+        using var services = await TestServices.CreateAsync();
+        var item = await SeedAsync(services, "Review invoices");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        using var scheduler = StartPanel(services, shell);
+        var window = ScreenSnapshotTests.OpenWindow(shell, false);
+        await shell.GoHomeAsync();
+        await scheduler.StartAsync();
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderOpen"));
+
+        await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is ProjectWorkspaceViewModel { Editor: not null });
+        var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+        Assert.Equal(item.Id, workspace.Editor!.Id);
+        Assert.False(shell.Reminders!.IsOpen);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_mark_complete_in_the_panel_completes_the_item_and_removes_the_entry()
+    {
+        using var services = await TestServices.CreateAsync();
+        var item = await SeedAsync(services, "Review invoices");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        using var scheduler = StartPanel(services, shell);
+        var window = ScreenSnapshotTests.OpenWindow(shell, false);
+        await shell.GoHomeAsync();
+        await scheduler.StartAsync();
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderComplete"));
+
+        await HeadlessInput.WaitUntilAsync(() => shell.Reminders!.Count == 0);
+        var items = services.GetRequiredService<ItemService>();
+        var area = await items.LoadAreaAsync(item.ProjectId, null, TestContext.Current.CancellationToken);
+        Assert.NotNull(Assert.Single(area.Items).Item.CompletedAtUtc);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clicking_dismiss_in_the_panel_removes_the_entry_and_the_badge()
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedAsync(services, "Review invoices");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        using var scheduler = StartPanel(services, shell);
+        var window = ScreenSnapshotTests.OpenWindow(shell, false);
+        await scheduler.StartAsync();
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderDismiss"));
+
+        Assert.Equal(0, shell.Reminders!.Count);
+        Assert.Empty(HeadlessInput.FindAll<TextBlock>(window, "ReminderBadge"));
+        Assert.Empty(HeadlessInput.FindAll<Button>(window, "ReminderOpen"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Escape_closes_the_reminder_panel()
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedAsync(services, "Review invoices");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        using var scheduler = StartPanel(services, shell);
+        var window = ScreenSnapshotTests.OpenWindow(shell, false);
+        await scheduler.StartAsync();
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "ReminderBell"));
+
+        HeadlessInput.Press(window, Key.Escape);
+
+        Assert.False(shell.Reminders!.IsOpen);
+        Assert.Empty(HeadlessInput.FindAll<UserControl>(window, "RemindersPanel"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Escape_closes_an_open_combo_box_before_it_closes_the_panel()
+    {
+        using var services = await TestServices.CreateAsync();
+        var item = await SeedAsync(services, "Review invoices");
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        using var scheduler = StartPanel(services, shell);
+        var window = ScreenSnapshotTests.OpenWindow(shell, false, height: 1400);
+        await OpenEditorAsync(shell, item);
+        var choice = HeadlessInput.Find<ComboBox>(window, "EditorReminderChoice");
+        HeadlessInput.Click(window, choice);
+        HeadlessInput.Press(window, Key.R, RawInputModifiers.Control | RawInputModifiers.Shift);
+        Assert.True(choice.IsDropDownOpen);
+        Assert.True(shell.Reminders!.IsOpen);
+
+        HeadlessInput.Press(window, Key.Escape);
+
+        Assert.False(choice.IsDropDownOpen);
+        Assert.True(shell.Reminders.IsOpen);
+        HeadlessInput.Press(window, Key.Escape);
+        Assert.False(shell.Reminders.IsOpen);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task The_editor_saves_a_reminder_choice_selected_with_the_mouse()
     {
         using var services = await TestServices.CreateAsync();

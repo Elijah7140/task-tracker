@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
@@ -8,6 +9,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Reminders;
+using TaskTracker.App.Desktop.SingleInstance;
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Infrastructure.Persistence;
 using TaskTracker.Presentation.Navigation;
@@ -18,6 +20,11 @@ namespace TaskTracker.App.Desktop;
 public sealed partial class App : Application
 {
     private ServiceProvider? _services;
+    private MainWindowViewModel? _shell;
+    private DesktopReminderHost? _reminders;
+
+    /// <summary>The single-instance guard of a real launch; null in tests and the designer.</summary>
+    internal SingleInstanceGuard? InstanceGuard { get; init; }
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -42,7 +49,7 @@ public sealed partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void InitializeWindow(IClassicDesktopStyleApplicationLifetime desktop,
+    private void InitializeWindow(IClassicDesktopStyleApplicationLifetime desktop,
         MainWindowViewModel shell, ServiceProvider services)
     {
         var window = new MainWindow
@@ -52,20 +59,49 @@ public sealed partial class App : Application
             ExtendClientAreaTitleBarHeightHint = 36,
         };
         desktop.MainWindow = window;
-        var reminders = new DesktopReminderHost(services, desktop, window, shell);
-        window.Opened += StartAsync;
-        desktop.Exit += (_, _) =>
+        _shell = shell;
+        _reminders = new DesktopReminderHost(services, desktop, window, shell);
+        window.Opened += OnWindowOpened;
+        desktop.Exit += OnExit;
+        if (InstanceGuard is not null)
         {
-            reminders.Dispose();
-            services.Dispose();
-        };
-
-        async void StartAsync(object? sender, EventArgs args)
-        {
-            window.Opened -= StartAsync;
-            await shell.GoHomeAsync();
-            await reminders.StartAsync();
+            InstanceGuard.ActivationRequested += OnActivationRequested;
         }
+    }
+
+    private async void OnWindowOpened(object? sender, EventArgs args)
+    {
+        if (sender is Window window)
+        {
+            window.Opened -= OnWindowOpened;
+        }
+
+        try
+        {
+            await _shell!.GoHomeAsync();
+            await _reminders!.StartAsync();
+        }
+        catch (Exception exception)
+        {
+            ReportUnexpected(exception);
+        }
+    }
+
+    /// <summary>Another launch on the same database asked this window to come forward.</summary>
+    private void OnActivationRequested()
+    {
+        Dispatcher.UIThread.Post(() => _reminders?.Open());
+    }
+
+    private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs args)
+    {
+        if (InstanceGuard is not null)
+        {
+            InstanceGuard.ActivationRequested -= OnActivationRequested;
+        }
+
+        _reminders?.Dispose();
+        _services?.Dispose();
     }
 
     /// <summary>

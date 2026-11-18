@@ -5,8 +5,15 @@ public sealed class DataSaved
 {
     public event Action? Committed;
 
-    public void Publish()
+    /// <summary>Raised after <see cref="Committed"/> when the commit changed a global setting.</summary>
+    public event Action? GlobalSettingsCommitted;
+
+    public void Publish(bool globalSettingsChanged = false)
     {
         Committed?.Invoke();
+        if (globalSettingsChanged)
+        {
+            GlobalSettingsCommitted?.Invoke();
+        }
     }
 }

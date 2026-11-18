@@ -31,10 +31,11 @@ internal sealed class DesktopReminderHost : IDisposable
         notifier = services.GetRequiredService<DesktopReminderNotifier>();
         scheduler = services.GetRequiredService<ReminderScheduler>();
         tray = new ReminderTray(lifetime, window, services.GetRequiredService<SettingsService>(),
-            services.GetRequiredService<DataSaved>());
+            services.GetRequiredService<DataSaved>(), shell.ReportUnexpectedErrorAsync);
         scheduler.Delivered += panel.Add;
         scheduler.RefreshPanelAsync = panel.RefreshAsync;
         window.Activated += OnActivated;
+        window.Closed += OnClosed;
     }
 
     public async Task StartAsync()
@@ -68,9 +69,21 @@ internal sealed class DesktopReminderHost : IDisposable
         }
     }
 
+    /// <summary>Brings the window forward, for example when a second launch asks for it.</summary>
+    public void Open()
+    {
+        tray.Open();
+    }
+
     private void OnActivated(object? sender, EventArgs args)
     {
         scheduler.RequestCheck();
+    }
+
+    /// <summary>Removes the platform notification icon while the window handle still exists.</summary>
+    private void OnClosed(object? sender, EventArgs args)
+    {
+        notifier.Dispose();
     }
 
     private async void Activate(Guid? itemId)
@@ -96,6 +109,7 @@ internal sealed class DesktopReminderHost : IDisposable
     public void Dispose()
     {
         window.Activated -= OnActivated;
+        window.Closed -= OnClosed;
         scheduler.Delivered -= panel.Add;
         scheduler.RefreshPanelAsync = null;
         scheduler.Dispose();

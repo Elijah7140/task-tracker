@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using Microsoft.Extensions.Time.Testing;
 
+using TaskTracker.Core.Completion;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.Tests.Reminders;
@@ -22,7 +23,7 @@ public sealed class RemindersViewModelTests
             {
                 opened = item;
                 return Task.FromResult(SearchOpenOutcome.Opened);
-            }, _ => Task.FromResult(false));
+            }, _ => Task.FromResult<CompletionResult?>(null));
         var row = AddEntry(panel);
         panel.IsOpen = true;
 
@@ -35,17 +36,32 @@ public sealed class RemindersViewModelTests
     [Fact]
     public async Task Mark_complete_removes_the_entry_only_after_success()
     {
-        var completed = false;
+        CompletionResult? result = null;
         await using var store = new PresentationTestStore();
-        var panel = CreatePanel(store, _ => Task.FromResult(completed));
+        var panel = CreatePanel(store, _ => Task.FromResult(result));
         var row = AddEntry(panel);
 
         await ((IAsyncRelayCommand)row.CompleteCommand).ExecuteAsync(null);
         Assert.Same(row, Assert.Single(panel.Rows));
-        completed = true;
+        result = new CompletionResult.Applied([]);
         await ((IAsyncRelayCommand)row.CompleteCommand).ExecuteAsync(null);
 
         Assert.Empty(panel.Rows);
+    }
+
+    [Fact]
+    public async Task Mark_complete_explains_a_blocked_completion_and_keeps_the_entry()
+    {
+        await using var store = new PresentationTestStore();
+        var dialogs = new FakeDialogService();
+        var panel = new RemindersViewModel(store.Reminders, dialogs, _ => Task.FromResult(SearchOpenOutcome.Cancelled),
+            _ => Task.FromResult<CompletionResult?>(new CompletionResult.Blocked("Reopen a sub-item instead.")));
+        var row = AddEntry(panel);
+
+        await ((IAsyncRelayCommand)row.CompleteCommand).ExecuteAsync(null);
+
+        Assert.Equal(["Reopen a sub-item instead."], dialogs.Messages);
+        Assert.Same(row, Assert.Single(panel.Rows));
     }
 
     [Fact]
@@ -83,10 +99,10 @@ public sealed class RemindersViewModelTests
         Assert.Equal(entry, Assert.Single(panel.Rows).Entry);
     }
 
-    private static RemindersViewModel CreatePanel(PresentationTestStore store, Func<Guid, Task<bool>>? complete = null)
+    private static RemindersViewModel CreatePanel(PresentationTestStore store, Func<Guid, Task<CompletionResult?>>? complete = null)
     {
         return new RemindersViewModel(store.Reminders, new FakeDialogService(),
-            _ => Task.FromResult(SearchOpenOutcome.Cancelled), complete ?? (_ => Task.FromResult(false)));
+            _ => Task.FromResult(SearchOpenOutcome.Cancelled), complete ?? (_ => Task.FromResult<CompletionResult?>(null)));
     }
 
     private static ReminderRowViewModel AddEntry(RemindersViewModel panel)

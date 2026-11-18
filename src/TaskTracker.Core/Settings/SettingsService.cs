@@ -79,7 +79,7 @@ public sealed class SettingsService(
     /// Throws if auto-complete turns on for some project and <paramref name="confirmed"/> is false.
     /// </summary>
     public async Task SaveGlobalAsync(bool autoCompleteParents, TimeSpan yellow, TimeSpan red,
-        bool confirmed = false, CancellationToken cancellationToken = default, ReminderPreferences reminders = default)
+        bool confirmed = false, ReminderPreferences reminders = default, CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
@@ -102,7 +102,7 @@ public sealed class SettingsService(
     /// <see cref="SaveGlobalAsync"/>, applied to that project.
     /// </summary>
     public async Task SaveProjectAsync(Guid projectId, bool? autoCompleteParents, TimeSpan? yellow, TimeSpan? red,
-        bool confirmed = false, CancellationToken cancellationToken = default, ReminderPreferences? reminders = null)
+        bool confirmed = false, ReminderPreferences? reminders = null, CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
@@ -119,6 +119,7 @@ public sealed class SettingsService(
         {
             await SaveReminderSettingsAsync(store, projectId, preferences, cancellationToken);
         }
+
         await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
     }
 

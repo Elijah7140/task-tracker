@@ -56,35 +56,27 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Ctrl+Shift+R toggles the reminder panel from anywhere, so it is taken while the key travels
+    /// down. Escape closes the panel later, in <see cref="HandleKeyAsync"/>, once focused controls
+    /// such as an open combo box have had their turn. Returns true when the key was taken.
+    /// </summary>
+    private bool TryHandleReminderShortcut(KeyEventArgs args)
+    {
+        if (DataContext is not MainWindowViewModel { Reminders: { } reminders } || !IsReminderShortcut(args))
+        {
+            return false;
+        }
+
+        reminders.IsOpen = !reminders.IsOpen;
+        args.Handled = true;
+        return true;
+    }
 
     /// <summary>
     /// Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z undo and redo, except while a text box has focus, where they
     /// keep their text-editing meaning. Returns true when the key was taken.
     /// </summary>
-    private bool TryHandleReminderShortcut(KeyEventArgs args)
-    {
-        if (DataContext is not MainWindowViewModel { Reminders: { } reminders })
-        {
-            return false;
-        }
-
-        if (args.Key == Key.R && args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
-        {
-            reminders.IsOpen = !reminders.IsOpen;
-        }
-        else if (args.Key == Key.Escape && args.KeyModifiers == KeyModifiers.None && reminders.IsOpen)
-        {
-            reminders.IsOpen = false;
-        }
-        else
-        {
-            return false;
-        }
-
-        args.Handled = true;
-        return true;
-    }
-
     private async Task<bool> TryHandleUndoShortcutAsync(KeyEventArgs args)
     {
         var isUndo = IsUndoShortcut(args);
@@ -122,6 +114,7 @@ public sealed partial class MainWindow : Window
             await shell.ReportUnexpectedErrorAsync(exception);
         }
     }
+
     private async void OnKeyDown(object? sender, KeyEventArgs args)
     {
         if (DataContext is not MainWindowViewModel shell)
@@ -139,9 +132,18 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles keys no focused control took. An open reminder panel takes Escape before the page
+    /// does, so Escape closes the panel rather than leaving search, the calendar or the trash.
+    /// </summary>
     private static async Task HandleKeyAsync(MainWindowViewModel shell, KeyEventArgs args)
     {
-        if (IsSearchShortcut(args))
+        if (IsPanelEscape(shell, args))
+        {
+            args.Handled = true;
+            shell.Reminders!.IsOpen = false;
+        }
+        else if (IsSearchShortcut(args))
         {
             args.Handled = true;
             await shell.OpenSearchAsync();
@@ -200,6 +202,17 @@ public sealed partial class MainWindow : Window
     {
         var isPageKey = args.Key == Key.PageUp || args.Key == Key.PageDown;
         return isPageKey && args.KeyModifiers == KeyModifiers.None;
+    }
+
+    private static bool IsReminderShortcut(KeyEventArgs args)
+    {
+        return args.Key == Key.R && args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift);
+    }
+
+    private static bool IsPanelEscape(MainWindowViewModel shell, KeyEventArgs args)
+    {
+        var isEscape = args.Key == Key.Escape && args.KeyModifiers == KeyModifiers.None;
+        return isEscape && shell.Reminders is { IsOpen: true };
     }
 
     private static bool IsCalendarShortcut(KeyEventArgs args)
