@@ -1,0 +1,22 @@
+{
+  "name": "@task-tracker/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && vp build",
+    "dev": "vp dev"
+  },
+  "dependencies": {
+    "@task-tracker/contracts": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "tailwindcss": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

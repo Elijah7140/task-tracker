@@ -110,7 +110,9 @@ before WP24.
   and shared active-row filters. Reproduce both legacy schema stages and seeds
   with Effect migrations. Test replay, foreign keys and storage codecs. Interleave
   two operations and assert neither sees the other's uncommitted writes.
-- **Acceptance** — `pnpm exec vp test run --project server-db` passes.
+- **Acceptance** — `pnpm exec vp test run --project server-db` passes on Node 26
+  and under Electron's embedded Node (`ELECTRON_RUN_AS_NODE=1`, the production
+  runtime). Add a root script for the second run and a CI step that calls it.
 - **Dependencies** — WP1, plus WP3 if needed for seeds.
 
 ## WP6 — EF fixture compatibility and startup

@@ -93,6 +93,8 @@ Electron main starts the built server with `process.execPath` and
 built renderer and stops the server on exit. The renderer uses a loopback RPC
 endpoint with a per-launch credential and origin validation. Preload exposes a
 narrow native API, such as clipboard access.
+Electron 45.3.4 embeds Node 24.22.3. The WP1 Linux probe verified SQLite FTS5
+and native Temporal in the child process launched from Electron main.
 Use context isolation and sandboxing with Node integration disabled in the renderer.
 
 - Core decides completion, hierarchy, validation, finished branches and urgency. Server
@@ -616,7 +618,7 @@ static checks must finish with zero warnings.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm exec vp check
+pnpm exec vp check --deny-warnings
 pnpm run build
 pnpm exec playwright install chromium
 pnpm exec vp test run

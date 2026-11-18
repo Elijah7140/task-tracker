@@ -1,0 +1,55 @@
+name: Workspace CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  workspace-build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vp check --deny-warnings
+      - run: pnpm run build
+      - name: Verify the development server responds
+        shell: bash
+        run: |
+          pnpm dev --host 127.0.0.1 --port 5173 --strictPort &
+          dev_pid=$!
+          trap 'kill "$dev_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 \
+            --output /dev/null http://127.0.0.1:5173/
+      - name: Install Chromium and Linux browser dependencies
+        if: runner.os == 'Linux'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Chromium on Windows
+        if: runner.os == 'Windows'
+        run: pnpm exec playwright install chromium
+      - run: pnpm exec vp test run
+      - name: Verify Electron runtime on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm run check:electron
+      - name: Verify Electron runtime on Windows
+        if: runner.os == 'Windows'
+        run: pnpm run check:electron
+      - name: Upload differing browser screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshot-diffs-${{ matrix.os }}
+          path: |
+            .vitest/attachments/**/*.png
+            test-results/**/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore

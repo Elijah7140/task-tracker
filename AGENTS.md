@@ -6,21 +6,24 @@ in [docs/MIGRATION.md](docs/MIGRATION.md).
 
 ## Commands
 
-Use Node 26 and pnpm 12. Run from the workspace root once the scaffold lands.
+Use the Node 26 and pnpm 12 versions pinned in `.node-version` and `package.json`.
+Run from the workspace root.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm exec vp check
+pnpm exec vp check --deny-warnings
 pnpm run build
 pnpm exec playwright install chromium
 pnpm exec vp test run
 pnpm exec vp test run --project core
-pnpm run package:desktop
-pnpm run test:desktop
+pnpm run check:electron
 ```
 
 Run the static check before finishing. Build and checks must have zero warnings.
-Package before running Electron smoke.
+Both `vp check --help` and `vp lint --help` list `--deny-warnings`. On headless
+Linux, run the Electron runtime check with `xvfb-run -a` after building.
+Once desktop packaging lands, run `pnpm run package:desktop` before
+`pnpm run test:desktop`.
 
 ## Legacy .NET (until WP24 removes it)
 

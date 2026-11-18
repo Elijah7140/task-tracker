@@ -208,6 +208,8 @@ PublishScripts/
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
+# The root pnpm workspace contains source packages.
+!/packages/*
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/[Pp]ackages/repositories.config
 # NuGet v3's project.json files produces more ignorable files
@@ -482,3 +484,9 @@ $RECYCLE.BIN/
 *.swp
 
 *.received.png
+
+# TypeScript workspace
+dist/
+playwright-report/
+.vite/
+.vitest/

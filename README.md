@@ -8,7 +8,39 @@ projects → nested folders → todo items → sub-items.
 
 See [docs/PLAN.md](docs/PLAN.md) for the full design and roadmap.
 
-## Build and run
+## TypeScript workspace
+
+Use Node 26.13.0 and pnpm 12.16.1. Both were already available on the WP1
+verification machine. See `.node-version` and the root `package.json` for the pins.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Open the URL printed by Vite+ to see the React scaffold.
+
+```sh
+pnpm exec vp check --deny-warnings
+pnpm run build
+pnpm exec playwright install chromium
+pnpm exec vp test run --project core
+pnpm run check:electron
+```
+
+The runtime check launches Electron main, which runs a child using its own
+executable with `ELECTRON_RUN_AS_NODE=1`. Electron 45.3.4 (Node 24.22.3) passed
+an in-memory SQLite FTS5 query and native `Temporal.PlainDate` arithmetic on
+Linux. On headless Linux, use `xvfb-run -a pnpm run check:electron`.
+
+On the minimal Debian 13 verification host, the Electron binary was downloaded
+with `pnpm --filter @task-tracker/desktop exec install-electron`. GTK 3 and its
+missing shared-library dependencies were downloaded with `apt-get download`,
+extracted with `dpkg-deb -x` under `~/.local/task-tracker-gtk`, and loaded by
+prepending `~/.local/task-tracker-gtk/usr/lib/x86_64-linux-gnu` to
+`LD_LIBRARY_PATH` for the runtime check.
+
+## Build and run the .NET app
 
 Requires the .NET 10 SDK (version pinned in `global.json`).
 
@@ -24,13 +56,13 @@ for a launch check. The default is `LocalApplicationData/TaskTracker/tasktracker
 
 ## Solution layout
 
-| Project | Purpose |
-|---------|---------|
-| `src/TaskTracker.Core` | Domain model, business rules, application services. No UI, no database code. |
-| `src/TaskTracker.Infrastructure` | EF Core + SQLite persistence. |
-| `src/TaskTracker.Presentation` | ViewModels. No UI framework references, so any front end can reuse them. |
-| `src/TaskTracker.App.Desktop` | Avalonia views and the composition root. |
-| `tests/*` | One test project per source project. UI tests use Avalonia's headless platform. |
+| Project                          | Purpose                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| `src/TaskTracker.Core`           | Domain model, business rules, application services. No UI, no database code.    |
+| `src/TaskTracker.Infrastructure` | EF Core + SQLite persistence.                                                   |
+| `src/TaskTracker.Presentation`   | ViewModels. No UI framework references, so any front end can reuse them.        |
+| `src/TaskTracker.App.Desktop`    | Avalonia views and the composition root.                                        |
+| `tests/*`                        | One test project per source project. UI tests use Avalonia's headless platform. |
 
 Set `TASKTRACKER_SCREENSHOT_DIR` when running the UI tests to save rendered screenshots.
 
