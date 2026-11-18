@@ -12,9 +12,8 @@
       <Grid x:Name="AppTitleBar" Height="36" ColumnDefinitions="*,Auto,Auto,Auto,146"
             Background="{DynamicResource AppCardBackgroundBrush}"
             IsVisible="{Binding Reminders, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <Border Background="Transparent" chrome:WindowDecorationProperties.ElementRole="TitleBar">
-          <TextBlock Text="{Binding Title}" FontSize="12" Margin="14,0" VerticalAlignment="Center" />
-        </Border>
+        <!-- Drag area only: the window's drawn decorations already render the title here. -->
+        <Border Background="Transparent" chrome:WindowDecorationProperties.ElementRole="TitleBar" />
         <Button Grid.Column="1" Content="Today" Classes="subtle" VerticalAlignment="Center"
                 Command="{Binding TodayCommand}" chrome:WindowDecorationProperties.ElementRole="User"
                 AutomationProperties.AutomationId="TopTodayButton" ToolTip.Tip="Today (Ctrl+Shift+D)" />
