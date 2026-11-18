@@ -23,6 +23,17 @@ namespace TaskTracker.App.Desktop.SmokeTests;
 public sealed class SmokeTests
 {
     [Fact]
+    public void Settings_opens_when_clicked_next_to_the_Windows_caption_buttons()
+    {
+        Run(session =>
+        {
+            session.Find("TopSettingsButton").Click();
+
+            session.Find("AppSettingsBackButton");
+        });
+    }
+
+    [Fact]
     public void Tickets_alt_down_moves_the_focused_ticket_into_the_next_priority()
     {
         const string title = "Reconcile payments";

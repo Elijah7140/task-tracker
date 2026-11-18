@@ -1,11 +1,17 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="using:Avalonia.Controls.Chrome"
              xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
              x:Class="TaskTracker.App.Desktop.App"
              RequestedThemeVariant="Default">
     <!-- "Default" follows the OS light/dark setting. -->
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="chrome|WindowDrawnDecorations /template/ Button#PART_FullScreenButton">
+            <Setter Property="IsVisible">
+                <OnPlatform x:TypeArguments="x:Boolean" Default="True" Windows="False" />
+            </Setter>
+        </Style>
         <Style Selector="Border.statusChip">
             <Setter Property="CornerRadius" Value="5" />
             <Setter Property="Padding" Value="5,1" />
