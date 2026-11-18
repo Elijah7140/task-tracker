@@ -35,15 +35,31 @@ public sealed class RowLookupMenuItem : MenuItem
 
     private static MenuItem CreateEntry(RowLookupChoice choice)
     {
-        var entry = new MenuItem
-        {
-            Header = choice.Label,
-            Command = choice.Command,
-            ToggleType = MenuItemToggleType.CheckBox,
-            IsChecked = choice.IsCurrent
-        };
+        var entry = new ChoiceMenuItem(choice);
         AutomationProperties.SetAutomationId(entry, "LookupChoice");
         AutomationProperties.SetName(entry, choice.Label);
         return entry;
+    }
+
+    private sealed class ChoiceMenuItem : MenuItem
+    {
+        private readonly bool isCurrent;
+
+        static ChoiceMenuItem()
+        {
+            IsCheckedProperty.OverrideMetadata<ChoiceMenuItem>(
+                new StyledPropertyMetadata<bool>(coerce: (item, _) => ((ChoiceMenuItem)item).isCurrent));
+        }
+
+        public ChoiceMenuItem(RowLookupChoice choice)
+        {
+            isCurrent = choice.IsCurrent;
+            Header = choice.Label;
+            Command = choice.Command;
+            ToggleType = MenuItemToggleType.CheckBox;
+            CoerceValue(IsCheckedProperty);
+        }
+
+        protected override Type StyleKeyOverride => typeof(MenuItem);
     }
 }

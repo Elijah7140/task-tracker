@@ -814,7 +814,7 @@ culture throughout.
 **CSV export** writes a project's items (all of them, in screen order: root, then folders, sub-items under their parent) or the
 current search results (all matches, not just the first 200, in result order) as a flat table, UTF-8 **with BOM** (for Excel),
 RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
-quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Due date, Due time, Scheduled start, Scheduled end,
+quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Priority reference, Status, Due date, Due time, Scheduled start, Scheduled end,
 Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), `Repeats` (read-only, §7.11), then one column per custom field by
 display name (active fields, and archived ones that have a value; fields sharing a name share a column). Dates and numbers are ISO
 and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the culture.
@@ -840,8 +840,8 @@ with a message before they are read.
 `Project`, `Folder path` and `Parent title` are recognised but ignored: **every row becomes a top-level item** at the end of the area
 (sub-items are not rebuilt; the simple rule beats guessing among equal titles). `Repeats` is also recognised and ignored.
 Other unknown columns are reported and ignored.
-Type and priority match by name; an unknown or archived name is an **error** (it never creates a lookup, so typos do not create junk)
-and the message lists the valid names. Custom fields match by display name among the project's active fields; values follow §7.1:
+Type matches by name. Priority uses the reference or the legacy name and label rules in §7.15.
+An unknown or archived lookup is an **error** and the message lists the valid alternatives. Custom fields match by display name among the project's active fields; values follow §7.1:
 number with a dot (a decimal comma is refused with a hint), `yyyy-MM-dd` date, yes/no, choice by label, blank cell = no value.
 `Completed` = yes without `Completed at` completes now; `Completed at` needs `Z`. Rows with fewer cells than the header are padded;
 more is an error. Row numbers count like a spreadsheet (header = row 1) and appear in every error (`Row 4, Type`).
@@ -1422,6 +1422,33 @@ the decisions below were made autonomously; they are listed for review.
 - Row submenus list None, then the active entries in list order, plus the item's current entry
   when it is archived, so the check mark always has a row. Entries are native check menu items,
   so screen readers report the checked one.
+- When a confirmed Done cascade creates a new occurrence that keeps the parent open, the child
+  completions and new occurrences are saved together. The parent keeps its Open status or None.
+  The row action and editor show "A new occurrence of a sub-item keeps '⟨parent⟩' open."
+- Recurrence copies links and custom values from the editor save's final state, including
+  additions, removals and edits, in the same transaction as the completion.
+- JSON field-key renames reserve every incoming key before choosing suffixes. Each source key
+  maps to its own destination field, so a legacy `completed` field skips an incoming `completed-2`.
+- CSV exports retain the readable Priority label and add a Priority reference column. Its
+  nonblank value takes precedence on import. Named priorities use `#name:Name`, active number-only
+  priorities use `#7` for number 7, and archived number-only priorities use `#id:<guid>` to
+  preserve their identity. An archived match remains an import error. Without a reference,
+  the Priority column matches names and display labels, and an ambiguous match is a row error.
+  For a legacy export whose custom field supplied the Priority reference header, rename that
+  header to `Priority reference (field)` before importing.
+- JSON priority import gives exact IDs precedence. Archived number-only entries with the same
+  number match one-to-one in rank order, reserving exact matches first and creating entries as
+  needed to keep distinct archived levels.
+- Downgrading rewrites workflow-status search clauses to the reserved `__workflowstatus` key
+  so the old parser reports an unknown field. Upgrading restores those clauses after migrating
+  the old completion key. Quoted search text retains its original wording.
+- Settings exposes status archiving. Undoing a status addition may remove the row when unused.
+  If any item still references it, including a remembered reopen status or a trashed item, the
+  delete is refused with a status-specific domain message.
+- Row submenu check marks reflect the stored selection during the command and after a cancelled
+  or refused change. The menu continues to expose the native checked state to screen readers.
+- The Home import/export menu snapshot waits for identical popup position and size on two
+  consecutive rendered frames.
 - An editor save that changes the status is one undo step labelled "Set status of ⟨title⟩",
   even when other fields changed in the same save.
 - Status rows in App Settings show their kind ("Testing · Open"). Archiving the last active

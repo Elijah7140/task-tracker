@@ -20,7 +20,7 @@ internal sealed class CsvRowReader(
         var title = ReadTitle();
         var ticket = ReadTicket();
         var typeId = ReadLookup(CsvColumns.Type, "type", context.ItemTypes);
-        var priorityId = ReadLookup(CsvColumns.Priority, "priority", context.PriorityLevels);
+        var priorityId = ReadPriority();
         var (dueDate, dueTime) = ReadDue();
         var (start, end) = ReadSchedule();
         var (statusId, completedAt) = ReadStatusAndCompletion();
@@ -94,7 +94,7 @@ internal sealed class CsvRowReader(
             return null;
         }
 
-        var match = lookups.FirstOrDefault(lookup => HasName(lookup, name));
+        var match = lookups.FirstOrDefault(lookup => string.Equals(lookup.Name, name, StringComparison.OrdinalIgnoreCase));
 
         if (match is null)
         {
@@ -111,15 +111,35 @@ internal sealed class CsvRowReader(
         return match.Id;
     }
 
-    /// <summary>A priority level also answers to its label, such as "7 · Hotfix", which an export writes.</summary>
-    private static bool HasName(LookupEntity lookup, string name)
+    private Guid? ReadPriority()
     {
-        if (string.Equals(lookup.Name, name, StringComparison.OrdinalIgnoreCase))
+        var reference = TextCell(CsvColumns.PriorityReference).Trim();
+        var column = reference.Length > 0 ? CsvColumns.PriorityReference : CsvColumns.Priority;
+        var cell = reference.Length > 0 ? reference : TextCell(CsvColumns.Priority).Trim();
+        if (cell.Length == 0)
         {
-            return true;
+            return null;
         }
 
-        return lookup is PriorityLevel priority && string.Equals(priority.Label, name, StringComparison.OrdinalIgnoreCase);
+        var matches = column == CsvColumns.PriorityReference
+            ? CsvPriorityReference.Match(cell, context.PriorityLevels)
+            : CsvPriorityReference.MatchLegacy(cell, context.PriorityLevels);
+        if (matches.Count > 1)
+        {
+            Fail(column, $"'{cell}' matches more than one priority. In the Priority reference column, use #number or #name: followed by the name.");
+        }
+        else if (matches.Count == 0)
+        {
+            var active = context.PriorityLevels.Where(level => !level.IsArchived);
+            var valid = column == CsvColumns.PriorityReference ? active.Select(CsvPriorityReference.Write) : active.Select(level => level.Label);
+            Fail(column, $"There is no priority matching '{cell}'. Use one of: {string.Join(", ", valid)}.");
+        }
+        else if (matches[0].IsArchived)
+        {
+            Fail(column, $"The priority '{cell}' is archived.");
+        }
+
+        return matches.Count == 1 ? matches[0].Id : null;
     }
 
     private (DateOnly? Date, TimeOnly? Time) ReadDue()

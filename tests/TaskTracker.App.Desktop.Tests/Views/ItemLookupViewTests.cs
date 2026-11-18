@@ -68,6 +68,27 @@ public sealed class ItemLookupViewTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Cancelling_Done_leaves_only_the_current_status_checked_when_the_menu_reopens()
+    {
+        var owner = new MainWindow { Width = 1200, Height = 920 };
+        using var services = await TestServices.CreateAsync(owner);
+        var (window, item) = await OpenWorkspaceAsync(services, false, withStatus: true, owner: owner, withChild: true);
+
+        await OpenSubmenuAsync(window, keyboard: false, status: true, titleName: item.Title);
+        var done = HeadlessInput.FindNamed<MenuItem>(window, "LookupChoice", "Completed");
+        HeadlessInput.Click(window, done);
+        await HeadlessInput.WaitUntilAsync(() => window.OwnedWindows.Any());
+        HeadlessInput.Press(Assert.Single(window.OwnedWindows), Key.Escape);
+        var command = Assert.IsAssignableFrom<IAsyncRelayCommand>(done.Command);
+        await Assert.IsAssignableFrom<Task>(command.ExecutionTask);
+
+        await OpenSubmenuAsync(window, keyboard: false, status: true, titleName: item.Title);
+        var current = Assert.Single(HeadlessInput.FindAll<MenuItem>(window, "LookupChoice"), entry => entry.IsChecked);
+        Assert.Equal("Testing", current.Header);
+        window.Close();
+    }
+
     [AvaloniaTheory]
     [InlineData("search")]
     [InlineData("calendar")]
@@ -135,9 +156,11 @@ public sealed class ItemLookupViewTests
         window.Close();
     }
 
-    private static async Task<MenuItem> OpenSubmenuAsync(MainWindow window, bool keyboard, bool status)
+    private static async Task<MenuItem> OpenSubmenuAsync(MainWindow window, bool keyboard, bool status, string? titleName = null)
     {
-        var title = HeadlessInput.Find<Button>(window, "ItemTitleButton");
+        var title = titleName is null
+            ? HeadlessInput.Find<Button>(window, "ItemTitleButton")
+            : HeadlessInput.FindNamed<Button>(window, "ItemTitleButton", titleName);
         if (keyboard)
         {
             Assert.True(title.Focus());
@@ -225,7 +248,7 @@ public sealed class ItemLookupViewTests
     }
 
     private static async Task<(MainWindow Window, TodoItem Item)> OpenWorkspaceAsync(
-        TestServiceScope services, bool dark, bool withStatus = false)
+        TestServiceScope services, bool dark, bool withStatus = false, MainWindow? owner = null, bool withChild = false)
     {
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Release");
         var items = services.GetRequiredService<ItemService>();
@@ -236,8 +259,19 @@ public sealed class ItemLookupViewTests
             await items.SetStatusAsync(item.Id, status.Id);
         }
 
+        if (withChild)
+        {
+            await items.CreateAsync(project.Id, null, item.Id, "Open child");
+        }
+
         var shell = services.GetRequiredService<MainWindowViewModel>();
-        var window = ScreenSnapshotTests.OpenWindow(shell, dark, height: 920);
+        var window = owner ?? ScreenSnapshotTests.OpenWindow(shell, dark, height: 920);
+        if (owner is not null)
+        {
+            owner.DataContext = shell;
+            owner.Show();
+        }
+
         await shell.OpenProjectAsync(project.Id);
         Dispatcher.UIThread.RunJobs();
         return (window, item);

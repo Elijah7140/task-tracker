@@ -14,6 +14,7 @@ public interface IItemRepository
     void Add(TodoItem item);
 
     /// <summary>The links of one item in display order.</summary>
+    /// <summary>Gets the item's links in their current unit-of-work order, including pending edits.</summary>
     Task<IReadOnlyList<ItemLink>> LinksAsync(Guid itemId, CancellationToken cancellationToken);
 
     /// <summary>The links of every item of one project, deleted items included; callers filter by item.</summary>

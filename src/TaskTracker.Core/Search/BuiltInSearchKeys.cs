@@ -12,5 +12,5 @@ public static class BuiltInSearchKeys
     public static IReadOnlyList<string> QueryKeywords { get; } = ["has", "no", "is"];
 
     /// <summary>Every key a new custom field must avoid: the built-in columns plus the syntax keywords.</summary>
-    public static IReadOnlyList<string> Reserved { get; } = [.. All, .. QueryKeywords];
+    public static IReadOnlyList<string> Reserved { get; } = [.. All, .. QueryKeywords, "__workflowstatus"];
 }

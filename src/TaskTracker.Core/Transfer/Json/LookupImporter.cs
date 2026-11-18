@@ -58,11 +58,13 @@ internal static class LookupImporter
     private static void ImportPriorityLevels(
         IUnitOfWork work, IReadOnlyList<LookupDocument> documents, List<PriorityLevel> known, ImportMap map, IssueList issues)
     {
-        var nextOrder = known.Count == 0 ? 0 : known.Max(level => level.SortOrder) + 1;
+        var byId = known.ToDictionary(level => level.Id);
+        var reserved = documents.Select(document => document.Id!.Value).Where(byId.ContainsKey).ToHashSet();
+        var nextOrder = known.Select(level => level.SortOrder).DefaultIfEmpty(-1).Max() + 1;
 
         foreach (var (document, index) in Ordered(documents))
         {
-            var match = known.FirstOrDefault(level => IsPriorityMatch(level, document));
+            var match = FindPriorityMatch(document, known, byId, reserved);
 
             if (match is null)
             {
@@ -77,24 +79,28 @@ internal static class LookupImporter
                 known.Add(match);
             }
 
+            reserved.Add(match.Id);
             map.PriorityLevels[document.Id!.Value] = match.Id;
         }
     }
 
-    /// <summary>
-    /// Named levels match by name. A number-only level matches a number-only level with the same
-    /// number and archive state, so an export of this database maps back onto itself.
-    /// </summary>
-    private static bool IsPriorityMatch(PriorityLevel existing, LookupDocument document)
+    private static PriorityLevel? FindPriorityMatch(LookupDocument document, List<PriorityLevel> known,
+        Dictionary<Guid, PriorityLevel> byId, HashSet<Guid> reserved)
     {
-        if (!string.IsNullOrWhiteSpace(document.Name))
+        if (byId.TryGetValue(document.Id!.Value, out var exact))
         {
-            return SameName(existing.Name, document.Name);
+            return exact;
         }
 
-        return existing.Name.Length == 0
-            && existing.Number == document.Number
-            && existing.IsArchived == (document.IsArchived == true);
+        if (!string.IsNullOrWhiteSpace(document.Name))
+        {
+            return known.FirstOrDefault(level => SameName(level.Name, document.Name));
+        }
+
+        var archived = document.IsArchived == true;
+        return known.Where(level => level.Name.Length == 0 && level.Number == document.Number
+                && level.IsArchived == archived && (!archived || !reserved.Contains(level.Id)))
+            .OrderBy(level => level.SortOrder).ThenBy(level => level.Id).FirstOrDefault();
     }
 
     private static bool IsNumberTaken(IEnumerable<PriorityLevel> known, PriorityLevel level)

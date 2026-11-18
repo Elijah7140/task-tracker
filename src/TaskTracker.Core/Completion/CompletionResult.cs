@@ -12,6 +12,9 @@ public abstract record CompletionResult
     {
         /// <summary>At least one rule ended during this completion.</summary>
         public bool LastRepeat { get; init; }
+
+        /// <summary>The requested Done status was skipped because a repeating sub-item kept the parent open.</summary>
+        public string? ParentKeptOpenMessage { get; init; }
     }
 
     /// <summary>The number of open descendants that would also be completed.</summary>

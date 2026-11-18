@@ -5,10 +5,12 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Time.Testing;
 
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Infrastructure.Persistence;
 
 namespace TaskTracker.Infrastructure.Tests.Persistence;
@@ -83,6 +85,36 @@ public sealed class StatusMigrationTests
         Assert.Equal("status:true", await ScalarAsync(connection, "SELECT QueryText FROM SavedSearch"));
         Assert.Equal(0L, await ScalarAsync(connection, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'StatusLevel'"));
         Assert.Equal(1L, await ScalarAsync(connection, "SELECT COUNT(*) FROM TodoItem WHERE CompletedAtUtc IS NOT NULL"));
+    }
+
+    [Fact]
+    public async Task Downgrade_and_upgrade_preserve_workflow_clauses_and_completion_clauses()
+    {
+        const string previousMigration = "20261118033043_IndexTodayCompletions";
+        const string query = """status:Testing no:status completed:true "status:Testing" """;
+        const string unavailable = """__workflowstatus:Testing no:__workflowstatus status:true "status:Testing" """;
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = TaskTrackerSqliteOptions.Configure(new DbContextOptionsBuilder<TaskTrackerDbContext>(), connection).Options;
+        await using var database = new TaskTrackerDbContext(options);
+        var migrator = database.GetService<IMigrator>();
+        await migrator.MigrateAsync();
+        await database.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO SavedSearch (Id, Name, QueryText, ScopeKind, IncludeSubfolders, IncludeCompleted, SortOrder, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ({Guid.CreateVersion7()}, 'Testing', {query}, 'AllProjects', 0, 1, 0, '2026-11-13 12:00:00', '2026-11-13 12:00:00');
+            """);
+
+        await migrator.MigrateAsync(previousMigration);
+        var downgraded = await ScalarAsync(connection, "SELECT QueryText FROM SavedSearch");
+        await migrator.MigrateAsync();
+
+        Assert.Equal(unavailable, downgraded);
+        var oldFields = new SearchableField[] { new("status", "Status", FieldDataType.Boolean, null) };
+        var parser = new ItemQueryParser(TimeProvider.System, TimeZoneInfo.Utc);
+        var oldResult = parser.Parse(unavailable, oldFields, new Dictionary<string, IReadOnlyList<SearchChoice>>());
+        Assert.Equal(2, oldResult.Errors.Count);
+        Assert.All(oldResult.Errors, error => Assert.Contains("Unknown field '__workflowstatus'", error.Message));
+        Assert.Equal(query, await ScalarAsync(connection, "SELECT QueryText FROM SavedSearch"));
     }
 
     private static async Task<object?> ScalarAsync(SqliteConnection connection, string sql)

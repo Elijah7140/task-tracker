@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.Items;
+using TaskTracker.Core.Items.Recurrence;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
@@ -222,6 +224,56 @@ public sealed class ItemStatusTests
         Assert.Equal(item.Id, Assert.Single(await SearchAsync(world, "status~est")).ItemId);
         Assert.Equal("Unscheduled", Assert.Single(await SearchAsync(world, "no:status")).Title);
         Assert.Empty(await SearchAsync(world, "completed:true"));
+    }
+
+    [Fact]
+    public async Task Done_status_keeps_an_open_parent_when_its_repeating_child_completes()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var parent = await world.Items.CreateAsync(world.Project.Id, null, null, "Parent");
+        var child = await world.Items.CreateAsync(world.Project.Id, null, parent.Id, "Daily check");
+        var testing = await FindStatusAsync(world, "Testing");
+        await world.Items.SetStatusAsync(parent.Id, testing.Id);
+        await world.Items.EditAsync(child.Id, new ItemEdit(child.Title, null, null, null, null,
+            new DateOnly(2026, 11, 13), null, null, null)
+        {
+            UpdateRecurrence = true,
+            Recurrence = new RecurrenceRule(RecurrenceFrequency.Daily)
+        });
+
+        var result = await world.Items.SetStatusAsync(parent.Id, BuiltInLookups.CompletedId, confirmed: true);
+
+        var applied = Assert.IsType<CompletionResult.Applied>(result);
+        Assert.Equal("A new occurrence of a sub-item keeps 'Parent' open.", applied.ParentKeptOpenMessage);
+        var storedParent = await world.ReadItemAsync(parent.Id);
+        Assert.Null(storedParent.CompletedAtUtc);
+        Assert.Equal(testing.Id, storedParent.StatusId);
+        Assert.NotNull((await world.ReadItemAsync(child.Id)).CompletedAtUtc);
+        await using var reader = world.OpenContext();
+        var successor = await reader.TodoItems.SingleAsync(item => item.ParentItemId == parent.Id && item.Id != child.Id);
+        Assert.Null(successor.CompletedAtUtc);
+        Assert.Equal(new DateOnly(2026, 11, 14), successor.DueDate);
+    }
+
+    [Fact]
+    public async Task Undo_add_status_explains_when_a_completed_item_remembers_it()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Report");
+        await world.Items.SetStatusAsync(item.Id, BuiltInLookups.CompletedId);
+        await world.Lookups.AddStatusAsync("Reviewed", StatusKind.Open);
+        var status = await FindStatusAsync(world, "Reviewed");
+        await using (var writer = world.OpenContext())
+        {
+            await writer.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE TodoItem SET ReopenStatusId = {status.Id} WHERE Id = {item.Id}");
+        }
+
+        var problem = await Assert.ThrowsAsync<DomainRuleException>(() => world.History.UndoAsync());
+
+        Assert.Contains("still used by an item", problem.Message);
+        Assert.Equal(status.Id, (await world.ReadItemAsync(item.Id)).ReopenStatusId);
+        Assert.Equal("Add status 'Reviewed'", world.History.UndoDescription);
     }
 
     private static async Task<StatusLevel> FindStatusAsync(UndoWorld world, string name)

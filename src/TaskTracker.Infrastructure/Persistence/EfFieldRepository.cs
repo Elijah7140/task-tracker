@@ -21,7 +21,8 @@ public sealed class EfFieldRepository(TaskTrackerDbContext database) : IFieldRep
 
     public async Task<IReadOnlyList<ItemFieldValue>> ValuesAsync(Guid itemId, CancellationToken cancellationToken)
     {
-        return await database.ItemFieldValues.Where(value => value.ItemId == itemId).ToListAsync(cancellationToken);
+        await database.ItemFieldValues.Where(value => value.ItemId == itemId).LoadAsync(cancellationToken);
+        return database.ItemFieldValues.Local.Where(value => value.ItemId == itemId).ToList();
     }
 
     public async Task<bool> HasValuesAsync(Guid fieldId, CancellationToken cancellationToken)

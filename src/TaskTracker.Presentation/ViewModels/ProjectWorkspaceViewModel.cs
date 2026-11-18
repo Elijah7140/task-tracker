@@ -527,11 +527,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         var statusChange = draft.StatusChange;
         var result = await ItemCompletion.ConfirmAsync(dialogs,
             confirmed => service.SaveEditorAsync(draft.Id, edit, values, links, statusChange, confirmed));
-        if (result is CompletionResult.Blocked blocked)
-        {
-            await dialogs.ShowMessageAsync("Cannot reopen item", blocked.Reason);
-        }
-
+        await ItemLookupAction.ReportStatusResultAsync(dialogs, result);
         return result is CompletionResult.Applied;
     }
 

@@ -77,8 +77,16 @@ public sealed partial class ItemService
         var result = await MatchCompletionAsync(work, item, done, confirmed, StatusLevel.FirstDone(statuses),
             cancellationToken);
 
-        if (result is CompletionResult.Applied)
+        if (result is CompletionResult.Applied applied)
         {
+            if (done && !item.CompletedAtUtc.HasValue)
+            {
+                return applied with
+                {
+                    ParentKeptOpenMessage = $"A new occurrence of a sub-item keeps '{item.Title}' open."
+                };
+            }
+
             AssignStatus(item, status);
         }
 

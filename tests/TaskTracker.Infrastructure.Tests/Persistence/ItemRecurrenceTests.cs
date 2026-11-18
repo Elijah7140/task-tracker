@@ -338,6 +338,35 @@ public sealed class ItemRecurrenceTests
         Assert.NotNull((await world.ReadItemAsync(open.Id)).DeletedAtUtc);
     }
 
+    [Fact]
+    public async Task Saving_Done_in_the_editor_copies_edited_links_and_custom_values_to_the_successor()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Audit");
+        var removed = await world.Fields.CreateAsync("Removed", FieldDataType.Text, null);
+        var edited = await world.Fields.CreateAsync("Edited", FieldDataType.Text, null);
+        var added = await world.Fields.CreateAsync("Added", FieldDataType.Text, null);
+        var edit = RepeatEdit(item.Title, Weekly);
+        await world.Items.EditAsync(item.Id, edit,
+            [new(removed.Id, TextValue: "Old"), new(edited.Id, TextValue: "Before")],
+            [new(null, "https://example.com/remove", null), new(null, "https://example.com/keep", "Before")]);
+        var keptLink = (await world.Items.LoadLinksAsync(item.Id))[1];
+
+        await world.Items.SaveEditorAsync(item.Id, edit,
+            [new(removed.Id), new(edited.Id, TextValue: "After"), new(added.Id, TextValue: "New")],
+            [new(null, "https://example.com/add", "New"), new(keptLink.Id, keptLink.Url, "After")],
+            new StatusChange(BuiltInLookups.CompletedId));
+
+        var successor = await FindSuccessorAsync(world, item.Id);
+        var links = await world.Items.LoadLinksAsync(successor.Id);
+        Assert.Equal([("https://example.com/add", "New"), ("https://example.com/keep", "After")],
+            links.Select(link => (link.Url, link.Title)));
+        var values = (await world.ReadFieldValuesAsync(successor.Id)).ToDictionary(value => value.FieldDefinitionId);
+        Assert.Equal(2, values.Count);
+        Assert.Equal("After", values[edited.Id].TextValue);
+        Assert.Equal("New", values[added.Id].TextValue);
+    }
+
     private static async Task<(TodoItem Parent, TodoItem Finished, TodoItem Open)> CreateBranchAsync(UndoWorld world)
     {
         var projectId = world.Project.Id;

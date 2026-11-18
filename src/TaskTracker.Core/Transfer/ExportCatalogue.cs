@@ -69,9 +69,9 @@ internal sealed class ExportCatalogue
         return id is Guid key ? statusesById[key].Name : null;
     }
 
-    public string? PriorityLabel(Guid? id)
+    public PriorityLevel? Priority(Guid? id)
     {
-        return id is Guid key ? prioritiesById[key].Label : null;
+        return id is Guid key ? prioritiesById[key] : null;
     }
 
     public string ChoiceLabel(Guid id)

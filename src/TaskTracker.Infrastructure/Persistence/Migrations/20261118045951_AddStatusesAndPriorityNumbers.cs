@@ -77,6 +77,9 @@ public partial class AddStatusesAndPriorityNumbers : Migration
             WHEN NEW.IsArchived = 1 AND OLD.IsArchived = 0 AND OLD.Kind = 1
                 AND NOT EXISTS (SELECT 1 FROM StatusLevel WHERE Kind = 1 AND IsArchived = 0 AND Id <> OLD.Id)
             BEGIN SELECT RAISE(ABORT, 'At least one Done status must stay active'); END;
+            CREATE TRIGGER StatusLevel_InUse_Delete BEFORE DELETE ON StatusLevel
+            WHEN EXISTS (SELECT 1 FROM TodoItem WHERE StatusId = OLD.Id OR ReopenStatusId = OLD.Id)
+            BEGIN SELECT RAISE(ABORT, 'This status is still used by an item'); END;
             CREATE TRIGGER StatusLevel_LastDone_Delete BEFORE DELETE ON StatusLevel
             WHEN OLD.IsArchived = 0 AND OLD.Kind = 1
                 AND NOT EXISTS (SELECT 1 FROM StatusLevel WHERE Kind = 1 AND IsArchived = 0 AND Id <> OLD.Id)
@@ -113,6 +116,7 @@ public partial class AddStatusesAndPriorityNumbers : Migration
             {candidate}
             UPDATE FieldDefinition SET Key = (SELECT Key FROM renamed) WHERE Key = 'completed' COLLATE NOCASE;
             UPDATE SavedSearch SET QueryText = tt_rename_query_field(QueryText, 'status', 'completed');
+            UPDATE SavedSearch SET QueryText = tt_rename_query_field(QueryText, '__workflowstatus', 'status');
             """);
     }
 
@@ -125,6 +129,7 @@ public partial class AddStatusesAndPriorityNumbers : Migration
             DROP TRIGGER StatusLevel_Kind_Update;
             DROP TRIGGER StatusLevel_LastDone_Update;
             DROP TRIGGER StatusLevel_LastDone_Delete;
+            DROP TRIGGER StatusLevel_InUse_Delete;
             DROP INDEX IX_TodoItem_StatusId;
             DROP INDEX IX_TodoItem_ReopenStatusId;
             ALTER TABLE TodoItem DROP COLUMN StatusId;
@@ -135,6 +140,7 @@ public partial class AddStatusesAndPriorityNumbers : Migration
             UPDATE PriorityLevel SET Name = Id WHERE Name = '';
             ALTER TABLE PriorityLevel DROP COLUMN Number;
             CREATE UNIQUE INDEX IX_PriorityLevel_Name ON PriorityLevel (Name);
+            UPDATE SavedSearch SET QueryText = tt_rename_query_field(QueryText, 'status', '__workflowstatus');
             UPDATE SavedSearch SET QueryText = tt_rename_query_field(QueryText, 'completed', 'status');
             """);
     }

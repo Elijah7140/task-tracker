@@ -16,12 +16,20 @@ internal static class ItemLookupAction
     {
         var result = await ItemCompletion.ConfirmAsync(dialogs,
             confirmed => items.SetStatusAsync(itemId, statusId, confirmed));
+        await ReportStatusResultAsync(dialogs, result);
+        return result is CompletionResult.Applied;
+    }
+
+    internal static async Task ReportStatusResultAsync(IDialogService dialogs, CompletionResult? result)
+    {
         if (result is CompletionResult.Blocked blocked)
         {
             await dialogs.ShowMessageAsync("Cannot reopen item", blocked.Reason);
         }
-
-        return result is CompletionResult.Applied;
+        else if (result is CompletionResult.Applied { ParentKeptOpenMessage: { } message })
+        {
+            await dialogs.ShowMessageAsync("Parent stays open", message);
+        }
     }
 
     /// <summary>Sets the priority. Returns true, as a priority change never needs confirmation.</summary>

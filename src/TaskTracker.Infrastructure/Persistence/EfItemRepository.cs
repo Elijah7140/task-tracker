@@ -34,10 +34,9 @@ public sealed class EfItemRepository(TaskTrackerDbContext database) : IItemRepos
 
     public async Task<IReadOnlyList<ItemLink>> LinksAsync(Guid itemId, CancellationToken cancellationToken)
     {
-        return await database.ItemLinks
-            .Where(link => link.ItemId == itemId)
-            .OrderBy(link => link.SortOrder)
-            .ToListAsync(cancellationToken);
+        await database.ItemLinks.Where(link => link.ItemId == itemId).LoadAsync(cancellationToken);
+        return database.ItemLinks.Local.Where(link => link.ItemId == itemId)
+            .OrderBy(link => link.SortOrder).ToList();
     }
 
     public async Task<IReadOnlyList<ItemLink>> LinksForProjectAsync(Guid projectId, CancellationToken cancellationToken)
