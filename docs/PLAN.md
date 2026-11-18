@@ -1140,6 +1140,59 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - **Smoke:** a reminder due in under a minute appears in the in-app panel; the OS toast itself
     is checked by hand.
 
+### 7.13 Installers and releases
+
+Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for review):
+
+- **One tool for every OS: Velopack.** It produces a Windows `Setup.exe` (per-user install, no admin,
+  Start-menu shortcut), a Linux `AppImage` and a macOS `.app` bundle. MSIX is not used: it needs
+  signing and packaging identity, and it would change where the app may write data.
+  - Velopack's `vpk` CLI is a local dotnet tool pinned in `.config/dotnet-tools.json`.
+  - The `Velopack` NuGet package is pinned in `Directory.Packages.props` at an exact stable version at
+    least two weeks old, the same as the CLI version.
+- **Startup hook.** `VelopackApp.Build().Run()` is the first statement in `Main`, before the
+  single-instance guard (§7.12), so install, update and uninstall hooks run without opening a window.
+- **Self-contained publish.** The publish is self-contained, so users need no .NET install. It targets
+  `win-x64`, `linux-x64` and `osx-arm64`, plus `osx-x64` if the runner allows. It is not trimmed,
+  because Avalonia and EF Core reflection make trimming risky.
+- **Version.** One `<Version>` in `Directory.Build.props`, `0.1.0` for now. The release workflow takes
+  the version from the tag (`v0.2.0` becomes `0.2.0`) and passes it to both `dotnet publish` and `vpk`.
+  App Settings shows the version in an **About** line.
+- **Data is never touched.** The database, its backups and the settings stay in the user's
+  local-app-data folder (`DatabaseInitializer.DefaultPath`). Install, update and uninstall leave that
+  folder alone; uninstalling keeps the data, and reinstalling picks it up. Migrations still run at
+  start-up with the usual backup first (§11).
+- **Updates.** App Settings has a **Check for updates** button. It asks GitHub Releases for this
+  repository through Velopack's GitHub source. If a newer version exists, it offers **Download and
+  restart**.
+  - There is no automatic background check, so the app makes no network call unless the user asks.
+  - With no network, or when the app runs uninstalled (a dev or test build), it shows a plain message.
+  - The update service sits behind an interface, so tests use a fake.
+- **Start with the OS.** There is a global `StartWithSystem` setting, default off, in App Settings
+  next to `KeepRunningInTray`.
+  - Windows: the per-user `HKCU\...\Run` key.
+  - Linux: a `~/.config/autostart/task-tracker.desktop` file.
+  - macOS: not supported yet, so the setting is hidden.
+  - The setting is only offered when the app is installed; a dev build has no stable path.
+  - Uninstalling removes the entry through the Velopack uninstall hook.
+- **Signing.** The builds are unsigned for now. Windows SmartScreen and macOS Gatekeeper will warn;
+  the README says how to get past that. Signing is a later decision for the owner, as it needs
+  certificates or an Apple developer account.
+- **CI.**
+  - **On pull requests:** a `package` job runs on Windows and Linux. It publishes and runs `vpk pack`
+    to catch packaging breakage, then uploads the installer as a workflow artifact. Pull requests
+    publish no release.
+  - **On a `v*` tag:** a `release.yml` workflow builds Windows, Linux and macOS packages and creates
+    a GitHub Release with the Velopack release files, which update checks need.
+- **Tests.**
+  - Unit tests: the version text, the update-check states with a fake service (up to date, update
+    available, failure, not installed), and the start-with-system entry writer with a temp folder or
+    a registry abstraction.
+  - Headless tests: the About line and Check for updates.
+  - App Settings snapshot updates.
+  - The CI pack job proves the package builds.
+  - Installing, updating and uninstalling are checked by hand on Windows; the README has a checklist.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -1260,7 +1313,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
 - ~~Saved searches and the text query syntax~~ (done, §7.7).
 - ~~Undo/redo for recent actions~~ (done, §7.8).
 - ~~Import/export (JSON, CSV)~~ (done, §7.9).
-- Packaged installers per OS (MSIX/Velopack on Windows, .app on macOS, AppImage on Linux).
+- Packaged installers per OS (decisions in §7.13: Velopack for Windows, Linux and macOS).
 - **Quick reschedule from the context menu.** Right-click an item (tree, search results,
   calendar) and choose "Push back one day", which moves its due date (and its scheduled
   block, if any) one day later. A labelled undo step, with a keyboard equivalent.
