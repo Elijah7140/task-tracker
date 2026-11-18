@@ -2,6 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 
 namespace TaskTracker.Core.Tests.Completion;
 
@@ -9,11 +10,15 @@ public sealed class CompletionServiceTests
 {
     private readonly FakeTimeProvider clock = new(new DateTimeOffset(2026, 11, 13, 12, 0, 0, TimeSpan.Zero));
 
+    private readonly StatusLevel openStatus = StatusLevel.Create("In progress", StatusKind.Open);
+
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
 
     private TodoItem Item(Guid projectId, Guid? parentId = null)
     {
-        return TodoItem.Create(projectId, null, parentId, "Task", clock);
+        var item = TodoItem.Create(projectId, null, parentId, "Task", clock);
+        item.SetOpenStatus(openStatus, clock);
+        return item;
     }
 
     private static ItemTree Tree(Guid projectId, params TodoItem[] items)
@@ -24,6 +29,22 @@ public sealed class CompletionServiceTests
     private static IReadOnlyList<CompletionChange> Applied(CompletionResult result)
     {
         return Assert.IsType<CompletionResult.Applied>(result).Changes;
+    }
+
+    private void ApplyAndCheckStatuses(IReadOnlyList<CompletionChange> changes, params TodoItem[] items)
+    {
+        foreach (var change in changes)
+        {
+            var item = items.Single(item => item.Id == change.ItemId);
+            item.SetCompletion(change.CompletedAtUtc, clock);
+        }
+
+        Assert.All(items, item =>
+        {
+            var completed = item.CompletedAtUtc.HasValue;
+            Assert.Equal(completed ? BuiltInLookups.CompletedId : openStatus.Id, item.StatusId);
+            Assert.Equal(completed ? openStatus.Id : (Guid?)null, item.ReopenStatusId);
+        });
     }
 
     [Fact]
@@ -39,6 +60,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(3, changes.Count);
         Assert.All(changes, change => Assert.Equal(Now, change.CompletedAtUtc));
+        ApplyAndCheckStatuses(changes, root, parent, child);
     }
 
     [Fact]
@@ -54,6 +76,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(2, changes.Count);
         Assert.All(changes, change => Assert.Null(change.CompletedAtUtc));
+        ApplyAndCheckStatuses(changes, root, child);
     }
 
     [Fact]
@@ -70,6 +93,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(2, changes.Count);
         Assert.All(changes, change => Assert.Null(change.CompletedAtUtc));
+        ApplyAndCheckStatuses(changes, root, parent, child);
     }
 
     [Fact]
@@ -86,6 +110,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(2, changes.Count);
         Assert.All(changes, change => Assert.Equal(Now, change.CompletedAtUtc));
+        ApplyAndCheckStatuses(changes, tree.All.ToArray());
     }
 
     [Fact]
@@ -97,6 +122,7 @@ public sealed class CompletionServiceTests
         var changes = CompletionService.AfterStructureChanged(Tree(projectId, root), root.Id, true, Now).Changes;
 
         Assert.Empty(changes);
+        ApplyAndCheckStatuses(changes, root);
     }
 
     [Fact]
@@ -112,7 +138,9 @@ public sealed class CompletionServiceTests
         var changes = Applied(CompletionService.Complete(tree, root.Id, true, Now, confirmed: true));
 
         Assert.Equal(2, Assert.IsType<CompletionResult.NeedsConfirmation>(prompt).OpenSubItemCount);
+        Assert.Equal(openStatus.Id, root.StatusId);
         Assert.Equal(3, changes.Count);
+        ApplyAndCheckStatuses(changes, root, child, grandchild);
     }
 
     [Fact]
@@ -127,6 +155,8 @@ public sealed class CompletionServiceTests
         var result = CompletionService.Reopen(Tree(projectId, root, child), root.Id, true, Now);
 
         Assert.Equal("Reopen a sub-item instead, or add a new one.", Assert.IsType<CompletionResult.Blocked>(result).Reason);
+        Assert.Equal(BuiltInLookups.CompletedId, root.StatusId);
+        Assert.Equal(openStatus.Id, root.ReopenStatusId);
     }
 
     [Fact]
@@ -142,6 +172,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(root.Id, Assert.Single(completion).ItemId);
         Assert.Empty(structure);
+        ApplyAndCheckStatuses(completion, root, child);
     }
 
     [Fact]
@@ -157,6 +188,7 @@ public sealed class CompletionServiceTests
         var changes = Applied(CompletionService.Reopen(tree, child.Id, false, Now));
 
         Assert.Equal(child.Id, Assert.Single(changes).ItemId);
+        ApplyAndCheckStatuses(changes, root, child);
     }
 
     [Fact]
@@ -177,6 +209,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(2, changes.Count);
         Assert.All(changes, change => Assert.Null(change.CompletedAtUtc));
+        ApplyAndCheckStatuses(changes, tree.All.ToArray());
     }
 
     [Fact]
@@ -195,6 +228,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(2, changes.Count);
         Assert.All(changes, change => Assert.Equal(Now, change.CompletedAtUtc));
+        ApplyAndCheckStatuses(changes, tree.All.ToArray());
     }
 
     [Fact]
@@ -211,6 +245,7 @@ public sealed class CompletionServiceTests
         var changes = CompletionService.AfterStructureChanged(tree, root.Id, true, Now).Changes;
 
         Assert.Equal(root.Id, Assert.Single(changes).ItemId);
+        ApplyAndCheckStatuses(changes, root, completedChild, openChild);
     }
 
     [Fact]
@@ -228,6 +263,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(destination.Id, Assert.Single(changes).ItemId);
         Assert.Null(changes[0].CompletedAtUtc);
+        ApplyAndCheckStatuses(changes, source, destination, child);
     }
 
     [Fact]
@@ -249,6 +285,7 @@ public sealed class CompletionServiceTests
 
         Assert.Equal(new ReconciliationPreview(2, 1), preview);
         Assert.DoesNotContain(changes, change => change.ItemId == child.Id);
+        ApplyAndCheckStatuses(changes, root, parent, child, openRoot, openChild);
     }
 
     [Fact]

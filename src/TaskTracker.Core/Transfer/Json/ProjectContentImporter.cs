@@ -20,7 +20,7 @@ internal sealed class ProjectContentImporter(
 
         if (imported.EffectiveSettings?.AutoCompleteParents.Value == true)
         {
-            ImportCompletion.Reconcile(projectId, folders, items, clock);
+            ImportCompletion.Reconcile(projectId, folders, items, clock, map.FirstDoneStatusId);
         }
 
         return (folders.Count, items.Count);
@@ -97,10 +97,31 @@ internal sealed class ProjectContentImporter(
             item.MarkRecurrenceSuccessorCreated(clock);
         }
 
+        ApplyCompletionAndStatus(item, document);
+    }
+
+    /// <summary>
+    /// Completes the item with the file's Done status (the first Done status for files without
+    /// statuses) and its remembered Open status, or gives an open item its Open status.
+    /// </summary>
+    private void ApplyCompletionAndStatus(TodoItem item, ItemDocument document)
+    {
+        var statusId = MapStatus(document.StatusId);
         if (ImportParse.Utc(document.CompletedAtUtc) is DateTime completedAt)
         {
-            item.SetCompletion(completedAt, clock);
+            var doneId = statusId ?? map.FirstDoneStatusId;
+            item.SetCompletion(completedAt, clock, doneId);
+            item.SetStatus(doneId, MapStatus(document.ReopenStatusId), clock);
         }
+        else
+        {
+            item.SetStatus(statusId, null, clock);
+        }
+    }
+
+    private Guid? MapStatus(Guid? original)
+    {
+        return original is Guid id ? map.Statuses[id] : null;
     }
 
     private Guid? MapSeries(Guid? original)

@@ -14,7 +14,8 @@ internal static class ImportDocumentValidator
         var index = new ImportIndex(document);
 
         LookupValidator.Validate(document.ItemTypes, "$.itemTypes", issues);
-        LookupValidator.Validate(document.PriorityLevels, "$.priorityLevels", issues);
+        LookupValidator.ValidatePriorityLevels(document.PriorityLevels, "$.priorityLevels", issues);
+        LookupValidator.ValidateStatuses(document.Statuses, "$.statuses", issues);
         new FieldDocumentValidator(index, issues).Validate(document.Fields);
         ValidateProjects(document, index, issues);
         new SavedSearchValidator(index, issues).Validate(document.SavedSearches);

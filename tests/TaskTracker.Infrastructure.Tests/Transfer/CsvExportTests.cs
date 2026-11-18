@@ -10,7 +10,7 @@ public sealed class CsvExportTests
 {
     private static readonly string[] StandardHeader =
     [
-        "Title", "Description", "Ticket", "Type", "Priority", "Due date", "Due time", "Scheduled start",
+        "Title", "Description", "Ticket", "Type", "Priority", "Status", "Due date", "Due time", "Scheduled start",
         "Scheduled end", "Completed", "Completed at", "Project", "Folder path", "Parent title", "Links", "Repeats"
     ];
 

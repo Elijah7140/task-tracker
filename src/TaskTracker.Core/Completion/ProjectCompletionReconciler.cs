@@ -1,4 +1,5 @@
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
@@ -32,13 +33,14 @@ public static class ProjectCompletionReconciler
     {
         var nowUtc = clock.GetUtcNow().UtcDateTime;
 
+        var doneStatusId = StatusLevel.FirstDone(await work.Lookups.StatusesAsync(cancellationToken));
         foreach (var tree in await LoadActiveAreaTreesAsync(work, projectId, cancellationToken))
         {
             var result = CompletionService.ReconcileAll(tree, nowUtc);
 
             foreach (var change in result.Changes)
             {
-                tree.Get(change.ItemId).SetCompletion(change.CompletedAtUtc, clock);
+                tree.Get(change.ItemId).SetCompletion(change.CompletedAtUtc, clock, doneStatusId);
             }
         }
     }

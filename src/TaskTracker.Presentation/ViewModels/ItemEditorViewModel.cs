@@ -31,6 +31,8 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
     private PriorityLevel? selectedPriority;
     private LookupOption<ItemType>? selectedTypeOption;
     private LookupOption<PriorityLevel>? selectedPriorityOption;
+    private LookupOption<StatusLevel>? selectedStatusOption;
+    private Guid? initialStatusId;
     private string? archivedTypeName;
     private string? archivedPriorityName;
     private bool preserveArchivedType = true;
@@ -402,6 +404,55 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
 
     public ICommand ClearEndCommand { get; }
 
+    /// <summary>The Status combo box: "None", the active statuses, and the item's own status if archived.</summary>
+    public IReadOnlyList<LookupOption<StatusLevel>> StatusOptions { get; private set; } = [];
+
+    /// <summary>
+    /// The chosen status option. A null from the combo box (it sends one while its items are replaced)
+    /// is ignored; "None" is an option of its own.
+    /// </summary>
+    public LookupOption<StatusLevel>? SelectedStatusOption
+    {
+        get => selectedStatusOption;
+        set
+        {
+            if (value is not null)
+            {
+                SetProperty(ref selectedStatusOption, value);
+            }
+        }
+    }
+
+    /// <summary>The status picked in the combo box when it differs from the saved one, otherwise null.</summary>
+    public StatusChange? StatusChange
+    {
+        get
+        {
+            if (SelectedStatusOption is not { } option || option.Value?.Id == initialStatusId)
+            {
+                return null;
+            }
+
+            return new StatusChange(option.Value?.Id);
+        }
+    }
+
+    internal void InitializeStatus(IReadOnlyList<StatusLevel> statuses, Guid? statusId)
+    {
+        var shown = statuses.Where(status => !status.IsArchived || status.Id == statusId);
+        var options = new List<LookupOption<StatusLevel>> { new("None", null) };
+        options.AddRange(shown.Select(StatusOption));
+        StatusOptions = options;
+        initialStatusId = statusId;
+        SelectedStatusOption = StatusOptions.FirstOrDefault(option => option.Value?.Id == statusId);
+    }
+
+    private static LookupOption<StatusLevel> StatusOption(StatusLevel status)
+    {
+        var name = status.IsArchived ? $"{status.Name} (archived)" : status.Name;
+        return new LookupOption<StatusLevel>(name, status);
+    }
+
     /// <summary>Parses the draft and retains archived lookup IDs until explicitly replaced.</summary>
     public ItemEdit ToEdit()
     {
@@ -427,7 +478,7 @@ public sealed partial class ItemEditorViewModel : ViewModelBase
     /// <summary>Compares the draft, custom fields included, with the persisted item.</summary>
     public bool IsDirty(TodoItem item)
     {
-        if (CustomFields.Any(input => input.IsDirty) || Links.IsDirty || Repeat.HasError)
+        if (StatusChange is not null || CustomFields.Any(input => input.IsDirty) || Links.IsDirty || Repeat.HasError)
         {
             return true;
         }

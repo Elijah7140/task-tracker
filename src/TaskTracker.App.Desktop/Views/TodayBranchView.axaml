@@ -9,6 +9,8 @@
       <Grid.ContextMenu>
         <ContextMenu>
           <MenuItem Header="Open" Command="{Binding OpenCommand}" AutomationProperties.AutomationId="TodayOpenMenuItem" />
+          <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+          <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
           <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                     ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                     AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
@@ -25,6 +27,10 @@
       <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Opacity="0.65">
         <TextBlock Text="{Binding Status}" AutomationProperties.AutomationId="TodayItemStatus"
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <Border Classes="statusChip" IsVisible="{Binding HasStatus}" ToolTip.Tip="{Binding StatusName}">
+          <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
+                     AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />
+        </Border>
         <TextBlock Text="{Binding ChildCount}" IsVisible="{Binding ShowChildCount}"
                    AutomationProperties.AutomationId="TodayChildCount" />
       </StackPanel>

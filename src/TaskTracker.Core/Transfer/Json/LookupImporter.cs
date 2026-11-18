@@ -4,19 +4,21 @@ using TaskTracker.Core.Persistence;
 namespace TaskTracker.Core.Transfer.Json;
 
 /// <summary>
-/// Matches the file's item types and priority levels to existing ones by name (ignoring case)
-/// and creates the missing ones after the existing lists.
+/// Matches the file's item types, priority levels and statuses to existing ones by name (ignoring
+/// case) and creates the missing ones after the existing lists.
 /// </summary>
 internal static class LookupImporter
 {
     public static async Task ImportAsync(
-        IUnitOfWork work, ExportDocument document, ImportMap map, CancellationToken cancellationToken)
+        IUnitOfWork work, ExportDocument document, ImportMap map, IssueList issues, CancellationToken cancellationToken)
     {
         var types = await work.Lookups.ItemTypesAsync(cancellationToken);
         var priorities = await work.Lookups.PriorityLevelsAsync(cancellationToken);
 
         ImportItemTypes(work, document.ItemTypes.OrEmpty(), types.ToList(), map);
-        ImportPriorityLevels(work, document.PriorityLevels.OrEmpty(), priorities.ToList(), map);
+        ImportPriorityLevels(work, document.PriorityLevels.OrEmpty(), priorities.ToList(), map, issues);
+        var statuses = await work.Lookups.StatusesAsync(cancellationToken);
+        ImportStatuses(work, document.Statuses.OrEmpty(), statuses.ToList(), map, issues);
     }
 
     private static void ImportItemTypes(
@@ -54,17 +56,23 @@ internal static class LookupImporter
     }
 
     private static void ImportPriorityLevels(
-        IUnitOfWork work, IReadOnlyList<LookupDocument> documents, List<PriorityLevel> known, ImportMap map)
+        IUnitOfWork work, IReadOnlyList<LookupDocument> documents, List<PriorityLevel> known, ImportMap map, IssueList issues)
     {
         var nextOrder = known.Count == 0 ? 0 : known.Max(level => level.SortOrder) + 1;
 
-        foreach (var document in documents.OrderBy(lookup => lookup.SortOrder ?? 0))
+        foreach (var (document, index) in Ordered(documents))
         {
-            var match = known.FirstOrDefault(level => SameName(level.Name, document.Name));
+            var match = known.FirstOrDefault(level => IsPriorityMatch(level, document));
 
             if (match is null)
             {
                 match = CreatePriorityLevel(document, nextOrder++);
+                if (IsNumberTaken(known, match))
+                {
+                    issues.Add($"$.priorityLevels[{index}].number", "This priority number is already in use.");
+                    continue;
+                }
+
                 work.Lookups.Add(match);
                 known.Add(match);
             }
@@ -73,9 +81,35 @@ internal static class LookupImporter
         }
     }
 
+    /// <summary>
+    /// Named levels match by name. A number-only level matches a number-only level with the same
+    /// number and archive state, so an export of this database maps back onto itself.
+    /// </summary>
+    private static bool IsPriorityMatch(PriorityLevel existing, LookupDocument document)
+    {
+        if (!string.IsNullOrWhiteSpace(document.Name))
+        {
+            return SameName(existing.Name, document.Name);
+        }
+
+        return existing.Name.Length == 0
+            && existing.Number == document.Number
+            && existing.IsArchived == (document.IsArchived == true);
+    }
+
+    private static bool IsNumberTaken(IEnumerable<PriorityLevel> known, PriorityLevel level)
+    {
+        if (level.IsArchived || level.Number is null)
+        {
+            return false;
+        }
+
+        return known.Any(other => !other.IsArchived && other.Number == level.Number);
+    }
+
     private static PriorityLevel CreatePriorityLevel(LookupDocument document, int sortOrder)
     {
-        var level = PriorityLevel.Create(document.Name!, sortOrder);
+        var level = PriorityLevel.Create(document.Name ?? string.Empty, sortOrder, document.Number);
         level.SetColorKey(document.ColorKey);
 
         if (document.IsArchived == true)
@@ -84,6 +118,50 @@ internal static class LookupImporter
         }
 
         return level;
+    }
+
+    private static void ImportStatuses(IUnitOfWork work, IReadOnlyList<LookupDocument> documents,
+        List<StatusLevel> known, ImportMap map, IssueList issues)
+    {
+        var nextOrder = known.Select(status => status.SortOrder).DefaultIfEmpty(-1).Max() + 1;
+        foreach (var (document, index) in Ordered(documents))
+        {
+            var kind = LookupValidator.ReadStatusKind(document.Kind)!.Value;
+            var status = known.FirstOrDefault(row => SameName(row.Name, document.Name));
+            if (status is null)
+            {
+                status = CreateStatus(document, kind, nextOrder++);
+                work.Lookups.Add(status);
+                known.Add(status);
+            }
+            else if (status.Kind != kind)
+            {
+                issues.Add($"$.statuses[{index}].kind", "The matching status has a different kind.");
+            }
+
+            map.Statuses[document.Id!.Value] = status.Id;
+        }
+
+        map.FirstDoneStatusId = StatusLevel.FirstDone(known);
+    }
+
+    private static StatusLevel CreateStatus(LookupDocument document, StatusKind kind, int sortOrder)
+    {
+        var status = StatusLevel.Create(document.Name!, kind, sortOrder);
+
+        if (document.IsArchived == true)
+        {
+            status.Archive();
+        }
+
+        return status;
+    }
+
+    /// <summary>The documents in list order, each with its position in the file for issue paths.</summary>
+    private static IEnumerable<(LookupDocument Document, int Index)> Ordered(IReadOnlyList<LookupDocument> documents)
+    {
+        var positioned = documents.Select((document, index) => (document, index));
+        return positioned.OrderBy(entry => entry.document.SortOrder ?? 0);
     }
 
     private static bool SameName(string existing, string? imported)

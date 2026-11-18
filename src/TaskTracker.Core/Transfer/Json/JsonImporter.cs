@@ -19,7 +19,7 @@ internal sealed class JsonImporter(TimeProvider clock)
         var index = new ImportIndex(document);
         var map = new ImportMap();
 
-        await LookupImporter.ImportAsync(work, document, map, cancellationToken);
+        await LookupImporter.ImportAsync(work, document, map, issues, cancellationToken);
         var projects = await new ProjectImporter(work, clock, map, issues).CreateAsync(document, cancellationToken);
         await new FieldImporter(work, map, issues).ImportAsync(document, cancellationToken);
 

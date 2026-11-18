@@ -27,6 +27,7 @@ internal sealed class ExportDocumentBuilder(TimeProvider clock)
             Scope = wholeDatabase ? ExportDocument.AllScope : ExportDocument.ProjectScope,
             ItemTypes = BuildItemTypes(catalogue, projects, wholeDatabase),
             PriorityLevels = BuildPriorityLevels(catalogue, projects, wholeDatabase),
+            Statuses = BuildStatuses(catalogue, projects, wholeDatabase),
             Fields = BuildFields(catalogue, projects, usedFieldIds, wholeDatabase),
             GlobalSettings = globalSettings,
             Projects = projects.Select(projectBuilder.Build).ToList(),
@@ -72,10 +73,33 @@ internal sealed class ExportDocumentBuilder(TimeProvider clock)
         {
             Id = level.Id,
             Name = level.Name,
+            Number = level.Number,
             ColorKey = level.ColorKey,
             IsBuiltIn = level.IsBuiltIn,
             IsArchived = level.IsArchived,
             SortOrder = level.SortOrder
+        };
+    }
+
+    private static List<LookupDocument> BuildStatuses(
+        ExportCatalogue catalogue, IReadOnlyList<ProjectExportData> projects, bool wholeDatabase)
+    {
+        var items = projects.SelectMany(project => project.Items).ToList();
+        var used = items.Select(item => item.StatusId).Concat(items.Select(item => item.ReopenStatusId)).ToHashSet();
+        var selected = catalogue.Statuses.Where(status => wholeDatabase || used.Contains(status.Id));
+
+        return selected.OrderBy(status => status.SortOrder).Select(BuildStatus).ToList();
+    }
+
+    private static LookupDocument BuildStatus(StatusLevel status)
+    {
+        return new LookupDocument
+        {
+            Id = status.Id,
+            Name = status.Name,
+            Kind = status.Kind == StatusKind.Done ? "done" : "open",
+            IsArchived = status.IsArchived,
+            SortOrder = status.SortOrder
         };
     }
 

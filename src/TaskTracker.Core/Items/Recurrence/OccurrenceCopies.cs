@@ -30,6 +30,8 @@ internal sealed class OccurrenceCopies(ItemTree tree, TimeProvider clock)
         var copy = TodoItem.Create(source.ProjectId, source.FolderId, parentId, source.Title, clock, source.SortOrder);
         copy.SetDescription(source.Description, clock);
         copy.SetTicketNumber(source.TicketNumber, clock);
+        var openStatus = source.CompletedAtUtc.HasValue ? source.ReopenStatusId : source.StatusId;
+        copy.SetStatus(openStatus, null, clock);
         copy.SetLookups(source.ItemTypeId, source.PriorityLevelId, clock);
         copy.SetDue(source.DueDate, source.DueTime, clock);
         copy.SetSchedule(source.ScheduledStart, source.ScheduledEnd, clock);

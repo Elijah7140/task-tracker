@@ -20,6 +20,7 @@ public sealed class ItemEditorCoordinator
     {
         var draft = new ItemEditorViewModel(row.Node.Item);
         draft.SelectedType = snapshot?.ItemTypes.FirstOrDefault(type => type.Id == row.Node.Item.ItemTypeId);
+        draft.InitializeStatus(snapshot?.Statuses ?? [], row.Node.Item.StatusId);
         draft.SelectedPriority = snapshot?.PriorityLevels.FirstOrDefault(level => level.Id == row.Node.Item.PriorityLevelId);
 
         if (draft.SelectedType?.IsArchived == true)
@@ -30,7 +31,7 @@ public sealed class ItemEditorCoordinator
 
         if (draft.SelectedPriority?.IsArchived == true)
         {
-            draft.ArchivedPriorityName = draft.SelectedPriority.Name;
+            draft.ArchivedPriorityName = draft.SelectedPriority.Label;
             draft.SelectedPriority = null;
         }
 

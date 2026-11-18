@@ -6,6 +6,7 @@ using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
@@ -69,6 +70,25 @@ public sealed class ItemRecurrenceTests
         Assert.Equal(15, next.ReminderOffsetMinutes);
         Assert.Null(next.ReminderDeliveredFor);
         Assert.Null(next.SnoozedUntilUtc);
+    }
+
+    [Fact]
+    public async Task The_next_occurrence_takes_the_remembered_open_status()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Audit");
+        var open = (await world.Lookups.StatusesAsync()).First(status => status.Kind == StatusKind.Open);
+        await world.Items.EditAsync(item.Id, RepeatEdit(item.Title, Weekly));
+        await world.Items.SetStatusAsync(item.Id, open.Id);
+
+        await world.Items.SetStatusAsync(item.Id, BuiltInLookups.CompletedId);
+
+        await using var reader = world.OpenContext();
+        var next = await reader.TodoItems.SingleAsync(row => row.Id != item.Id);
+        Assert.Equal(open.Id, next.StatusId);
+        Assert.Null(next.ReopenStatusId);
+        Assert.Null(next.CompletedAtUtc);
+        Assert.Equal(open.Id, (await world.ReadItemAsync(item.Id)).ReopenStatusId);
     }
 
     [Fact]

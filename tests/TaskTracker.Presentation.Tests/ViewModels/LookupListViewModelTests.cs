@@ -150,7 +150,7 @@ public sealed class LookupListViewModelTests
 
     private static async Task<LookupListViewModel> LoadItemTypesAsync(PresentationTestStore store, FakeDialogService dialogs)
     {
-        var page = new LookupListViewModel(store.Lookups, dialogs, true);
+        var page = new LookupListViewModel(store.Lookups, dialogs, LookupListKind.ItemTypes);
         await page.LoadAsync();
 
         return page;
@@ -158,7 +158,7 @@ public sealed class LookupListViewModelTests
 
     private static async Task<LookupListViewModel> LoadPriorityLevelsAsync(PresentationTestStore store)
     {
-        var page = new LookupListViewModel(store.Lookups, new FakeDialogService(), false);
+        var page = new LookupListViewModel(store.Lookups, new FakeDialogService(), LookupListKind.PriorityLevels);
         await page.LoadAsync();
 
         return page;

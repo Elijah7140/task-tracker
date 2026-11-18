@@ -11,7 +11,7 @@ namespace TaskTracker.Core.Transfer.Json;
 internal static class ImportCompletion
 {
     public static void Reconcile(Guid projectId, IReadOnlyList<Folder> folders, IReadOnlyList<TodoItem> items,
-        TimeProvider clock)
+        TimeProvider clock, Guid doneStatusId)
     {
         var folderTree = new FolderTree(projectId, folders);
         var nowUtc = clock.GetUtcNow().UtcDateTime;
@@ -23,7 +23,7 @@ internal static class ImportCompletion
 
             foreach (var change in result.Changes)
             {
-                tree.Get(change.ItemId).SetCompletion(change.CompletedAtUtc, clock);
+                tree.Get(change.ItemId).SetCompletion(change.CompletedAtUtc, clock, doneStatusId);
             }
         }
     }

@@ -159,7 +159,8 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
         try
         {
             var entries = await service.LoadAsync(load.Query, load.Cancellation.Token);
-            ApplyLoad(load, entries);
+            var (statuses, priorities) = await navigation.LoadRowLookupsAsync(load.Cancellation.Token);
+            ApplyLoad(load, entries, new RowLookupMenus(statuses, priorities));
         }
         catch (OperationCanceledException) when (load.Cancellation.IsCancellationRequested)
         {
@@ -323,11 +324,11 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
         return !disposed && load.Version == loadVersion;
     }
 
-    private void ApplyLoad(LoadRequest load, IReadOnlyList<CalendarEntry> entries)
+    private void ApplyLoad(LoadRequest load, IReadOnlyList<CalendarEntry> entries, RowLookupMenus menus)
     {
         if (IsCurrent(load))
         {
-            ShowDays(load.Query, entries);
+            ShowDays(load.Query, entries, menus);
         }
     }
 
@@ -500,7 +501,7 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
         return ReloadAndReportAsync(MissingItemMessage);
     }
 
-    private void ShowDays(CalendarQuery query, IReadOnlyList<CalendarEntry> entries)
+    private void ShowDays(CalendarQuery query, IReadOnlyList<CalendarEntry> entries, RowLookupMenus menus)
     {
         displayedToday = Today;
         var dayCount = isWeek ? WeekDayCount : MonthDayCount;
@@ -511,14 +512,26 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
         {
             foreach (var entry in day.Entries)
             {
-                entry.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(entry.Entry.ItemId),
-                    () => entry.PushBackReason is null);
+                AttachRowActions(entry, menus);
             }
 
             Days.Add(day);
         }
 
         RefreshUrgency();
+    }
+
+    /// <summary>Wires an entry's context menu: push back, Set status and Set priority.</summary>
+    private void AttachRowActions(CalendarEntryViewModel entry, RowLookupMenus menus)
+    {
+        var item = entry.Entry;
+        entry.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(item.ItemId),
+            () => entry.PushBackReason is null);
+        entry.StatusName = menus.StatusName(item.StatusId);
+        entry.StatusChoices = menus.Statuses(item.StatusId,
+            id => navigation.SetRowStatusAsync(item.ItemId, id));
+        entry.PriorityChoices = menus.Priorities(item.PriorityLevelId,
+            id => navigation.SetRowPriorityAsync(item.ItemId, id));
     }
 
     private void OnTimerTick(object? state)

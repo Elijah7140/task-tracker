@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using TaskTracker.Core.Lookups;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -8,6 +10,17 @@ public sealed class LookupRowViewModel(LookupEntity entity, bool isItemType, boo
     public Guid Id { get; } = entity.Id;
 
     public string Name { get; } = entity.Name;
+
+    /// <summary>The row's text: a priority level's label, or a status with its kind ("Testing · Open").</summary>
+    public string DisplayName { get; } = entity switch
+    {
+        PriorityLevel priority => priority.Label,
+        StatusLevel status => $"{status.Name} · {status.Kind}",
+        _ => entity.Name
+    };
+
+    /// <summary>The text of a priority row's Number box; edited in place and saved by its command.</summary>
+    public string Number { get; set; } = FormatNumber(entity);
 
     public bool IsBuiltIn { get; } = entity.IsBuiltIn;
 
@@ -24,4 +37,10 @@ public sealed class LookupRowViewModel(LookupEntity entity, bool isItemType, boo
     public string ArchiveTooltip { get; } = isItemType && entity.IsBuiltIn
         ? "Built-in types can't be archived"
         : "Archive";
+
+    private static string FormatNumber(LookupEntity entity)
+    {
+        var number = (entity as PriorityLevel)?.Number;
+        return number?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    }
 }

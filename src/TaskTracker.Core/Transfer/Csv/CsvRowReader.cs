@@ -23,7 +23,7 @@ internal sealed class CsvRowReader(
         var priorityId = ReadLookup(CsvColumns.Priority, "priority", context.PriorityLevels);
         var (dueDate, dueTime) = ReadDue();
         var (start, end) = ReadSchedule();
-        var completedAt = ReadCompletion();
+        var (statusId, completedAt) = ReadStatusAndCompletion();
         var values = ReadFieldValues();
         var linkUrls = ReadLinks();
 
@@ -32,7 +32,7 @@ internal sealed class CsvRowReader(
             return null;
         }
 
-        return new CsvImportRow(record.RowNumber, title, ReadDescription(), ticket, typeId, priorityId,
+        return new CsvImportRow(record.RowNumber, title, ReadDescription(), ticket, typeId, priorityId, statusId,
             dueDate, dueTime, start, end, completedAt, values, linkUrls);
     }
 
@@ -94,7 +94,7 @@ internal sealed class CsvRowReader(
             return null;
         }
 
-        var match = lookups.FirstOrDefault(lookup => string.Equals(lookup.Name, name, StringComparison.OrdinalIgnoreCase));
+        var match = lookups.FirstOrDefault(lookup => HasName(lookup, name));
 
         if (match is null)
         {
@@ -109,6 +109,17 @@ internal sealed class CsvRowReader(
         }
 
         return match.Id;
+    }
+
+    /// <summary>A priority level also answers to its label, such as "7 · Hotfix", which an export writes.</summary>
+    private static bool HasName(LookupEntity lookup, string name)
+    {
+        if (string.Equals(lookup.Name, name, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return lookup is PriorityLevel priority && string.Equals(priority.Label, name, StringComparison.OrdinalIgnoreCase);
     }
 
     private (DateOnly? Date, TimeOnly? Time) ReadDue()
@@ -196,7 +207,25 @@ internal sealed class CsvRowReader(
         return null;
     }
 
-    private DateTime? ReadCompletion()
+    /// <summary>
+    /// Reads the Status and completion columns, which must agree (§7.15). A Done status by itself
+    /// completes the row, and a completed row without a status gets the first Done status.
+    /// </summary>
+    private (Guid? StatusId, DateTime? CompletedAt) ReadStatusAndCompletion()
+    {
+        var statusId = ReadLookup(CsvColumns.Status, "status", context.Statuses);
+        var status = context.Statuses.FirstOrDefault(row => row.Id == statusId);
+        var completedAt = ReadCompletion(status);
+
+        if (statusId is null && completedAt is not null)
+        {
+            statusId = StatusLevel.FirstDone(context.Statuses);
+        }
+
+        return (statusId, completedAt);
+    }
+
+    private DateTime? ReadCompletion(StatusLevel? status)
     {
         var completed = ReadYesNo(CsvColumns.Completed, Cell(CsvColumns.Completed).Trim());
         var completedAt = ReadCompletedAt();
@@ -206,12 +235,25 @@ internal sealed class CsvRowReader(
             Fail(CsvColumns.CompletedAt, "A completion time is set but Completed says no.");
         }
 
-        if (completed == true && completedAt is null)
+        CheckStatusAgrees(status, completed, completedAt);
+
+        if ((completed == true || status?.Kind == StatusKind.Done) && completedAt is null)
         {
             return clock.GetUtcNow().UtcDateTime;
         }
 
         return completedAt;
+    }
+
+    private void CheckStatusAgrees(StatusLevel? status, bool? completed, DateTime? completedAt)
+    {
+        var doneButOpen = status?.Kind == StatusKind.Done && completed == false;
+        var openButCompleted = status?.Kind == StatusKind.Open && (completed == true || completedAt is not null);
+
+        if (doneButOpen || openButCompleted)
+        {
+            Fail(CsvColumns.Status, "Status must agree with completion.");
+        }
     }
 
     private DateTime? ReadCompletedAt()

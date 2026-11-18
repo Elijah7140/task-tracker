@@ -24,7 +24,7 @@ public sealed class FieldRegistryTests
 
         var fields = await registry.GetFieldsAsync(new SearchScope.Project(project.Id));
 
-        Assert.Equal(["title", "ticket", "type", "priority", "due", "scheduled", "status", "link", "repeats", "reminder", "global", "local"],
+        Assert.Equal(["title", "ticket", "type", "priority", "due", "scheduled", "status", "completed", "link", "repeats", "reminder", "global", "local"],
             fields.Select(field => field.Key));
     }
 }

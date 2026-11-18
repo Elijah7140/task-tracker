@@ -37,7 +37,8 @@ public sealed class EfTodayRepository(TaskTrackerDbContext database) : ITodayRep
                 i.FolderId, p.Name || coalesce(' › ' || paths.Path, '') AS AreaPath,
                 i.ParentItemId, i.Title, i.SortOrder, i.CompletedAtUtc IS NOT NULL AS IsCompleted,
                 done.Id IS NOT NULL AS CompletedToday,
-                (i.DueDate IS NOT NULL OR i.ScheduledStart IS NOT NULL) AS HasDates
+                (i.DueDate IS NOT NULL OR i.ScheduledStart IS NOT NULL) AS HasDates,
+                i.StatusId, i.PriorityLevelId
             FROM branch JOIN TodoItem i ON i.Id = branch.Id
             JOIN Project p ON p.Id = i.ProjectId AND p.DeletedAtUtc IS NULL
             LEFT JOIN paths ON paths.Id = i.FolderId AND paths.ParentFolderId IS NULL

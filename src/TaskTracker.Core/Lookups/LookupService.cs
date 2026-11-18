@@ -1,10 +1,14 @@
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core.Lookups;
 
 /// <summary>Manages editable lookup lists.</summary>
-public sealed class LookupService(IUnitOfWorkFactory unitOfWorkFactory)
+public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, FieldWriteGate? writeGate = null)
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     public async Task<IReadOnlyList<ItemType>> ItemTypesAsync(CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
@@ -31,15 +35,23 @@ public sealed class LookupService(IUnitOfWorkFactory unitOfWorkFactory)
         return itemType;
     }
 
-    public async Task<PriorityLevel> AddPriorityLevelAsync(string name, CancellationToken cancellationToken = default)
+    public Task<PriorityLevel> AddPriorityLevelAsync(string name, CancellationToken cancellationToken = default)
     {
+        return AddPriorityLevelAsync(name, null, cancellationToken);
+    }
+
+    /// <summary>Adds a priority level at the bottom of the list; one with a number may have an empty name.</summary>
+    public async Task<PriorityLevel> AddPriorityLevelAsync(string name, int? number, CancellationToken cancellationToken = default)
+    {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.PriorityLevelsAsync(cancellationToken);
-        var level = PriorityLevel.Create(name, rows.Count);
+        var level = PriorityLevel.Create(name, rows.Count, number);
+        EnsureUniqueNumber(rows, level);
         EnsureUniqueName(rows, level, "priority level");
         repository.Add(level);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.AddPriority(level.Label), cancellationToken);
         return level;
     }
 
@@ -95,7 +107,9 @@ public sealed class LookupService(IUnitOfWorkFactory unitOfWorkFactory)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var rows = await unitOfWork.Lookups.PriorityLevelsAsync(cancellationToken);
-        rows.Single(row => row.Id == id).Unarchive();
+        var level = rows.Single(row => row.Id == id);
+        level.Unarchive();
+        EnsureUniqueNumber(rows, level);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -117,9 +131,30 @@ public sealed class LookupService(IUnitOfWorkFactory unitOfWorkFactory)
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>Sets or clears a level's number label. The number never affects rank (§7.15).</summary>
+    public async Task SetPriorityNumberAsync(Guid id, int? number, CancellationToken cancellationToken = default)
+    {
+        using var lease = await gate.EnterAsync(cancellationToken);
+        await using var work = unitOfWorkFactory.Begin();
+        var rows = await work.Lookups.PriorityLevelsAsync(cancellationToken);
+        var level = rows.Single(row => row.Id == id);
+        level.SetLabel(level.Name, number);
+        EnsureUniqueNumber(rows, level);
+        await work.SaveChangesAsync(UndoLabels.SetPriorityNumber(level.Label), cancellationToken);
+    }
+
+    private static void EnsureUniqueNumber(IEnumerable<PriorityLevel> rows, PriorityLevel level)
+    {
+        if (!level.IsArchived && level.Number.HasValue &&
+            rows.Any(other => other.Id != level.Id && !other.IsArchived && other.Number == level.Number))
+        {
+            throw new DomainRuleException($"Priority number {level.Number} is already in use.");
+        }
+    }
+
     private static void EnsureUniqueName(IEnumerable<LookupEntity> rows, LookupEntity candidate, string kind)
     {
-        var duplicate = rows.Any(row => row.Id != candidate.Id &&
+        var duplicate = candidate.Name.Length > 0 && rows.Any(row => row.Id != candidate.Id &&
             string.Equals(row.Name, candidate.Name, StringComparison.OrdinalIgnoreCase));
 
         if (duplicate)

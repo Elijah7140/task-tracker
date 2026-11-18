@@ -32,6 +32,14 @@ public sealed class TodayRowViewModel : ViewModelBase
 
     public bool HasChildren => Children.Count > 0;
 
+    public string? StatusName { get; internal set; }
+
+    public bool HasStatus => StatusName is not null;
+
+    public IReadOnlyList<RowLookupChoice> StatusChoices { get; internal set; } = [];
+
+    public IReadOnlyList<RowLookupChoice> PriorityChoices { get; internal set; } = [];
+
     public string? PushBackReason => PushBackOneDay.UnavailableReason(IsCompleted, Item.HasDates);
 
     public double Opacity => IsCompleted ? 1 : 0.65;

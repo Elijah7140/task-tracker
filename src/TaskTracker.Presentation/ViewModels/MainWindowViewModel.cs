@@ -58,7 +58,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private bool isOpeningCalendar;
     private bool isOpeningTrash;
     private bool isOpeningToday;
-    private bool isPushingBack;
+    private bool isChangingTransientItem;
     private ViewModelBase? currentPage;
     private RemindersViewModel? reminders;
     private int pageVersion;
@@ -200,6 +200,9 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
                 break;
             case SearchViewModel searchPage:
                 await searchPage.RefreshAsync();
+                break;
+            case AppSettingsViewModel appSettings:
+                await appSettings.LoadLookupsAsync();
                 break;
             case HomeViewModel home:
                 await home.LoadAsync();
@@ -442,7 +445,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     /// <inheritdoc />
     public Task PushBackAsync(Guid itemId)
     {
-        if (itemService is null || !IsTransientPage(CurrentPage) || isPushingBack)
+        if (itemService is null || !IsTransientPage(CurrentPage) || isChangingTransientItem)
         {
             return Task.CompletedTask;
         }
@@ -452,14 +455,27 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         return write;
     }
 
-    private async Task SavePushBackAsync(ItemService items, Guid itemId)
+    private Task SavePushBackAsync(ItemService items, Guid itemId)
+    {
+        return SaveTransientItemAsync(async () =>
+        {
+            await items.PushBackOneDayAsync(itemId);
+            return true;
+        }, "Push back one day");
+    }
+
+    private async Task SaveTransientItemAsync(Func<Task<bool>> save, string errorTitle)
     {
         var page = CurrentPage;
         var origin = transientReturnPage;
-        isPushingBack = true;
+        isChangingTransientItem = true;
         try
         {
-            await items.PushBackOneDayAsync(itemId);
+            if (!await save())
+            {
+                return;
+            }
+
             returnPageIsStale |= origin is not null && ReferenceEquals(origin, transientReturnPage);
             if (ReferenceEquals(page, CurrentPage))
             {
@@ -468,7 +484,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         }
         catch (DomainRuleException exception)
         {
-            await dialogs.ShowMessageAsync("Push back one day", exception.Message);
+            await dialogs.ShowMessageAsync(errorTitle, exception.Message);
         }
         catch (Exception exception)
         {
@@ -476,8 +492,47 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         }
         finally
         {
-            isPushingBack = false;
+            isChangingTransientItem = false;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<(IReadOnlyList<StatusLevel> Statuses, IReadOnlyList<PriorityLevel> Priorities)> LoadRowLookupsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (lookups is null)
+        {
+            return ([], []);
+        }
+
+        var statuses = await lookups.StatusesAsync(cancellationToken);
+        var priorities = await lookups.PriorityLevelsAsync(cancellationToken);
+        return (statuses, priorities);
+    }
+
+    /// <inheritdoc />
+    public Task SetRowStatusAsync(Guid itemId, Guid? statusId)
+    {
+        return StartTransientItemChange(items => ItemLookupAction.SetStatusAsync(items, dialogs, itemId, statusId));
+    }
+
+    /// <inheritdoc />
+    public Task SetRowPriorityAsync(Guid itemId, Guid? priorityId)
+    {
+        return StartTransientItemChange(items => ItemLookupAction.SetPriorityAsync(items, itemId, priorityId));
+    }
+
+    private Task StartTransientItemChange(Func<ItemService, Task<bool>> change)
+    {
+        if (itemService is null || !IsTransientPage(CurrentPage) || isChangingTransientItem)
+        {
+            return Task.CompletedTask;
+        }
+
+        var items = itemService;
+        var write = SaveTransientItemAsync(() => change(items), "Item action failed");
+        TrackTransientWrite(write);
+        return write;
     }
 
     private void TrackTransientWrite(Task write)

@@ -1,3 +1,4 @@
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Search;
 
 namespace TaskTracker.Presentation.Navigation;
@@ -20,6 +21,19 @@ public interface INavigationService
 
     /// <summary>Pushes back an item displayed by the current transient page.</summary>
     Task PushBackAsync(Guid itemId) => Task.CompletedTask;
+
+    /// <summary>Loads the statuses and priority levels that a transient page's row menus offer.</summary>
+    Task<(IReadOnlyList<StatusLevel> Statuses, IReadOnlyList<PriorityLevel> Priorities)> LoadRowLookupsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<(IReadOnlyList<StatusLevel>, IReadOnlyList<PriorityLevel>)>(([], []));
+    }
+
+    /// <summary>Sets the status of an item displayed by the current transient page (§7.15).</summary>
+    Task SetRowStatusAsync(Guid itemId, Guid? statusId) => Task.CompletedTask;
+
+    /// <summary>Sets the priority of an item displayed by the current transient page (§7.15).</summary>
+    Task SetRowPriorityAsync(Guid itemId, Guid? priorityId) => Task.CompletedTask;
 
     /// <summary>Opens the search page, remembering the current page for <see cref="ReturnFromSearchAsync"/>.</summary>
     Task OpenSearchAsync();

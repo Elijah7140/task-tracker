@@ -31,6 +31,10 @@ public sealed class ItemDocument
 
     public string? Priority { get; init; }
 
+    public Guid? StatusId { get; init; }
+
+    public Guid? ReopenStatusId { get; init; }
+
     public string? DueDate { get; init; }
 
     public string? DueTime { get; init; }

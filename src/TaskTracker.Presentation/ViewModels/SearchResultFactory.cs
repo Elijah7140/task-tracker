@@ -33,7 +33,7 @@ internal sealed class SearchResultFactory(ProjectService projects, LookupService
             }
 
             var typeName = types.FirstOrDefault(type => type.Id == hit.ItemTypeId)?.Name;
-            var priorityName = priorities.FirstOrDefault(level => level.Id == hit.PriorityLevelId)?.Name;
+            var priorityName = priorities.FirstOrDefault(level => level.Id == hit.PriorityLevelId)?.Label;
             rows.Add(new SearchResultViewModel(hit, location, typeName, priorityName));
         }
 

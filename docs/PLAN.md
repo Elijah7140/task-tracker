@@ -135,6 +135,8 @@ Phase 3: FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldVal
 | `TicketNumber` | string? (≤ 100) | Free text, e.g. `JIRA-1234`. Indexed, not unique |
 | `PriorityLevelId` | Guid? | null = no priority |
 | `ItemTypeId` | Guid? | |
+| `StatusId` | Guid? | Current workflow status (§7.15) |
+| `ReopenStatusId` | Guid? | Open status remembered while completed (§7.15) |
 | `DueDate` | DateOnly? | |
 | `DueTime` | TimeOnly? | Only valid when `DueDate` is set. Absent = due end of day |
 | `ScheduledStart` / `ScheduledEnd` | DateTime? (floating local, §5.4) | For discussions and meetings. End requires start; end ≥ start |
@@ -380,7 +382,7 @@ Removing a choice archives it; items keep their value.
 - Keys are creation-time lowercase slugs of display names, globally unique with numeric
   collision suffixes, and never change on rename; the database has a unique key index.
 - Built-in search keys (`title`, `ticket`, `type`, `priority`, `due`, `scheduled`,
-  `status`, `link`) and the query-syntax keywords (`has`, `no`, `is`, §7.7) are reserved. Custom fields use the next numeric collision suffix.
+  `status`, `completed`, `link`) and the query-syntax keywords (`has`, `no`, `is`, §7.7) are reserved. Custom fields use the next numeric collision suffix.
   The saved-search migration renames existing keyword keys with the same first-free suffix rule;
   field ids and values remain unchanged.
 - Display names are required and trimmed, and are case-insensitively unique among active
@@ -404,7 +406,7 @@ Why typed columns instead of a JSON blob: range queries ("severity ≥ 3",
 
 **Field registry.** `IFieldRegistry` returns every searchable field as a
 `SearchableField { Key, DisplayName, DataType, Source }`. `Source` is either a built-in
-column (`title`, `ticket`, `priority`, `type`, `due`, `scheduled`, `status`, `link`) or a
+column (`title`, `ticket`, `priority`, `type`, `due`, `scheduled`, `status`, `completed`, `link`) or a
 `FieldDefinition`. Search code treats both the same.
 
 **Query model** (Core, storage-agnostic):
@@ -460,9 +462,9 @@ which SQLite may renumber during `VACUUM` or a table rebuild:
 
 All search code is tested against real SQLite.
 
-- Built-in field types are title and ticket (Text), type and priority (Choice), due
-  and scheduled (Date), and status (Boolean, displayed as "Completed"). Scheduled
-  comparisons use the date of `ScheduledStart`; status true means completed.
+- Built-in field types include title, ticket and status (Text), type and priority (Choice),
+  due and scheduled (Date), and completed (Boolean, displayed as "Completed"). Scheduled
+  comparisons use the date of `ScheduledStart`.
 - Text supports Equals and NotEquals (trimmed and case-insensitive), Contains
   (case-insensitive), IsEmpty and IsNotEmpty. Number and Date also support ordered
   comparisons and inclusive Between with a valid min ≤ max range. Boolean and Choice
@@ -645,11 +647,12 @@ endpoint = quoted string | run of characters up to a space or '..'
 | `key:a..b` | Between, inclusive (numbers, dates, priority; priority runs more important to less important) |
 | `has:key` / `no:key` | IsNotEmpty / IsEmpty |
 | `is:recurring` | `repeats` Equals true (§7.11) |
-| `is:done` / `is:open` | `status` Equals true / false; a query with `is:done` (or `status:yes`) turns Include completed on |
+| `is:done` / `is:completed` / `is:open` | `completed` Equals true / true / false; a query asking for completed items turns Include completed on |
 
 Values: Text as written (quote when it has spaces); Number with the **invariant** culture (a dot for
 decimals; a saved search must mean the same on every machine); Boolean `yes|no|true|false`; Choice by
-label (case-insensitive) or by unquoted `#<guid>` id (quote an id-shaped label); Date `yyyy-MM-dd`, `today`, `tomorrow`, `yesterday`, or an
+label (case-insensitive) or by unquoted `#<guid>` id (quote an id-shaped label), and a priority also by its
+unquoted number (`priority:7`, then a level named "7"; §7.15); `status` is Text over status names; Date `yyyy-MM-dd`, `today`, `tomorrow`, `yesterday`, or an
 offset such as `+3d` / `-1w`, resolved with the injected `TimeProvider` and the explicit time zone (§5.4).
 Words that contain `:` and are not a field (`http://x`) are errors until quoted. A bare `has`, `no` or `is`
 word is free text; as `has:`, `no:`, `is:` they are keywords, hence reserved (§7.1).
@@ -708,15 +711,19 @@ every step that was undone, so redo is cleared by any new action.
 action saves with a label, `unitOfWork.SaveChangesAsync(UndoLabels.Complete(title), ct)`; only
 labelled saves are recorded, and the label names the item the user acted on (completing a child
 that auto-completes its parent is "Complete 'Child'"). Everything else saves without a label and
-is never recorded: settings (including the auto-complete reconciliation they trigger), lookups,
-field definitions, saved searches, creating a project or folder, trash purge and empty, seeding
+is never recorded: defaults (including the auto-complete reconciliation they trigger), item types,
+renaming, reordering or archiving priority levels (the undo audit in §10 covers them), field
+definitions, saved searches, creating a project or folder, trash purge and empty, seeding
 and migrations. Search the services for `UndoLabels.` to see exactly what is undoable: create item
 or sub-item; one item Save (built-in and custom fields together, cleared fields included);
 complete and reopen with their cascade; delete item, folder or project (a soft-delete batch);
 reorder, indent, outdent, re-parent, drag and move to a folder; calendar reschedule; rename
-folder or project; and restore from the trash (undoing it deletes the batch again). On a labelled
+folder or project; restore from the trash (undoing it deletes the batch again); set status or
+priority from a row menu, with any completion cascade; every status list change (add, rename,
+reorder, archive, restore); and adding a priority level or editing its number (§7.15). An editor
+save that changes the status is one step labelled "Set status of ...". On a labelled
 save `EfUnitOfWork` snapshots the before and after values of every added, modified or deleted
-item, folder, project, item field value and item link (§7.10), in the operation's own save, and hands the step to an
+item, folder, project, item field value, item link (§7.10), status and priority level, in the operation's own save, and hands the step to an
 `IUndoRecorder` (tests substitute a fake). A row whose only change is its `UpdatedAtUtc` stamp is
 left out, so steps stay small and do not widen conflicts. Purging a batch also makes the delete it
 followed un-undoable.
@@ -1393,6 +1400,37 @@ the decisions below were made autonomously; they are listed for review.
   - Light and dark snapshots of a row menu with submenus, the editor and the settings lists.
   - A smoke scenario.
 
+**Implementation decisions**
+- Status kind is selected when a status is added and stays fixed. Archived statuses remain on
+  existing items and can be restored from a remembered reopen status. Assigning an Open status
+  or None to a completed item runs the normal reopen rules, then applies the chosen value.
+- Existing completed items receive Completed on upgrade. Their reopen status starts empty.
+  A custom field with the newly reserved `completed` key gets the first free suffix before
+  the legacy completion clauses are rewritten.
+- Status searches compare names, including names of archived statuses already on items. The
+  filter row uses text to support both exact and partial matches.
+- CSV matches active statuses by name. A Done status by itself completes the row, and an explicit
+  conflict with the completion columns is a validation error. CSV carries the current status.
+  JSON also preserves the remembered Open status. A JSON name match with a different status
+  kind is a validation error. Legacy JSON without a statuses list uses the old completion key.
+- A numbered priority can have an empty name. JSON keeps existing named matches intact and
+  matches a number-only priority by number and archive state. A new active priority whose
+  number is already taken produces a validation error.
+- The status chip sits at the right end of the title column, so rows without a status keep their
+  layout. Month cells, the week all-day row and short time-grid blocks have no room for a chip;
+  there the entry's tooltip names the status, and taller blocks show the chip.
+- Row submenus list None, then the active entries in list order, plus the item's current entry
+  when it is archived, so the check mark always has a row. Entries are native check menu items,
+  so screen readers report the checked one.
+- An editor save that changes the status is one undo step labelled "Set status of ⟨title⟩",
+  even when other fields changed in the same save.
+- Status rows in App Settings show their kind ("Testing · Open"). Archiving the last active
+  Done status is refused by the service and by a database trigger, and changing a kind is
+  refused by a trigger.
+- Undo covers every status list change, adding a priority level and editing its number.
+  Renaming, reordering and archiving priority levels stay outside undo until the undo audit
+  (§10).
+
 ### 7.16 Tickets view
 
 This is the owner's request from 2026-11-17, with the details the owner gave in §10. Where the
@@ -1435,13 +1473,16 @@ request was silent, the decisions below were made autonomously; they are listed 
    - **Left:** folder tree (project root at top). Right-click: new folder, rename, move, delete.
    - **Center:** the selected area's items.
      - Quick-add box at top (type a title, Enter).
-     - Open items as an expandable tree, each row showing checkbox, type icon, title,
-       ticket, priority, due/scheduled date, with (rolled-up) urgency background.
+     - Open items as an expandable tree, each row showing checkbox, type icon, title, a status
+       chip when the item has a status, ticket, priority, due/scheduled date, with (rolled-up)
+       urgency background. Every item row menu here and on Search, Calendar and Today has
+       **Set status ▸** and **Set priority ▸** (§7.15).
      - **Completed (n)** expander at the bottom, collapsed by default (§6.2).
-   - **Right:** detail editor for the selected item (all fields, the Markdown description with Edit and Preview, links, sub-item list; §7.10).
+   - **Right:** detail editor for the selected item (all fields, including Status below Priority, the Markdown description with Edit and Preview, links, sub-item list; §7.10, §7.15).
    - Breadcrumb at top: `Home › Billing DB › dbo › Tables`.
-3. **App Settings** — global auto-complete and urgency thresholds; manage item types and
-   priority levels (add, rename, drag to reorder, archive).
+3. **App Settings** — global auto-complete and urgency thresholds; manage item types, priority
+   levels and statuses (add, rename, move up and down, archive). Priority rows have a Number box;
+   the status add row picks Open or Done (§7.15).
 4. **Project Settings** — per-project overrides (§6.5).
 5. **Calendar** — scoped month and week views of due dates and scheduled blocks; activating an entry opens its item (§7.4).
 6. **Trash** — deletion batches with Restore, Delete permanently and Empty trash, scoped to all projects or one (§7.6).
@@ -1458,7 +1499,8 @@ Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
 Ctrl+Shift+T trash (§7.6), Ctrl+Shift+D Today and Ctrl+Shift+P push back one day (§7.14),
 Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
 and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where
-Alt+↑/↓ reorders items, so the two never clash.
+Alt+↑/↓ reorders items, so the two never clash. The Menu key or Shift+F10 opens a focused row's
+menu; ↓ and → reach Set status ▸ and Set priority ▸, and Enter picks a value (§7.15).
 
 ## 9. Delivery phases
 

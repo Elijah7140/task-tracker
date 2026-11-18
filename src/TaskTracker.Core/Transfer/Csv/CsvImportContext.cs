@@ -12,11 +12,13 @@ internal sealed class CsvImportContext
     private CsvImportContext(
         IReadOnlyList<ItemType> itemTypes,
         IReadOnlyList<PriorityLevel> priorityLevels,
+        IReadOnlyList<StatusLevel> statuses,
         IReadOnlyList<FieldDefinition> fields,
         IReadOnlyList<FieldChoice> choices)
     {
         ItemTypes = itemTypes;
         PriorityLevels = priorityLevels;
+        Statuses = statuses;
         Fields = fields;
         choicesByField = choices.Where(choice => !choice.IsArchived).ToLookup(choice => choice.FieldDefinitionId);
     }
@@ -24,6 +26,8 @@ internal sealed class CsvImportContext
     public IReadOnlyList<ItemType> ItemTypes { get; }
 
     public IReadOnlyList<PriorityLevel> PriorityLevels { get; }
+
+    public IReadOnlyList<StatusLevel> Statuses { get; }
 
     /// <summary>The active fields the project's items can hold: global ones and the project's own.</summary>
     public IReadOnlyList<FieldDefinition> Fields { get; }
@@ -46,7 +50,8 @@ internal sealed class CsvImportContext
             .Where(field => !field.IsArchived && (field.ProjectId is null || field.ProjectId == projectId))
             .ToList();
 
-        return new CsvImportContext(itemTypes, priorityLevels, fields, choices);
+        var statuses = await work.Lookups.StatusesAsync(cancellationToken);
+        return new CsvImportContext(itemTypes, priorityLevels, statuses, fields, choices);
     }
 
     private static async Task EnsureTargetExistsAsync(

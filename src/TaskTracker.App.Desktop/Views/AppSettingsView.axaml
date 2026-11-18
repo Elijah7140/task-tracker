@@ -75,7 +75,9 @@
 
       <WrapPanel Orientation="Horizontal">
         <views:LookupListView DataContext="{Binding ItemTypes}" Width="432" Margin="0,0,16,16" />
-        <views:LookupListView DataContext="{Binding PriorityLevels}" Width="432" Margin="0,0,0,16" />
+        <views:LookupListView DataContext="{Binding PriorityLevels}" Width="432" Margin="0,0,16,16" />
+        <views:LookupListView DataContext="{Binding Statuses}" Width="432" Margin="0,0,0,16"
+                              AutomationProperties.AutomationId="StatusLookupList" />
       </WrapPanel>
       <views:FieldManagerView DataContext="{Binding CustomFields}" />
     </StackPanel>

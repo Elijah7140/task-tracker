@@ -53,7 +53,11 @@ internal static class CsvItemImporter
 
         if (row.CompletedAtUtc is not null)
         {
-            item.SetCompletion(row.CompletedAtUtc, clock);
+            item.SetCompletion(row.CompletedAtUtc, clock, row.StatusId);
+        }
+        else
+        {
+            item.SetStatus(row.StatusId, null, clock);
         }
 
         return item;

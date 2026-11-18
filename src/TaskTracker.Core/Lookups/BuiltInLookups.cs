@@ -17,6 +17,16 @@ public static class BuiltInLookups
 
     public static readonly Guid LowId = Guid.Parse("019a0000-0000-7000-8000-000000000104");
 
+    public static readonly Guid CompletedId = Guid.Parse("019a0000-0000-7000-8000-000000000204");
+
+    public static IReadOnlyList<StatusLevel> Statuses =>
+    [
+        StatusLevel.Create(Guid.Parse("019a0000-0000-7000-8000-000000000201"), "Queued", StatusKind.Open, 0),
+        StatusLevel.Create(Guid.Parse("019a0000-0000-7000-8000-000000000202"), "In progress", StatusKind.Open, 1),
+        StatusLevel.Create(Guid.Parse("019a0000-0000-7000-8000-000000000203"), "Testing", StatusKind.Open, 2),
+        StatusLevel.Create(CompletedId, "Completed", StatusKind.Done, 3)
+    ];
+
     public static IReadOnlyList<ItemType> ItemTypes =>
     [
         ItemType.BuiltIn(ChangeId, "Change", 0),

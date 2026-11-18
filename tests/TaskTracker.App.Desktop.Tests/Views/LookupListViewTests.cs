@@ -68,6 +68,39 @@ public sealed class LookupListViewTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Status_add_rename_and_move_and_priority_number_box_save_immediately()
+    {
+        var window = new MainWindow { Width = 1120, Height = 1050 };
+        using var services = await TestServices.CreateAsync(window);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        window.DataContext = shell;
+        window.Show();
+        await shell.OpenAppSettingsAsync();
+        Dispatcher.UIThread.RunJobs();
+        var statuses = HeadlessInput.Find<LookupListView>(window, "StatusLookupList");
+        var lookups = services.GetRequiredService<LookupService>();
+
+        Add(window, statuses, "Review");
+        Rename(window, statuses, "Review", "Ready for review");
+        ClickAction(window, statuses, "Ready for review", "Move up");
+        var list = Assert.IsType<LookupListViewModel>(statuses.DataContext);
+        await HeadlessInput.WaitUntilAsync(() => list.Active[^2].Name == "Ready for review");
+
+        var ordered = await lookups.StatusesAsync();
+        Assert.Equal("Ready for review", ordered[^2].Name);
+        var priority = FindList(window, isPriority: true);
+        var number = HeadlessInput.FindAll<TextBox>(priority, "PriorityNumberBox")
+            .Single(box => box.DataContext is LookupRowViewModel { Name: "High" });
+        HeadlessInput.TypeInto(window, number, "7");
+        HeadlessInput.Press(window, Key.Enter);
+        var priorities = Assert.IsType<LookupListViewModel>(priority.DataContext);
+        await HeadlessInput.WaitUntilAsync(() => priorities.Active.Any(row => row.DisplayName == "7 · High"));
+
+        Assert.Equal(7, (await lookups.PriorityLevelsAsync()).Single(level => level.Id == BuiltInLookups.HighId).Number);
+        window.Close();
+    }
+
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
@@ -125,7 +158,7 @@ public sealed class LookupListViewTests
     private static LookupListView FindList(Window window, bool isPriority)
     {
         return window.GetVisualDescendants().OfType<LookupListView>()
-            .Single(view => view.DataContext is LookupListViewModel list && list.IsPriority == isPriority);
+            .Single(view => view.DataContext is LookupListViewModel list && !list.IsStatus && list.IsPriority == isPriority);
     }
 
     private static void ClickAction(Window window, LookupListView view, string name, string action)

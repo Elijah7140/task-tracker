@@ -96,6 +96,26 @@ public static class UndoLabels
     /// <summary>Moving one item's floating dates one day later.</summary>
     public static string PushBack(string name) => Label("Push back", name);
 
+    /// <summary>Setting an item's status from a row menu or the editor, with any completion it causes.</summary>
+    public static string SetStatus(string name) => Label("Set status of", name);
+
+    /// <summary>Setting an item's priority from a row menu.</summary>
+    public static string SetPriority(string name) => Label("Set priority of", name);
+
+    public static string AddStatus(string name) => Label("Add status", name);
+
+    public static string RenameStatus(string name) => Label("Rename status", name);
+
+    public static string ArchiveStatus(string name) => Label("Archive status", name);
+
+    public static string RestoreStatus(string name) => Label("Restore status", name);
+
+    public static string ReorderStatuses() => "Reorder statuses";
+
+    public static string AddPriority(string name) => Label("Add priority", name);
+
+    public static string SetPriorityNumber(string name) => Label("Edit priority", name);
+
     private static string Label(string verb, string name)
     {
         return $"{verb} '{name}'";

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Undo;
@@ -152,6 +153,16 @@ internal sealed class EfUndoableChange(
         if (row.EntityType == typeof(Project))
         {
             return "project";
+        }
+
+        if (row.EntityType == typeof(StatusLevel))
+        {
+            return "status";
+        }
+
+        if (row.EntityType == typeof(PriorityLevel))
+        {
+            return "priority level";
         }
 
         return "item";

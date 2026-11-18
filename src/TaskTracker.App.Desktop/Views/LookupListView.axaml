@@ -12,9 +12,23 @@
       <ItemsControl ItemsSource="{Binding Active}">
         <ItemsControl.ItemTemplate>
           <DataTemplate>
-            <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource AppCardBorderBrush}" Padding="2,3">
+            <Border AutomationProperties.Name="{Binding DisplayName}" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource AppCardBorderBrush}" Padding="2,3">
               <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="2">
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2"
+                              IsVisible="{Binding $parent[UserControl].DataContext.IsPriority}">
+                    <TextBox Width="82" Text="{Binding Number, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="Number" ToolTip.Tip="Priority number" AutomationProperties.AutomationId="PriorityNumberBox">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding $parent[UserControl].DataContext.SaveNumberCommand}" CommandParameter="{Binding}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
+                    <Button Content="✓" Classes="subtle icon" ToolTip.Tip="Save priority number"
+                            AutomationProperties.AutomationId="SavePriorityNumberButton"
+                            Command="{Binding $parent[UserControl].DataContext.SaveNumberCommand}" CommandParameter="{Binding}" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
                 <Button Grid.Column="1" Classes="subtle icon" ToolTip.Tip="Move up" AutomationProperties.AutomationId="LookupMoveUpButton"
                         Command="{Binding $parent[UserControl].DataContext.MoveUpCommand}" CommandParameter="{Binding}">
                   <PathIcon Data="{StaticResource IconMoveUp}" Width="14" Height="14" />
@@ -43,7 +57,7 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <Grid ColumnDefinitions="*,Auto" Margin="2,0">
-                <TextBlock Text="{Binding Name}" Opacity="0.6" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding DisplayName}" Opacity="0.6" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 <Button Grid.Column="1" Content="Restore" Classes="subtle" AutomationProperties.AutomationId="LookupRestoreButton"
                         Command="{Binding $parent[UserControl].DataContext.UnarchiveCommand}" CommandParameter="{Binding}" />
               </Grid>
@@ -51,13 +65,17 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </StackPanel>
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
         <TextBox Text="{Binding NewName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="New name" AutomationProperties.AutomationId="LookupNewNameBox">
           <TextBox.KeyBindings>
             <KeyBinding Gesture="Enter" Command="{Binding AddCommand}" />
           </TextBox.KeyBindings>
         </TextBox>
-        <Button Grid.Column="1" Content="Add" Command="{Binding AddCommand}" AutomationProperties.AutomationId="LookupAddButton" />
+        <TextBox Grid.Column="1" Width="82" PlaceholderText="Number" IsVisible="{Binding IsPriority}"
+                 Text="{Binding NewNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="NewPriorityNumberBox" />
+        <ComboBox Grid.Column="1" ItemsSource="{Binding StatusKinds}" SelectedIndex="{Binding NewStatusKindIndex, Mode=TwoWay}"
+                  IsVisible="{Binding IsStatus}" AutomationProperties.AutomationId="NewStatusKindBox" />
+        <Button Grid.Column="2" Content="Add" Command="{Binding AddCommand}" AutomationProperties.AutomationId="LookupAddButton" />
       </Grid>
     </StackPanel>
   </Border>

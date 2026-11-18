@@ -118,7 +118,7 @@ internal sealed class QueryValueReader
             return ValueOutcome.Fail(UnknownChoiceMessage(field, value, options));
         }
 
-        return ValueOutcome.Ok(new FilterValue.Choice(match.Id), $"#{match.Id:D}", QueryQuoting.QuoteChoiceLabel(match.Label));
+        return ValueOutcome.Ok(new FilterValue.Choice(match.Id), $"#{match.Id:D}", QueryQuoting.FormatChoice(match, field.Key));
     }
 
     private static SearchChoice? FindChoice(IReadOnlyList<SearchChoice> options, string value, bool quoted)
@@ -131,7 +131,26 @@ internal sealed class QueryValueReader
             return options.FirstOrDefault(option => option.Id == id);
         }
 
-        return options.FirstOrDefault(option => string.Equals(option.Label, value, StringComparison.OrdinalIgnoreCase));
+        var numbered = quoted ? null : FindByPriorityNumber(options, value);
+        return numbered
+            ?? options.FirstOrDefault(option => SameText(option.Name ?? option.Label, value))
+            ?? options.FirstOrDefault(option => SameText(option.Label, value));
+    }
+
+    /// <summary>An unquoted whole number matches the priority level with that number first (§7.15).</summary>
+    private static SearchChoice? FindByPriorityNumber(IReadOnlyList<SearchChoice> options, string value)
+    {
+        if (!QueryQuoting.IsPriorityNumber(value, out var number))
+        {
+            return null;
+        }
+
+        return options.FirstOrDefault(option => option.Number == number);
+    }
+
+    private static bool SameText(string left, string right)
+    {
+        return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string UnknownChoiceMessage(SearchableField field, string value, IReadOnlyList<SearchChoice> options)

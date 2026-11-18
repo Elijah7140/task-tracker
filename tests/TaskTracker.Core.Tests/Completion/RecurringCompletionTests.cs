@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Lookups;
 
 namespace TaskTracker.Core.Tests.Completion;
 
@@ -18,7 +19,7 @@ public sealed class RecurringCompletionTests
     {
         var (tree, parent, child) = CreateTree();
         Repeat(child);
-        var completion = new RecurringCompletion(tree, clock, TimeZoneInfo.Utc);
+        var completion = new RecurringCompletion(tree, clock, TimeZoneInfo.Utc, BuiltInLookups.CompletedId);
 
         completion.Complete(completeParent ? parent.Id : child.Id, autoComplete: true, confirmed: true);
 
@@ -34,7 +35,7 @@ public sealed class RecurringCompletionTests
     {
         var (tree, parent, child) = CreateTree();
         Repeat(parent);
-        var completion = new RecurringCompletion(tree, clock, TimeZoneInfo.Utc);
+        var completion = new RecurringCompletion(tree, clock, TimeZoneInfo.Utc, BuiltInLookups.CompletedId);
 
         completion.Complete(child.Id, autoComplete: true, confirmed: false);
 
@@ -51,7 +52,7 @@ public sealed class RecurringCompletionTests
         var (tree, parent, child) = CreateTree();
         Repeat(parent, RecurrenceAnchor.CompletionDate);
         var zone = TimeZoneInfo.CreateCustomTimeZone("UTC-04", TimeSpan.FromHours(-4), "UTC-04", "UTC-04");
-        var completion = new RecurringCompletion(tree, clock, zone);
+        var completion = new RecurringCompletion(tree, clock, zone, BuiltInLookups.CompletedId);
 
         completion.Complete(parent.Id, autoComplete: false, confirmed: false);
 

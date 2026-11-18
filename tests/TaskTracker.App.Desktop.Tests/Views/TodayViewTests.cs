@@ -209,6 +209,8 @@ public sealed class TodayViewTests
         var menu = HeadlessInput.Find<MenuItem>(window, "PushBackOneDayMenuItem");
         Assert.Equal("Push back one day", menu.Header);
         Assert.True(menu.IsEffectivelyEnabled);
+        Assert.NotEmpty(HeadlessInput.Find<MenuItem>(window, "SetStatusMenuItem").Items);
+        Assert.NotEmpty(HeadlessInput.Find<MenuItem>(window, "SetPriorityMenuItem").Items);
         await shell.GoHomeAsync();
         window.Close();
     }
@@ -298,7 +300,7 @@ public sealed class TodayViewTests
         window.Close();
     }
 
-    private static async Task<TodoItem> SeedDatedItemAsync(IServiceProvider services)
+    internal static async Task<TodoItem> SeedDatedItemAsync(IServiceProvider services)
     {
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
         var items = services.GetRequiredService<ItemService>();
@@ -324,7 +326,7 @@ public sealed class TodayViewTests
         await items.SetCompletedAsync(project.Id, folder.Id, notes.Id, true);
     }
 
-    private static async Task<Control> OpenSurfaceAsync(IServiceProvider services, MainWindow window,
+    internal static async Task<Control> OpenSurfaceAsync(IServiceProvider services, MainWindow window,
         MainWindowViewModel shell, TodoItem item, string surface)
     {
         switch (surface)

@@ -18,6 +18,17 @@ public sealed class EfLookupRepository(TaskTrackerDbContext database) : ILookupR
         return await database.PriorityLevels.OrderBy(level => level.SortOrder).ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<StatusLevel>> StatusesAsync(CancellationToken cancellationToken)
+    {
+        return await database.Statuses.OrderBy(status => status.SortOrder).ThenBy(status => status.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public void Add(StatusLevel status)
+    {
+        database.Statuses.Add(status);
+    }
+
     public void Add(ItemType itemType)
     {
         database.ItemTypes.Add(itemType);

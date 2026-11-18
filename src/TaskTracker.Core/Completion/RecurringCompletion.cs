@@ -5,7 +5,7 @@ using TaskTracker.Core.Persistence;
 namespace TaskTracker.Core.Completion;
 
 /// <summary>Applies completions bottom-up so each parent sees any newly opened occurrence.</summary>
-internal sealed class RecurringCompletion(ItemTree tree, TimeProvider clock, TimeZoneInfo timeZone)
+internal sealed class RecurringCompletion(ItemTree tree, TimeProvider clock, TimeZoneInfo timeZone, Guid doneStatusId)
 {
     private readonly OccurrenceCopies copies = new(tree, clock);
     private readonly List<CompletionChange> changes = [];
@@ -80,7 +80,7 @@ internal sealed class RecurringCompletion(ItemTree tree, TimeProvider clock, Tim
         }
 
         DateTime? timestamp = completed ? now.UtcDateTime : null;
-        item.SetCompletion(timestamp, clock);
+        item.SetCompletion(timestamp, clock, doneStatusId);
         changes.Add(new CompletionChange(item.Id, timestamp));
 
         if (completed && !item.RecurrenceSuccessorCreated && item.Recurrence is { } rule)

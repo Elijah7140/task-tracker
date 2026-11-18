@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace TaskTracker.Core.Search.Syntax;
 
 /// <summary>Quotes and escapes words so the scanner reads them back unchanged.</summary>
@@ -20,6 +22,31 @@ internal static class QueryQuoting
         }
 
         return QuoteIfNeeded(value);
+    }
+
+    /// <summary>
+    /// Writes a choice value. A numbered priority is written as its number; a priority named like a
+    /// number is quoted so it is not read back as a number (§7.15).
+    /// </summary>
+    public static string FormatChoice(SearchChoice choice, string fieldKey)
+    {
+        if (fieldKey != "priority")
+        {
+            return QuoteChoiceLabel(choice.Label);
+        }
+
+        if (choice.Number is int number)
+        {
+            return number.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return IsPriorityNumber(choice.Label, out _) ? Quote(choice.Label) : QuoteChoiceLabel(choice.Label);
+    }
+
+    /// <summary>Whether the text is a whole number of at least 1, the form of a priority number.</summary>
+    public static bool IsPriorityNumber(string value, out int number)
+    {
+        return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out number) && number >= 1;
     }
 
     /// <summary>Wraps the value in quotes, escaping embedded quotes and backslashes.</summary>

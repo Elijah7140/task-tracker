@@ -160,7 +160,10 @@ public sealed class SqlItemSearchTests
         var results = await CreateSearch(database).SearchAsync(query);
 
         var expected = new ItemSearchResult(child.Id, project.Id, "Billing", folder.Id, parent.Id,
-            "Child", "OPS-42", itemType.Id, priority.Id, new DateOnly(2026, 11, 20), dueTime, true);
+            "Child", "OPS-42", itemType.Id, priority.Id, new DateOnly(2026, 11, 20), dueTime, true)
+        {
+            StatusId = child.StatusId
+        };
         Assert.Equal(expected, Assert.Single(results.Items));
     }
 
@@ -319,7 +322,7 @@ public sealed class SqlItemSearchTests
     public async Task Deleted_projects_and_status_filters_constrain_results()
     {
         await using var areas = await AreaMatrix.CreateAsync();
-        var completed = new FieldFilter("status", FilterOperator.Equals, new FilterValue.Bool(true));
+        var completed = new FieldFilter("completed", FilterOperator.Equals, new FilterValue.Bool(true));
         var query = new ItemQuery(new SearchScope.AllProjects(), null, [completed], false);
 
         var hiddenCompleted = await areas.Search.SearchAsync(query);
@@ -468,10 +471,10 @@ public sealed class SqlItemSearchTests
     {
         await using var matrix = await SearchMatrix.CreateAsync();
 
-        await matrix.AssertMatchesAsync("status", FilterOperator.Equals, new FilterValue.Bool(true), "Alpha");
-        await matrix.AssertMatchesAsync("status", FilterOperator.NotEquals, new FilterValue.Bool(true), "Beta,Gamma");
-        await matrix.AssertMatchesAsync("status", FilterOperator.IsEmpty, null, "");
-        await matrix.AssertMatchesAsync("status", FilterOperator.IsNotEmpty, null, "Alpha,Beta,Gamma");
+        await matrix.AssertMatchesAsync("completed", FilterOperator.Equals, new FilterValue.Bool(true), "Alpha");
+        await matrix.AssertMatchesAsync("completed", FilterOperator.NotEquals, new FilterValue.Bool(true), "Beta,Gamma");
+        await matrix.AssertMatchesAsync("completed", FilterOperator.IsEmpty, null, "");
+        await matrix.AssertMatchesAsync("completed", FilterOperator.IsNotEmpty, null, "Alpha,Beta,Gamma");
         await matrix.AssertMatchesAsync(matrix.Approved.Key, FilterOperator.Equals, new FilterValue.Bool(true), "Alpha");
         await matrix.AssertMatchesAsync(matrix.Approved.Key, FilterOperator.NotEquals, new FilterValue.Bool(true), "Beta");
         await matrix.AssertMatchesAsync(matrix.Approved.Key, FilterOperator.IsEmpty, null, "Gamma");

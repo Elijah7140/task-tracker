@@ -12,6 +12,7 @@ internal static class NullElementChecker
 
         CheckList(document.ItemTypes, "$.itemTypes", issues);
         CheckList(document.PriorityLevels, "$.priorityLevels", issues);
+        CheckList(document.Statuses, "$.statuses", issues);
         CheckList(document.SavedSearches, "$.savedSearches", issues);
         CheckFields(document.Fields, issues);
         CheckProjects(document.Projects, issues);

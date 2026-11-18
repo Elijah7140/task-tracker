@@ -22,6 +22,7 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
     private readonly INavigationService navigation;
     private readonly ITimer timer;
     private Dictionary<Guid, TodayRowViewModel> rows = [];
+    private RowLookupMenus rowMenus = new([], []);
     private IReadOnlyList<TodayProjectViewModel> projects = [];
     private string? error;
     private int loadVersion;
@@ -87,9 +88,11 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
         try
         {
             var found = await service.LoadForDayAsync(day);
+            var (statuses, priorities) = await navigation.LoadRowLookupsAsync();
             if (!disposed && version == loadVersion)
             {
                 shownDay = day;
+                rowMenus = new RowLookupMenus(statuses, priorities);
                 ApplyResults(found);
             }
         }
@@ -200,7 +203,12 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
             expanded = old.IsExpanded;
         }
 
-        var row = new TodayRowViewModel(item, this, nested, expanded);
+        var row = new TodayRowViewModel(item, this, nested, expanded)
+        {
+            StatusName = rowMenus.StatusName(item.StatusId),
+            StatusChoices = rowMenus.Statuses(item.StatusId, id => navigation.SetRowStatusAsync(item.Id, id)),
+            PriorityChoices = rowMenus.Priorities(item.PriorityLevelId, id => navigation.SetRowPriorityAsync(item.Id, id))
+        };
         rows.Add(item.Id, row);
         return row;
     }

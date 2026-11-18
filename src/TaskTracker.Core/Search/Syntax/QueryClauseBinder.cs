@@ -65,14 +65,15 @@ internal sealed class QueryClauseBinder
             return new BoundClause(repeats, "is:recurring", "is:recurring");
         }
 
-        var wantsDone = value.Equals("done", StringComparison.OrdinalIgnoreCase);
+        var wantsDone = value.Equals("done", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("completed", StringComparison.OrdinalIgnoreCase);
 
         if (!wantsDone && !value.Equals("open", StringComparison.OrdinalIgnoreCase))
         {
             return Fail(clause, "'is:' takes done, open or recurring.");
         }
 
-        var filter = new FieldFilter("status", FilterOperator.Equals, new FilterValue.Bool(wantsDone));
+        var filter = new FieldFilter("completed", FilterOperator.Equals, new FilterValue.Bool(wantsDone));
         var text = wantsDone ? "is:done" : "is:open";
         return new BoundClause(filter, text, text);
     }

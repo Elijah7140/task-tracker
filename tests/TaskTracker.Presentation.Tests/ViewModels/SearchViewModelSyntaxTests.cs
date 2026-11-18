@@ -111,7 +111,7 @@ public sealed class SearchViewModelSyntaxTests
         await world.Page.SubmitAsync();
 
         Assert.True(world.Page.IncludeCompleted);
-        Assert.Equal("status", Assert.Single(world.Page.Filters).SelectedField?.Key);
+        Assert.Equal("completed", Assert.Single(world.Page.Filters).SelectedField?.Key);
     }
 
     [Fact]
@@ -127,6 +127,22 @@ public sealed class SearchViewModelSyntaxTests
         row.FirstText = "dead lock";
 
         Assert.Equal("title~\"dead lock\"", world.Page.QueryText);
+    }
+
+    [Fact]
+    public async Task The_filter_row_Status_field_matches_status_names_as_text()
+    {
+        await using var world = await World.CreateAsync();
+        await world.Page.LoadAsync();
+        world.Page.AddFilterCommand.Execute(null);
+        var row = Assert.Single(world.Page.Filters);
+
+        row.SelectedField = world.Field("status");
+        row.SelectedOperator = row.Operators.Single(option => option.Operator == FilterOperator.Contains);
+        row.FirstText = "prog";
+
+        Assert.Equal("Status", row.SelectedField?.DisplayName);
+        Assert.Equal("status~prog", world.Page.QueryText);
     }
 
     [Fact]

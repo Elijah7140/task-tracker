@@ -10,4 +10,7 @@ public sealed record AreaSnapshot(
     IReadOnlyList<ItemNode> Items,
     IReadOnlyList<ItemType> ItemTypes,
     IReadOnlyList<PriorityLevel> PriorityLevels,
-    EffectiveSettings Settings);
+    EffectiveSettings Settings)
+{
+    public IReadOnlyList<StatusLevel> Statuses { get; init; } = [];
+}

@@ -52,7 +52,8 @@ public sealed class SqlItemSearch(TaskTrackerDbContext database) : IItemSearch
         return new ItemSearchResult(itemId, projectId, projectName, folderId, parentItemId,
             title, ticketNumber, itemTypeId, priorityId, dueDate, dueTime, isCompleted)
         {
-            HasSchedule = reader.GetInt64(12) != 0
+            HasSchedule = reader.GetInt64(12) != 0,
+            StatusId = OptionalGuid(reader, 13)
         };
     }
 
