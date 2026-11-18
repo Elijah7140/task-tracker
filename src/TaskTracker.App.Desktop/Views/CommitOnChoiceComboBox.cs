@@ -2,18 +2,30 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace TaskTracker.App.Desktop.Views;
 
 /// <summary>
 /// A combo box for choices that take effect at once (such as a custom field's data type). Bind
-/// <see cref="CommittedItem"/> instead of <c>SelectedItem</c>: it changes only when the user settles
-/// on an entry, not on every step while browsing.
+/// <see cref="CommittedItem"/> instead of <c>SelectedItem</c>: it changes only when the user chooses
+/// an entry, never on a step while browsing.
 /// </summary>
 /// <remarks>
-/// Browsing a closed box with the arrow keys, typing or the mouse wheel only changes the shown entry.
-/// The entry is committed when the drop-down closes on a choice, when Enter is pressed, or when focus
-/// leaves the box. Escape puts back the committed entry.
+/// <para>
+/// Browsing with the keys (arrows or typing on a closed box, or moving through the open drop-down)
+/// only changes the shown entry, which is then pending. A pending entry is applied when the user
+/// chooses it: when the drop-down closes on it, when Enter is pressed, when focus leaves the box, or
+/// when the pointer is pressed anywhere outside the box. That last rule has the same effect as leaving
+/// the box, and covers a click on an area that takes no focus, so a pending entry never lingers.
+/// </para>
+/// <para>
+/// Escape puts the applied entry back, and a box taken off the screen (such as by going back from its
+/// page) drops a pending entry without applying it. The mouse wheel does not browse a closed box; it
+/// scrolls the page instead. A selection set by code on a closed box, as UI Automation does, is a
+/// choice and is applied at once.
+/// </para>
 /// </remarks>
 public sealed class CommitOnChoiceComboBox : ComboBox
 {
@@ -21,10 +33,13 @@ public sealed class CommitOnChoiceComboBox : ComboBox
         AvaloniaProperty.Register<CommitOnChoiceComboBox, object?>(nameof(CommittedItem),
             defaultBindingMode: BindingMode.TwoWay);
 
-    private bool isHandlingUserInput;
+    private bool isBrowsingWithKeys;
     private bool hasPendingChoice;
 
-    /// <summary>The entry the user last settled on; the shown entry may differ while browsing.</summary>
+    /// <summary>The window watched for presses outside the box while an entry is pending.</summary>
+    private TopLevel? watchedTopLevel;
+
+    /// <summary>The entry the user last chose; the shown entry may differ while browsing.</summary>
     public object? CommittedItem
     {
         get => GetValue(CommittedItemProperty);
@@ -43,7 +58,7 @@ public sealed class CommitOnChoiceComboBox : ComboBox
         }
         else if (change.Property == SelectedItemProperty)
         {
-            NoteSelectionChange();
+            OnSelectedItemChanged();
         }
         else if (change.Property == IsDropDownOpenProperty && !IsDropDownOpen)
         {
@@ -53,32 +68,26 @@ public sealed class CommitOnChoiceComboBox : ComboBox
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (!IsDropDownOpen && hasPendingChoice && TrySettleWithKey(e.Key))
+        if (hasPendingChoice && TrySettleWithKey(e.Key))
         {
             e.Handled = true;
             return;
         }
 
-        RunAsUserInput(() => base.OnKeyDown(e));
+        BrowseWithKeys(() => base.OnKeyDown(e));
     }
 
     protected override void OnTextInput(TextInputEventArgs e)
     {
-        RunAsUserInput(() => base.OnTextInput(e));
+        BrowseWithKeys(() => base.OnTextInput(e));
     }
 
+    /// <summary>A closed box leaves the wheel to the page around it, so the page keeps scrolling.</summary>
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        RunAsUserInput(() => base.OnPointerWheelChanged(e));
-    }
-
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
-    {
-        RunAsUserInput(() => base.OnPointerReleased(e));
-
-        if (!IsDropDownOpen)
+        if (IsDropDownOpen)
         {
-            CommitPendingChoice();
+            base.OnPointerWheelChanged(e);
         }
     }
 
@@ -92,27 +101,35 @@ public sealed class CommitOnChoiceComboBox : ComboBox
         }
     }
 
-    /// <summary>Enter commits the browsed entry and Escape puts back the committed one.</summary>
+    /// <summary>Runs before focus is cleared from the removed box, so the pending entry is dropped first.</summary>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        ShowCommittedItem();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <summary>Enter applies the pending entry of a closed box; Escape puts back the applied one.</summary>
     private bool TrySettleWithKey(Key key)
     {
-        if (key == Key.Enter)
-        {
-            CommitPendingChoice();
-            return true;
-        }
-
         if (key == Key.Escape)
         {
             ShowCommittedItem();
+            SetCurrentValue(IsDropDownOpenProperty, false);
+            return true;
+        }
+
+        if (key == Key.Enter && !IsDropDownOpen)
+        {
+            CommitPendingChoice();
             return true;
         }
 
         return false;
     }
 
-    private void RunAsUserInput(Action handler)
+    private void BrowseWithKeys(Action handler)
     {
-        isHandlingUserInput = true;
+        isBrowsingWithKeys = true;
 
         try
         {
@@ -120,36 +137,93 @@ public sealed class CommitOnChoiceComboBox : ComboBox
         }
         finally
         {
-            isHandlingUserInput = false;
+            isBrowsingWithKeys = false;
         }
     }
 
     /// <summary>
-    /// Remembers a selection the user made, to commit once they settle. A change made by code (such as
-    /// showing the committed entry) is not a choice and is never written back.
+    /// A selection made by browsing waits to be applied. Any other selection on a closed box was set by
+    /// code, such as UI Automation or <see cref="ShowCommittedItem"/>, and is applied at once (when it
+    /// is the applied entry already, that changes nothing). A cleared selection is never applied.
     /// </summary>
-    private void NoteSelectionChange()
+    private void OnSelectedItemChanged()
     {
-        if (isHandlingUserInput || IsDropDownOpen)
+        if (isBrowsingWithKeys || IsDropDownOpen)
         {
-            hasPendingChoice = !Equals(SelectedItem, CommittedItem);
+            SetPendingChoice(!Equals(SelectedItem, CommittedItem));
+        }
+        else if (SelectedItem is not null)
+        {
+            CommitSelection();
         }
     }
 
-    private void CommitPendingChoice()
+    /// <summary>A press outside the box applies the pending entry, as leaving the box with focus does.</summary>
+    private void OnPointerPressedAnywhere(object? sender, PointerPressedEventArgs e)
     {
-        if (!hasPendingChoice)
+        if (IsDropDownOpen || IsInsideBox(e.Source))
         {
             return;
         }
 
-        hasPendingChoice = false;
+        CommitPendingChoice();
+    }
+
+    private bool IsInsideBox(object? source)
+    {
+        return source is Visual visual && (visual == this || this.IsVisualAncestorOf(visual));
+    }
+
+    private void CommitPendingChoice()
+    {
+        if (hasPendingChoice)
+        {
+            CommitSelection();
+        }
+    }
+
+    private void CommitSelection()
+    {
+        SetPendingChoice(false);
         SetCurrentValue(CommittedItemProperty, SelectedItem);
     }
 
     private void ShowCommittedItem()
     {
-        hasPendingChoice = false;
+        SetPendingChoice(false);
         SetCurrentValue(SelectedItemProperty, CommittedItem);
+    }
+
+    /// <summary>Presses outside the box are watched only while an entry is pending.</summary>
+    private void SetPendingChoice(bool isPending)
+    {
+        hasPendingChoice = isPending;
+
+        if (isPending)
+        {
+            WatchPressesOutside();
+        }
+        else
+        {
+            StopWatchingPressesOutside();
+        }
+    }
+
+    private void WatchPressesOutside()
+    {
+        if (watchedTopLevel is not null)
+        {
+            return;
+        }
+
+        watchedTopLevel = TopLevel.GetTopLevel(this);
+        watchedTopLevel?.AddHandler(PointerPressedEvent, OnPointerPressedAnywhere, RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+    }
+
+    private void StopWatchingPressesOutside()
+    {
+        watchedTopLevel?.RemoveHandler(PointerPressedEvent, OnPointerPressedAnywhere);
+        watchedTopLevel = null;
     }
 }

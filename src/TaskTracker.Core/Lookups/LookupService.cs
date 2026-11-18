@@ -180,13 +180,24 @@ public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, 
 
         if (duplicate is { IsArchived: true })
         {
-            throw new DomainRuleException($"The name '{candidate.Name}' is used by an archived {kind}. Restore it instead.");
+            var isRenaming = rows.Any(row => row.Id == candidate.Id);
+            throw new DomainRuleException(ArchivedNameMessage(candidate.Name, kind, isRenaming));
         }
 
         if (duplicate is not null)
         {
             throw new DomainRuleException($"The name '{candidate.Name}' is already used by another {kind}.");
         }
+    }
+
+    /// <summary>A new entry can be replaced by restoring the archived one; a renamed entry cannot.</summary>
+    private static string ArchivedNameMessage(string name, string kind, bool isRenaming)
+    {
+        var usedBy = $"The name '{name}' is used by an archived {kind}.";
+
+        return isRenaming
+            ? $"{usedBy} Restore or rename that one first."
+            : $"{usedBy} Restore it instead.";
     }
 
     private static void Reorder<T>(IReadOnlyList<T> rows, IReadOnlyList<Guid> ids) where T : LookupEntity

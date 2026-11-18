@@ -39,6 +39,45 @@ public sealed class TimePickerPlaceholderTests
     }
 
     [AvaloniaFact]
+    public void A_24_hour_picker_shows_no_period_column()
+    {
+        var picker = new TimePicker { ClockIdentifier = "24HourClock" };
+        var window = Show(picker);
+
+        var period = PeriodTextBlock(picker);
+
+        Assert.False(period.IsEffectivelyVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Switching_a_24_hour_picker_with_a_time_to_12_hour_shows_its_period()
+    {
+        var picker = new TimePicker { ClockIdentifier = "24HourClock", SelectedTime = new TimeSpan(14, 30, 0) };
+        var window = Show(picker);
+
+        picker.ClockIdentifier = "12HourClock";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(PeriodTextBlock(picker).IsEffectivelyVisible);
+        Assert.Equal("PM", PeriodText(picker));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Switching_an_empty_24_hour_picker_to_12_hour_shows_dashes()
+    {
+        var picker = new TimePicker { ClockIdentifier = "24HourClock" };
+        var window = Show(picker);
+
+        picker.ClockIdentifier = "12HourClock";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("--", PeriodText(picker));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void The_date_picker_button_shows_a_static_icon_rather_than_the_day_number()
     {
         var picker = new CalendarDatePicker();
@@ -62,8 +101,11 @@ public sealed class TimePickerPlaceholderTests
 
     private static string? PeriodText(TimePicker picker)
     {
-        var period = picker.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "PART_PeriodTextBlock");
+        return PeriodTextBlock(picker).Text;
+    }
 
-        return period.Text;
+    private static TextBlock PeriodTextBlock(TimePicker picker)
+    {
+        return picker.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "PART_PeriodTextBlock");
     }
 }
