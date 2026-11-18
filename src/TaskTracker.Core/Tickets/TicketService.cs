@@ -63,14 +63,14 @@ public sealed class TicketService(IUnitOfWorkFactory factory, TimeProvider clock
         IReadOnlyList<PriorityLevel> priorities)
     {
         var grouped = items.ToLookup(item => item.PriorityLevelId);
-        var sections = new List<TicketSection> { new(null, InRankOrder(grouped[null]).ToArray()) };
+        var sections = new List<TicketSection> { new(null, TicketRanks.InOrder(grouped[null]).ToArray()) };
 
         foreach (var priority in priorities.OrderBy(level => level.SortOrder).ThenBy(level => level.Id))
         {
             var section = grouped[priority.Id];
             if (!priority.IsArchived || section.Any())
             {
-                sections.Add(new TicketSection(priority, InRankOrder(section).ToArray()));
+                sections.Add(new TicketSection(priority, TicketRanks.InOrder(section).ToArray()));
             }
         }
 
@@ -92,7 +92,7 @@ public sealed class TicketService(IUnitOfWorkFactory factory, TimeProvider clock
 
     private bool PlaceTicket(IReadOnlyList<TodoItem> items, TodoItem item, TicketPosition position, bool append)
     {
-        var section = InRankOrder(items.Where(candidate => candidate.PriorityLevelId == position.PriorityId)).ToList();
+        var section = TicketRanks.InOrder(items.Where(candidate => candidate.PriorityLevelId == position.PriorityId)).ToList();
         var previousIndex = section.IndexOf(item);
         section.Remove(item);
         var index = append ? section.Count : InsertionIndex(section, position);
@@ -129,13 +129,5 @@ public sealed class TicketService(IUnitOfWorkFactory factory, TimeProvider clock
         {
             section[index].SetTicketRank(index);
         }
-    }
-
-    private static IOrderedEnumerable<TodoItem> InRankOrder(IEnumerable<TodoItem> tickets)
-    {
-        return tickets.OrderBy(item => !item.TicketRank.HasValue)
-            .ThenBy(item => item.TicketRank)
-            .ThenBy(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id);
     }
 }

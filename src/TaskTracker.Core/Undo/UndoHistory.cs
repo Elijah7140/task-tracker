@@ -1,3 +1,5 @@
+using TaskTracker.Core.Fields;
+
 namespace TaskTracker.Core.Undo;
 
 /// <summary>
@@ -6,13 +8,13 @@ namespace TaskTracker.Core.Undo;
 /// drops every step that was undone. Recording can happen on any thread while a step is being
 /// applied, so every change to the list is made under a lock; undo and redo run one at a time.
 /// </summary>
-public sealed class UndoHistory : IUndoRecorder
+public sealed class UndoHistory(FieldWriteGate? writeGate = null) : IUndoRecorder
 {
     /// <summary>The number of steps kept; older ones are forgotten.</summary>
     public const int Capacity = 50;
 
     private readonly object gate = new();
-    private readonly SemaphoreSlim applying = new(1, 1);
+    private readonly FieldWriteGate writes = writeGate ?? FieldWriteGate.Shared;
     private readonly List<IUndoableChange> changes = [];
     private int position;
 
@@ -108,29 +110,20 @@ public sealed class UndoHistory : IUndoRecorder
 
     private async Task<string> ApplyAsync(bool undo, CancellationToken cancellationToken)
     {
-        await applying.WaitAsync(cancellationToken);
-
-        try
+        using var lease = await writes.EnterAsync(cancellationToken);
+        var change = NextStep(undo);
+        if (undo)
         {
-            var change = NextStep(undo);
-
-            if (undo)
-            {
-                await change.UndoAsync(cancellationToken);
-            }
-            else
-            {
-                await change.RedoAsync(cancellationToken);
-            }
-
-            MarkApplied(change, undo);
-            Changed?.Invoke(this, EventArgs.Empty);
-            return change.Description;
+            await change.UndoAsync(cancellationToken);
         }
-        finally
+        else
         {
-            applying.Release();
+            await change.RedoAsync(cancellationToken);
         }
+
+        MarkApplied(change, undo);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return change.Description;
     }
 
     private IUndoableChange NextStep(bool undo)

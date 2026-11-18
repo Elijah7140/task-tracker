@@ -428,6 +428,7 @@ public sealed class ItemRecurrenceTests
         Assert.Equal(parent.Title, next.Title);
         Assert.Equal("Details", next.Description);
         Assert.Equal("AUD-1", next.TicketNumber);
+        Assert.NotNull(next.TicketRank);
         Assert.Null(next.CompletedAtUtc);
         Assert.Equal(roots[0].RecurrenceSeriesId, next.RecurrenceSeriesId);
         Assert.Equal(Weekly, next.Recurrence);

@@ -736,6 +736,10 @@ behind. If any row differs the whole step is refused and the history position do
 that no longer exists, because its deletion was purged from the trash, gives "This item was
 permanently deleted since; can't undo." A refused step changes nothing; there is no partial undo.
 
+- Undo and redo hold the same write gate as ticket moves, item edits and completion, from
+  selecting a step until the history position has been updated. The step uses the history's
+  lease for its verification and save.
+
 **UI.** Ctrl+Z undoes; Ctrl+Y and Ctrl+Shift+Z redo. The shortcuts work anywhere in the main window
 (workspace, calendar, search, trash, Home) except while a text box has focus (quick add, search
 box, a date picker's text, an editable combo box), where Ctrl+Z keeps its normal text-editing
@@ -780,7 +784,8 @@ culture throughout.
 - **Soft-deleted rows are excluded** (projects, folders, items, and the custom values and saved searches that point into them).
   There is no "include trash" option: the trash is for restoring, an export is for the live data.
 
-**JSON import** reads a file produced by export and adds it as **new data**; nothing existing is overwritten.
+**JSON import** reads a file produced by export and adds it as **new data**. Appending open tickets
+can also assign missing ranks to existing tickets in those sections (§7.16).
 
 - *Validation first, in memory:* `format` must be `task-tracker`; a `version` above 1 is refused with "written by a newer version"
   (older or missing versions are refused too); then required fields, unique ids, references (parents, folders, lookups, field keys,
@@ -1489,8 +1494,13 @@ request was silent, the decisions below were made autonomously; they are listed 
     has a header while it contains visible tickets, which may be reordered or moved out.
   - Listing does not write ranks. Unranked tickets follow ranked tickets by creation time, with
     item ID breaking ties. An effective move assigns consecutive ranks in its destination section.
-    Clearing a ticket number or changing priority elsewhere clears the rank. Reopening a ticket
-    keeps its rank. Ticket ranks are local to the database and omitted from import/export.
+    Giving an open item a ticket number appends it to its section in the same save, including
+    editor saves, CSV and JSON imports, and new numbered recurring occurrences. The append
+    assigns ranks to any legacy unranked tickets in that section in their current order first.
+    New tickets in a batch append in the order they are added. Clearing and re-adding a ticket
+    number gives it a fresh bottom rank when open. Changing priority elsewhere clears the rank,
+    and reopening a ticket keeps its rank. Ticket ranks are local to the database and omitted
+    from import/export.
   - The upper and lower halves of a row insert before and after it. A drop on a header inserts at
     the section start. Alt+Down at a section end enters the next assignable section before its
     first visible row. Alt+Up at a section start enters the preceding assignable section after its
@@ -1498,7 +1508,11 @@ request was silent, the decisions below were made autonomously; they are listed 
     hides rows without changing the global order, so moves use the visible target as an anchor
     among all projects. Set priority appends after every ticket in the destination section.
   - The project filter takes focus on opening. A row opens with Enter or its menu, and moved rows
-    retain focus so successive keyboard moves are possible. Ctrl+Shift+P uses the focused ticket.
+    retain focus by ticket ID after a drag, keyboard move or successful Set priority. Ctrl+Shift+P
+    uses the focused ticket.
+  - Holding a drag near either vertical edge of the ticket viewport scrolls faster as the
+    pointer approaches the edge. The drop indicator follows the rows under the pointer as they
+    scroll. Release, Escape and pointer capture loss stop the scroll.
 - **Tests.**
   - The ordering, using a non-monotonic number mapping such as 1, 7, 2.
   - Rank assignment, and the drop rules at section edges.

@@ -1,4 +1,6 @@
 #pragma warning disable xUnit1051
+using Microsoft.EntityFrameworkCore.Diagnostics;
+
 using TaskTracker.Core;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Tickets;
@@ -9,6 +11,63 @@ namespace TaskTracker.Infrastructure.Tests.Tickets;
 /// <summary>Exercises ticket ordering and writes against real SQLite with fresh contexts.</summary>
 public sealed class TicketServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_competing_move_waits_until_undo_or_redo_has_saved_and_updated_history(bool redo)
+    {
+        var pause = new PauseBeforeWrite();
+        await using var world = await UndoWorld.CreateAsync(pause);
+        var moving = await AddAsync(world, "Moving");
+        var first = await world.Lookups.AddPriorityLevelAsync("First", 1);
+        var second = await world.Lookups.AddPriorityLevelAsync("Second", 2);
+        world.History.Clear();
+        await world.Tickets.SetPriorityAsync(moving.Id, first.Id);
+        if (redo)
+        {
+            await world.History.UndoAsync();
+        }
+
+        pause.Armed = true;
+        var applying = redo ? world.History.RedoAsync() : world.History.UndoAsync();
+        await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var competing = world.Tickets.SetPriorityAsync(moving.Id, second.Id);
+        var wroteWhilePaused = competing.IsCompleted;
+        pause.Resume.SetResult();
+        await applying;
+        Assert.True(await competing);
+
+        Assert.False(wroteWhilePaused);
+        Assert.Equal(second.Id, (await world.ReadItemAsync(moving.Id)).PriorityLevelId);
+        Assert.Equal("Set priority of 'Moving'", world.History.UndoDescription);
+        Assert.False(world.History.CanRedo);
+        await world.History.UndoAsync();
+        Assert.Equal(redo ? first.Id : null, (await world.ReadItemAsync(moving.Id)).PriorityLevelId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Numbering_an_older_item_appends_it_after_legacy_tickets_even_after_removal(bool editor)
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var older = await world.Items.CreateAsync(world.Project.Id, null, null, "Older");
+        var first = await AddAsync(world, "First");
+        var second = await AddAsync(world, "Second");
+        await ClearRanksAsync(world, first, second);
+        await NumberOlderAsync(world, older, editor);
+        var initialOrder = SectionItems(await world.Tickets.LoadAsync(), null);
+
+        await world.Tickets.MoveAsync(older.Id, new TicketPosition(null));
+        await world.Items.EditAsync(older.Id, EditNumber(older, null));
+        await NumberOlderAsync(world, older, editor);
+        var finalOrder = SectionItems(await world.Tickets.LoadAsync(), null);
+
+        Assert.Equal([first.Id, second.Id, older.Id], initialOrder.Select(item => item.Id));
+        Assert.Equal([first.Id, second.Id, older.Id], finalOrder.Select(item => item.Id));
+        Assert.NotNull(finalOrder[^1].TicketRank);
+    }
+
     [Fact]
     public async Task Section_order_uses_sort_order_and_listing_does_not_assign_ranks()
     {
@@ -20,6 +79,7 @@ public sealed class TicketServiceTests
         await AddAsync(world, "T-1", first.Id);
         await AddAsync(world, "T-7", second.Id);
         await AddAsync(world, "T-2", third.Id);
+        await ClearRanksAsync(world, unprioritized);
         world.History.Clear();
 
         var board = await world.Tickets.LoadAsync();
@@ -69,7 +129,7 @@ public sealed class TicketServiceTests
 
         Assert.Equal([moving.Id, visible.Id, newest.Id], SectionItems(filtered, null).Select(item => item.Id));
         Assert.Equal([hidden.Id, moving.Id, visible.Id, newest.Id], SectionItems(all, null).Select(item => item.Id));
-        Assert.Null((await world.ReadItemAsync(newest.Id)).TicketRank);
+        Assert.Equal(3, (await world.ReadItemAsync(newest.Id)).TicketRank);
     }
 
     [Fact]
@@ -97,8 +157,8 @@ public sealed class TicketServiceTests
         Assert.Equal(["Set priority of 'Moving'", "Move 'Moving'"], world.Recorder.Descriptions);
         Assert.Equal([existing.Id, moving.Id], SectionItems(appended, level.Id).Select(item => item.Id));
         Assert.Equal([existing.Id, moving.Id], SectionItems(undoMove, level.Id).Select(item => item.Id));
-        Assert.Null(Assert.Single(SectionItems(undoPriority, null)).TicketRank);
-        Assert.Null(Assert.Single(SectionItems(undoPriority, level.Id)).TicketRank);
+        Assert.Equal(0, Assert.Single(SectionItems(undoPriority, null)).TicketRank);
+        Assert.Equal(0, Assert.Single(SectionItems(undoPriority, level.Id)).TicketRank);
         Assert.Equal([moving.Id, existing.Id],
             SectionItems(await world.Tickets.LoadAsync(), level.Id).Select(item => item.Id));
     }
@@ -122,12 +182,58 @@ public sealed class TicketServiceTests
         Assert.Equal(child.Id, Assert.Single(visible).Id);
         await Assert.ThrowsAsync<DomainRuleException>(() => world.Tickets.MoveAsync(child.Id,
             new TicketPosition(null, completed.Id)));
-        Assert.Null((await world.ReadItemAsync(child.Id)).TicketRank);
+        Assert.Equal(0, (await world.ReadItemAsync(child.Id)).TicketRank);
     }
 
     private static IReadOnlyList<TodoItem> SectionItems(TicketBoard board, Guid? priorityId)
     {
         return board.Sections.Single(section => section.Priority?.Id == priorityId).Items;
+    }
+
+    private static async Task ClearRanksAsync(UndoWorld world, params TodoItem[] items)
+    {
+        await using var database = world.OpenContext();
+        foreach (var item in items)
+        {
+            var stored = await database.TodoItems.FindAsync(item.Id);
+            database.Entry(stored!).Property(row => row.TicketRank).CurrentValue = null;
+        }
+
+        await database.SaveChangesAsync();
+    }
+
+    private static Task NumberOlderAsync(UndoWorld world, TodoItem older, bool editor)
+    {
+        var edit = EditNumber(older, "OLD-1");
+        return editor ? world.Items.SaveEditorAsync(older.Id, edit, [], null, null)
+            : world.Items.EditAsync(older.Id, edit);
+    }
+
+    private static ItemEdit EditNumber(TodoItem item, string? number)
+    {
+        return new ItemEdit(item.Title, null, number, null, null, null, null, null, null);
+    }
+
+    private sealed class PauseBeforeWrite : SaveChangesInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (Armed)
+            {
+                Armed = false;
+                Reached.SetResult();
+                await Resume.Task.WaitAsync(cancellationToken);
+            }
+
+            return result;
+        }
     }
 
     private static async Task<TodoItem> AddAsync(UndoWorld world, string title, Guid? priorityId = null,

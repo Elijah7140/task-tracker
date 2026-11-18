@@ -39,6 +39,9 @@ public sealed class TicketsViewModel : ViewModelBase, IDisposable
 
     public event Action<Task>? WriteStarted;
 
+    /// <summary>Raised after a ticket moves and the board has refreshed.</summary>
+    public event Action<Guid>? TicketMoved;
+
     public ICommand BackCommand { get; }
 
     public IReadOnlyList<TicketProjectOption> Projects { get; private set; } = [All];
@@ -139,7 +142,7 @@ public sealed class TicketsViewModel : ViewModelBase, IDisposable
     public Task MoveAsync(TicketRowViewModel row, TicketPosition position)
     {
         return CanDrop(row, position)
-            ? StartWrite(() => service.MoveAsync(row.Id, position))
+            ? StartWrite(row.Id, () => service.MoveAsync(row.Id, position))
             : Task.CompletedTask;
     }
 
@@ -187,7 +190,7 @@ public sealed class TicketsViewModel : ViewModelBase, IDisposable
 
     internal Task SetPriorityAsync(Guid id, Guid? priorityId)
     {
-        return StartWrite(() => service.SetPriorityAsync(id, priorityId));
+        return StartWrite(id, () => service.SetPriorityAsync(id, priorityId));
     }
 
     internal Task SetStatusAsync(Guid id, Guid? statusId)
@@ -200,26 +203,32 @@ public sealed class TicketsViewModel : ViewModelBase, IDisposable
         return disposed || writing ? Task.CompletedTask : navigation.PushBackAsync(id);
     }
 
-    private Task StartWrite(Func<Task<bool>> save)
+    private Task StartWrite(Guid id, Func<Task<bool>> save)
     {
         if (disposed || writing)
         {
             return Task.CompletedTask;
         }
 
-        var write = SaveAsync(save);
+        var write = SaveAsync(id, save);
         WriteStarted?.Invoke(write);
         return write;
     }
 
-    private async Task SaveAsync(Func<Task<bool>> save)
+    private async Task SaveAsync(Guid id, Func<Task<bool>> save)
     {
         writing = true;
         try
         {
-            if (await save() && loadedRevision != saves.Revision)
+            var moved = await save();
+            if (loadedRevision != saves.Revision)
             {
                 await LoadAsync();
+            }
+
+            if (moved)
+            {
+                TicketMoved?.Invoke(id);
             }
         }
         catch (DomainRuleException exception)
@@ -229,6 +238,11 @@ public sealed class TicketsViewModel : ViewModelBase, IDisposable
         }
         catch (Exception exception)
         {
+            if (loadedRevision != saves.Revision)
+            {
+                await LoadAsync();
+            }
+
             Error = exception.Message;
         }
         finally
@@ -244,7 +258,7 @@ public sealed class TicketsViewModel : ViewModelBase, IDisposable
 
     private void RefreshAfterSave()
     {
-        if (loadedRevision != saves.Revision)
+        if (!writing && loadedRevision != saves.Revision)
         {
             Refresh();
         }

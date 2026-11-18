@@ -98,6 +98,40 @@ public sealed class TicketsViewTests
     }
 
     [AvaloniaFact]
+    public async Task Holding_a_drag_near_the_bottom_edge_reaches_an_offscreen_ticket()
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        var items = services.GetRequiredService<ItemService>();
+        for (var index = 0; index < 36; index++)
+        {
+            await AddAsync(items, project.Id, $"Ticket {index}", $"T-{index}");
+        }
+
+        var (shell, window) = await OpenTicketsAsync(services);
+        var scroll = HeadlessInput.Find<ScrollViewer>(window, "TicketsScrollViewer");
+        var edge = HeadlessInput.PointIn(window, scroll, 40, scroll.Viewport.Height - 5);
+        var offscreen = Row(window, "Ticket 35");
+        Assert.True(HeadlessInput.CentreOf(window, offscreen).Y > edge.Y);
+
+        HeadlessInput.PressMouse(window, HeadlessInput.CentreOf(window, Row(window, "Ticket 0")));
+        HeadlessInput.MoveMouse(window, edge);
+        await HeadlessInput.WaitUntilAsync(() => scroll.Offset.Y > 60 &&
+            HeadlessInput.FindAll<Border>(window, "TicketRow").Any(row =>
+                row.Classes.Contains("dropBefore") || row.Classes.Contains("dropAfter")));
+        await HeadlessInput.WaitUntilAsync(() => HeadlessInput.CentreOf(window, offscreen).Y < edge.Y - 55);
+        var drop = HeadlessInput.PointIn(window, offscreen, 40, offscreen.Bounds.Height - 3);
+        HeadlessInput.MoveMouse(window, drop);
+        Assert.Contains("dropAfter", offscreen.Classes);
+        HeadlessInput.ReleaseMouse(window, drop);
+
+        var page = Assert.IsType<TicketsViewModel>(shell.CurrentPage);
+        await HeadlessInput.WaitUntilAsync(() => page.Sections[0].Rows[^1].Title == "Ticket 0");
+        Assert.True(Row(window, "Ticket 0").IsFocused);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Escape_cancels_a_drag_and_leaves_the_tickets_page_open()
     {
         using var services = await TestServices.CreateAsync();
@@ -136,6 +170,30 @@ public sealed class TicketsViewTests
         HeadlessInput.Click(window, HeadlessInput.Find<MenuItem>(window, "TicketOpenMenuItem"));
 
         Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Setting_priority_from_the_keyboard_menu_keeps_the_ticket_focused_for_alt_down()
+    {
+        using var services = await TestServices.CreateAsync();
+        await SeedTicketsAsync(services);
+        var (shell, window) = await OpenTicketsAsync(services);
+        HeadlessInput.Click(window, Row(window, Review));
+
+        window.KeyPress(Key.Apps, RawInputModifiers.None, PhysicalKey.None, null);
+        window.KeyRelease(Key.Apps, RawInputModifiers.None, PhysicalKey.None, null);
+        await HeadlessInput.WaitUntilAsync(() => HeadlessInput.FindAll<MenuItem>(window, "SetPriorityMenuItem").Count == 1);
+        var menu = HeadlessInput.Find<MenuItem>(window, "SetPriorityMenuItem");
+        HeadlessInput.Click(window, menu);
+        await HeadlessInput.WaitUntilAsync(() => menu.IsSubMenuOpen);
+        HeadlessInput.Click(window, HeadlessInput.FindNamed<MenuItem>(window, "LookupChoice", "Critical"));
+        await HeadlessInput.WaitUntilAsync(() => CurrentPriority(shell, Review) == BuiltInLookups.CriticalId);
+
+        Assert.True(Row(window, Review).IsFocused);
+        HeadlessInput.Press(window, Key.Down, RawInputModifiers.Alt);
+        await HeadlessInput.WaitUntilAsync(() => CurrentPriority(shell, Review) == BuiltInLookups.HighId);
+        Assert.Equal(BuiltInLookups.CriticalId, CurrentPriority(shell, Fix));
         window.Close();
     }
 

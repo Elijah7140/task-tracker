@@ -12,6 +12,7 @@ namespace TaskTracker.App.Desktop.Views;
 public sealed partial class TicketsView : UserControl
 {
     private readonly TicketDragController drag;
+    private TicketsViewModel? page;
 
     public TicketsView()
     {
@@ -23,13 +24,38 @@ public sealed partial class TicketsView : UserControl
     protected override void OnLoaded(RoutedEventArgs args)
     {
         base.OnLoaded(args);
+        ObservePage(DataContext as TicketsViewModel);
         ProjectFilter.Focus();
     }
 
     protected override void OnUnloaded(RoutedEventArgs args)
     {
         drag.Cancel();
+        ObservePage(null);
         base.OnUnloaded(args);
+    }
+
+    protected override void OnDataContextChanged(EventArgs args)
+    {
+        base.OnDataContextChanged(args);
+        if (IsLoaded)
+        {
+            ObservePage(DataContext as TicketsViewModel);
+        }
+    }
+
+    private void ObservePage(TicketsViewModel? current)
+    {
+        if (page is not null)
+        {
+            page.TicketMoved -= RestoreRowFocus;
+        }
+
+        page = current;
+        if (page is not null)
+        {
+            page.TicketMoved += RestoreRowFocus;
+        }
     }
 
     private async void OnTicketKeyDown(object? sender, KeyEventArgs args)
@@ -51,7 +77,6 @@ public sealed partial class TicketsView : UserControl
         {
             args.Handled = true;
             await page.MoveOneAsync(row, down: args.Key == Key.Down);
-            RestoreRowFocus(row.Id);
         }
         else if (args.KeyModifiers == KeyModifiers.None && args.Key == Key.Enter && row.OpenCommand.CanExecute(null))
         {
@@ -60,7 +85,7 @@ public sealed partial class TicketsView : UserControl
         }
     }
 
-    internal void RestoreRowFocus(Guid id)
+    private void RestoreRowFocus(Guid id)
     {
         Dispatcher.UIThread.Post(() =>
         {

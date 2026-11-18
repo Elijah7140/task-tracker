@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 using TaskTracker.Core.Tickets;
@@ -13,11 +14,15 @@ namespace TaskTracker.App.Desktop.Views;
 internal sealed class TicketDragController
 {
     private const double DragThresholdSquared = 16;
+    private const double ScrollEdgeSize = 48;
+    private const double MaxScrollPerTick = 16;
 
     private readonly TicketsView view;
+    private readonly DispatcherTimer scrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private TicketRowViewModel? source;
     private Border? sourceRow;
     private Point pressedAt;
+    private Point dragPoint;
     private IPointer? pointer;
     private Border? highlighted;
     private TicketPosition? target;
@@ -25,6 +30,7 @@ internal sealed class TicketDragController
     public TicketDragController(TicketsView view)
     {
         this.view = view;
+        scrollTimer.Tick += OnScrollTick;
         view.AddHandler(InputElement.PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel, true);
         view.AddHandler(InputElement.PointerMovedEvent, OnMoved, RoutingStrategies.Tunnel, true);
         view.AddHandler(InputElement.PointerReleasedEvent, OnReleased, RoutingStrategies.Tunnel, true);
@@ -35,13 +41,17 @@ internal sealed class TicketDragController
 
     public void Cancel()
     {
+        scrollTimer.Stop();
         var captured = pointer;
         pointer = null;
         sourceRow?.Classes.Remove("dragging");
         sourceRow = null;
         source = null;
         ClearTarget();
-        captured?.Capture(null);
+        if (captured?.Captured == view)
+        {
+            captured.Capture(null);
+        }
     }
 
     private void OnPressed(object? sender, PointerPressedEventArgs args)
@@ -77,7 +87,17 @@ internal sealed class TicketDragController
             return;
         }
 
+        dragPoint = point;
         UpdateTarget(point);
+        if (ScrollDelta() == 0)
+        {
+            scrollTimer.Stop();
+        }
+        else
+        {
+            scrollTimer.Start();
+        }
+
         args.Handled = true;
     }
 
@@ -116,8 +136,42 @@ internal sealed class TicketDragController
         if (row is not null && position is not null && view.DataContext is TicketsViewModel page)
         {
             await page.MoveAsync(row, position);
-            view.RestoreRowFocus(row.Id);
         }
+    }
+
+    private void OnScrollTick(object? sender, EventArgs args)
+    {
+        var scroll = view.TicketList;
+        var offset = scroll.Offset;
+        var next = Math.Clamp(offset.Y + ScrollDelta(), 0, scroll.ScrollBarMaximum.Y);
+        if (next == offset.Y)
+        {
+            scrollTimer.Stop();
+            return;
+        }
+
+        scroll.Offset = new Vector(offset.X, next);
+        scroll.UpdateLayout();
+        if (IsDragging)
+        {
+            UpdateTarget(dragPoint);
+        }
+    }
+
+    private double ScrollDelta()
+    {
+        var scroll = view.TicketList;
+        var viewport = scroll.Viewport;
+        var local = view.TranslatePoint(dragPoint, scroll);
+        if (local is not { } point || !new Rect(viewport).Contains(point))
+        {
+            return 0;
+        }
+
+        var edge = Math.Min(ScrollEdgeSize, viewport.Height / 2);
+        var top = Math.Max(0, edge - point.Y);
+        var bottom = Math.Max(0, edge - (viewport.Height - point.Y));
+        return edge > 0 ? MaxScrollPerTick * (bottom - top) / edge : 0;
     }
 
     private void OnCaptureLost(object? sender, PointerCaptureLostEventArgs args)

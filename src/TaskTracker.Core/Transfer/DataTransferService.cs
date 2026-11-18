@@ -8,7 +8,8 @@ namespace TaskTracker.Core.Transfer;
 
 /// <summary>
 /// Exports data as JSON or CSV and imports it again (§7.9). Each public operation is one unit of
-/// work. Imports only ever add new rows, validate the whole file first, take a database backup
+/// work. Imports add new data and may assign ranks to legacy tickets in affected sections.
+/// They validate the whole file first, take a database backup
 /// just before writing, and save once, so a bad file changes nothing. Imports are not undoable.
 /// </summary>
 public sealed class DataTransferService(

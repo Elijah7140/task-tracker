@@ -73,18 +73,18 @@ internal sealed class UndoWorld : IAsyncDisposable
     }
 
     /// <summary>Creates a world holding one project; creating a project is not an undoable step.</summary>
-    public static async Task<UndoWorld> CreateAsync()
+    public static async Task<UndoWorld> CreateAsync(IInterceptor? interceptor = null)
     {
         var world = new UndoWorld();
         await world.store.InitializeAsync();
-        world.CreateServices();
+        world.CreateServices(interceptor);
         world.Project = await world.Projects.CreateAsync("Project");
         return world;
     }
 
-    private void CreateServices()
+    private void CreateServices(IInterceptor? interceptor)
     {
-        var contexts = new StoreContextFactory(store);
+        var contexts = new StoreContextFactory(store, interceptor);
         IUnitOfWorkFactory units = new RecordingUnitOfWorkFactory(contexts, Recorder);
         Projects = new ProjectService(units, store.Clock, TimeZoneInfo.Utc);
         Folders = new FolderService(units, store.Clock);
