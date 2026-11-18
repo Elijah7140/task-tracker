@@ -100,9 +100,25 @@ public sealed class CalendarEntryViewModel : ViewModelBase
 
     public ICommand? PushBackCommand { get; internal set; }
 
+    public string? StatusName { get; internal set; }
+
+    public bool HasStatus => StatusName is not null;
+
+    public IReadOnlyList<RowLookupChoice> StatusChoices { get; internal set; } = [];
+
+    public IReadOnlyList<RowLookupChoice> PriorityChoices { get; internal set; } = [];
+
     public string? PushBackReason => PushBackOneDay.UnavailableReason(Entry.IsCompleted, hasDates: true);
 
-    public string Tooltip => $"{Entry.ItemType ?? "No type"} · {Entry.Priority ?? "No priority"}";
+    /// <summary>Type, priority and status; one-line entries have no room for a status chip.</summary>
+    public string Tooltip
+    {
+        get
+        {
+            var summary = $"{Entry.ItemType ?? "No type"} · {Entry.Priority ?? "No priority"}";
+            return StatusName is null ? summary : $"{summary} · {StatusName}";
+        }
+    }
 
     /// <summary>Share of the day column width, less than one when overlapping blocks split it.</summary>
     public double WidthFraction { get; set; } = 1;

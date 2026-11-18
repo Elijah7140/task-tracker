@@ -84,13 +84,16 @@ internal sealed class CsvExporter(ExportCatalogue catalogue)
 
     private IReadOnlyList<string> ItemRow(ProjectRows rows, TodoItem item, IReadOnlyList<CsvFieldColumn> columns)
     {
+        var priority = catalogue.Priority(item.PriorityLevelId);
         var cells = new List<string>
         {
             CsvCells.Protect(item.Title),
             CsvCells.Protect(item.Description ?? string.Empty),
             CsvCells.Protect(item.TicketNumber ?? string.Empty),
             CsvCells.Protect(catalogue.TypeName(item.ItemTypeId) ?? string.Empty),
-            CsvCells.Protect(catalogue.PriorityName(item.PriorityLevelId) ?? string.Empty),
+            CsvCells.Protect(priority?.Label ?? string.Empty),
+            CsvCells.Protect(CsvPriorityReference.Write(priority)),
+            CsvCells.Protect(catalogue.StatusName(item.StatusId) ?? string.Empty),
             Date(item.DueDate),
             Time(item.DueTime),
             Local(item.ScheduledStart),

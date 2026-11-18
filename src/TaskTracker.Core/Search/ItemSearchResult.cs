@@ -5,5 +5,7 @@ public sealed record ItemSearchResult(Guid ItemId, Guid ProjectId, string Projec
     Guid? ParentItemId, string Title, string? TicketNumber, Guid? ItemTypeId, Guid? PriorityLevelId,
     DateOnly? DueDate, TimeOnly? DueTime, bool IsCompleted)
 {
+    public Guid? StatusId { get; init; }
+
     public bool HasSchedule { get; init; }
 }

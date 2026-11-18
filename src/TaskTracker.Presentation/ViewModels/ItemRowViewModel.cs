@@ -41,6 +41,14 @@ public sealed class ItemRowViewModel : ViewModelBase
 
     public ICommand PushBackCommand { get; }
 
+    public string? StatusName { get; internal set; }
+
+    public bool HasStatus => StatusName is not null;
+
+    public IReadOnlyList<RowLookupChoice> StatusChoices { get; internal set; } = [];
+
+    public IReadOnlyList<RowLookupChoice> PriorityChoices { get; internal set; } = [];
+
     public string? PushBackReason => PushBackOneDay.UnavailableReason(IsComplete,
         Node.Item.DueDate is not null || Node.Item.ScheduledStart is not null);
 

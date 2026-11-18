@@ -3,14 +3,15 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 
 namespace TaskTracker.Infrastructure.Persistence;
 
 /// <summary>
-/// Snapshots the pending changes of a labelled save: every added, modified or deleted item, item link,
-/// folder, project, item field value and item link. A row whose only change is its <c>UpdatedAtUtc</c>
-/// stamp is left out, so a step holds just the rows the user action really changed.
+/// Snapshots the pending changes of a labelled save: every added, modified or deleted item, folder,
+/// project, item field value, item link, status and priority level. A row whose only change is its
+/// <c>UpdatedAtUtc</c> stamp is left out, so a step holds just the rows the user action really changed.
 /// </summary>
 internal static class UndoRowCollector
 {
@@ -34,7 +35,7 @@ internal static class UndoRowCollector
 
     private static bool IsUndoableEntity(object entity)
     {
-        return entity is TodoItem or Folder or Project or ItemFieldValue or ItemLink;
+        return entity is TodoItem or Folder or Project or ItemFieldValue or ItemLink or StatusLevel or PriorityLevel;
     }
 
     private static bool HasMeaningfulChange(EntityEntry entry)

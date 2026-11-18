@@ -22,6 +22,22 @@ namespace TaskTracker.App.Desktop.SmokeTests;
 public sealed class SmokeTests
 {
     [Fact]
+    public void Setting_a_status_from_the_row_menu_shows_the_status_chip()
+    {
+        Run(session =>
+        {
+            OpenProject(session);
+            const string title = "Review release notes";
+            AddItem(session, title);
+            session.FindNamed("ItemTitleButton", title).RightClick();
+            session.Find("SetStatusMenuItem").Click();
+            session.FindNamed("LookupChoice", "Testing").Click();
+
+            Assert.Equal("Testing", session.Find("ItemStatusChip").Name);
+        });
+    }
+
+    [Fact]
     public void Today_shows_a_completed_task_and_push_back_moves_another_task()
     {
         Run(session =>

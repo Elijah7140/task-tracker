@@ -9,6 +9,7 @@ public interface IFieldRepository
 
     Task<IReadOnlyList<FieldChoice>> ChoicesAsync(Guid fieldId, CancellationToken cancellationToken);
 
+    /// <summary>Gets the item's custom values as of the current unit of work, including pending edits.</summary>
     Task<IReadOnlyList<ItemFieldValue>> ValuesAsync(Guid itemId, CancellationToken cancellationToken);
 
     Task<bool> HasValuesAsync(Guid fieldId, CancellationToken cancellationToken);

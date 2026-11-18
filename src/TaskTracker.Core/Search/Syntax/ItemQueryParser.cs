@@ -88,7 +88,7 @@ public sealed class ItemQueryParser
 
     private static bool ImpliesCompleted(IReadOnlyList<FieldFilter> filters)
     {
-        return filters.Any(filter => filter.FieldKey == "status"
+        return filters.Any(filter => filter.FieldKey == "completed"
             && filter.Operator == FilterOperator.Equals
             && filter.Value is FilterValue.Bool { Value: true });
     }

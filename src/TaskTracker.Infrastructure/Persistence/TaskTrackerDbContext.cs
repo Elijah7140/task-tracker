@@ -22,6 +22,8 @@ public sealed class TaskTrackerDbContext(DbContextOptions<TaskTrackerDbContext> 
 
     public DbSet<ItemType> ItemTypes => Set<ItemType>();
 
+    public DbSet<StatusLevel> Statuses => Set<StatusLevel>();
+
     public DbSet<PriorityLevel> PriorityLevels => Set<PriorityLevel>();
 
     public DbSet<FieldDefinition> FieldDefinitions => Set<FieldDefinition>();

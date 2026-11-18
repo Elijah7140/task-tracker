@@ -68,6 +68,8 @@
         <ContextMenu>
           <MenuItem Header="Move to…" Command="{Binding MoveItemToAreaCommand}" IsVisible="{Binding IsTopLevel}"
                     AutomationProperties.AutomationId="MoveItemToAreaMenuItem" />
+          <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+          <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
           <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                     ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                     AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
@@ -102,20 +104,29 @@
         <TextBlock Grid.Column="2" Text="{Binding TypeIcon}" ToolTip.Tip="{Binding TypeName}"
                    VerticalAlignment="Center" HorizontalAlignment="Center"
                    />
-        <Button Grid.Column="3" Classes.repeating="{Binding Repeats}" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
-                AutomationProperties.Name="{Binding Title}"
-                BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Stretch">
-          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
-                     HorizontalAlignment="Stretch"
-                     ToolTip.Tip="{Binding Title}"
-                     TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}"
-                     FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}"
-                     />
-        </Button>
-        <TextBlock Grid.Column="3" Text="↻" IsVisible="{Binding Repeats}" ToolTip.Tip="{Binding RepeatSummary}"
-                   Margin="0,0,3,0" HorizontalAlignment="Right" VerticalAlignment="Center"
-                   AutomationProperties.AutomationId="ItemRepeatMarker" />
+        <!-- The status chip shares the title column so rows without a status keep their layout. -->
+        <DockPanel Grid.Column="3">
+          <Border DockPanel.Dock="Right" Margin="4,0,2,0" Classes="statusChip" IsVisible="{Binding HasStatus}" ToolTip.Tip="{Binding StatusName}">
+            <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
+                       AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />
+          </Border>
+          <Panel>
+            <Button Classes.repeating="{Binding Repeats}" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
+                    AutomationProperties.Name="{Binding Title}"
+                    BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch">
+              <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                         HorizontalAlignment="Stretch"
+                         ToolTip.Tip="{Binding Title}"
+                         TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}"
+                         FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}"
+                         />
+            </Button>
+            <TextBlock Text="↻" IsVisible="{Binding Repeats}" ToolTip.Tip="{Binding RepeatSummary}"
+                       Margin="0,0,3,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                       AutomationProperties.AutomationId="ItemRepeatMarker" />
+          </Panel>
+        </DockPanel>
         <TextBlock Grid.Column="4" Text="{Binding TicketNumber}" TextTrimming="CharacterEllipsis"
                    ToolTip.Tip="{Binding TicketNumber}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="5" Text="{Binding PriorityName}" TextTrimming="CharacterEllipsis"
@@ -131,17 +142,25 @@
         <CheckBox Grid.Column="1" IsChecked="{Binding IsComplete, Mode=OneWay}" AutomationProperties.AutomationId="ItemCompleteCheckBox"
                   Command="{Binding ToggleCommand}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="2" Text="{Binding TypeIcon}" VerticalAlignment="Center" />
-        <Button Grid.Column="3" Classes.repeating="{Binding Repeats}" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
-                AutomationProperties.Name="{Binding Title}"
-                BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Stretch">
-          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
-                     HorizontalAlignment="Stretch" ToolTip.Tip="{Binding Title}"
-                     TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}" />
-        </Button>
-        <TextBlock Grid.Column="3" Text="↻" IsVisible="{Binding Repeats}" ToolTip.Tip="{Binding RepeatSummary}"
-                   Margin="0,0,3,0" HorizontalAlignment="Right" VerticalAlignment="Center"
-                   AutomationProperties.AutomationId="ItemRepeatMarker" />
+        <DockPanel Grid.Column="3">
+          <Border DockPanel.Dock="Right" Margin="4,0,2,0" Classes="statusChip" IsVisible="{Binding HasStatus}" ToolTip.Tip="{Binding StatusName}">
+            <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
+                       AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />
+          </Border>
+          <Panel>
+            <Button Classes.repeating="{Binding Repeats}" Command="{Binding SelectCommand}" Background="Transparent" AutomationProperties.AutomationId="ItemTitleButton"
+                    AutomationProperties.Name="{Binding Title}"
+                    BorderThickness="0" Padding="2" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch">
+              <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                         HorizontalAlignment="Stretch" ToolTip.Tip="{Binding Title}"
+                         TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}" />
+            </Button>
+            <TextBlock Text="↻" IsVisible="{Binding Repeats}" ToolTip.Tip="{Binding RepeatSummary}"
+                       Margin="0,0,3,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                       AutomationProperties.AutomationId="ItemRepeatMarker" />
+          </Panel>
+        </DockPanel>
       </Grid>
       <Border Classes="dropHint" IsHitTestVisible="False" HorizontalAlignment="Right"
               VerticalAlignment="Center" Margin="0,0,6,0" Padding="7,1" CornerRadius="3"

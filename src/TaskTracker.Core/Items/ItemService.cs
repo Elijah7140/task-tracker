@@ -1,6 +1,7 @@
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
@@ -10,7 +11,7 @@ using TaskTracker.Core.Urgency;
 namespace TaskTracker.Core.Items;
 
 /// <summary>Coordinates item edits, structure, completion, and area snapshots.</summary>
-public sealed class ItemService(
+public sealed partial class ItemService(
     IUnitOfWorkFactory unitOfWorkFactory,
     TimeProvider clock,
     TimeZoneInfo timeZone,
@@ -89,13 +90,24 @@ public sealed class ItemService(
     public async Task EditAsync(Guid id, ItemEdit edit, IReadOnlyList<FieldValueInput> values,
         IReadOnlyList<ItemLinkInput>? links = null, CancellationToken cancellationToken = default)
     {
+        await SaveEditorAsync(id, edit, values, links, null, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Saves the editor draft (fields, custom fields and links), plus an optional status change, as one undo
+    /// step. A status change follows the completion rules of <see cref="SetStatusAsync"/>; when it needs
+    /// confirmation or is blocked nothing is saved.
+    /// </summary>
+    public async Task<CompletionResult> SaveEditorAsync(Guid id, ItemEdit edit, IReadOnlyList<FieldValueInput> values,
+        IReadOnlyList<ItemLinkInput>? links, StatusChange? statusChange, bool confirmed = false,
+        CancellationToken cancellationToken = default)
+    {
         using var lease = await gate.EnterAsync(cancellationToken);
         values = values.Select(Normalize).ToArray();
         await using var work = unitOfWorkFactory.Begin();
-        var item = await work.Items.FindAsync(id, cancellationToken)
-            ?? throw new DomainRuleException("Item is missing or deleted.");
+        var item = await FindItemAsync(work, id, cancellationToken);
         ValidateEdit(item, edit);
-        var label = EditLabel(item, edit);
+        var label = statusChange is null ? EditLabel(item, edit) : UndoLabels.SetStatus(edit.Title.Trim());
         await ApplyValueChangesAsync(work, item, values, cancellationToken);
 
         if (links is not null)
@@ -104,7 +116,13 @@ public sealed class ItemService(
         }
 
         ApplyEdit(item, edit);
-        await work.SaveChangesAsync(label, cancellationToken);
+        var result = await ApplyStatusChangeAsync(work, item, statusChange, confirmed, cancellationToken);
+        if (result is CompletionResult.Applied)
+        {
+            await work.SaveChangesAsync(label, cancellationToken);
+        }
+
+        return result;
     }
 
     private static async Task ApplyValueChangesAsync(IUnitOfWork work, TodoItem item,
@@ -297,21 +315,11 @@ public sealed class ItemService(
         using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(work, projectId, folderId, cancellationToken);
-        var effective = await GetSettingsAsync(work, projectId, cancellationToken);
-        var automatic = effective.AutoCompleteParents.Value;
-        var completion = new RecurringCompletion(tree, clock, timeZone);
-        var result = completed
-            ? completion.Complete(id, automatic, confirmed)
-            : CompletionService.Reopen(tree, id, automatic, clock.GetUtcNow().UtcDateTime);
+        var firstDoneStatusId = await FirstDoneStatusIdAsync(work, cancellationToken);
+        var result = await ApplyCompletionAsync(work, tree, id, completed, confirmed, firstDoneStatusId, cancellationToken);
 
-        if (result is CompletionResult.Applied applied)
+        if (result is CompletionResult.Applied)
         {
-            if (!completed)
-            {
-                ApplyChanges(tree, applied);
-            }
-
-            await completion.PersistAsync(work, cancellationToken);
             await work.SaveChangesAsync(CompletionLabel(tree.Get(id).Title, completed), cancellationToken);
         }
 
@@ -417,12 +425,13 @@ public sealed class ItemService(
         }
 
         var settings = await GetSettingsAsync(unitOfWork, projectId, cancellationToken);
+        var firstDoneStatusId = await FirstDoneStatusIdAsync(unitOfWork, cancellationToken);
         foreach (var parentId in branch.Select(item => item.ParentItemId).Distinct())
         {
             Renumber(tree, parentId);
             var changes = CompletionService.AfterStructureChanged(tree, parentId,
                 settings.AutoCompleteParents.Value, clock.GetUtcNow().UtcDateTime);
-            ApplyChanges(tree, changes);
+            ApplyChanges(tree, changes, firstDoneStatusId);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -557,7 +566,10 @@ public sealed class ItemService(
         var roots = tree.Children(null).Select(item => BuildNode(tree, item, thresholds)).ToArray();
         return new AreaSnapshot(projectId, folderId, roots,
             await lookups.ItemTypesAsync(cancellationToken),
-            await lookups.PriorityLevelsAsync(cancellationToken), effective);
+            await lookups.PriorityLevelsAsync(cancellationToken), effective)
+        {
+            Statuses = await lookups.StatusesAsync(cancellationToken)
+        };
     }
 
     private void Renumber(ItemTree tree, Guid? parentId)
@@ -608,7 +620,8 @@ public sealed class ItemService(
         var effective = await GetSettingsAsync(unitOfWork, tree.ProjectId, cancellationToken);
         if (effective.AutoCompleteParents.Value)
         {
-            var completion = new RecurringCompletion(tree, clock, timeZone);
+            var firstDoneStatusId = await FirstDoneStatusIdAsync(unitOfWork, cancellationToken);
+            var completion = new RecurringCompletion(tree, clock, timeZone, firstDoneStatusId);
             completion.Reconcile(parentIds);
             await completion.PersistAsync(unitOfWork, cancellationToken);
         }
@@ -616,11 +629,11 @@ public sealed class ItemService(
         await unitOfWork.SaveChangesAsync(undoLabel, cancellationToken);
     }
 
-    private void ApplyChanges(ItemTree tree, CompletionResult.Applied result)
+    private void ApplyChanges(ItemTree tree, CompletionResult.Applied result, Guid doneStatusId)
     {
         foreach (var change in result.Changes)
         {
-            tree.Get(change.ItemId).SetCompletion(change.CompletedAtUtc, clock);
+            tree.Get(change.ItemId).SetCompletion(change.CompletedAtUtc, clock, doneStatusId);
         }
     }
 }

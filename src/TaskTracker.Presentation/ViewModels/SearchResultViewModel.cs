@@ -12,6 +12,14 @@ public sealed class SearchResultViewModel(ItemSearchResult item, string location
 
     public string Title => Item.Title;
 
+    public string? StatusName { get; internal set; }
+
+    public bool HasStatus => StatusName is not null;
+
+    public IReadOnlyList<RowLookupChoice> StatusChoices { get; internal set; } = [];
+
+    public IReadOnlyList<RowLookupChoice> PriorityChoices { get; internal set; } = [];
+
     public string? PushBackReason => PushBackOneDay.UnavailableReason(Item.IsCompleted,
         Item.DueDate is not null || Item.HasSchedule);
 

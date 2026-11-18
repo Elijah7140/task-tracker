@@ -23,18 +23,28 @@ internal sealed partial class SavedSearchImporter(IUnitOfWork work, TimeProvider
         foreach (var position in ImportOrder.Positions(documents, search => search.SortOrder))
         {
             var path = ImportChecks.Element("$.savedSearches", position);
-            AddSearch(documents[position], takenNames, nextOrder++, path);
+            AddSearch(documents[position], takenNames, nextOrder++, path, document.Statuses is null);
         }
 
         return documents.Count;
     }
 
-    private void AddSearch(SavedSearchDocument document, TakenNames takenNames, int sortOrder, string path)
+    /// <summary>
+    /// Adds one saved search with its keys rewritten. A file written before statuses existed (no
+    /// <c>statuses</c> list) still used <c>status</c> for completion, which becomes <c>completed</c> (§7.15).
+    /// </summary>
+    private void AddSearch(SavedSearchDocument document, TakenNames takenNames, int sortOrder, string path,
+        bool legacyStatusKey)
     {
         var scope = CreateScope(document);
         var query = RewriteLegacyKey(RewriteIds(document.QueryText!), scope, "link");
         query = RewriteLegacyKey(query, scope, "repeats");
         query = RewriteLegacyKey(query, scope, "reminder");
+        query = RewriteLegacyKey(query, scope, "completed");
+        if (legacyStatusKey)
+        {
+            query = QueryFieldKeyRewriter.Rename(query, "status", "completed");
+        }
 
         if (query.Length > SavedSearch.QueryTextMaxLength)
         {

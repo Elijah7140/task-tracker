@@ -24,7 +24,8 @@ internal static class QuerySyntaxFixture
         new("priority", "Priority", FieldDataType.Choice, null),
         new("due", "Due Date", FieldDataType.Date, null),
         new("scheduled", "Scheduled Date", FieldDataType.Date, null),
-        new("status", "Completed", FieldDataType.Boolean, null),
+        new("status", "Status", FieldDataType.Text, null),
+        new("completed", "Completed", FieldDataType.Boolean, null),
         new("effort", "Effort", FieldDataType.Number, Guid.NewGuid()),
         new("flagged", "Flagged", FieldDataType.Boolean, Guid.NewGuid())
     ];

@@ -30,6 +30,8 @@ public sealed class ExportDocument
 
     public IReadOnlyList<LookupDocument>? PriorityLevels { get; init; }
 
+    public IReadOnlyList<LookupDocument>? Statuses { get; init; }
+
     public IReadOnlyList<FieldDocument>? Fields { get; init; }
 
     /// <summary>Global settings, exported for reference; an import never changes the target's global settings.</summary>

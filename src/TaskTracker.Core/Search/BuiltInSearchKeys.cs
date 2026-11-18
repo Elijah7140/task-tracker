@@ -5,12 +5,12 @@ public static class BuiltInSearchKeys
 {
     public static IReadOnlyList<string> All { get; } =
     [
-        "title", "ticket", "type", "priority", "due", "scheduled", "status", "link", "repeats", "reminder"
+        "title", "ticket", "type", "priority", "due", "scheduled", "status", "completed", "link", "repeats", "reminder"
     ];
 
     /// <summary>Words the text syntax gives a meaning of their own (<c>has:</c>, <c>no:</c>, <c>is:</c>).</summary>
     public static IReadOnlyList<string> QueryKeywords { get; } = ["has", "no", "is"];
 
     /// <summary>Every key a new custom field must avoid: the built-in columns plus the syntax keywords.</summary>
-    public static IReadOnlyList<string> Reserved { get; } = [.. All, .. QueryKeywords];
+    public static IReadOnlyList<string> Reserved { get; } = [.. All, .. QueryKeywords, "__workflowstatus"];
 }

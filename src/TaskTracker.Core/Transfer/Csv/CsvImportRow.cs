@@ -10,6 +10,7 @@ internal sealed record CsvImportRow(
     string? TicketNumber,
     Guid? ItemTypeId,
     Guid? PriorityLevelId,
+    Guid? StatusId,
     DateOnly? DueDate,
     TimeOnly? DueTime,
     DateTime? ScheduledStart,

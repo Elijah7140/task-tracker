@@ -20,6 +20,10 @@ public sealed record CalendarEntry(
     string? ItemType,
     string? Priority)
 {
+    public Guid? StatusId { get; init; }
+
+    public Guid? PriorityLevelId { get; init; }
+
     /// <summary>Length of the block drawn for a schedule that has no usable end.</summary>
     public static readonly TimeSpan DefaultBlockLength = TimeSpan.FromMinutes(30);
 

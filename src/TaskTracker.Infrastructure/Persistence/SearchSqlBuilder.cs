@@ -32,7 +32,7 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
     {
         var sql = new StringBuilder("SELECT t.Id, t.ProjectId, p.Name, t.FolderId, t.ParentItemId, "
             + "t.Title, t.TicketNumber, t.ItemTypeId, t.PriorityLevelId, t.DueDate, t.DueTime, "
-            + "CASE WHEN t.CompletedAtUtc IS NULL THEN 0 ELSE 1 END, t.ScheduledStart IS NOT NULL "
+            + "CASE WHEN t.CompletedAtUtc IS NULL THEN 0 ELSE 1 END, t.ScheduledStart IS NOT NULL, t.StatusId "
             + "FROM TodoItem t JOIN Project p ON p.Id = t.ProjectId ");
 
         if (hasText)
@@ -144,7 +144,8 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
             "due" => ScalarFilter("t.DueDate", filter),
             "scheduled" => ScalarFilter("substr(t.ScheduledStart, 1, 10)", filter,
                 "t.ScheduledStart"),
-            "status" => BooleanColumnFilter(filter, "t.CompletedAtUtc"),
+            "completed" => BooleanColumnFilter(filter, "t.CompletedAtUtc"),
+            "status" => TextFilter("(SELECT s.Name FROM StatusLevel s WHERE s.Id = t.StatusId)", filter),
             "repeats" => BooleanColumnFilter(filter, "t.RecurrenceFrequency"),
             "link" => LinkFilter(filter),
             "reminder" => filter.Operator == FilterOperator.IsNotEmpty

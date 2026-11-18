@@ -43,7 +43,8 @@
     <converters:UrgencyBrushConverter x:Key="UrgencyBrush" />
     <converters:UrgencyWeightConverter x:Key="UrgencyWeight" />
     <converters:CalendarDayBrushConverter x:Key="TodayBrush" />
-    <!-- One line: urgency label, then the title. Used by month cells and the week all-day row. -->
+    <!-- One line: urgency label, then the title. Used by month cells and the week all-day row.
+         There is no room for a status chip here; the entry's tooltip names the status. -->
     <DataTemplate x:Key="InlineEntryContent">
       <Grid ColumnDefinitions="Auto,*" ColumnSpacing="4">
         <TextBlock Text="{Binding UrgencyLabel}" IsVisible="{Binding HasUrgencyLabel}"
@@ -53,7 +54,7 @@
       </Grid>
     </DataTemplate>
     <!-- Time-grid blocks are as tall as their duration. Tall blocks stack the urgency label above the
-         title; short ones put both on one line. -->
+         title and show the status chip; short ones put the label and title on one line. -->
     <DataTemplate x:Key="BlockEntryContent">
       <Panel>
         <StackPanel IsVisible="{Binding !IsCompact}">
@@ -61,6 +62,10 @@
                      FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
           <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"
                      FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}" />
+          <Border HorizontalAlignment="Left" Classes="statusChip" IsVisible="{Binding HasStatus}">
+            <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
+                       AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />
+          </Border>
         </StackPanel>
         <Grid IsVisible="{Binding IsCompact}" ColumnDefinitions="Auto,*" ColumnSpacing="4">
           <TextBlock Text="{Binding UrgencyLabel}" IsVisible="{Binding HasUrgencyLabel}"
@@ -115,6 +120,8 @@
                               AutomationProperties.Name="{Binding Label}">
                         <Button.ContextMenu>
                           <ContextMenu>
+                            <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+                            <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
                             <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                                       ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                                       AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
@@ -159,6 +166,8 @@
                               AutomationProperties.Name="{Binding Label}">
                         <Button.ContextMenu>
                           <ContextMenu>
+                            <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+                            <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
                             <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                                       ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                                       AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
@@ -212,6 +221,8 @@
                                 AutomationProperties.Name="{Binding Label}">
                         <Button.ContextMenu>
                           <ContextMenu>
+                            <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+                            <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
                             <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                                       ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                                       AutomationProperties.AutomationId="PushBackOneDayMenuItem" />

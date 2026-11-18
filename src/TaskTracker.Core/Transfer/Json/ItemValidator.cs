@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 
 using TaskTracker.Core.Reminders;
 
@@ -29,6 +30,7 @@ internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet
             var itemPath = ImportChecks.Element(path, position);
             ValidateIdentity(items[position], itemPath);
             ValidateLookups(items[position], itemPath);
+            ValidateStatus(items[position], itemPath);
             ValidateDates(items[position], itemPath);
             ValidateRecurrence(items[position], itemPath);
             ValidateReminder(items[position], itemPath);
@@ -67,6 +69,31 @@ internal sealed class ItemValidator(ImportIndex index, IssueList issues, HashSet
         {
             issues.Add($"{path}.priority", "The priority is not in this file's priority levels.");
         }
+    }
+
+    /// <summary>
+    /// The status must be one of the file's statuses and agree with completion; a remembered reopen
+    /// status must be an Open status of the file on a completed item (§7.15).
+    /// </summary>
+    private void ValidateStatus(ItemDocument item, string path)
+    {
+        var completed = item.CompletedAtUtc is not null;
+        var expectedKind = completed ? StatusKind.Done : StatusKind.Open;
+        if (item.StatusId is Guid statusId && KindOf(statusId) != expectedKind)
+        {
+            var message = completed ? "Expected a Done status in this file." : "Expected an Open status in this file.";
+            issues.Add($"{path}.statusId", message);
+        }
+
+        if (item.ReopenStatusId is Guid reopenId && (!completed || KindOf(reopenId) != StatusKind.Open))
+        {
+            issues.Add($"{path}.reopenStatusId", "Only completed items can remember an Open status from this file.");
+        }
+    }
+
+    private StatusKind? KindOf(Guid statusId)
+    {
+        return LookupValidator.ReadStatusKind(index.FindStatus(statusId)?.Kind);
     }
 
     private void ValidateReminder(ItemDocument item, string path)

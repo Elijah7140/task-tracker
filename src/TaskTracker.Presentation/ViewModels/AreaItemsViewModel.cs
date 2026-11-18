@@ -58,9 +58,11 @@ public sealed class AreaItemsViewModel
             IsExpanded = expanded.GetValueOrDefault(node.Item.Id),
             IsCompletedExpanded = completedExpanded.GetValueOrDefault(node.Item.Id),
             TypeName = snapshot.ItemTypes.FirstOrDefault(type => type.Id == node.Item.ItemTypeId)?.Name,
-            PriorityName = snapshot.PriorityLevels.FirstOrDefault(level => level.Id == node.Item.PriorityLevelId)?.Name,
+            PriorityName = snapshot.PriorityLevels.FirstOrDefault(level => level.Id == node.Item.PriorityLevelId)?.Label,
             SourceTitle = FindTitle(snapshot.Items, node.DisplayedUrgency.SourceDescendantId)
         };
+
+        AttachLookupMenus(row, snapshot);
 
         foreach (var child in node.Children)
         {
@@ -216,6 +218,38 @@ public sealed class AreaItemsViewModel
         if (result is CompletionResult.Applied { LastRepeat: true })
         {
             workspace.ReportLastRepeat();
+        }
+    }
+
+    private void AttachLookupMenus(ItemRowViewModel row, AreaSnapshot snapshot)
+    {
+        var item = row.Node.Item;
+        var menus = new RowLookupMenus(snapshot.Statuses, snapshot.PriorityLevels);
+        row.StatusName = menus.StatusName(item.StatusId);
+        row.StatusChoices = menus.Statuses(item.StatusId,
+            id => ChangeRowAsync(service => ItemLookupAction.SetStatusAsync(service, dialogs, row.Id, id)));
+        row.PriorityChoices = menus.Priorities(item.PriorityLevelId,
+            id => ChangeRowAsync(service => ItemLookupAction.SetPriorityAsync(service, row.Id, id)));
+    }
+
+    /// <summary>Resolves any editor draft, applies a row-menu change and reloads the area when it was saved.</summary>
+    private async Task ChangeRowAsync(Func<ItemService, Task<bool>> change)
+    {
+        if (items is null || !await workspace.ResolveDraftAsync())
+        {
+            return;
+        }
+
+        try
+        {
+            if (await change(items))
+            {
+                await workspace.LoadItemsAsync(workspace.SelectedItem?.Id);
+            }
+        }
+        catch (DomainRuleException exception)
+        {
+            await dialogs.ShowMessageAsync("Item action failed", exception.Message);
         }
     }
 

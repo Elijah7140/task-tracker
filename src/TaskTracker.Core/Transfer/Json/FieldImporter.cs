@@ -13,6 +13,7 @@ internal sealed class FieldImporter(IUnitOfWork work, ImportMap map, IssueList i
     private readonly List<FieldDefinition> fields = [];
     private readonly List<FieldChoice> choices = [];
     private readonly HashSet<string> usedKeys = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> sourceKeys = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task ImportAsync(ExportDocument document, CancellationToken cancellationToken)
     {
@@ -22,6 +23,7 @@ internal sealed class FieldImporter(IUnitOfWork work, ImportMap map, IssueList i
         usedKeys.UnionWith(BuiltInSearchKeys.Reserved);
 
         var documents = document.Fields.OrEmpty();
+        sourceKeys = documents.Select(field => field.Key!.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var inOrder = Enumerable.Range(0, documents.Count)
             .OrderBy(position => documents[position].ProjectId is null ? 0 : 1)
             .ThenBy(position => documents[position].SortOrder ?? 0)
@@ -62,14 +64,17 @@ internal sealed class FieldImporter(IUnitOfWork work, ImportMap map, IssueList i
 
     private void CreateField(FieldDocument document, FieldDataType type, Guid? projectId)
     {
+        var sourceKey = document.Key!.Trim();
+        var unavailableKeys = usedKeys.Concat(sourceKeys.Where(key =>
+            !string.Equals(key, sourceKey, StringComparison.OrdinalIgnoreCase)));
         var field = FieldDefinition.CreateImported(
-            document.Key!, UniqueDisplayName(document, projectId), type, projectId,
-            NextSortOrder(document, projectId), document.IsArchived == true, usedKeys);
+            sourceKey, UniqueDisplayName(document, projectId), type, projectId,
+            NextSortOrder(document, projectId), document.IsArchived == true, unavailableKeys);
 
         work.Fields.Add(field);
         fields.Add(field);
         usedKeys.Add(field.Key);
-        map.Fields[document.Key!.Trim()] = field;
+        map.Fields[sourceKey] = field;
 
         foreach (var choice in document.Choices.OrEmpty())
         {

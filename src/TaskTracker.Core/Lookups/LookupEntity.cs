@@ -22,7 +22,7 @@ public abstract class LookupEntity
 
     public int SortOrder { get; protected set; }
 
-    public void Rename(string name)
+    public virtual void Rename(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > NameMaxLength)
         {

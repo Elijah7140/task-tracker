@@ -1,4 +1,5 @@
 using TaskTracker.Core.Fields;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 
 namespace TaskTracker.Core.Search;
@@ -14,7 +15,8 @@ public sealed class FieldRegistry(IUnitOfWorkFactory factory) : IFieldRegistry
         new("priority", "Priority", FieldDataType.Choice, null),
         new("due", "Due Date", FieldDataType.Date, null),
         new("scheduled", "Scheduled Date", FieldDataType.Date, null),
-        new("status", "Completed", FieldDataType.Boolean, null),
+        new("status", "Status", FieldDataType.Text, null),
+        new("completed", "Completed", FieldDataType.Boolean, null),
         new("link", "Links", FieldDataType.Text, null),
         new("repeats", "Repeats", FieldDataType.Boolean, null),
         new("reminder", "Reminder", FieldDataType.Boolean, null)
@@ -120,7 +122,17 @@ public sealed class FieldRegistry(IUnitOfWorkFactory factory) : IFieldRegistry
         var levels = await unit.Lookups.PriorityLevelsAsync(cancellationToken);
         return levels.Where(level => !level.IsArchived)
             .OrderBy(level => level.SortOrder)
-            .Select(level => new SearchChoice(level.Id, level.Name, level.SortOrder)).ToList();
+            .Select(PriorityChoice).ToList();
+    }
+
+    /// <summary>A priority choice is labelled "7 · High" but also matches its name or number (§7.15).</summary>
+    private static SearchChoice PriorityChoice(PriorityLevel level)
+    {
+        return new SearchChoice(level.Id, level.Label, level.SortOrder)
+        {
+            Name = level.Name,
+            Number = level.Number
+        };
     }
 
     private static SearchableField ToSearchable(FieldDefinition definition)

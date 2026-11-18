@@ -10,6 +10,8 @@ internal static class CsvColumns
     public const string Ticket = "Ticket";
     public const string Type = "Type";
     public const string Priority = "Priority";
+    public const string PriorityReference = "Priority reference";
+    public const string Status = "Status";
     public const string DueDate = "Due date";
     public const string DueTime = "Due time";
     public const string ScheduledStart = "Scheduled start";
@@ -25,7 +27,7 @@ internal static class CsvColumns
     /// <summary>Every fixed column, in the order an export writes them.</summary>
     public static IReadOnlyList<string> Standard { get; } =
     [
-        Title, Description, Ticket, Type, Priority, DueDate, DueTime, ScheduledStart, ScheduledEnd,
+        Title, Description, Ticket, Type, Priority, PriorityReference, Status, DueDate, DueTime, ScheduledStart, ScheduledEnd,
         Completed, CompletedAt, Project, FolderPath, ParentTitle, Links, Repeats
     ];
 

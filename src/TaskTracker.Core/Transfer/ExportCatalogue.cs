@@ -9,16 +9,20 @@ internal sealed class ExportCatalogue
 {
     private readonly Dictionary<Guid, ItemType> typesById;
     private readonly Dictionary<Guid, PriorityLevel> prioritiesById;
+    private readonly Dictionary<Guid, StatusLevel> statusesById;
     private readonly Dictionary<Guid, FieldChoice> choicesById;
 
     private ExportCatalogue(
         IReadOnlyList<ItemType> itemTypes,
         IReadOnlyList<PriorityLevel> priorityLevels,
+        IReadOnlyList<StatusLevel> statuses,
         IReadOnlyList<FieldDefinition> fields,
         IReadOnlyList<FieldChoice> choices)
     {
         ItemTypes = itemTypes;
         PriorityLevels = priorityLevels;
+        Statuses = statuses;
+        statusesById = statuses.ToDictionary(status => status.Id);
         Fields = fields;
         Choices = choices;
         typesById = itemTypes.ToDictionary(type => type.Id);
@@ -30,6 +34,8 @@ internal sealed class ExportCatalogue
     public IReadOnlyList<ItemType> ItemTypes { get; }
 
     public IReadOnlyList<PriorityLevel> PriorityLevels { get; }
+
+    public IReadOnlyList<StatusLevel> Statuses { get; }
 
     public IReadOnlyList<FieldDefinition> Fields { get; }
 
@@ -44,7 +50,8 @@ internal sealed class ExportCatalogue
         var fields = await work.Fields.DefinitionsAsync(cancellationToken);
         var choices = await work.Fields.AllChoicesAsync(cancellationToken);
 
-        return new ExportCatalogue(itemTypes, priorityLevels, fields, choices);
+        var statuses = await work.Lookups.StatusesAsync(cancellationToken);
+        return new ExportCatalogue(itemTypes, priorityLevels, statuses, fields, choices);
     }
 
     public string? TypeName(Guid? id)
@@ -55,6 +62,16 @@ internal sealed class ExportCatalogue
     public string? PriorityName(Guid? id)
     {
         return id is Guid key ? prioritiesById[key].Name : null;
+    }
+
+    public string? StatusName(Guid? id)
+    {
+        return id is Guid key ? statusesById[key].Name : null;
+    }
+
+    public PriorityLevel? Priority(Guid? id)
+    {
+        return id is Guid key ? prioritiesById[key] : null;
     }
 
     public string ChoiceLabel(Guid id)

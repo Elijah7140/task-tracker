@@ -10,7 +10,14 @@ internal static class ItemCompletion
     public static async Task<CompletionResult?> SetAsync(ItemService items, IDialogService dialogs,
         ItemLocation location, Guid itemId, bool completed)
     {
-        var result = await items.SetCompletedAsync(location.ProjectId, location.FolderId, itemId, completed);
+        return await ConfirmAsync(dialogs, confirmed =>
+            items.SetCompletedAsync(location.ProjectId, location.FolderId, itemId, completed, confirmed));
+    }
+
+    internal static async Task<CompletionResult?> ConfirmAsync(IDialogService dialogs,
+        Func<bool, Task<CompletionResult>> change)
+    {
+        var result = await change(false);
         if (result is not CompletionResult.NeedsConfirmation confirmation)
         {
             return result;
@@ -22,6 +29,6 @@ internal static class ItemCompletion
             return null;
         }
 
-        return await items.SetCompletedAsync(location.ProjectId, location.FolderId, itemId, true, true);
+        return await change(true);
     }
 }

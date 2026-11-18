@@ -74,6 +74,8 @@ internal sealed class ProjectDocumentBuilder(ExportCatalogue catalogue)
             TicketNumber = item.TicketNumber,
             ItemTypeId = item.ItemTypeId,
             ItemType = catalogue.TypeName(item.ItemTypeId),
+            StatusId = item.StatusId,
+            ReopenStatusId = item.ReopenStatusId,
             PriorityLevelId = item.PriorityLevelId,
             Priority = catalogue.PriorityName(item.PriorityLevelId),
             DueDate = item.DueDate is DateOnly dueDate ? TransferTimeFormat.FormatDate(dueDate) : null,

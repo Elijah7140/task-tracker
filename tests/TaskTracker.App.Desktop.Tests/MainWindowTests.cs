@@ -311,7 +311,7 @@ public sealed class MainWindowTests
         var buttons = view.GetVisualDescendants().OfType<Button>().ToArray();
 
         Assert.Empty(view.GetVisualDescendants().OfType<ListBox>());
-        Assert.Equal(2, view.GetVisualDescendants().OfType<LookupListView>().Count());
+        Assert.Equal(3, view.GetVisualDescendants().OfType<LookupListView>().Count());
         Assert.Contains(buttons, button => Equals(button.Content, "Save defaults"));
         Assert.Contains(buttons, button => Equals(button.Content, "Restore") && button.IsEffectivelyVisible);
         Assert.Equal(1, view.GetVisualDescendants().OfType<TextBlock>().Count(text => text.Text == "Archived" && text.IsEffectivelyVisible));

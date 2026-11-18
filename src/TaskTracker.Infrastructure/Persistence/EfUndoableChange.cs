@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TaskTracker.Core;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Undo;
@@ -44,7 +45,7 @@ internal sealed class EfUndoableChange(
         saved?.Publish();
     }
 
-    /// <summary>A write that breaks a foreign key means a lookup, choice or field the step used has since been removed.</summary>
+    /// <summary>Translates a refused database write into an explanation for the user.</summary>
     private static async Task SaveAsync(TaskTrackerDbContext database, bool forward,
         CancellationToken cancellationToken)
     {
@@ -54,9 +55,25 @@ internal sealed class EfUndoableChange(
         }
         catch (DbUpdateException exception)
         {
-            var message = $"This change references something that was removed; can't {Verb(forward)}.";
+            var message = SaveFailureMessage(exception, forward);
             throw new DomainRuleException(message, exception);
         }
+    }
+
+    private static string SaveFailureMessage(DbUpdateException exception, bool forward)
+    {
+        var reason = exception.InnerException?.Message;
+        if (reason?.Contains("This status is still used by an item", StringComparison.Ordinal) == true)
+        {
+            return $"This status is still used by an item and cannot be removed. Please clear its references before trying to {Verb(forward)}.";
+        }
+
+        if (reason?.Contains("At least one Done status must stay active", StringComparison.Ordinal) == true)
+        {
+            return $"At least one Done status must stay active. Add or restore another Done status before trying to {Verb(forward)}.";
+        }
+
+        return $"This change references something that was removed; can't {Verb(forward)}.";
     }
 
     private async Task<List<object?>> LoadAndVerifyAsync(TaskTrackerDbContext database, bool forward,
@@ -152,6 +169,16 @@ internal sealed class EfUndoableChange(
         if (row.EntityType == typeof(Project))
         {
             return "project";
+        }
+
+        if (row.EntityType == typeof(StatusLevel))
+        {
+            return "status";
+        }
+
+        if (row.EntityType == typeof(PriorityLevel))
+        {
+            return "priority level";
         }
 
         return "item";

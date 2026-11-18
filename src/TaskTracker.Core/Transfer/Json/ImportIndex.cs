@@ -42,6 +42,12 @@ internal sealed class ImportIndex
         return FindLookup(document.ItemTypes.OrEmpty(), item.ItemTypeId, item.ItemType);
     }
 
+    /// <summary>The status with this id in the document, or null.</summary>
+    public LookupDocument? FindStatus(Guid id)
+    {
+        return document.Statuses.OrEmpty().FirstOrDefault(status => status.Id == id);
+    }
+
     /// <summary>The priority level an item refers to: by id when it has one, otherwise by name.</summary>
     public LookupDocument? FindPriority(ItemDocument item)
     {

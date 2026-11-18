@@ -324,7 +324,7 @@ public sealed class ItemQueryParserTests
         var done = Parse("is:done");
         var open = Parse("is:open");
 
-        Assert.Equal(new FieldFilter("status", FilterOperator.Equals, new FilterValue.Bool(true)),
+        Assert.Equal(new FieldFilter("completed", FilterOperator.Equals, new FilterValue.Bool(true)),
             Assert.Single(done.Filters));
         Assert.True(done.ImpliesIncludeCompleted);
         Assert.Equal(new FilterValue.Bool(false), Assert.Single(open.Filters).Value);

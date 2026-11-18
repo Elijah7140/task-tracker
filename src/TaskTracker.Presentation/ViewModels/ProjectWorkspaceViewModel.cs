@@ -374,7 +374,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         foreach (var level in snapshot.PriorityLevels.Where(level => !level.IsArchived))
         {
             PriorityLevels.Add(level);
-            PriorityOptions.Add(new LookupOption<PriorityLevel>(level.Name, level));
+            PriorityOptions.Add(new LookupOption<PriorityLevel>(level.Label, level));
         }
 
         areaItems.Load(snapshot, this);
@@ -499,8 +499,13 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
 
         try
         {
-            await items.EditAsync(Editor.Id, Editor.ToEdit(), Editor.ChangedCustomFields, Editor.ChangedLinks);
-            await LoadItemsAsync(Editor.Id);
+            var draft = Editor;
+            if (!await SaveDraftAsync(items, draft))
+            {
+                return false;
+            }
+
+            await LoadItemsAsync(draft.Id);
             return true;
         }
         catch (DomainRuleException exception)
@@ -508,6 +513,22 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
             await dialogs.ShowMessageAsync("Item validation", exception.Message);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Saves the draft with any status change, asking first when a Done status would complete open
+    /// sub-items. Returns false when the user cancels or reopening is blocked.
+    /// </summary>
+    private async Task<bool> SaveDraftAsync(ItemService service, ItemEditorViewModel draft)
+    {
+        var edit = draft.ToEdit();
+        var values = draft.ChangedCustomFields;
+        var links = draft.ChangedLinks;
+        var statusChange = draft.StatusChange;
+        var result = await ItemCompletion.ConfirmAsync(dialogs,
+            confirmed => service.SaveEditorAsync(draft.Id, edit, values, links, statusChange, confirmed));
+        await ItemLookupAction.ReportStatusResultAsync(dialogs, result);
+        return result is CompletionResult.Applied;
     }
 
     /// <summary>Throws away the draft, custom values included, and shows the stored item again.</summary>

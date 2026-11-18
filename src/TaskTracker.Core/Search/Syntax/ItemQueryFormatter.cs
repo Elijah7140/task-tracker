@@ -57,7 +57,7 @@ public static class ItemQueryFormatter
             return "is:recurring";
         }
 
-        if (filter is { FieldKey: "status", Operator: FilterOperator.Equals, Value: FilterValue.Bool done })
+        if (filter is { FieldKey: "completed", Operator: FilterOperator.Equals, Value: FilterValue.Bool done })
         {
             return done.Value ? "is:done" : "is:open";
         }
@@ -108,7 +108,7 @@ public static class ItemQueryFormatter
 
             if (match is not null)
             {
-                return QueryQuoting.QuoteChoiceLabel(match.Label);
+                return QueryQuoting.FormatChoice(match, fieldKey);
             }
         }
 

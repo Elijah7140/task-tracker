@@ -1,8 +1,11 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -60,13 +63,49 @@ public sealed class ImportExportSnapshotTests
         var first = HeadlessInput.Find<MenuItem>(window, "ExportAllMenuItem");
         first.Focus(NavigationMethod.Directional);
         await HeadlessInput.WaitUntilAsync(() => first.IsFocused);
-        // The pop-up can settle a pixel after it first appears; let pending layout finish before capturing.
-        Dispatcher.UIThread.RunJobs();
+        var popup = first.GetVisualAncestors().OfType<OverlayPopupHost>().First();
+        WaitForStablePopupBounds(() => new Rect(popup.TranslatePoint(default, window)!.Value, popup.Bounds.Size));
         using var frame = window.CaptureRenderedFrame();
 
         Assert.NotNull(frame);
         SnapshotComparer.AssertMatches(frame, $"home-import-export-menu-{ScreenSnapshotTests.ThemeName(dark)}");
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Popup_capture_waits_for_both_position_and_size_to_settle()
+    {
+        var frames = new Queue<Rect>(
+        [
+            new(10, 20, 200, 100),
+            new(11, 20, 200, 100),
+            new(11, 20, 201, 100),
+            new(11, 20, 201, 100)
+        ]);
+
+        WaitForStablePopupBounds(frames.Dequeue);
+
+        Assert.Empty(frames);
+    }
+
+    private static void WaitForStablePopupBounds(Func<Rect> readBounds)
+    {
+        Rect? previous = null;
+        for (var frame = 0; frame < 20; frame++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+            Dispatcher.UIThread.RunJobs();
+            var current = readBounds();
+            if (current == previous)
+            {
+                return;
+            }
+
+            previous = current;
+        }
+
+        Assert.Fail("The menu popup did not reach stable bounds.");
     }
 
     private static async Task CapturePreviewAsync(string csv, bool dark, string snapshotName)

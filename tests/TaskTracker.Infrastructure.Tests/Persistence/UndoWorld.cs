@@ -5,6 +5,7 @@ using Microsoft.Extensions.Time.Testing;
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Reminders;
@@ -45,6 +46,8 @@ internal sealed class UndoWorld : IAsyncDisposable
 
     public ItemService Items { get; private set; } = null!;
 
+    public LookupService Lookups { get; private set; } = null!;
+
     public FieldService Fields { get; private set; } = null!;
 
     public SettingsService Settings { get; private set; } = null!;
@@ -84,6 +87,7 @@ internal sealed class UndoWorld : IAsyncDisposable
         Folders = new FolderService(units, store.Clock);
         Items = new ItemService(units, store.Clock, TimeZoneInfo.Utc);
         Fields = new FieldService(units);
+        Lookups = new LookupService(units);
         Settings = new SettingsService(units, store.Clock);
         Reminders = new ReminderService(units, store.Clock, TimeZoneInfo.Utc);
         Rescheduler = new CalendarRescheduleService(units, store.Clock);

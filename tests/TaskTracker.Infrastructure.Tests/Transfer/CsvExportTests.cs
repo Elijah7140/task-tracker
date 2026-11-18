@@ -10,7 +10,7 @@ public sealed class CsvExportTests
 {
     private static readonly string[] StandardHeader =
     [
-        "Title", "Description", "Ticket", "Type", "Priority", "Due date", "Due time", "Scheduled start",
+        "Title", "Description", "Ticket", "Type", "Priority", "Priority reference", "Status", "Due date", "Due time", "Scheduled start",
         "Scheduled end", "Completed", "Completed at", "Project", "Folder path", "Parent title", "Links", "Repeats"
     ];
 
@@ -75,6 +75,7 @@ public sealed class CsvExportTests
         var fix = Row(table, "Fix invoice totals");
         Assert.Equal("Change", fix["Type"]);
         Assert.Equal("High", fix["Priority"]);
+        Assert.Equal("#name:High", fix["Priority reference"]);
         Assert.Equal("Major", fix["Severity"]);
         Assert.Equal("2.5", fix["Estimate"]);
         Assert.Equal("2026-11-01", fix["Reviewed"]);

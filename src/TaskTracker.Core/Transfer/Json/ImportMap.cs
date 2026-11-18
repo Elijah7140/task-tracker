@@ -9,6 +9,10 @@ internal sealed class ImportMap
 
     public Dictionary<Guid, Guid> PriorityLevels { get; } = [];
 
+    public Dictionary<Guid, Guid> Statuses { get; } = [];
+
+    public Guid FirstDoneStatusId { get; set; }
+
     public Dictionary<Guid, Guid> Choices { get; } = [];
 
     public Dictionary<Guid, Guid> RecurrenceSeries { get; } = [];

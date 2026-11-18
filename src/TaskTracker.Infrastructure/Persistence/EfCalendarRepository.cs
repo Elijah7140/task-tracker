@@ -69,7 +69,7 @@ public sealed class EfCalendarRepository(TaskTrackerDbContext database) : ICalen
     private async Task<Dictionary<Guid, string>> LoadPriorityNamesAsync(CancellationToken cancellationToken)
     {
         return await database.PriorityLevels.AsNoTracking()
-            .ToDictionaryAsync(priority => priority.Id, priority => priority.Name, cancellationToken);
+            .ToDictionaryAsync(priority => priority.Id, priority => priority.Label, cancellationToken);
     }
 
     private static void AddEntries(List<CalendarEntry> entries, TodoItem item, CalendarQuery query,
@@ -116,6 +116,10 @@ public sealed class EfCalendarRepository(TaskTrackerDbContext database) : ICalen
     {
         return new CalendarEntry(item.Id, item.ProjectId, item.FolderId, item.Title, kind,
             date, time, item.ScheduledStart, item.ScheduledEnd, item.CompletedAtUtc is not null,
-            item.DueDate, item.DueTime, type, priority);
+            item.DueDate, item.DueTime, type, priority)
+        {
+            StatusId = item.StatusId,
+            PriorityLevelId = item.PriorityLevelId
+        };
     }
 }

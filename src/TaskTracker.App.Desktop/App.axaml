@@ -5,6 +5,16 @@
     <!-- "Default" follows the OS light/dark setting. -->
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="Border.statusChip">
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="MaxWidth" Value="110" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+        </Style>
+        <Style Selector="Border.statusChip TextBlock">
+            <Setter Property="FontSize" Value="11" />
+        </Style>
         <Style Selector="Border.card">
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />

@@ -358,27 +358,40 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
         var result = await search.SearchAsync(query, resultLimit, cancellationToken);
         var rows = await resultFactory.CreateAsync(result.Items, cancellationToken);
 
+        var (statuses, priorities) = await navigation.LoadRowLookupsAsync(cancellationToken);
         if (IsCurrentSearch(version))
         {
             lastQuery = query;
-            ApplyResults(rows, result.HasMore);
+            ApplyResults(rows, result.HasMore, new RowLookupMenus(statuses, priorities));
         }
     }
 
-    private void ApplyResults(IReadOnlyList<SearchResultViewModel> rows, bool moreAvailable)
+    private void ApplyResults(IReadOnlyList<SearchResultViewModel> rows, bool moreAvailable, RowLookupMenus menus)
     {
         Results.Clear();
 
         foreach (var row in rows)
         {
-            row.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(row.Item.ItemId),
-                () => row.PushBackReason is null);
+            AttachRowActions(row, menus);
             Results.Add(row);
         }
 
         HasMore = moreAvailable;
         hasSearched = true;
         OnPropertyChanged(nameof(ShowEmpty));
+    }
+
+    /// <summary>Wires a result's context menu: push back, Set status and Set priority.</summary>
+    private void AttachRowActions(SearchResultViewModel row, RowLookupMenus menus)
+    {
+        var item = row.Item;
+        row.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(item.ItemId),
+            () => row.PushBackReason is null);
+        row.StatusName = menus.StatusName(item.StatusId);
+        row.StatusChoices = menus.Statuses(item.StatusId,
+            id => navigation.SetRowStatusAsync(item.ItemId, id));
+        row.PriorityChoices = menus.Priorities(item.PriorityLevelId,
+            id => navigation.SetRowPriorityAsync(item.ItemId, id));
     }
 
     private void ShowError(Exception exception)

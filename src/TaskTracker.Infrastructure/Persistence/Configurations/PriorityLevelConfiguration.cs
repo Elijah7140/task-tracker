@@ -10,10 +10,12 @@ public sealed class PriorityLevelConfiguration : IEntityTypeConfiguration<Priori
 {
     public void Configure(EntityTypeBuilder<PriorityLevel> builder)
     {
-        builder.ToTable("PriorityLevel");
+        builder.ToTable("PriorityLevel", table =>
+            table.HasCheckConstraint("CK_PriorityLevel_Number", "Number IS NULL OR (typeof(Number) = 'integer' AND Number >= 1)"));
         builder.HasKey(level => level.Id);
         builder.Property(level => level.Name).HasMaxLength(300).IsRequired();
-        builder.HasIndex(level => level.Name).IsUnique();
+        builder.HasIndex(level => level.Name).IsUnique().HasFilter("Name <> ''");
+        builder.HasIndex(level => level.Number).IsUnique().HasFilter("Number IS NOT NULL AND IsArchived = 0");
         builder.HasData(BuiltInLookups.PriorityLevels);
     }
 }

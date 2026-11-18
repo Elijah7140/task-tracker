@@ -9,6 +9,10 @@ public interface ILookupRepository
 
     Task<IReadOnlyList<PriorityLevel>> PriorityLevelsAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<StatusLevel>> StatusesAsync(CancellationToken cancellationToken);
+
+    void Add(StatusLevel status);
+
     void Add(ItemType itemType);
 
     void Add(PriorityLevel priorityLevel);

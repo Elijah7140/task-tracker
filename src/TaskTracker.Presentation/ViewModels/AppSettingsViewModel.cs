@@ -52,8 +52,9 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
         if (lookups is not null)
         {
-            ItemTypes = new LookupListViewModel(lookups, dialogs, true);
-            PriorityLevels = new LookupListViewModel(lookups, dialogs, false);
+            ItemTypes = new LookupListViewModel(lookups, dialogs, LookupListKind.ItemTypes);
+            PriorityLevels = new LookupListViewModel(lookups, dialogs, LookupListKind.PriorityLevels);
+            Statuses = new LookupListViewModel(lookups, dialogs, LookupListKind.Statuses);
         }
 
         if (fields is not null)
@@ -152,6 +153,20 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     public LookupListViewModel? PriorityLevels { get; }
 
+    public LookupListViewModel? Statuses { get; }
+
+    /// <summary>Reloads the lookup lists, on opening and after an undo or redo changed one of them.</summary>
+    public async Task LoadLookupsAsync()
+    {
+        foreach (var list in new[] { ItemTypes, PriorityLevels, Statuses })
+        {
+            if (list is not null)
+            {
+                await list.LoadAsync();
+            }
+        }
+    }
+
     public FieldManagerViewModel? CustomFields { get; }
 
     public ReminderSettingsViewModel Reminders { get; } = new();
@@ -172,15 +187,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         saved = CurrentDefaults();
         Validate();
 
-        if (ItemTypes is not null)
-        {
-            await ItemTypes.LoadAsync();
-        }
-
-        if (PriorityLevels is not null)
-        {
-            await PriorityLevels.LoadAsync();
-        }
+        await LoadLookupsAsync();
 
         if (CustomFields is not null)
         {

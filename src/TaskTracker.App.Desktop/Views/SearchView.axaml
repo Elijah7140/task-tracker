@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="using:TaskTracker.App.Desktop.Views"
              x:Class="TaskTracker.App.Desktop.Views.SearchView"
              x:CompileBindings="False">
   <UserControl.Resources>
@@ -155,6 +156,8 @@
             <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
             <Setter Property="ContextMenu">
               <ContextMenu>
+                <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+                <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
                 <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                           ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                           AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
@@ -166,7 +169,13 @@
           <DataTemplate>
             <Grid ColumnDefinitions="24,2*,60,1.5*,60,65,150" ColumnSpacing="8" Background="Transparent">
               <TextBlock Text="{Binding CompletedMark}" />
-              <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+              <DockPanel Grid.Column="1">
+                <Border DockPanel.Dock="Right" Margin="5,0,0,0" Classes="statusChip" IsVisible="{Binding HasStatus}">
+                  <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
+                             AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />
+                </Border>
+                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+              </DockPanel>
               <TextBlock Grid.Column="2" Text="{Binding Ticket}" TextTrimming="CharacterEllipsis" />
               <TextBlock Grid.Column="3" Text="{Binding Location}" TextTrimming="CharacterEllipsis" />
               <TextBlock Grid.Column="4" Text="{Binding Type}" TextTrimming="CharacterEllipsis" />

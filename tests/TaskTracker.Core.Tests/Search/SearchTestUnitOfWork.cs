@@ -101,6 +101,16 @@ internal sealed class SearchTestUnitOfWork : IUnitOfWork, IUnitOfWorkFactory
 
     private sealed class LookupRepository(SearchTestUnitOfWork store) : ILookupRepository
     {
+        public Task<IReadOnlyList<StatusLevel>> StatusesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(BuiltInLookups.Statuses);
+        }
+
+        public void Add(StatusLevel status)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task<IReadOnlyList<ItemType>> ItemTypesAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<ItemType>>(store.TypeRows);

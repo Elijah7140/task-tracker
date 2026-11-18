@@ -41,6 +41,8 @@ public sealed class TodoItemConfiguration : IEntityTypeConfiguration<TodoItem>
         builder.HasOne<TodoItem>().WithMany().HasForeignKey(item => item.ParentItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ItemType>().WithMany().HasForeignKey(item => item.ItemTypeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<PriorityLevel>().WithMany().HasForeignKey(item => item.PriorityLevelId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<StatusLevel>().WithMany().HasForeignKey(item => item.StatusId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<StatusLevel>().WithMany().HasForeignKey(item => item.ReopenStatusId).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(item => item.DeletedAtUtc == null);
     }
 

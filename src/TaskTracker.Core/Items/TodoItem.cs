@@ -1,4 +1,5 @@
 using TaskTracker.Core.Items.Recurrence;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Reminders;
 
 namespace TaskTracker.Core.Items;
@@ -250,11 +251,49 @@ public sealed class TodoItem
         Touch(clock);
     }
 
-    public void SetCompletion(DateTime? completedAtUtc, TimeProvider clock)
+    /// <summary>The current status; a Done status exactly when the item is completed (§7.15).</summary>
+    public Guid? StatusId { get; private set; }
+
+    /// <summary>While completed, the Open status (or none) that reopening restores.</summary>
+    public Guid? ReopenStatusId { get; private set; }
+
+    /// <summary>Assigns an Open status, or none, to an open item.</summary>
+    public void SetOpenStatus(StatusLevel? status, TimeProvider clock)
+    {
+        if (CompletedAtUtc.HasValue || status?.Kind == StatusKind.Done)
+        {
+            throw new DomainRuleException("Only open items can have an Open status.");
+        }
+
+        SetStatus(status?.Id, null, clock);
+    }
+
+    internal void SetStatus(Guid? statusId, Guid? reopenStatusId, TimeProvider clock)
+    {
+        StatusId = statusId;
+        ReopenStatusId = reopenStatusId;
+        Touch(clock);
+    }
+
+    /// <summary>
+    /// Completes or reopens the item and keeps its status in step: completing sets
+    /// <paramref name="doneStatusId"/> (the first Done status; the seeded Completed when omitted)
+    /// and remembers the Open status, and reopening restores the remembered one.
+    /// </summary>
+    public void SetCompletion(DateTime? completedAtUtc, TimeProvider clock, Guid? doneStatusId = null)
     {
         if (completedAtUtc is not null && completedAtUtc.Value.Kind != DateTimeKind.Utc)
         {
             throw new ArgumentException("Completion time must be UTC.", nameof(completedAtUtc));
+        }
+
+        if (completedAtUtc.HasValue && !CompletedAtUtc.HasValue)
+        {
+            SetStatus(doneStatusId ?? BuiltInLookups.CompletedId, StatusId, clock);
+        }
+        else if (!completedAtUtc.HasValue && CompletedAtUtc.HasValue)
+        {
+            SetStatus(ReopenStatusId, null, clock);
         }
 
         CompletedAtUtc = completedAtUtc;

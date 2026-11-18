@@ -531,6 +531,10 @@ public sealed class ScreenSnapshotTests
         var startup = new FakeStartupRegistration { IsAvailable = true };
         using var services = await TestServices.CreateAsync(installation: TestServices.CreateInstallation(updates, startup));
         await SeedGlobalFieldsAsync(services);
+        var lookups = services.GetRequiredService<TaskTracker.Core.Lookups.LookupService>();
+        await lookups.SetPriorityNumberAsync(TaskTracker.Core.Lookups.BuiltInLookups.CriticalId, 1);
+        await lookups.SetPriorityNumberAsync(TaskTracker.Core.Lookups.BuiltInLookups.HighId, 7);
+        await lookups.SetPriorityNumberAsync(TaskTracker.Core.Lookups.BuiltInLookups.MediumId, 2);
         var shell = services.GetRequiredService<MainWindowViewModel>();
         var window = OpenWindow(shell, dark, AppSettingsWindowHeight);
 

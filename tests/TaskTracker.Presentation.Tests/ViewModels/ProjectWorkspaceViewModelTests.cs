@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Time.Testing;
 
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
@@ -13,6 +14,35 @@ namespace TaskTracker.Presentation.Tests.ViewModels;
 
 public sealed class ProjectWorkspaceViewModelTests
 {
+    [Fact]
+    public async Task Editor_done_selection_prompts_and_saves_the_draft_and_subtree_together()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Release");
+        var parent = await store.Items.CreateAsync(project.Id, null, null, "Parent");
+        await store.Items.CreateAsync(project.Id, null, parent.Id, "Child");
+        var dialogs = new FakeDialogService { ConfirmResult = false };
+        using var page = TestWorkspaceFactory.CreateItemPage(store, project.Id, dialogs);
+        await page.LoadAsync(selectedItemId: parent.Id);
+        var draft = Assert.IsType<ItemEditorViewModel>(page.Editor);
+        draft.SelectedStatusOption = draft.StatusOptions.Single(option => option.Value?.Kind == StatusKind.Done);
+        draft.Title = "Renamed parent";
+
+        Assert.False(await page.SaveAsync());
+        Assert.Equal("Also complete 1 open sub-items?", Assert.Single(dialogs.ConfirmMessages));
+        Assert.Equal("Parent", Assert.Single((await store.Items.LoadAreaAsync(project.Id, null)).Items).Item.Title);
+
+        dialogs.ConfirmResult = true;
+        Assert.True(await page.SaveAsync());
+
+        var saved = Assert.Single((await store.Items.LoadAreaAsync(project.Id, null)).Items);
+        Assert.Equal("Renamed parent", saved.Item.Title);
+        Assert.Equal(BuiltInLookups.CompletedId, saved.Item.StatusId);
+        Assert.Equal(BuiltInLookups.CompletedId, Assert.Single(saved.Children).Item.StatusId);
+        Assert.Equal("Set status of 'Renamed parent'", store.History.UndoDescription);
+    }
+
     [Fact]
     public async Task Reloading_after_project_deletion_returns_home()
     {
