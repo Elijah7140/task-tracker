@@ -19,6 +19,8 @@ internal sealed class SingleInstanceGuard : IDisposable
     private readonly Mutex mutex;
     private readonly string name;
     private readonly CancellationTokenSource stopping = new();
+    private readonly Lock serverLock = new();
+    private NamedPipeServerStream? currentServer;
     private bool disposed;
 
     private SingleInstanceGuard(Mutex mutex, string name)
@@ -102,14 +104,30 @@ internal sealed class SingleInstanceGuard : IDisposable
     /// </summary>
     private void StartListening()
     {
-        var firstServer = CreateServer();
+        var firstServer = OpenServer();
         _ = Task.Run(() => ListenAsync(firstServer));
     }
 
-    private NamedPipeServerStream CreateServer()
+    /// <summary>
+    /// Creates the next pipe and remembers it, so <see cref="Dispose"/> can close it at once: on Linux
+    /// the pipe name stays taken until its stream is closed.
+    /// </summary>
+    private NamedPipeServerStream OpenServer()
     {
-        return new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
+        var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+
+        lock (serverLock)
+        {
+            if (!disposed)
+            {
+                currentServer = server;
+                return server;
+            }
+        }
+
+        server.Dispose();
+        throw new OperationCanceledException();
     }
 
     /// <summary>
@@ -123,10 +141,10 @@ internal sealed class SingleInstanceGuard : IDisposable
         {
             try
             {
-                server ??= CreateServer();
+                server ??= OpenServer();
                 await AcceptOneAsync(server);
             }
-            catch (OperationCanceledException)
+            catch (Exception exception) when (exception is OperationCanceledException or ObjectDisposedException)
             {
                 return;
             }
@@ -138,8 +156,6 @@ internal sealed class SingleInstanceGuard : IDisposable
 
             server = null;
         }
-
-        server?.Dispose();
     }
 
     /// <summary>
@@ -169,15 +185,24 @@ internal sealed class SingleInstanceGuard : IDisposable
         }
     }
 
+    /// <summary>Stops listening, closes the waiting pipe straight away and releases the name.</summary>
     public void Dispose()
     {
-        if (disposed)
+        NamedPipeServerStream? server;
+        lock (serverLock)
         {
-            return;
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            server = currentServer;
+            currentServer = null;
         }
 
-        disposed = true;
         stopping.Cancel();
+        server?.Dispose();
         mutex.Dispose();
     }
 }
