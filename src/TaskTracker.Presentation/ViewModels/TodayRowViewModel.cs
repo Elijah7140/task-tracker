@@ -22,6 +22,7 @@ public sealed class TodayRowViewModel : ViewModelBase
         OpenCommand = new AsyncRelayCommand(() => page.OpenAsync(item.Id));
         ReopenCommand = new AsyncRelayCommand(() => page.ReopenAsync(this), () => IsCompleted);
         PushBackCommand = new AsyncRelayCommand(() => page.PushBackAsync(item.Id), () => PushBackReason is null);
+        SetCurrentCommand = new AsyncRelayCommand(() => page.SetCurrentAsync(item.Id));
     }
 
     internal TodayItem Item { get; }
@@ -66,6 +67,9 @@ public sealed class TodayRowViewModel : ViewModelBase
     public ICommand ReopenCommand { get; }
 
     public ICommand PushBackCommand { get; }
+
+    /// <summary>Makes this item the one the tray card shows.</summary>
+    public ICommand SetCurrentCommand { get; }
 
     public bool IsExpanded
     {

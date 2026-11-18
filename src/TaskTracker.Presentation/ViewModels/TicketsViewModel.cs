@@ -203,6 +203,11 @@ public sealed class TicketsViewModel : ViewModelBase, IDisposable
         return disposed || writing ? Task.CompletedTask : navigation.PushBackAsync(id);
     }
 
+    internal Task SetCurrentAsync(Guid id)
+    {
+        return disposed ? Task.CompletedTask : navigation.SetCurrentItemAsync(id);
+    }
+
     private Task StartWrite(Guid id, Func<Task<bool>> save)
     {
         if (disposed || writing)

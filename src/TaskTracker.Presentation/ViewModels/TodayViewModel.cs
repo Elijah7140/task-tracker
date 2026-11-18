@@ -126,6 +126,11 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
         return disposed ? Task.CompletedTask : navigation.PushBackAsync(id);
     }
 
+    internal Task SetCurrentAsync(Guid id)
+    {
+        return disposed ? Task.CompletedTask : navigation.SetCurrentItemAsync(id);
+    }
+
     internal Task ReopenAsync(TodayRowViewModel row)
     {
         if (disposed)

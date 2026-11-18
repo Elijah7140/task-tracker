@@ -73,6 +73,8 @@
           <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                     ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                     AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+          <MenuItem Header="{Binding CurrentMenuHeader}" Command="{Binding ToggleCurrentCommand}"
+                    AutomationProperties.AutomationId="ToggleCurrentItemMenuItem" />
           <MenuItem Header="Skip this one" Command="{Binding SkipRepeatCommand}" IsVisible="{Binding CanSkipRepeat}"
                     AutomationProperties.AutomationId="ItemSkipRepeatMenuItem" />
           <MenuItem Header="Stop repeating" Command="{Binding StopRepeatingCommand}" IsVisible="{Binding Repeats}"
@@ -106,6 +108,9 @@
                    />
         <!-- The status chip shares the title column so rows without a status keep their layout. -->
         <DockPanel Grid.Column="3">
+          <TextBlock DockPanel.Dock="Right" Text="★" Margin="4,0,0,0" VerticalAlignment="Center" IsVisible="{Binding IsCurrent}"
+                     Foreground="{DynamicResource SystemControlHighlightAccentBrush}" ToolTip.Tip="Current item, shown from the tray icon"
+                     AutomationProperties.AutomationId="ItemCurrentMarker" />
           <Border DockPanel.Dock="Right" Margin="4,0,2,0" Classes="statusChip" IsVisible="{Binding HasStatus}" ToolTip.Tip="{Binding StatusName}">
             <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
                        AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />

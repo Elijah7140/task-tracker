@@ -85,6 +85,8 @@
                             <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                                       ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                                       AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+                            <MenuItem Header="Set as current item" Command="{Binding SetCurrentCommand}"
+                                      AutomationProperties.AutomationId="SetCurrentItemMenuItem" />
                           </ContextMenu>
                         </Border.ContextMenu>
                         <Grid Classes="ticketColumns" ColumnDefinitions="110,3*,2*,140,108" ColumnSpacing="10">

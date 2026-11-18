@@ -388,6 +388,7 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
     private void AttachRowActions(SearchResultViewModel row, RowLookupMenus menus)
     {
         var item = row.Item;
+        row.SetCurrentCommand = new AsyncRelayCommand(() => navigation.SetCurrentItemAsync(item.ItemId));
         row.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(item.ItemId),
             () => row.PushBackReason is null);
         row.StatusName = menus.StatusName(item.StatusId);

@@ -14,6 +14,8 @@
           <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
                     ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
                     AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+          <MenuItem Header="Set as current item" Command="{Binding SetCurrentCommand}"
+                    AutomationProperties.AutomationId="SetCurrentItemMenuItem" />
         </ContextMenu>
       </Grid.ContextMenu>
       <ToggleButton Content="{Binding ExpandLabel}" IsChecked="{Binding IsExpanded, Mode=TwoWay}"

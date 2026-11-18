@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using TaskTracker.Core;
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.CurrentItem;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
@@ -25,7 +26,7 @@ using TaskTracker.Presentation.Navigation;
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>Owns the current page and handles application navigation.</summary>
-public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUndoHost
+public sealed partial class MainWindowViewModel : ViewModelBase, INavigationService, IUndoHost
 {
     private readonly ProjectService projectService;
     private readonly FolderService folderService;
@@ -45,6 +46,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private readonly ITrashService? trash;
     private readonly TodayService? today;
     private readonly TicketService? tickets;
+    private readonly CurrentItemService? currentItems;
     private readonly DataSaved? saves;
     private readonly SavedSearchService? savedSearches;
     private readonly ItemQueryParser? queryParser;
@@ -75,7 +77,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null,
         UndoHistory? undoHistory = null, TransferServices? transfer = null, ILinkLauncher? linkLauncher = null,
         InstallationServices? installation = null, TodayService? today = null, DataSaved? saves = null,
-        TicketService? tickets = null)
+        TicketService? tickets = null, CurrentItemService? currentItems = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -94,6 +96,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         this.trash = trash;
         this.today = today;
         this.tickets = tickets;
+        this.currentItems = currentItems;
         this.saves = saves;
         this.savedSearches = savedSearches;
         this.queryParser = queryParser;

@@ -525,6 +525,7 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
     private void AttachRowActions(CalendarEntryViewModel entry, RowLookupMenus menus)
     {
         var item = entry.Entry;
+        entry.SetCurrentCommand = new AsyncRelayCommand(() => navigation.SetCurrentItemAsync(item.ItemId));
         entry.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(item.ItemId),
             () => entry.PushBackReason is null);
         entry.StatusName = menus.StatusName(item.StatusId);

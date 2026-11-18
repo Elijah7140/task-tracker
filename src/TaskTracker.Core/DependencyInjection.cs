@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.Core.Calendar;
+using TaskTracker.Core.CurrentItem;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddSingleton<FieldService>();
         services.AddSingleton<LookupService>();
         services.AddSingleton<SettingsService>();
+        services.AddSingleton<CurrentItemService>();
         services.AddSingleton<DataSaved>();
         services.AddSingleton<TodayService>();
         services.AddSingleton<TicketService>();
