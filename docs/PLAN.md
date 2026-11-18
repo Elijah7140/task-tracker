@@ -1330,6 +1330,101 @@ were made autonomously; they are listed for review.
   - Light and dark snapshots of the Today view and of the row menu.
   - A smoke scenario.
 
+### 7.15 Statuses and numbered priority levels
+
+These are owner requests from 2026-11-17 and 2026-11-18 (§10). The owner chose two things:
+statuses are an editable list, and they are linked to completion. Where the requests were silent,
+the decisions below were made autonomously; they are listed for review.
+
+**Numbered priority levels**
+- **The number is a label.** `PriorityLevel` gains an optional `Number`, a whole number of 1 or
+  more that is unique among active levels. It is a label only: ranking and every comparison use
+  `SortOrder`, never `Number`. A mapping such as 1, 7, 2 is valid and tested.
+- **Display.** A level shows as "7" when it has a number and no name, as "7 · Hotfix" when it has
+  both, and as its name otherwise.
+- **App Settings.** The Priority levels list gets a Number box on each row. Number and order are
+  edited independently.
+- **Query syntax (§7.7).** `priority:7` matches the level whose number is 7, then falls back to a
+  level named "7". `priority>7` means "more important than level 7" by rank, as today.
+
+**Statuses**
+- **The list.** A new `StatusLevel` lookup has a name, a sort order, an *open* or *done* kind, and
+  can be archived. It is managed in App Settings like the item types and priority levels. The
+  seeded set is Queued, In progress and Testing (open) plus Completed (done). At least one done
+  status must stay active.
+- **On the item.** `TodoItem` gains a nullable `StatusId`. It also gains `ReopenStatusId`, the open
+  status to restore on reopen. Both migrations are additive and follow the AGENTS.md trigger rule.
+- **Linked to completion (§6.1).**
+  - Setting a done status completes the item through the normal completion path, including the
+    sub-item confirmation and parent auto-completion.
+  - Completing an item any other way sets the first done status in sort order and remembers the
+    previous open status.
+  - Reopening restores `ReopenStatusId`, or no status.
+  - Auto-completed and auto-reopened parents follow the same rules.
+  - Status and completion never disagree; a database check and tests enforce this.
+- **Setting a status or priority.**
+  - Every item row menu (workspace tree, Search, Calendar, Today, Tickets) gets **Set status ▸**
+    and **Set priority ▸** submenus. Each has a check mark on the current value and a "None" entry.
+  - The editor gets a Status combo box next to Priority.
+  - Each change is one labelled undo step, for example "Set status of ⟨title⟩".
+- **Rows.** Item rows show a small status chip when a status is set.
+- **Search (§7.7).**
+  - The built-in `status` key now refers to the status list: `status:testing`, `status~prog`,
+    `no:status`.
+  - The old open/completed meaning moves to `is:open` and `is:completed`, which already exist. The
+    old key is renamed `completed`, so `completed:true` keeps working.
+  - Saved searches that used the old `status` key are rewritten by the migration with
+    `QueryFieldKeyRewriter`, so they keep their meaning.
+  - The filter row gets a Status field.
+- **Recurrence (§7.11).** The next occurrence takes the source's `ReopenStatusId`, the open status
+  it had before completion, or no status.
+- **Import/export (§7.9).**
+  - JSON gets a `statuses` lookup list matched by name, like priorities, plus `statusId` and
+    `reopenStatusId` on items. It stays at version 1.
+  - CSV gets a `Status` column.
+- **Undo (§7.8).** Status list management is undoable, the same as for priority levels after the
+  undo audit.
+- **Tests.**
+  - Core: the linkage rules for every §6.1 action.
+  - SQLite: the migrations, including the saved-search rewrite, plus import/export, the recurrence
+    copy and undo.
+  - ViewModel and headless interaction: both submenus from the mouse and the keyboard, and the
+    editor combo box.
+  - Light and dark snapshots of a row menu with submenus, the editor and the settings lists.
+  - A smoke scenario.
+
+### 7.16 Tickets view
+
+This is the owner's request from 2026-11-17, with the details the owner gave in §10. Where the
+request was silent, the decisions below were made autonomously; they are listed for review.
+
+- **Opening it.** A **Tickets** button on Home and in the top bar, and **Ctrl+Shift+K**. It uses the
+  shared transient page.
+- **What it lists.** Open, non-deleted items that have a ticket number, across all projects, with a
+  project filter (All or one project). The columns are ticket number, title, project, status and
+  due date.
+- **Order.**
+  - Items with no priority come first, ordered by drag position. Below them comes one section per
+    priority level, in level sort order (§7.15), with a header for each.
+  - Within a section, items are ordered by drag position. `TodoItem.TicketRank`, a nullable real
+    number, is stored separately from the tree order; new tickets get the bottom of their section.
+- **Dragging.** Items move within or between sections, with a drop indicator.
+  - Dropping below a prioritized item puts the item in that section and sets its Priority.
+  - Dropping into the no-priority group clears the Priority. This is an assumption, pending the
+    owner's confirmation.
+  - **Keyboard equivalent:** Alt+↑ and Alt+↓ move the focused ticket one place. Crossing a section
+    boundary changes its priority, following the same rule.
+- **Menus.** **Set priority ▸** moves the item to the bottom of its new section when the level
+  changes. **Set status ▸**, Open and Push back one day are also available.
+- **Undo.** Every move and priority change is one labelled undo step.
+- **Tests.**
+  - The ordering, using a non-monotonic number mapping such as 1, 7, 2.
+  - Rank assignment, and the drop rules at section edges.
+  - Headless drag and keyboard moves.
+  - Undo.
+  - Light and dark snapshots.
+  - A smoke scenario.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -1456,7 +1551,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
 - **Quick reschedule from the context menu** (decisions in §7.14). Right-click an item (tree, search results,
   calendar) and choose "Push back one day", which moves its due date (and its scheduled
   block, if any) one day later. A labelled undo step, with a keyboard equivalent.
-- **Tickets view.** A list of tickets in the order the owner wants to work on them. A
+- **Tickets view** (decisions in §7.16; numbered levels in §7.15). A list of tickets in the order the owner wants to work on them. A
   ticket is an open item that has a ticket number (confirmed by the owner; an explicit
   ticket flag may come later but is not needed now).
   - **Numbered priority levels.** Extend the existing Priority field (§6.2) so it supports
@@ -1478,7 +1573,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
   - **Context menu.** "Set priority" on each item. If the level changes, the item moves to
     the bottom of the drag order in its new section.
   - Priority changes made here are labelled undo steps.
-- **Statuses.** The owner asked for this on 2026-11-18; it is built in the same slice as the
+- **Statuses** (decisions in §7.15). The owner asked for this on 2026-11-18; it is built in the same slice as the
   numbered priority levels and the Tickets view.
   - **One status per item.** Each item has at most one status, such as Queued, In progress,
     Testing or Completed. Statuses are mutually exclusive, like priority: one status and one
