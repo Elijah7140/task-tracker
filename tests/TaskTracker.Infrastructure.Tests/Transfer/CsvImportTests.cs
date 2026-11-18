@@ -57,6 +57,9 @@ public sealed class CsvImportTests
         Assert.Equal(BuiltInLookups.ChangeId, created.ItemTypeId);
         Assert.Equal(BuiltInLookups.HighId, created.PriorityLevelId);
         Assert.Equal("T-1", created.TicketNumber);
+        var existingTicket = items.Single(item => item.Id == ids.FixItemId);
+        Assert.NotNull(created.TicketRank);
+        Assert.Equal(existingTicket.TicketRank + 1, created.TicketRank);
         Assert.Equal(new DateOnly(2026, 12, 1), created.DueDate);
         Assert.Equal(new TimeOnly(9, 30), created.DueTime);
         Assert.Equal(new DateTime(2026, 12, 2, 10, 0, 0), created.ScheduledStart);

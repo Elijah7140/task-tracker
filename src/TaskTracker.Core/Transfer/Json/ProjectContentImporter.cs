@@ -11,8 +11,8 @@ internal sealed class ProjectContentImporter(
 {
     private readonly Dictionary<Guid, Guid> itemIds = [];
 
-    /// <summary>Adds the project's folders and items to the unit of work and returns the counts.</summary>
-    public (int Folders, int Items) Import(ImportedProject imported)
+    /// <summary>Adds the project's folders and items to the unit of work.</summary>
+    public (int FolderCount, IReadOnlyList<TodoItem> Items) Import(ImportedProject imported)
     {
         var projectId = imported.Project.Id;
         var folders = CreateFolders(imported.Document.Folders.OrEmpty(), projectId);
@@ -23,7 +23,7 @@ internal sealed class ProjectContentImporter(
             ImportCompletion.Reconcile(projectId, folders, items, clock, map.FirstDoneStatusId);
         }
 
-        return (folders.Count, items.Count);
+        return (folders.Count, items);
     }
 
     private List<Folder> CreateFolders(IReadOnlyList<FolderDocument> documents, Guid projectId)

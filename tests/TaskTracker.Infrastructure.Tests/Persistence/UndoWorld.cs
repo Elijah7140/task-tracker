@@ -11,6 +11,7 @@ using TaskTracker.Core.Projects;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Tickets;
 using TaskTracker.Core.Transfer;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
@@ -56,6 +57,8 @@ internal sealed class UndoWorld : IAsyncDisposable
 
     public CalendarService CalendarQueries { get; private set; } = null!;
 
+    public TicketService Tickets { get; private set; } = null!;
+
     public TrashService Trash { get; private set; } = null!;
 
     public ReminderService Reminders { get; private set; } = null!;
@@ -70,18 +73,18 @@ internal sealed class UndoWorld : IAsyncDisposable
     }
 
     /// <summary>Creates a world holding one project; creating a project is not an undoable step.</summary>
-    public static async Task<UndoWorld> CreateAsync()
+    public static async Task<UndoWorld> CreateAsync(IInterceptor? interceptor = null)
     {
         var world = new UndoWorld();
         await world.store.InitializeAsync();
-        world.CreateServices();
+        world.CreateServices(interceptor);
         world.Project = await world.Projects.CreateAsync("Project");
         return world;
     }
 
-    private void CreateServices()
+    private void CreateServices(IInterceptor? interceptor)
     {
-        var contexts = new StoreContextFactory(store);
+        var contexts = new StoreContextFactory(store, interceptor);
         IUnitOfWorkFactory units = new RecordingUnitOfWorkFactory(contexts, Recorder);
         Projects = new ProjectService(units, store.Clock, TimeZoneInfo.Utc);
         Folders = new FolderService(units, store.Clock);
@@ -92,6 +95,7 @@ internal sealed class UndoWorld : IAsyncDisposable
         Reminders = new ReminderService(units, store.Clock, TimeZoneInfo.Utc);
         Rescheduler = new CalendarRescheduleService(units, store.Clock);
         CalendarQueries = new CalendarService(units);
+        Tickets = new TicketService(units, store.Clock);
         Trash = new TrashService(units, store.Clock);
         Search = new ItemSearchService(units, new ItemQueryValidator(units));
         Transfer = new DataTransferService(units, store.Clock, new TaskTracker.Infrastructure.Tests.Transfer.RecordingDatabaseBackup());

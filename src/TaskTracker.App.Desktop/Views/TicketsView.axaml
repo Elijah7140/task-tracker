@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="using:TaskTracker.App.Desktop.Views"
+             x:Class="TaskTracker.App.Desktop.Views.TicketsView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <Style Selector="Grid.ticketColumns > TextBlock">
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.ticketRow, Border.ticketSection">
+      <Setter Property="BorderThickness" Value="0,1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.ticketRow">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.ticketRow:focus">
+      <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}" />
+    </Style>
+    <Style Selector="Border.ticketRow.dragging">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Border.ticketRow.dropBefore">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="Border.ticketRow.dropAfter, Border.ticketSection.dropAfter">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="0,0,0,2" />
+    </Style>
+  </UserControl.Styles>
+  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+      <Button Content="← Back" Command="{Binding BackCommand}" VerticalAlignment="Center"
+              AutomationProperties.AutomationId="TicketsBackButton" />
+      <TextBlock Grid.Column="1" Text="Tickets" AutomationProperties.AutomationId="TicketsHeading" FontSize="26" FontWeight="SemiBold" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="Project" VerticalAlignment="Center" />
+        <ComboBox x:Name="ProjectFilter" MinWidth="180" MaxWidth="290" ItemsSource="{Binding Projects}"
+                  SelectedItem="{Binding SelectedProject, Mode=TwoWay}"
+                  AutomationProperties.AutomationId="TicketsProjectFilter" AutomationProperties.Name="Project filter">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+      </StackPanel>
+    </Grid>
+    <TextBlock Grid.Row="1" Text="{Binding Error}" TextWrapping="Wrap" Foreground="{DynamicResource AppDangerBrush}"
+               IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+               AutomationProperties.AutomationId="TicketsError" />
+    <Grid Grid.Row="2" Classes="ticketColumns" ColumnDefinitions="110,3*,2*,140,108" ColumnSpacing="10" Margin="12,4,24,0" Opacity="0.75">
+      <TextBlock Text="Ticket number" AutomationProperties.AutomationId="TicketNumberHeading" />
+      <TextBlock Grid.Column="1" Text="Title" AutomationProperties.AutomationId="TicketTitleHeading" />
+      <TextBlock Grid.Column="2" Text="Project" AutomationProperties.AutomationId="TicketProjectHeading" />
+      <TextBlock Grid.Column="3" Text="Status" AutomationProperties.AutomationId="TicketStatusHeading" />
+      <TextBlock Grid.Column="4" Text="Due" AutomationProperties.AutomationId="TicketDueHeading" />
+    </Grid>
+    <ScrollViewer x:Name="TicketList" Grid.Row="3" AutomationProperties.AutomationId="TicketsScrollViewer">
+      <StackPanel Margin="0,0,12,0">
+        <TextBlock Text="No open tickets for this filter." IsVisible="{Binding IsEmpty}"
+                   Margin="12,12" Opacity="0.75" AutomationProperties.AutomationId="TicketsEmptyState" />
+        <ItemsControl ItemsSource="{Binding Sections}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="0,0,0,8">
+                <Border Classes="ticketSection" Background="{DynamicResource AppCardBackgroundBrush}" Padding="12,6"
+                        AutomationProperties.AutomationId="TicketSection" AutomationProperties.AccessibilityView="Content"
+                        AutomationProperties.Name="{Binding Label}">
+                  <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                </Border>
+                <ItemsControl ItemsSource="{Binding Rows}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Classes="ticketRow" Focusable="True" Padding="12,6"
+                              AutomationProperties.AutomationId="TicketRow" AutomationProperties.AccessibilityView="Content"
+                              AutomationProperties.Name="{Binding Title}">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Open" Command="{Binding OpenCommand}" AutomationProperties.AutomationId="TicketOpenMenuItem" />
+                            <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+                            <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
+                            <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
+                                      ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
+                                      AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
+                        <Grid Classes="ticketColumns" ColumnDefinitions="110,3*,2*,140,108" ColumnSpacing="10">
+                          <TextBlock Text="{Binding Number}" AutomationProperties.AutomationId="TicketNumber" />
+                          <TextBlock Grid.Column="1" Text="{Binding Title}" ToolTip.Tip="{Binding Title}" AutomationProperties.AutomationId="TicketTitle" />
+                          <TextBlock Grid.Column="2" Text="{Binding Project}" ToolTip.Tip="{Binding Project}" AutomationProperties.AutomationId="TicketProject" />
+                          <Border Grid.Column="3" Classes="statusChip" HorizontalAlignment="Left" ToolTip.Tip="{Binding Status}"
+                                  IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis"
+                                       AutomationProperties.AutomationId="ItemStatusChip" />
+                          </Border>
+                          <TextBlock Grid.Column="4" Text="{Binding Due, StringFormat='{}{0:d}'}" AutomationProperties.AutomationId="TicketDue" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

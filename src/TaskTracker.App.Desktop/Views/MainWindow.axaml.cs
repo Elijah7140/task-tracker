@@ -21,7 +21,8 @@ public sealed partial class MainWindow : Window
             .Register<SearchViewModel, SearchView>()
             .Register<CalendarViewModel, CalendarView>()
             .Register<TrashViewModel, TrashView>()
-            .Register<TodayViewModel, TodayView>());
+            .Register<TodayViewModel, TodayView>()
+            .Register<TicketsViewModel, TicketsView>());
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
         KeyUp += OnKeyUp;
@@ -149,6 +150,7 @@ public sealed partial class MainWindow : Window
             (SearchViewModel search, _) => search.SelectedResult?.PushBackCommand,
             (CalendarViewModel, CalendarEntryViewModel entry) => entry.PushBackCommand,
             (TodayViewModel, TodayRowViewModel row) => row.PushBackCommand,
+            (TicketsViewModel, TicketRowViewModel row) => row.PushBackCommand,
             _ => null
         };
     }
@@ -214,6 +216,16 @@ public sealed partial class MainWindow : Window
         {
             args.Handled = true;
             await shell.OpenTrashAsync();
+        }
+        else if (IsControlShift(args, Key.K))
+        {
+            args.Handled = true;
+            await shell.OpenTicketsAsync();
+        }
+        else if (args.Key == Key.Escape && args.KeyModifiers == KeyModifiers.None && shell.CurrentPage is TicketsViewModel)
+        {
+            args.Handled = true;
+            await shell.ReturnFromTicketsAsync();
         }
         else if (IsControlShift(args, Key.D))
         {

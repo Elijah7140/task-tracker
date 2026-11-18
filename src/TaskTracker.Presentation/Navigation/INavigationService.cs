@@ -10,6 +10,15 @@ public interface INavigationService
 
     Task OpenProjectAsync(Guid projectId);
 
+    /// <summary>Opens Tickets using the shell's transient return page.</summary>
+    Task OpenTicketsAsync() => Task.CompletedTask;
+
+    /// <summary>Returns to the page behind Tickets.</summary>
+    Task ReturnFromTicketsAsync() => Task.CompletedTask;
+
+    /// <summary>Opens a ticket in its current workspace.</summary>
+    Task<SearchOpenOutcome> OpenTicketItemAsync(Guid itemId) => Task.FromResult(SearchOpenOutcome.Cancelled);
+
     /// <summary>Opens Today using the shell's transient return page.</summary>
     Task OpenTodayAsync() => Task.CompletedTask;
 

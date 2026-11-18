@@ -26,6 +26,12 @@ public sealed class JsonImportTests
         Assert.Equal(before.ItemTypes, after.ItemTypes);
         Assert.Equal(before.Fields + 1, after.Fields);
         Assert.Equal(originalItems.Select(item => item.UpdatedAtUtc), (await world.ReadItemsAsync(ids.BillingId)).Select(item => item.UpdatedAtUtc));
+        var importedProject = (await world.ReadProjectsAsync()).Single(project => project.Name == "Billing (imported)");
+        var importedItems = await world.ReadItemsAsync(importedProject.Id);
+        var importedTicket = Assert.Single(importedItems, item => item.TicketNumber is not null && item.CompletedAtUtc is null);
+        var originalTicket = originalItems.Single(item => item.Id == ids.FixItemId);
+        Assert.NotNull(importedTicket.TicketRank);
+        Assert.Equal(originalTicket.TicketRank + 1, importedTicket.TicketRank);
         Assert.Equal(new TransferSummary(2, 3, 5, 2), result.Summary);
     }
 

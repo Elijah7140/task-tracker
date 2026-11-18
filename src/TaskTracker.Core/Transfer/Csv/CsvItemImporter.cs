@@ -1,6 +1,7 @@
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Tickets;
 
 namespace TaskTracker.Core.Transfer.Csv;
 
@@ -13,11 +14,13 @@ internal static class CsvItemImporter
         var existing = await work.Items.LoadAreaAsync(projectId, folderId, cancellationToken);
         var topLevelOrders = existing.Where(item => item.ParentItemId is null).Select(item => item.SortOrder);
         var nextOrder = topLevelOrders.DefaultIfEmpty(-1).Max() + 1;
+        var added = new List<TodoItem>(rows.Count);
 
         foreach (var row in rows)
         {
             var item = CreateItem(row, projectId, folderId, nextOrder++, clock);
             work.Items.Add(item);
+            added.Add(item);
 
             foreach (var value in row.FieldValues)
             {
@@ -26,6 +29,8 @@ internal static class CsvItemImporter
 
             AddLinks(work, item, row, clock);
         }
+
+        await TicketRanks.AppendNewAsync(work, added, cancellationToken);
     }
 
     private static void AddLinks(IUnitOfWork work, TodoItem item, CsvImportRow row, TimeProvider clock)

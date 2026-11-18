@@ -1,5 +1,6 @@
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Tickets;
 
 namespace TaskTracker.Core.Items.Recurrence;
 
@@ -57,6 +58,8 @@ internal sealed class OccurrenceCopies(ItemTree tree, TimeProvider clock)
             await CopyFieldsAsync(work.Fields, source.Id, copy.Id, cancellationToken);
             await CopyLinksAsync(work.Items, source.Id, copy.Id, cancellationToken);
         }
+
+        await TicketRanks.AppendNewAsync(work, copies.Select(pair => pair.Copy), cancellationToken);
     }
 
     private static async Task CopyFieldsAsync(IFieldRepository fields, Guid sourceId, Guid copyId, CancellationToken cancellationToken)

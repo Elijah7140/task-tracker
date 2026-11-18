@@ -1,4 +1,6 @@
+using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
+using TaskTracker.Core.Tickets;
 
 namespace TaskTracker.Core.Transfer.Json;
 
@@ -30,17 +32,21 @@ internal sealed class JsonImporter(TimeProvider clock)
 
         var content = new ProjectContentImporter(work, clock, index, map);
         var folderCount = 0;
-        var itemCount = 0;
+        var added = new List<TodoItem>();
 
         foreach (var project in projects)
         {
             var (folders, items) = content.Import(project);
             folderCount += folders;
-            itemCount += items;
+            added.AddRange(items);
         }
 
         var searchCount = await new SavedSearchImporter(work, clock, map, issues).ImportAsync(document, cancellationToken);
+        if (issues.Count == 0)
+        {
+            await TicketRanks.AppendNewAsync(work, added, cancellationToken);
+        }
 
-        return new TransferSummary(projects.Count, folderCount, itemCount, searchCount);
+        return new TransferSummary(projects.Count, folderCount, added.Count, searchCount);
     }
 }

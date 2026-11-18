@@ -5,6 +5,7 @@ using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Tickets;
 using TaskTracker.Core.Undo;
 using TaskTracker.Core.Urgency;
 
@@ -46,7 +47,9 @@ public sealed partial class ItemService(
             ?? throw new DomainRuleException("Item is missing or deleted.");
         ValidateEdit(item, edit);
         var label = EditLabel(item, edit);
+        var wasNumbered = item.TicketNumber is not null;
         ApplyEdit(item, edit);
+        await AppendNewTicketAsync(unitOfWork, item, wasNumbered, cancellationToken);
         await unitOfWork.SaveChangesAsync(label, cancellationToken);
     }
 
@@ -115,14 +118,22 @@ public sealed partial class ItemService(
             await ItemLinkEditor.ApplyAsync(work.Items, id, links, clock, cancellationToken);
         }
 
+        var wasNumbered = item.TicketNumber is not null;
         ApplyEdit(item, edit);
         var result = await ApplyStatusChangeAsync(work, item, statusChange, confirmed, cancellationToken);
         if (result is CompletionResult.Applied)
         {
+            await AppendNewTicketAsync(work, item, wasNumbered, cancellationToken);
             await work.SaveChangesAsync(label, cancellationToken);
         }
 
         return result;
+    }
+
+    private static Task AppendNewTicketAsync(IUnitOfWork work, TodoItem item, bool wasNumbered,
+        CancellationToken cancellationToken)
+    {
+        return wasNumbered ? Task.CompletedTask : TicketRanks.AppendNewAsync(work, [item], cancellationToken);
     }
 
     private static async Task ApplyValueChangesAsync(IUnitOfWork work, TodoItem item,

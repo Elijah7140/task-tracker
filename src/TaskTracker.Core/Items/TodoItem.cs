@@ -31,6 +31,9 @@ public sealed class TodoItem
 
     public string? TicketNumber { get; private set; }
 
+    /// <summary>The independent position within the ticket's priority section.</summary>
+    public double? TicketRank { get; private set; }
+
     public Guid? PriorityLevelId { get; private set; }
 
     public Guid? ItemTypeId { get; private set; }
@@ -176,14 +179,29 @@ public sealed class TodoItem
         }
 
         TicketNumber = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        if (TicketNumber is null)
+        {
+            TicketRank = null;
+        }
+
         Touch(clock);
     }
 
     public void SetLookups(Guid? typeId, Guid? priorityId, TimeProvider clock)
     {
         ItemTypeId = typeId;
+        if (PriorityLevelId != priorityId)
+        {
+            TicketRank = null;
+        }
+
         PriorityLevelId = priorityId;
         Touch(clock);
+    }
+
+    internal void SetTicketRank(double rank)
+    {
+        TicketRank = rank;
     }
 
     /// <summary>Changes the reminder choice without altering its delivery history.</summary>
