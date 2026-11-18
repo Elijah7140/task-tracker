@@ -9,6 +9,18 @@ public interface INavigationService
 
     Task OpenProjectAsync(Guid projectId);
 
+    /// <summary>Opens Today using the shell's transient return page.</summary>
+    Task OpenTodayAsync() => Task.CompletedTask;
+
+    /// <summary>Returns to the page behind Today.</summary>
+    Task ReturnFromTodayAsync() => Task.CompletedTask;
+
+    /// <summary>Opens an item from Today in its current workspace.</summary>
+    Task<SearchOpenOutcome> OpenTodayItemAsync(Guid itemId) => Task.FromResult(SearchOpenOutcome.Cancelled);
+
+    /// <summary>Pushes back an item displayed by the current transient page.</summary>
+    Task PushBackAsync(Guid itemId) => Task.CompletedTask;
+
     /// <summary>Opens the search page, remembering the current page for <see cref="ReturnFromSearchAsync"/>.</summary>
     Task OpenSearchAsync();
 

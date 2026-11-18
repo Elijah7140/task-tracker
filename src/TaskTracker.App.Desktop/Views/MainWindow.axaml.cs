@@ -1,3 +1,5 @@
+using System.Windows.Input;
+
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -18,9 +20,33 @@ public sealed partial class MainWindow : Window
             .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>()
             .Register<SearchViewModel, SearchView>()
             .Register<CalendarViewModel, CalendarView>()
-            .Register<TrashViewModel, TrashView>());
+            .Register<TrashViewModel, TrashView>()
+            .Register<TodayViewModel, TodayView>());
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
+        KeyUp += OnKeyUp;
+        Activated += OnActivated;
+    }
+
+    private void OnKeyUp(object? sender, KeyEventArgs args)
+    {
+        if (args.Key != Key.F10 || args.KeyModifiers != KeyModifiers.Shift ||
+            FocusManager?.GetFocusedElement() is not Control focused)
+        {
+            return;
+        }
+
+        var request = new ContextRequestedEventArgs { RoutedEvent = ContextRequestedEvent };
+        focused.RaiseEvent(request);
+        args.Handled = request.Handled;
+    }
+
+    private async void OnActivated(object? sender, EventArgs args)
+    {
+        if (DataContext is MainWindowViewModel { CurrentPage: TodayViewModel today })
+        {
+            await today.RefreshIfDayChangedAsync();
+        }
     }
 
     /// <summary>
@@ -29,7 +55,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void OnPreviewKeyDown(object? sender, KeyEventArgs args)
     {
-        if (TryHandleReminderShortcut(args) || await TryHandleUndoShortcutAsync(args))
+        if (TryHandleReminderShortcut(args) || TryHandlePushBackShortcut(args) || await TryHandleUndoShortcutAsync(args))
         {
             return;
         }
@@ -96,6 +122,37 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
+    private bool TryHandlePushBackShortcut(KeyEventArgs args)
+    {
+        var focus = FocusManager?.GetFocusedElement();
+        if (!IsControlShift(args, Key.P) || focus is TextBox || DataContext is not MainWindowViewModel shell)
+        {
+            return false;
+        }
+
+        var command = PushBackCommand(shell.CurrentPage, focus as Control);
+        if (command?.CanExecute(null) != true)
+        {
+            return false;
+        }
+
+        args.Handled = true;
+        command.Execute(null);
+        return true;
+    }
+
+    private static ICommand? PushBackCommand(ViewModelBase? page, Control? focus)
+    {
+        return (page, focus?.DataContext) switch
+        {
+            (ProjectWorkspaceViewModel workspace, _) => workspace.SelectedPushBackCommand,
+            (SearchViewModel search, _) => search.SelectedResult?.PushBackCommand,
+            (CalendarViewModel, CalendarEntryViewModel entry) => entry.PushBackCommand,
+            (TodayViewModel, TodayRowViewModel row) => row.PushBackCommand,
+            _ => null
+        };
+    }
+
     private async Task RunUndoStepAsync(UndoCoordinator undo, bool isUndo)
     {
         try
@@ -158,6 +215,16 @@ public sealed partial class MainWindow : Window
             args.Handled = true;
             await shell.OpenTrashAsync();
         }
+        else if (IsControlShift(args, Key.D))
+        {
+            args.Handled = true;
+            await shell.OpenTodayAsync();
+        }
+        else if (args.Key == Key.Escape && args.KeyModifiers == KeyModifiers.None && shell.CurrentPage is TodayViewModel)
+        {
+            args.Handled = true;
+            await shell.ReturnFromTodayAsync();
+        }
         else if (shell.CurrentPage is CalendarViewModel calendar)
         {
             await HandleCalendarKeyAsync(shell, calendar, args);
@@ -202,6 +269,11 @@ public sealed partial class MainWindow : Window
     {
         var isPageKey = args.Key == Key.PageUp || args.Key == Key.PageDown;
         return isPageKey && args.KeyModifiers == KeyModifiers.None;
+    }
+
+    private static bool IsControlShift(KeyEventArgs args, Key key)
+    {
+        return args.Key == key && args.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift);
     }
 
     private static bool IsReminderShortcut(KeyEventArgs args)

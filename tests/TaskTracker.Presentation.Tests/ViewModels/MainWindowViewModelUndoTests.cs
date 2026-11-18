@@ -141,6 +141,53 @@ public sealed class MainWindowViewModelUndoTests
         Assert.True(scenario.Shell.Undo!.UndoCommand.CanExecute(null));
     }
 
+    [Theory]
+    [InlineData("Today", false)]
+    [InlineData("Today", true)]
+    [InlineData("Search", false)]
+    [InlineData("Search", true)]
+    [InlineData("Calendar", false)]
+    [InlineData("Calendar", true)]
+    [InlineData("Trash", false)]
+    [InlineData("Trash", true)]
+    public async Task Transient_pages_refuse_undo_and_redo_while_the_return_workspace_has_a_draft(string page, bool redo)
+    {
+        await using var scenario = await Scenario.CreateAsync();
+        var draftItem = await scenario.Store.Items.CreateAsync(scenario.Project.Id, null, null, "Draft item");
+        var undo = scenario.Shell.Undo!;
+        if (redo)
+        {
+            await scenario.Store.Items.EditAsync(draftItem.Id, Plain("Edited title"));
+            await undo.UndoAsync();
+        }
+
+        await scenario.Workspace.LoadAsync(null, draftItem.Id);
+        scenario.Workspace.Editor!.Title = "Draft title";
+        await OpenTransientPageAsync(scenario.Shell, page);
+        var transient = scenario.Shell.CurrentPage;
+
+        await (redo ? undo.RedoAsync() : undo.UndoAsync());
+
+        Assert.Equal("Save or discard your item edits before undoing or redoing.", Assert.Single(scenario.Dialogs.Messages));
+        Assert.Same(transient, scenario.Shell.CurrentPage);
+        Assert.Equal("Draft title", scenario.Workspace.Editor.Title);
+        Assert.Equal(0, scenario.Dialogs.DraftPromptCount);
+        var area = await scenario.Store.Items.LoadAreaAsync(scenario.Project.Id, null);
+        Assert.Equal("Draft item", Assert.Single(area.Items, row => row.Item.Id == draftItem.Id).Item.Title);
+    }
+
+    private static Task OpenTransientPageAsync(MainWindowViewModel shell, string page)
+    {
+        return page switch
+        {
+            "Today" => shell.OpenTodayAsync(),
+            "Search" => shell.OpenSearchAsync(),
+            "Calendar" => shell.OpenCalendarAsync(),
+            "Trash" => shell.OpenTrashAsync(),
+            _ => throw new ArgumentOutOfRangeException(nameof(page))
+        };
+    }
+
     [Fact]
     public async Task Undo_on_the_calendar_reloads_it_and_the_workspace_behind_it()
     {

@@ -50,7 +50,10 @@ public sealed class SqlItemSearch(TaskTrackerDbContext database) : IItemSearch
         TimeOnly? dueTime = reader.IsDBNull(10) ? null : TimeOnly.Parse(reader.GetString(10), CultureInfo.InvariantCulture);
         var isCompleted = reader.GetInt64(11) != 0;
         return new ItemSearchResult(itemId, projectId, projectName, folderId, parentItemId,
-            title, ticketNumber, itemTypeId, priorityId, dueDate, dueTime, isCompleted);
+            title, ticketNumber, itemTypeId, priorityId, dueDate, dueTime, isCompleted)
+        {
+            HasSchedule = reader.GetInt64(12) != 0
+        };
     }
 
     private static Guid? OptionalGuid(DbDataReader reader, int index)

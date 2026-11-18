@@ -112,7 +112,15 @@
                               Command="{Binding $parent[UserControl].DataContext.OpenEntryCommand}"
                               CommandParameter="{Binding}"
                               AutomationProperties.AutomationId="CalendarEntryButton"
-                              AutomationProperties.Name="{Binding Label}" />
+                              AutomationProperties.Name="{Binding Label}">
+                        <Button.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
+                                      ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
+                                      AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+                          </ContextMenu>
+                        </Button.ContextMenu>
+                      </Button>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -148,7 +156,15 @@
                               Command="{Binding $parent[UserControl].DataContext.OpenEntryCommand}"
                               CommandParameter="{Binding}"
                               AutomationProperties.AutomationId="CalendarEntryButton"
-                              AutomationProperties.Name="{Binding Label}" />
+                              AutomationProperties.Name="{Binding Label}">
+                        <Button.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
+                                      ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
+                                      AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+                          </ContextMenu>
+                        </Button.ContextMenu>
+                      </Button>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -193,7 +209,15 @@
                                 Command="{Binding $parent[UserControl].DataContext.OpenEntryCommand}"
                                 CommandParameter="{Binding}"
                                 AutomationProperties.AutomationId="CalendarEntryButton"
-                                AutomationProperties.Name="{Binding Label}" />
+                                AutomationProperties.Name="{Binding Label}">
+                        <Button.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
+                                      ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
+                                      AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+                          </ContextMenu>
+                        </Button.ContextMenu>
+                      </Button>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>

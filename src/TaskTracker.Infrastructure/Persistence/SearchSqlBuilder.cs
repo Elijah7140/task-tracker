@@ -32,7 +32,7 @@ internal sealed class SearchSqlBuilder(DbCommand command, ItemQuery query,
     {
         var sql = new StringBuilder("SELECT t.Id, t.ProjectId, p.Name, t.FolderId, t.ParentItemId, "
             + "t.Title, t.TicketNumber, t.ItemTypeId, t.PriorityLevelId, t.DueDate, t.DueTime, "
-            + "CASE WHEN t.CompletedAtUtc IS NULL THEN 0 ELSE 1 END "
+            + "CASE WHEN t.CompletedAtUtc IS NULL THEN 0 ELSE 1 END, t.ScheduledStart IS NOT NULL "
             + "FROM TodoItem t JOIN Project p ON p.Id = t.ProjectId ");
 
         if (hasText)

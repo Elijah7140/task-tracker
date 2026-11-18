@@ -17,6 +17,9 @@ public sealed class SmokeSession : IDisposable
     private readonly Application application;
     private readonly UIA3Automation automation;
     private readonly string databasePath;
+
+    /// <summary>The temporary database the app under test uses, for checking what was saved.</summary>
+    public string DatabasePath => databasePath;
     private readonly Process process;
 
     /// <summary>Starts the app with a fresh database and waits for its main window.</summary>

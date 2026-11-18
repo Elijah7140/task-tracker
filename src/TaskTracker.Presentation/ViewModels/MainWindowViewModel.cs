@@ -8,12 +8,14 @@ using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
+using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Today;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
 using TaskTracker.Presentation.Installation;
@@ -40,6 +42,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private readonly CalendarService? calendar;
     private readonly ICalendarRescheduler? rescheduler;
     private readonly ITrashService? trash;
+    private readonly TodayService? today;
+    private readonly DataSaved? saves;
     private readonly SavedSearchService? savedSearches;
     private readonly ItemQueryParser? queryParser;
     private readonly TransferServices? transfer;
@@ -47,13 +51,18 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private readonly InstallationServices? installation;
     private readonly AppUpdateViewModel? appUpdates;
     private ViewModelBase? transientReturnPage;
+    private long returnPageRevision;
+    private Task pendingTransientWrites = Task.CompletedTask;
     private bool returnPageIsStale;
     private bool isOpeningSearch;
     private bool isOpeningCalendar;
     private bool isOpeningTrash;
+    private bool isOpeningToday;
+    private bool isPushingBack;
     private ViewModelBase? currentPage;
     private RemindersViewModel? reminders;
     private int pageVersion;
+    private int? returningPageVersion;
 
     public MainWindowViewModel(ProjectService projectService, FolderService folderService, IDialogService dialogs,
         ItemService? itemService = null, TimeProvider? clock = null, TimeZoneInfo? timeZone = null,
@@ -62,7 +71,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null,
         ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null,
         UndoHistory? undoHistory = null, TransferServices? transfer = null, ILinkLauncher? linkLauncher = null,
-        InstallationServices? installation = null)
+        InstallationServices? installation = null, TodayService? today = null, DataSaved? saves = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -79,6 +88,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         this.calendar = calendar;
         this.rescheduler = rescheduler;
         this.trash = trash;
+        this.today = today;
+        this.saves = saves;
         this.savedSearches = savedSearches;
         this.queryParser = queryParser;
         this.transfer = transfer;
@@ -94,6 +105,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
         TrashCommand = new AsyncRelayCommand(OpenTrashAsync);
+        TodayCommand = new AsyncRelayCommand(OpenTodayAsync);
     }
 
     public RemindersViewModel? Reminders
@@ -154,13 +166,15 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
 
     public ICommand TrashCommand { get; }
 
+    public ICommand TodayCommand { get; }
+
     /// <summary>Undo and redo for the whole window; null when the shell was built without a history.</summary>
     public UndoCoordinator? Undo { get; }
 
-    bool IUndoHost.HasUnsavedEdits => CurrentPage is ProjectWorkspaceViewModel { HasUnsavedChanges: true };
+    bool IUndoHost.HasUnsavedEdits => PageBehind(CurrentPage) is ProjectWorkspaceViewModel { HasUnsavedChanges: true };
 
     /// <summary>
-    /// Brings the screen on show up to date. A search, calendar or trash page also marks the page
+    /// Brings the screen on show up to date. A transient page also marks the page
     /// behind it out of date, so returning to it reloads it through the usual unsaved-changes guard.
     /// </summary>
     async Task IUndoHost.ReloadAsync()
@@ -177,6 +191,9 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
                 break;
             case CalendarViewModel calendarPage:
                 await calendarPage.LoadAsync();
+                break;
+            case TodayViewModel todayPage:
+                await todayPage.LoadAsync();
                 break;
             case TrashViewModel trashPage:
                 await trashPage.LoadAsync();
@@ -346,6 +363,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
             var projectId = (origin as ProjectWorkspaceViewModel)?.ProjectId;
             var page = new CalendarViewModel(calendar, rescheduler, this, clock, timeZone, projectId,
                 dispatcher: dispatcher);
+            page.WriteStarted += TrackTransientWrite;
             await page.LoadAsync();
 
             if (version != pageVersion)
@@ -368,6 +386,107 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         if (CurrentPage is CalendarViewModel)
         {
             await ReturnFromTransientPageAsync();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task OpenTodayAsync()
+    {
+        if (today is null || saves is null || itemService is null || clock is null || isOpeningToday
+            || CurrentPage is TodayViewModel)
+        {
+            return;
+        }
+
+        isOpeningToday = true;
+        try
+        {
+            await ShowTodayPageAsync(today, itemService, saves, clock);
+        }
+        finally
+        {
+            isOpeningToday = false;
+        }
+    }
+
+    private async Task ShowTodayPageAsync(TodayService service, ItemService items, DataSaved dataSaved, TimeProvider time)
+    {
+        var version = pageVersion;
+        var origin = PageBehind(CurrentPage);
+        var ui = dispatcher ?? new SynchronizationContextDispatcher(SynchronizationContext.Current);
+        var page = new TodayViewModel(service, items, dataSaved, time, ui, this);
+        page.WriteStarted += TrackTransientWrite;
+        await page.LoadAsync();
+
+        if (version != pageVersion)
+        {
+            page.Dispose();
+            return;
+        }
+
+        ShowTransientPage(origin, page);
+    }
+
+    /// <inheritdoc />
+    public Task ReturnFromTodayAsync()
+    {
+        return CurrentPage is TodayViewModel ? ReturnFromTransientPageAsync() : Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<SearchOpenOutcome> OpenTodayItemAsync(Guid itemId)
+    {
+        return OpenItemFromTransientPageAsync(itemId, transientReturnPage);
+    }
+
+    /// <inheritdoc />
+    public Task PushBackAsync(Guid itemId)
+    {
+        if (itemService is null || !IsTransientPage(CurrentPage) || isPushingBack)
+        {
+            return Task.CompletedTask;
+        }
+
+        var write = SavePushBackAsync(itemService, itemId);
+        TrackTransientWrite(write);
+        return write;
+    }
+
+    private async Task SavePushBackAsync(ItemService items, Guid itemId)
+    {
+        var page = CurrentPage;
+        var origin = transientReturnPage;
+        isPushingBack = true;
+        try
+        {
+            await items.PushBackOneDayAsync(itemId);
+            returnPageIsStale |= origin is not null && ReferenceEquals(origin, transientReturnPage);
+            if (ReferenceEquals(page, CurrentPage))
+            {
+                await ((IUndoHost)this).ReloadAsync();
+            }
+        }
+        catch (DomainRuleException exception)
+        {
+            await dialogs.ShowMessageAsync("Push back one day", exception.Message);
+        }
+        catch (Exception exception)
+        {
+            await ReportUnexpectedErrorAsync(exception);
+        }
+        finally
+        {
+            isPushingBack = false;
+        }
+    }
+
+    private void TrackTransientWrite(Task write)
+    {
+        if (!write.IsCompleted)
+        {
+            pendingTransientWrites = pendingTransientWrites.IsCompleted
+                ? write
+                : Task.WhenAll(pendingTransientWrites, write);
         }
     }
 
@@ -541,23 +660,36 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     }
 
     /// <summary>
-    /// Brings the page behind a transient page up to date after a restore: Home recounts its
-    /// projects and a workspace reloads, which asks its unsaved-changes guard once. Returns false
-    /// when the transient page should stay on screen: the user cancelled that question, or
-    /// navigation moved elsewhere meanwhile.
+    /// Reloads the return page through its normal draft guard and checks for commits during the reload.
     /// </summary>
-    private async Task<bool> RefreshPageBehindAsync(ViewModelBase leavingPage)
+    private async Task<bool> PrepareReturnPageAsync(int version)
     {
-        var version = pageVersion;
-        var reloaded = await ReloadPageBehindAsync();
-
-        if (!reloaded)
+        while (version == pageVersion)
         {
-            return false;
+            if (!pendingTransientWrites.IsCompleted)
+            {
+                await pendingTransientWrites;
+                continue;
+            }
+
+            var revision = saves?.Revision ?? 0;
+            if (!ReturnPageIsOutOfDate())
+            {
+                return true;
+            }
+
+            if (!await ReloadPageBehindAsync())
+            {
+                return false;
+            }
+
+            if (pendingTransientWrites.IsCompleted && (saves?.Revision ?? 0) == revision)
+            {
+                return version == pageVersion;
+            }
         }
 
-        var navigatedAway = version != pageVersion || !ReferenceEquals(CurrentPage, leavingPage);
-        return !navigatedAway;
+        return false;
     }
 
     private async Task<bool> ReloadPageBehindAsync()
@@ -577,16 +709,16 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     }
 
     /// <summary>
-    /// True when something was restored while the page behind the transient page was out of sight,
-    /// either from the trash on screen or from a trash page that was replaced by search or the calendar.
+    /// A commit while the return page was hidden invalidates its snapshot.
     /// </summary>
     private bool ReturnPageIsOutOfDate()
     {
-        return returnPageIsStale || CurrentPage is TrashViewModel { MayHaveRestored: true };
+        return returnPageIsStale || saves?.Revision > returnPageRevision
+            || CurrentPage is TrashViewModel { MayHaveRestored: true };
     }
 
     /// <summary>
-    /// The page a search, calendar or trash page was opened from, or the page itself for any
+    /// The page a transient page was opened from, or the page itself for any
     /// other page. These pages never stack: opening one from another keeps the original page as
     /// the single return target, so every unsaved-changes guard sits directly behind the page on screen.
     /// </summary>
@@ -597,7 +729,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
 
     private static bool IsTransientPage(ViewModelBase? page)
     {
-        return page is SearchViewModel or CalendarViewModel or TrashViewModel;
+        return page is SearchViewModel or CalendarViewModel or TrashViewModel or TodayViewModel;
     }
 
     private void ShowTransientPage(ViewModelBase? origin, ViewModelBase page)
@@ -610,13 +742,14 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         else
         {
             returnPageIsStale = false;
+            returnPageRevision = saves?.Revision ?? 0;
         }
 
         transientReturnPage = origin;
         CurrentPage = page;
     }
 
-    /// <summary>Leaves the search, calendar or trash page for the page it was opened from, or Home when there is none.</summary>
+    /// <summary>Leaves the transient page for the page it was opened from, or Home when there is none.</summary>
     private async Task ReturnFromTransientPageAsync()
     {
         if (transientReturnPage is null)
@@ -625,16 +758,31 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
             return;
         }
 
-        if (ReturnPageIsOutOfDate())
+        var version = pageVersion;
+        if (returningPageVersion == version)
         {
-            var refreshed = await RefreshPageBehindAsync(CurrentPage!);
-
-            if (!refreshed)
-            {
-                return;
-            }
+            return;
         }
 
+        returningPageVersion = version;
+        try
+        {
+            if (await PrepareReturnPageAsync(version))
+            {
+                await ShowReturnPageAsync();
+            }
+        }
+        finally
+        {
+            if (returningPageVersion == version)
+            {
+                returningPageVersion = null;
+            }
+        }
+    }
+
+    private async Task ShowReturnPageAsync()
+    {
         (CurrentPage as IDisposable)?.Dispose();
         CurrentPage = transientReturnPage;
         transientReturnPage = null;

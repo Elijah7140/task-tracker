@@ -104,6 +104,9 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
     /// </summary>
     public event EventHandler<CalendarFocusRequest>? FocusEntryRequested;
 
+    /// <summary>Lets Back wait for the active move and its queued steps.</summary>
+    internal event Action<Task>? WriteStarted;
+
     public bool IsWeek => isWeek;
 
     public bool IsMonth => !isWeek;
@@ -346,20 +349,27 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
         load.Cancellation.Dispose();
     }
 
-    private async Task RunMoveAsync(CalendarMoveRequest request)
+    private Task RunMoveAsync(CalendarMoveRequest request)
     {
         if (disposed)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         pendingMove = pendingMove is null ? request : pendingMove.Merge(request);
 
         if (isMovingEntry)
         {
-            return;
+            return Task.CompletedTask;
         }
 
+        var write = SavePendingMovesAsync();
+        WriteStarted?.Invoke(write);
+        return write;
+    }
+
+    private async Task SavePendingMovesAsync()
+    {
         isMovingEntry = true;
 
         try
@@ -499,6 +509,12 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
 
         foreach (var day in days)
         {
+            foreach (var entry in day.Entries)
+            {
+                entry.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(entry.Entry.ItemId),
+                    () => entry.PushBackReason is null);
+            }
+
             Days.Add(day);
         }
 

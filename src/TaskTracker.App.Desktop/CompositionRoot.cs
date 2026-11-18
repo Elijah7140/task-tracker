@@ -52,7 +52,8 @@ public static class CompositionRoot
             .Register<ProjectWorkspaceViewModel, ProjectWorkspaceView>()
             .Register<SearchViewModel, SearchView>()
             .Register<CalendarViewModel, CalendarView>()
-            .Register<TrashViewModel, TrashView>());
+            .Register<TrashViewModel, TrashView>()
+            .Register<TodayViewModel, TodayView>());
 
         services.AddSingleton<DesktopReminderNotifier>();
         services.AddSingleton<IReminderNotifier>(provider =>

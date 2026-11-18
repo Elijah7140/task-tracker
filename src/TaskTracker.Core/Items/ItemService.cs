@@ -318,6 +318,23 @@ public sealed class ItemService(
         return result;
     }
 
+    /// <summary>Moves only this item's floating dates one calendar day later.</summary>
+    public async Task PushBackOneDayAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var lease = await gate.EnterAsync(cancellationToken);
+        await using var work = unitOfWorkFactory.Begin();
+        var item = await work.Items.FindAsync(id, cancellationToken)
+            ?? throw new DomainRuleException("Item is missing or deleted.");
+        var hasDates = item.DueDate is not null || item.ScheduledStart is not null;
+        if (PushBackOneDay.UnavailableReason(item.CompletedAtUtc is not null, hasDates) is { } reason)
+        {
+            throw new DomainRuleException(reason);
+        }
+
+        OccurrenceDates.Shift(item, 1, clock, "Pushing back would move a date outside the supported calendar.");
+        await work.SaveChangesAsync(UndoLabels.PushBack(item.Title), cancellationToken);
+    }
+
     /// <summary>Advances an open occurrence in place. False means the rule has no next date.</summary>
     public async Task<bool> SkipRepeatAsync(Guid id, CancellationToken cancellationToken = default)
     {

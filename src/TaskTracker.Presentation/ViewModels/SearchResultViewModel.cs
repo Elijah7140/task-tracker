@@ -1,3 +1,6 @@
+using System.Windows.Input;
+
+using TaskTracker.Core.Items;
 using TaskTracker.Core.Search;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -8,6 +11,11 @@ public sealed class SearchResultViewModel(ItemSearchResult item, string location
     public ItemSearchResult Item { get; } = item;
 
     public string Title => Item.Title;
+
+    public string? PushBackReason => PushBackOneDay.UnavailableReason(Item.IsCompleted,
+        Item.DueDate is not null || Item.HasSchedule);
+
+    public ICommand? PushBackCommand { get; internal set; }
 
     public string Ticket => Item.TicketNumber ?? string.Empty;
 

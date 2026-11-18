@@ -44,6 +44,24 @@ public sealed class ReminderServiceTests
     }
 
     [Fact]
+    public async Task Pushing_back_rearms_a_delivered_reminder_for_the_new_day()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var now = world.Clock.GetUtcNow().UtcDateTime;
+        var item = await SaveAsync(world, "Prepare report", now);
+        var delivered = Assert.Single(await world.Reminders.DueAsync());
+        await world.Reminders.RecordDeliveryAsync([delivered]);
+
+        await world.Items.PushBackOneDayAsync(item.Id);
+
+        Assert.Empty(await world.Reminders.DueAsync());
+        world.Clock.Advance(TimeSpan.FromDays(1));
+        var rearmed = Assert.Single(await world.Reminders.DueAsync());
+        Assert.Equal(item.Id, rearmed.ItemId);
+        Assert.Equal(now.AddDays(1), rearmed.InstantUtc);
+    }
+
+    [Fact]
     public async Task Snooze_is_undoable_even_after_delivery_changes_the_same_row()
     {
         await using var world = await UndoWorld.CreateAsync();

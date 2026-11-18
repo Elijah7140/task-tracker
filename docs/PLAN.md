@@ -1259,6 +1259,77 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - The tool manifest moved from the repository root to `.config/dotnet-tools.json`. The `dotnet-ef`
     entry is unchanged.
 
+### 7.14 Push back one day, and the Today view
+
+These are owner requests from 2026-11-17 (§10). Where the request was silent, the decisions below
+were made autonomously; they are listed for review.
+
+**Push back one day**
+- **Where it appears.** "Push back one day" is in the right-click menu of item rows in the workspace
+  tree, search results, calendar entries and the Today view. The keyboard shortcut is
+  **Ctrl+Shift+P** on the selected item. It is not handled while a text box has focus.
+- **What it moves.**
+  - The item's due date moves one day later, and the due time stays the same.
+  - If the item has a scheduled block, the block's start and end both move one day later.
+  - The move counts from the item's own current date, not from today, so an item three days
+    overdue becomes two days overdue.
+  - Only that item moves. Its sub-items keep their dates.
+  - On a repeating item (§7.11), only this occurrence moves. The rule is unchanged.
+  - A reminder (§7.12) re-arms by itself.
+- **When it is unavailable.** It is disabled, with an explanatory tooltip, for completed items and
+  for items with no due date and no scheduled block.
+- **Undo.** Each push back is one labelled undo step, "Push back ⟨title⟩" (§7.8).
+
+**Today view**
+- **Opening it.** A **Today** button in the top navigation and on Home, and **Ctrl+Shift+D**,
+  open it. It uses the shared transient page and the stale-page rules (§7.2 shell navigation).
+- **What it lists.** Items completed today that are still completed: `CompletedAtUtc` falls within
+  today's local day, which is computed with the explicitly passed time zone (§5.4). Reopening an
+  item removes it. Deleted items, and items in deleted projects or folders, are excluded.
+- **Layout.**
+  - Items are grouped by project, in project order, with the area path, for example
+    "Billing DB › dbo", shown as a subtitle.
+  - Within a project the tree shape is kept.
+  - A completed parent with completed-today children is collapsed by default and shows a count.
+  - An open ancestor of a completed-today item is shown as context. It is expanded, and visibly
+    marked "Not completed" (muted text and an open checkbox). This applies at any depth.
+  - Children completed on other days are not shown.
+- **Header.** "N completed today", plus an empty state when nothing has been completed yet.
+- **Actions.**
+  - Clicking a title opens the item in its workspace.
+  - Unchecking reopens the item (one undo step), and it drops out of the list.
+  - The row menu offers Open and Push back one day.
+- **Live updates.** The view refreshes after any save and when the local date changes.
+- **Implementation decisions.**
+- Today covers all projects and breaks ties in project order by name. Within a project the root
+  area comes first, then folders by breadcrumb. Siblings keep their workspace order.
+- A completed ancestor from an earlier day remains as context, labeled “Completed earlier”. Only
+  today's completions contribute to the total. Reopening a parent leaves it as open context if
+  today's completions still include any of its descendants.
+- A collapsed row counts all of its completed-today descendants. Completed rows retain their
+  expansion choices while they remain in the view.
+- In Calendar and Today, the focused row is the keyboard target. If adding a day overflows the
+  supported calendar, the operation shows an error and saves nothing.
+- The Menu key and Shift+F10 open the focused item row's menu in the workspace, Search,
+  Calendar and Today.
+- Undo and redo consult the workspace behind Today, Search, Calendar and Trash. If its editor
+  has a draft, the refusal appears on the page on screen and the draft is preserved.
+- Back waits for in-flight Today reopens, calendar moves and push backs, including after a switch
+  between transient pages. A commit while the return page is hidden makes Back reload it through
+  its existing unsaved-changes guard.
+- Today checks the local date every minute using a `TimeProvider` timer and again on window
+  activation, so it catches wall-clock changes and sleep across midnight. These checks query
+  only when the date changes.
+
+**Not in this slice:** browsing earlier days.
+- **Tests.**
+  - Core/SQLite: the day boundaries in fixed zones, including DST days; the reopened-today exclusion;
+    the ancestor context rows; and the exclusion of deleted items.
+  - ViewModel: grouping and collapse state, and the midnight rollover with a fake `TimeProvider`.
+  - Headless interaction: Ctrl+Shift+D, Ctrl+Shift+P, the context menu, and unchecking.
+  - Light and dark snapshots of the Today view and of the row menu.
+  - A smoke scenario.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -1280,6 +1351,7 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
 5. **Calendar** — scoped month and week views of due dates and scheduled blocks; activating an entry opens its item (§7.4).
 6. **Trash** — deletion batches with Restore, Delete permanently and Empty trash, scoped to all projects or one (§7.6).
 7. **Search** — query box with text syntax, filter rows, saved searches (§7.2, §7.7); Home lists saved searches.
+8. **Today** — today's completions grouped by project and area, with their ancestor rows (§7.14).
 
 ### Keyboard
 
@@ -1288,7 +1360,8 @@ editing keeps its own undo). Ctrl+N new item, Ctrl+Shift+N new sub-item, Space t
 Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outdent,
 Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
-Ctrl+Shift+T trash (§7.6), Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
+Ctrl+Shift+T trash (§7.6), Ctrl+Shift+D Today and Ctrl+Shift+P push back one day (§7.14),
+Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
 and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where
 Alt+↑/↓ reorders items, so the two never clash.
 
@@ -1380,7 +1453,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
 - ~~Undo/redo for recent actions~~ (done, §7.8).
 - ~~Import/export (JSON, CSV)~~ (done, §7.9).
 - Packaged installers per OS (decisions in §7.13: Velopack for Windows, Linux and macOS).
-- **Quick reschedule from the context menu.** Right-click an item (tree, search results,
+- **Quick reschedule from the context menu** (decisions in §7.14). Right-click an item (tree, search results,
   calendar) and choose "Push back one day", which moves its due date (and its scheduled
   block, if any) one day later. A labelled undo step, with a keyboard equivalent.
 - **Tickets view.** A list of tickets in the order the owner wants to work on them. A
@@ -1405,7 +1478,31 @@ When one of these is picked up, its agreed design replaces the sections it confl
   - **Context menu.** "Set priority" on each item. If the level changes, the item moves to
     the bottom of the drag order in its new section.
   - Priority changes made here are labelled undo steps.
-- **Today view (done today).** Shows the items completed today (local day, §5.4) that are
+- **Statuses.** The owner asked for this on 2026-11-18; it is built in the same slice as the
+  numbered priority levels and the Tickets view.
+  - **One status per item.** Each item has at most one status, such as Queued, In progress,
+    Testing or Completed. Statuses are mutually exclusive, like priority: one status and one
+    priority at a time. An item may also have no status.
+  - **Context menu.** "Set status" is on each item's context menu, everywhere item rows appear
+    (tree, search, calendar, Today, Tickets), and in the editor. Changes are labelled undo steps.
+  - **Editable list (owner's choice).** Statuses are an editable, reorderable list in App
+    Settings, like item types and priority levels: add, rename, reorder and archive. The
+    starting set is Queued, In progress, Testing and Completed.
+  - **Linked to completion (owner's choice).** Each status is either *open* or *done*; the seeded
+    Completed is done.
+    - Setting a done status completes the item, with all the §6.1 rules.
+    - Checking an item off sets the first done status.
+    - Reopening restores the open status the item had before, or no status if it had none.
+    - Auto-completed parents also get the done status.
+    - Completion and status can therefore never disagree.
+  - **Still to decide when building:**
+    - The query key and filter field. The existing built-in `status` search key means
+      open/completed, so saved searches must keep their meaning; migrate them if the key is
+      reused.
+    - What happens to a user custom field already named "Status". The existing built-in-key
+      collision rules (§7.7) apply.
+    - Import/export and recurrence copy. A copy probably resets to the first open status.
+- **Today view (done today)** (decisions in §7.14). Shows the items completed today (local day, §5.4) that are
   still completed: an item checked off today and then unchecked does not appear.
   - Completed sub-items are grouped under their parent and collapsed by default.
   - A parent that is not itself completed still appears, as context, so its completed

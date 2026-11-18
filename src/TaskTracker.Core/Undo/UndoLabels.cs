@@ -93,6 +93,9 @@ public static class UndoLabels
         return Label("Rename", name);
     }
 
+    /// <summary>Moving one item's floating dates one day later.</summary>
+    public static string PushBack(string name) => Label("Push back", name);
+
     private static string Label(string verb, string name)
     {
         return $"{verb} '{name}'";

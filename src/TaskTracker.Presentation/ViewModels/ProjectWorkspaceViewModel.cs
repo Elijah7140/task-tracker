@@ -95,6 +95,9 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
 
     internal ItemRowViewModel? SelectedItem => selectedItem;
 
+    /// <summary>Pushes back the selected row when its dates can move.</summary>
+    public ICommand? SelectedPushBackCommand => SelectedItem?.PushBackCommand;
+
     /// <summary>Whether the item editor has a draft that undo must preserve.</summary>
     public bool HasUnsavedChanges => EditorHasEdits();
 
@@ -614,6 +617,11 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     private Task ChangeSelectedRepeatAsync(bool skip)
     {
         return selectedItem is { } row ? ChangeRepeatAsync(row, skip) : Task.CompletedTask;
+    }
+
+    internal Task PushBackAsync(ItemRowViewModel row)
+    {
+        return areaItems.PushBackAsync(row);
     }
 
     internal Task ChangeRepeatAsync(ItemRowViewModel row, bool skip)

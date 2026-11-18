@@ -11,6 +11,7 @@ using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Today;
 using TaskTracker.Core.Transfer;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
@@ -36,6 +37,7 @@ public static class DependencyInjection
         services.AddSingleton<LookupService>();
         services.AddSingleton<SettingsService>();
         services.AddSingleton<DataSaved>();
+        services.AddSingleton<TodayService>();
         services.AddSingleton<ReminderService>();
         services.AddSingleton<IFieldRegistry, FieldRegistry>();
         services.AddSingleton<ItemQueryValidator>();

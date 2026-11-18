@@ -89,16 +89,17 @@ public sealed class UndoCoordinator : ViewModelBase
             return;
         }
 
-        if (host.HasUnsavedEdits)
-        {
-            Status = UnsavedEditsMessage;
-            return;
-        }
-
         isBusy = true;
 
         try
         {
+            if (host.HasUnsavedEdits)
+            {
+                Status = UnsavedEditsMessage;
+                await host.ReportRefusalAsync(UnsavedEditsMessage);
+                return;
+            }
+
             await ApplyAndReloadAsync(applyStep, pastTense);
         }
         finally

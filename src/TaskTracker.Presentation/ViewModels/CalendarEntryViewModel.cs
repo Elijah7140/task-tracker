@@ -1,4 +1,7 @@
+using System.Windows.Input;
+
 using TaskTracker.Core.Calendar;
+using TaskTracker.Core.Items;
 using TaskTracker.Core.Urgency;
 
 using UrgencyLevel = TaskTracker.Core.Urgency.Urgency;
@@ -94,6 +97,10 @@ public sealed class CalendarEntryViewModel : ViewModelBase
     public bool HasUrgencyLabel => Urgency != UrgencyLevel.None;
 
     public bool IsOverdue => Urgency == UrgencyLevel.Overdue;
+
+    public ICommand? PushBackCommand { get; internal set; }
+
+    public string? PushBackReason => PushBackOneDay.UnavailableReason(Entry.IsCompleted, hasDates: true);
 
     public string Tooltip => $"{Entry.ItemType ?? "No type"} · {Entry.Priority ?? "No priority"}";
 

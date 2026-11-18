@@ -14,6 +14,7 @@ using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
+using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
@@ -659,6 +660,31 @@ public sealed class CalendarDragTests
     }
 
     [AvaloniaFact]
+    public async Task Back_shows_the_new_date_when_a_calendar_move_is_still_pending()
+    {
+        var window = new MainWindow { Width = 1200, Height = 900 };
+        using var services = await TestServices.CreateAsync(window);
+        var seeded = await SeedAsync(services, due: TheThirteenth);
+        var held = new HeldCalendarRescheduler(services.GetRequiredService<ICalendarRescheduler>());
+        var shell = ShowShellWithHeldSaves(window, services, held);
+        await shell.OpenProjectAsync(seeded.ProjectId);
+        var workspace = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+        await shell.OpenCalendarAsync();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(HeadlessInput.Find<Button>(window, "CalendarEntryButton").Focus());
+        held.Hold();
+
+        HeadlessInput.Press(window, Key.Right, RawInputModifiers.Alt);
+        Assert.Equal(1, held.MovesStarted);
+        HeadlessInput.Press(window, Key.Escape);
+        held.Release();
+        await HeadlessInput.WaitUntilAsync(() => ReferenceEquals(workspace, shell.CurrentPage));
+
+        Assert.Equal(TheFourteenth, Assert.Single(workspace.OpenItems).Node.Item.DueDate);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Dragging_from_the_more_button_does_not_start_a_drag()
     {
         var window = new MainWindow { Width = 1200, Height = 900 };
@@ -848,7 +874,7 @@ public sealed class CalendarDragTests
             search: services.GetRequiredService<IItemSearchService>(),
             registry: services.GetRequiredService<IFieldRegistry>(),
             calendar: services.GetRequiredService<CalendarService>(),
-            rescheduler: held);
+            rescheduler: held, saves: services.GetRequiredService<DataSaved>());
         window.DataContext = shell;
         window.Show();
         return shell;
