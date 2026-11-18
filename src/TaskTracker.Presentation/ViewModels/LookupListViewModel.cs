@@ -69,6 +69,10 @@ public sealed class LookupListViewModel : ViewModelBase
 
     public bool HasArchived => Archived.Count > 0;
 
+    /// <summary>True while a new row, number edit, or rename is pending.</summary>
+    public bool HasUnsavedChanges => NewName.Length > 0 || NewNumber.Length > 0 || RenameCommand.IsRunning
+        || Active.Any(row => row.HasUnsavedNumber);
+
     /// <summary>The text of the add row's name box.</summary>
     public string NewName
     {

@@ -425,6 +425,7 @@ public sealed partial class ItemService(
             throw new DomainRuleException("Item deletion batch was not found.");
         }
 
+        var topItem = branch.Single(item => item.ParentItemId is not Guid parentId || !branchIds.Contains(parentId));
         foreach (var item in branch)
         {
             if (item.ParentItemId is Guid parentId && !branchIds.Contains(parentId))
@@ -445,7 +446,7 @@ public sealed partial class ItemService(
             ApplyChanges(tree, changes, firstDoneStatusId);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Restore(topItem.Title), cancellationToken);
     }
 
     public async Task MoveAsync(Guid projectId, Guid? folderId, Guid id, Guid? newParentId, CancellationToken cancellationToken = default)

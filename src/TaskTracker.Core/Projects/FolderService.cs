@@ -1,4 +1,5 @@
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Undo;
 
@@ -7,10 +8,13 @@ namespace TaskTracker.Core.Projects;
 /// <summary>Coordinates folder hierarchy changes and batch restore.</summary>
 public sealed class FolderService(
     IUnitOfWorkFactory unitOfWorkFactory,
-    TimeProvider clock)
+    TimeProvider clock, FieldWriteGate? writeGate = null)
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     public async Task<Folder> CreateAsync(Guid projectId, Guid? parentId, string name, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var folders = unitOfWork.Folders;
         await RequireProjectAsync(unitOfWork, projectId, cancellationToken);
@@ -25,12 +29,13 @@ public sealed class FolderService(
         tree.Add(folder);
         folders.Add(folder);
         Renumber(tree, parentId);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Create(folder.Name), cancellationToken);
         return folder;
     }
 
     public async Task RenameAsync(Guid projectId, Guid id, string name, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, cancellationToken);
         tree.Get(id).Rename(name, clock);
@@ -39,6 +44,7 @@ public sealed class FolderService(
 
     public async Task MoveAsync(Guid projectId, Guid id, Guid? newParentId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, cancellationToken);
         var oldParentId = tree.Get(id).ParentFolderId;
@@ -51,6 +57,7 @@ public sealed class FolderService(
 
     public async Task ReorderAsync(Guid projectId, Guid? parentId, IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var tree = await LoadTreeAsync(unitOfWork, projectId, cancellationToken);
         var siblings = tree.Children(parentId);
@@ -70,6 +77,7 @@ public sealed class FolderService(
 
     public async Task<Guid> DeleteAsync(Guid projectId, Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var items = unitOfWork.Items;
         var tree = await LoadTreeAsync(unitOfWork, projectId, cancellationToken);
@@ -99,6 +107,7 @@ public sealed class FolderService(
     /// </summary>
     public async Task RestoreAsync(Guid projectId, Guid batchId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         await RequireProjectAsync(unitOfWork, projectId, cancellationToken);
         var rows = await unitOfWork.Folders.ListAsync(projectId, true, cancellationToken);
@@ -110,11 +119,13 @@ public sealed class FolderService(
         }
 
         EnsureNoDeletedParentOutsideBatch(rows, branch);
+        var branchIds = branch.Select(folder => folder.Id).ToHashSet();
+        var topFolder = branch.Single(folder => folder.ParentFolderId is not Guid parentId || !branchIds.Contains(parentId));
         RestoreFolders(new FolderTree(projectId, rows), branch);
         await RestoreItemsAsync(unitOfWork, projectId, batchId, cancellationToken);
 
         await ProjectCompletionReconciler.ReconcileIfEnabledAsync(unitOfWork, projectId, clock, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Restore(topFolder.Name), cancellationToken);
     }
 
     private static void EnsureNoDeletedParentOutsideBatch(IReadOnlyList<Folder> allFolders, IReadOnlyList<Folder> branch)

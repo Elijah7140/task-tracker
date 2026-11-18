@@ -72,12 +72,13 @@ public sealed class UndoCoordinatorTests
     [Fact]
     public async Task Unsaved_edits_block_the_step_and_leave_the_history_alone()
     {
-        var scenario = new Scenario { Host = { HasUnsavedEdits = true } };
+        const string draftMessage = "Save or discard your item edits before undoing or redoing.";
+        var scenario = new Scenario { Host = { UndoBlockedReason = draftMessage } };
         scenario.History.Record(new FakeStep("Step"));
 
         await scenario.Undo.UndoAsync();
 
-        Assert.Equal("Save or discard your item edits before undoing or redoing.", scenario.Undo.Status);
+        Assert.Equal(draftMessage, scenario.Undo.Status);
         Assert.True(scenario.History.CanUndo);
         Assert.Equal(0, scenario.Host.ReloadCount);
     }
@@ -148,7 +149,7 @@ public sealed class UndoCoordinatorTests
 
     private sealed class FakeHost : IUndoHost
     {
-        public bool HasUnsavedEdits { get; set; }
+        public string? UndoBlockedReason { get; set; }
 
         public int ReloadCount { get; private set; }
 

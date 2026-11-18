@@ -139,7 +139,7 @@ public sealed class ReminderSchedulerTests
 
         await SaveAsync(store, "Recent", now.AddMinutes(-5));
         var units = new FailingSaveUnitOfWorkFactory(store.UnitOfWorkFactory) { FailuresLeft = 1 };
-        var reminders = new ReminderService(units, clock, TimeZoneInfo.Utc);
+        var reminders = new ReminderService(units, clock, TimeZoneInfo.Utc, store.WriteGate);
         var notifier = new CaptureNotifier();
         var dispatcher = new QueuedDispatcher();
         using var scheduler = new ReminderScheduler(reminders, store.Saves, clock, notifier, dispatcher);

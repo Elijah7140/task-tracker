@@ -4,12 +4,104 @@ using Microsoft.EntityFrameworkCore;
 using TaskTracker.Core;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Trash;
 
 namespace TaskTracker.Infrastructure.Tests.Persistence;
 
 /// <summary>Conflicts, purged deletions, failed steps and operations that are deliberately not undoable.</summary>
 public sealed class UndoRefusalTests
 {
+    [Theory]
+    [InlineData("ItemLink")]
+    [InlineData("ItemFieldValue")]
+    public async Task Undoing_creation_preserves_newer_owned_rows(string table)
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        await world.Fields.CreateAsync("Notes", FieldDataType.Text, null);
+        await world.Items.CreateAsync(world.Project.Id, null, null, "Task");
+        var insert = table == "ItemLink"
+            ? """
+                INSERT INTO ItemLink (Id, ItemId, Url, SortOrder, CreatedAtUtc)
+                SELECT Id, Id, 'https://example.com', 0, CreatedAtUtc FROM TodoItem
+                """
+            : """
+                INSERT INTO ItemFieldValue (ItemId, FieldDefinitionId, TextValue)
+                SELECT TodoItem.Id, FieldDefinition.Id, 'New value' FROM TodoItem CROSS JOIN FieldDefinition
+                """;
+
+        var message = await world.VerifyRefusalAsync(insert, redo: false, "TodoItem", table);
+
+        Assert.Equal("Other data still depends on this item; can't undo its removal.", message);
+    }
+
+    [Fact]
+    public async Task Undoing_creation_preserves_a_newer_child_in_trash()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        await world.Items.CreateAsync(world.Project.Id, null, null, "Parent");
+
+        var message = await world.VerifyRefusalAsync("""
+            INSERT INTO TodoItem (Id, ProjectId, ParentItemId, Title, SortOrder, CreatedAtUtc, UpdatedAtUtc, DeletedAtUtc, DeletionBatchId)
+            SELECT ProjectId, ProjectId, Id, 'Deleted child', 0, CreatedAtUtc, UpdatedAtUtc, CreatedAtUtc, ProjectId FROM TodoItem
+            """, redo: false, "TodoItem");
+
+        Assert.Equal("Other data still depends on this item; can't undo its removal.", message);
+    }
+
+    [Fact]
+    public async Task Undoing_folder_deletion_requires_restoring_its_project_first()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var folder = await world.Folders.CreateAsync(world.Project.Id, null, "Folder");
+        await world.Folders.DeleteAsync(world.Project.Id, folder.Id);
+        await using var database = world.OpenContext();
+        await database.Database.ExecuteSqlRawAsync("UPDATE Project SET DeletedAtUtc = CreatedAtUtc, DeletionBatchId = Id");
+
+        var error = await Assert.ThrowsAsync<DomainRuleException>(() => world.History.UndoAsync());
+
+        Assert.Equal("Restore the project first", error.Message);
+        Assert.NotNull((await world.ReadFolderAsync(folder.Id)).DeletedAtUtc);
+        Assert.True(world.History.CanUndo);
+        Assert.False(world.History.CanRedo);
+    }
+
+    [Theory]
+    [InlineData("folder", "Area")]
+    [InlineData("item", "Parent")]
+    public async Task Undoing_item_deletion_requires_restoring_its_deleted_ancestor_first(string kind, string name)
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var project = world.Project.Id;
+        var folder = await world.Folders.CreateAsync(project, null, "Area");
+        var parent = await world.Items.CreateAsync(project, folder.Id, null, "Parent");
+        var child = await world.Items.CreateAsync(project, folder.Id, parent.Id, "Child");
+        await world.Items.DeleteAsync(project, folder.Id, child.Id);
+        var externalDelete = kind == "folder"
+            ? "UPDATE Folder SET DeletedAtUtc = CreatedAtUtc, DeletionBatchId = Id"
+            : "UPDATE TodoItem SET DeletedAtUtc = CreatedAtUtc, DeletionBatchId = Id WHERE Title = 'Parent'";
+
+        var message = await world.VerifyRefusalAsync(externalDelete, redo: false, "Folder", "TodoItem");
+
+        Assert.Equal($"Restore the {kind} '{name}' first", message);
+    }
+
+    [Fact]
+    public async Task Redoing_a_restore_after_emptying_trash_is_refused()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Gone");
+        var batch = await world.Items.DeleteAsync(world.Project.Id, null, item.Id);
+        await world.Trash.RestoreAsync(batch);
+        await world.History.UndoAsync();
+        await world.Trash.EmptyAsync(TrashScope.AllProjects);
+
+        var error = await Assert.ThrowsAsync<DomainRuleException>(() => world.History.RedoAsync());
+
+        Assert.Equal("This item was permanently deleted since; can't redo.", error.Message);
+        Assert.False(await world.ItemExistsAsync(item.Id));
+        Assert.Equal("Restore 'Gone'", world.History.RedoDescription);
+    }
+
     [Fact]
     public async Task Undo_is_refused_when_the_item_changed_since()
     {
@@ -117,16 +209,6 @@ public sealed class UndoRefusalTests
 
         Assert.Equal("Restore 'Task'", world.Recorder.Descriptions[^1]);
         Assert.Equal(deleted, await world.SnapshotAsync());
-    }
-
-    [Fact]
-    public async Task Settings_and_field_definitions_are_not_recorded()
-    {
-        await using var world = await UndoWorld.CreateAsync();
-
-        await world.Fields.CreateAsync("Notes", FieldDataType.Text, null);
-
-        Assert.Empty(world.Recorder.Descriptions);
     }
 
     [Fact]

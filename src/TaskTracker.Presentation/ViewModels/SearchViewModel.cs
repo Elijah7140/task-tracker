@@ -176,10 +176,13 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
         await LoadSavedSearchesAsync();
     }
 
-    /// <summary>Runs the search again when one has already run, so results reflect changes made since, such as an undo.</summary>
+    /// <summary>Reloads search metadata and saved searches, then reruns a previously submitted query.</summary>
     public async Task RefreshAsync()
     {
-        if (hasSearched)
+        await LoadSavedSearchesAsync();
+        var refresh = RefreshFieldsAsync(refreshFilters: true);
+        ScopeRefreshTask = refresh;
+        if (await refresh && hasSearched)
         {
             await RunAsync();
         }
@@ -438,11 +441,11 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
         };
     }
 
-    private async Task RefreshFieldsAsync()
+    private async Task<bool> RefreshFieldsAsync(bool refreshFilters = false)
     {
         if (disposed)
         {
-            return;
+            return false;
         }
 
         var version = ++scopeVersion;
@@ -450,7 +453,7 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
 
         try
         {
-            await TryLoadFieldsAsync(version, cancellation);
+            return await TryLoadFieldsAsync(version, cancellation, refreshFilters);
         }
         finally
         {
@@ -458,16 +461,24 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private async Task TryLoadFieldsAsync(int version, CancellationTokenSource cancellation)
+    private async Task<bool> TryLoadFieldsAsync(int version, CancellationTokenSource cancellation, bool refreshFilters)
     {
         try
         {
             var available = await registry.GetFieldsAsync(CurrentScope(), cancellation.Token);
 
-            if (IsCurrentScope(version))
+            if (!IsCurrentScope(version))
             {
-                ApplyFields(available);
+                return false;
             }
+
+            if (refreshFilters)
+            {
+                return await RebuildValidFiltersAsync(available, version);
+            }
+
+            ApplyFields(available);
+            return true;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -478,6 +489,74 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
             {
                 ShowError(exception);
             }
+        }
+
+        return false;
+    }
+
+    private async Task<bool> RebuildValidFiltersAsync(IReadOnlyList<SearchableField> available, int version)
+    {
+        var rebuilt = new List<SearchFilterRowViewModel>();
+        foreach (var original in Filters.ToArray())
+        {
+            if (!IsCurrentScope(version))
+            {
+                break;
+            }
+
+            if (FilterStillOffered(original, available) && original.ToFilter() is { } filter)
+            {
+                var row = new SearchFilterRowViewModel(registry, available, RemoveFilter, ShowError);
+                await row.ApplyAsync(filter);
+                if (row.IsValid && row.IsComplete)
+                {
+                    rebuilt.Add(row);
+                }
+                else
+                {
+                    row.Dispose();
+                }
+            }
+        }
+
+        if (!IsCurrentScope(version))
+        {
+            rebuilt.ForEach(row => row.Dispose());
+            return false;
+        }
+
+        ReplaceFilters(available, rebuilt);
+        return true;
+    }
+
+    private static bool FilterStillOffered(SearchFilterRowViewModel row, IReadOnlyList<SearchableField> available)
+    {
+        return row.IsValid && row.IsComplete && row.SelectedField is { } selected && available.Any(field =>
+            field.Key == selected.Key && field.DataType == selected.DataType && field.FieldDefinitionId == selected.FieldDefinitionId);
+    }
+
+    private void ReplaceFilters(IReadOnlyList<SearchableField> available, List<SearchFilterRowViewModel> rebuilt)
+    {
+        syncSuspended = true;
+        try
+        {
+            fields = available;
+            ClearFilters();
+            foreach (var row in rebuilt)
+            {
+                row.PropertyChanged += OnFilterChanged;
+                Filters.Add(row);
+            }
+        }
+        finally
+        {
+            syncSuspended = false;
+        }
+
+        OnPropertyChanged(nameof(CanSearch));
+        if (!queryTextEdited)
+        {
+            RefreshQueryText();
         }
     }
 

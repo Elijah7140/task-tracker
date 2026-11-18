@@ -709,25 +709,12 @@ completion cascade, a deleted branch, a renumbered sibling list). Recording a ne
 every step that was undone, so redo is cleared by any new action.
 
 **What is recorded.** Recording is opt-in and explicit. A service that performs an undoable user
-action saves with a label, `unitOfWork.SaveChangesAsync(UndoLabels.Complete(title), ct)`; only
-labelled saves are recorded, and the label names the item the user acted on (completing a child
-that auto-completes its parent is "Complete 'Child'"). Everything else saves without a label and
-is never recorded: defaults (including the auto-complete reconciliation they trigger), item types,
-renaming, reordering or archiving priority levels (the undo audit in §10 covers them), field
-definitions, saved searches, creating a project or folder, trash purge and empty, seeding
-and migrations. Search the services for `UndoLabels.` to see exactly what is undoable: create item
-or sub-item; one item Save (built-in and custom fields together, cleared fields included);
-complete and reopen with their cascade; delete item, folder or project (a soft-delete batch);
-reorder, indent, outdent, re-parent, drag and move to a folder; calendar reschedule; rename
-folder or project; restore from the trash (undoing it deletes the batch again); set status or
-priority from a row menu, with any completion cascade; every status list change (add, rename,
-reorder, archive, restore); and adding a priority level or editing its number (§7.15). An editor
-save that changes the status is one step labelled "Set status of ...". On a labelled
-save `EfUnitOfWork` snapshots the before and after values of every added, modified or deleted
-item, folder, project, item field value, item link (§7.10), status and priority level, in the operation's own save, and hands the step to an
-`IUndoRecorder` (tests substitute a fake). A row whose only change is its `UpdatedAtUtc` stamp is
-left out, so steps stay small and do not widen conflicts. Purging a batch also makes the delete it
-followed un-undoable.
+action saves with a label, `unitOfWork.SaveChangesAsync(UndoLabels.Complete(title), ct)`.
+The label names the item the user acted on (completing a child that auto-completes its parent
+is "Complete 'Child'"). A labelled save captures added, modified and deleted items, folders,
+projects, item field values, links, lookups, field definitions and choices, settings, and
+saved searches in one step. Timestamp-only updates are discarded so they do not invalidate
+earlier steps. Reminder delivery markers are excluded from snapshots of item data.
 
 **Applying a step.** Undo and redo write the recorded values back in one unit of work. Before
 writing, every affected row (soft-deleted ones included) is compared with the values the step left
@@ -738,10 +725,14 @@ permanently deleted since; can't undo." A refused step changes nothing; there is
 
 - Undo and redo hold the same write gate as ticket moves, item edits and completion, from
   selecting a step until the history position has been updated. The step uses the history's
-  lease for its verification and save.
+  lease and one database transaction for its verification and save. A replayed hard delete
+  requires every dependent user-data row to be part of the same removal. The search index is
+  maintained by its triggers. Replay refuses to activate a row beneath a deleted ancestor and
+  uses the same restore-first message as Trash. It also refuses to leave newer rows in a
+  deleted branch or invalidate custom fields, choices, lookup lists or settings.
 
 **UI.** Ctrl+Z undoes; Ctrl+Y and Ctrl+Shift+Z redo. The shortcuts work anywhere in the main window
-(workspace, calendar, search, trash, Home) except while a text box has focus (quick add, search
+(workspace, calendar, search, trash, settings, Home) except while a text box has focus (quick add, search
 box, a date picker's text, an editable combo box), where Ctrl+Z keeps its normal text-editing
 meaning. With nothing to undo or redo the keys do nothing at all, silently. The workspace header
 has Undo and Redo buttons whose tooltips name the action ("Undo: Complete 'Write report'"); they
@@ -755,13 +746,59 @@ break a foreign key (a choice or lookup the step used was removed since), it is 
 "This change references something that was removed; can't undo."
 
 **Reloading.** After a step the screen on show reloads: the workspace keeps its folder and the
-selected item when they still exist, the calendar and trash lists reload, a search that has run runs again, Home recounts. A search,
-calendar or trash page also marks the page behind it out of date, so going back reloads it
-through the existing unsaved-changes guard.
+selected item when they still exist, the calendar and trash lists reload, saved-search lists and
+settings reload, and Home recounts. Search refreshes field and choice metadata, drops invalid
+filters and reruns a query that already ran. Search, Calendar, Trash, Today and Tickets also
+mark the page behind them out of date. Back reloads the return page, including App Settings
+and Project Settings, through its unsaved-changes guard.
 
 **Dirty editor rule.** While the item editor holds unsaved edits, undo and redo are blocked with
 "Save or discard your item edits before undoing or redoing." The draft is untouched. (Reloading
-under a draft would either lose it or ask a question the user did not trigger.)
+under a draft would either lose it or ask a question the user did not trigger.) Unsaved global
+or project settings also block undo and redo until saved or discarded. In App Settings this
+includes pending lookup entries, number edits and renames.
+
+#### Undo coverage
+
+| Service | Write operation | Label before audit | Coverage | Reason for exclusion |
+|--------|-----------------|--------------------|----------|----------------------|
+| ItemService | `CreateAsync` (item or sub-item), `EditAsync` (both overloads), `SaveEditorAsync` (including custom values, links, recurrence and status) | Yes | Undoable | |
+| ItemService | `SetCompletedAsync` (complete or reopen), `SetStatusAsync`, `SetPriorityAsync` | Yes | Undoable | |
+| ItemService | `MoveAsync`, `MoveAtAsync` (including drag), `MoveToAreaAsync`, `IndentAsync`, `OutdentAsync`, `ReorderAsync` | Yes | Undoable | |
+| ItemService | `PushBackOneDayAsync`, `SkipRepeatAsync`, `StopRepeatingAsync`, `DeleteAsync` | Yes | Undoable | |
+| ItemService | `RestoreAsync` | No | Undoable | |
+| ProjectService | `CreateAsync`, `ReorderAsync`, `RestoreAsync` | No | Undoable | |
+| ProjectService | `RenameAsync`, `DeleteAsync` | Yes | Undoable | |
+| FolderService | `CreateAsync`, `RestoreAsync` | No | Undoable | |
+| FolderService | `RenameAsync`, `MoveAsync`, `ReorderAsync`, `DeleteAsync` | Yes | Undoable | |
+| LookupService | `AddItemTypeAsync`, `RenameItemTypeAsync`, `ArchiveItemTypeAsync`, `UnarchiveItemTypeAsync`, `ReorderItemTypesAsync` | No | Undoable subject to lookup uniqueness | |
+| LookupService | `AddPriorityLevelAsync` (both overloads), `SetPriorityNumberAsync` | Yes | Undoable subject to lookup uniqueness | |
+| LookupService | `RenamePriorityLevelAsync`, `ArchivePriorityLevelAsync`, `UnarchivePriorityLevelAsync`, `ReorderPriorityLevelsAsync` | No | Undoable subject to lookup uniqueness | |
+| LookupService | `AddStatusAsync`, `RenameStatusAsync`, `SetStatusArchivedAsync` (archive and restore), `ReorderStatusesAsync` | Yes | Undoable subject to lookup uniqueness | |
+| FieldService | `CreateAsync`, `RenameAsync`, `ChangeTypeAsync`, `ArchiveAsync`, `UnarchiveAsync`, `ReorderAsync` | No | Undoable | |
+| FieldService | `AddChoiceAsync`, `RenameChoiceAsync`, `ArchiveChoiceAsync`, `UnarchiveChoiceAsync`, `ReorderChoicesAsync` | No | Undoable | |
+| SettingsService | `SetGlobalAsync`, `SaveGlobalAsync` (database-only preferences) | No | Undoable, including recorded effective auto-completion transitions | |
+| SettingsService | `SaveProjectAsync`, `SetProjectOverrideAsync`, `ClearProjectOverrideAsync` | No | Undoable, including recorded effective auto-completion transitions | |
+| SettingsService | Start with system, through `SetGlobalAsync` or `SaveGlobalAsync` | No | Excluded | The OS sign-in entry is outside the database transaction and its update can fail independently. Its stored preference is excluded from any mixed step. |
+| SavedSearchService | `SaveAsync` (new or overwrite), `RenameAsync`, `DeleteAsync`, `ReorderAsync` | No | Undoable | |
+| TrashService | `RestoreAsync` | Yes | Undoable | |
+| TrashService | `PurgeAsync`, `EmptyAsync` | No | Excluded | Intentional permanent removal of rows, including owned data. A purge prevents replay of any soft delete or restore that needs those rows. |
+| CalendarRescheduleService | `MoveDueAsync`, `MoveScheduleAsync` | Yes | Undoable | |
+| TicketService | `MoveAsync`, `SetPriorityAsync` | Yes | Undoable | |
+| ReminderService | `SnoozeAsync` | Yes | Undoable | |
+| ReminderService | `RecordDeliveryAsync` | No | Excluded | Delivery bookkeeping prevents repeated notifications. |
+| Reminders panel | Dismiss | No | Excluded | Hides a delivered reminder for the session without changing stored user data. |
+| DataTransferService | `ImportJsonAsync`, `ImportCsvAsync` | No | Excluded | Bulk additions use the pre-import database backup for recovery (§7.9). |
+| Database initialization | Seed and migrate | No | Excluded | Initializes and upgrades storage outside user history. |
+
+Project and folder deletion captures the whole soft-delete batch, preserving earlier batches.
+Undoing a delete restores the exact prior order. Restoring from Trash appends the top node
+as specified in §7.6 and records its own step. Undoing that restore reinstates the batch and
+makes the delete the next step. Lookup replay checks the final list for duplicate ranks,
+names (using Core's case-insensitive comparison, including archived names) and active priority
+numbers. Setting changes and any auto-complete reconciliation are recorded together. Replay
+requires the recorded before and after effective values for each reconciled project. Bulk
+global saves skip unchanged effective defaults, so a startup-only save leaves history intact.
 
 ### 7.9 Import and export
 
@@ -1240,7 +1277,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
       A rerun after a complete publication is a no-op.
     - A release version containing `-` uses `--pre`, so it is published as a GitHub prerelease
       and excluded from stable update checks.
-  - **StartWithSystem saving.** It saves with the other global defaults on **Save defaults**.
+  - **StartWithSystem saving.** **Save defaults** stores it with the other changed preferences.
+    When it is the only change, only the startup preference is saved.
     - After a successful save, the entry is written or removed. This happens on every save while the
       option is available; the operation is idempotent.
     - If the system refuses, the setting stays saved and the page shows a message.
@@ -1395,8 +1433,7 @@ the decisions below were made autonomously; they are listed for review.
   - JSON gets a `statuses` lookup list matched by name, like priorities, plus `statusId` and
     `reopenStatusId` on items. It stays at version 1.
   - CSV gets a `Status` column.
-- **Undo (§7.8).** Status list management is undoable, the same as for priority levels after the
-  undo audit.
+- **Undo (§7.8).** Status and priority list management are undoable.
 - **Tests.**
   - Core: the linkage rules for every §6.1 action.
   - SQLite: the migrations, including the saved-search rewrite, plus import/export, the recurrence
@@ -1460,9 +1497,7 @@ the decisions below were made autonomously; they are listed for review.
 - Status rows in App Settings show their kind ("Testing · Open"). Archiving the last active
   Done status is refused by the service and by a database trigger, and changing a kind is
   refused by a trigger.
-- Undo covers every status list change, adding a priority level and editing its number.
-  Renaming, reordering and archiving priority levels stay outside undo until the undo audit
-  (§10).
+- Undo covers every status and priority list change, including priority number edits.
 
 ### 7.16 Tickets view
 

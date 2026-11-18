@@ -10,7 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Settings;
 using TaskTracker.Core.Undo;
 using TaskTracker.Presentation.ViewModels;
 
@@ -20,6 +22,69 @@ namespace TaskTracker.App.Desktop.Tests;
 public sealed class UndoInputTests
 {
     private const RawInputModifiers CtrlShift = RawInputModifiers.Control | RawInputModifiers.Shift;
+
+    [AvaloniaFact]
+    public async Task Ctrl_Z_restores_the_project_name_after_renaming_from_home()
+    {
+        using var scenario = await UndoScenario.OpenWorkspaceAsync();
+        var window = scenario.Window;
+        await scenario.Shell.GoHomeAsync();
+        Dispatcher.UIThread.RunJobs();
+        var home = Assert.IsType<HomeViewModel>(scenario.Shell.CurrentPage);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "RenameProjectButton"));
+        var dialog = Assert.Single(window.OwnedWindows);
+        dialog.KeyTextInput("Renamed");
+        HeadlessInput.Press(dialog, Key.Enter);
+        await HeadlessInput.WaitUntilAsync(() => home.Cards.Single().Name == "Renamed");
+
+        HeadlessInput.Find<Button>(window, "NewProjectButton").Focus();
+        HeadlessInput.Press(window, Key.Z, RawInputModifiers.Control);
+        await HeadlessInput.WaitUntilAsync(() => home.Cards.Single().Name == "Project");
+
+        Assert.Equal("Undid: Rename 'Renamed'", scenario.Shell.Undo!.Status);
+    }
+
+    [AvaloniaFact]
+    public async Task Ctrl_Z_restores_a_priority_after_archiving_in_app_settings()
+    {
+        using var scenario = await UndoScenario.OpenWorkspaceAsync();
+        var window = scenario.Window;
+        await scenario.Shell.OpenAppSettingsAsync();
+        Dispatcher.UIThread.RunJobs();
+        var page = Assert.IsType<AppSettingsViewModel>(scenario.Shell.CurrentPage);
+        var archive = window.GetVisualDescendants().OfType<Button>().Single(button =>
+            AutomationProperties.GetAutomationId(button) == "LookupArchiveButton"
+            && button.DataContext is LookupRowViewModel row && row.Id == BuiltInLookups.CriticalId);
+
+        HeadlessInput.Click(window, archive);
+        await HeadlessInput.WaitUntilAsync(() => page.PriorityLevels!.Archived.Any(row => row.Id == BuiltInLookups.CriticalId));
+        HeadlessInput.Find<Button>(window, "AppSettingsBackButton").Focus();
+        HeadlessInput.Press(window, Key.Z, RawInputModifiers.Control);
+
+        await HeadlessInput.WaitUntilAsync(() => page.PriorityLevels!.Active.Any(row => row.Id == BuiltInLookups.CriticalId));
+        Assert.Equal("Undid: Archive priority 'Critical'", scenario.Shell.Undo!.Status);
+    }
+
+    [AvaloniaFact]
+    public async Task Ctrl_Z_restores_a_saved_setting_and_refreshes_the_form()
+    {
+        using var scenario = await UndoScenario.OpenWorkspaceAsync();
+        var window = scenario.Window;
+        await scenario.Shell.OpenAppSettingsAsync();
+        Dispatcher.UIThread.RunJobs();
+        var page = Assert.IsType<AppSettingsViewModel>(scenario.Shell.CurrentPage);
+        var autoComplete = HeadlessInput.Find<CheckBox>(window, "GlobalAutoCompleteCheckBox");
+        HeadlessInput.Click(window, autoComplete);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "AppSettingsSaveButton"));
+        await HeadlessInput.WaitUntilAsync(() => !page.IsDirty && !page.AutoCompleteParents);
+
+        HeadlessInput.Find<Button>(window, "AppSettingsBackButton").Focus();
+        HeadlessInput.Press(window, Key.Z, RawInputModifiers.Control);
+        await HeadlessInput.WaitUntilAsync(() => !page.IsDirty && autoComplete.IsChecked == true);
+
+        var settings = scenario.Services.GetRequiredService<SettingsService>();
+        Assert.True(await settings.GetGlobalAsync(SettingsCatalogue.AutoCompleteParents));
+    }
 
     [AvaloniaFact]
     public async Task Ctrl_Z_and_Ctrl_Y_undo_and_redo_a_completion()

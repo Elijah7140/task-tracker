@@ -33,7 +33,7 @@ public static class DependencyInjection
         services.AddSingleton<ICalendarRescheduler, CalendarRescheduleService>();
         services.AddSingleton<TrashService>();
         services.AddSingleton<ITrashService>(provider => provider.GetRequiredService<TrashService>());
-        services.AddSingleton(FieldWriteGate.Shared);
+        services.AddSingleton<FieldWriteGate>();
         services.AddSingleton<FieldService>();
         services.AddSingleton<LookupService>();
         services.AddSingleton<SettingsService>();

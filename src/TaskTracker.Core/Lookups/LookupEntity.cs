@@ -6,6 +6,9 @@ public abstract class LookupEntity
     /// <summary>The longest name an item type or priority level may have, once trimmed.</summary>
     public const int NameMaxLength = 300;
 
+    /// <summary>The case-insensitive Unicode comparison for reserved lookup names.</summary>
+    public static StringComparer NameComparer { get; } = StringComparer.OrdinalIgnoreCase;
+
     protected LookupEntity()
     {
     }

@@ -54,6 +54,9 @@ public sealed class ProjectSettingsViewModel : ViewModelBase, IUnsavedChangesGua
         resetRedCommand = new RelayCommand(() => OverrideRed = false, () => OverrideRed);
     }
 
+    /// <summary>The project whose overrides this page edits.</summary>
+    public Guid ProjectId => projectId;
+
     public string ProjectName { get; private set; } = string.Empty;
 
     public bool OverrideAutoComplete

@@ -19,6 +19,10 @@ internal sealed class UndoRowSnapshot
 
     public required Dictionary<string, object?>? After { get; init; }
 
+    public Dictionary<string, object?>? Source(bool forward) => forward ? Before : After;
+
+    public Dictionary<string, object?>? Target(bool forward) => forward ? After : Before;
+
     /// <summary>Captures a tracked entry that has pending changes; call it before saving.</summary>
     public static UndoRowSnapshot Capture(EntityEntry entry)
     {

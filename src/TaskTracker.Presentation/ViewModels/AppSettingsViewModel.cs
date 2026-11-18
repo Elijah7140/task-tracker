@@ -145,6 +145,10 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     /// <summary>True when the form differs from what was last loaded or saved.</summary>
     public bool IsDirty => CurrentDefaults() != saved;
 
+    /// <summary>Includes lookup drafts, which are saved separately from the global defaults.</summary>
+    public bool HasUnsavedChanges => IsDirty || ItemTypes?.HasUnsavedChanges == true
+        || PriorityLevels?.HasUnsavedChanges == true || Statuses?.HasUnsavedChanges == true;
+
     public bool CanSave => Error is null && IsDirty;
 
     public IReadOnlyList<string> DurationUnits { get; } = ["days", "hours"];
@@ -155,7 +159,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     public LookupListViewModel? Statuses { get; }
 
-    /// <summary>Reloads the lookup lists, on opening and after an undo or redo changed one of them.</summary>
+    /// <summary>Reloads the lookup lists.</summary>
     public async Task LoadLookupsAsync()
     {
         foreach (var list in new[] { ItemTypes, PriorityLevels, Statuses })
@@ -189,6 +193,12 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
         await LoadLookupsAsync();
 
+        foreach (var list in new[] { ItemTypes, PriorityLevels, Statuses }.OfType<LookupListViewModel>())
+        {
+            list.NewName = string.Empty;
+            list.NewNumber = string.Empty;
+        }
+
         if (CustomFields is not null)
         {
             await CustomFields.LoadAsync();
@@ -221,8 +231,16 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     private async Task SaveConfirmedAsync(GlobalDefaults defaults)
     {
         bool? startWithSystemToSave = IsStartWithSystemAvailable ? defaults.StartWithSystem : null;
-        await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
-            reminders: defaults.Reminders, startWithSystem: startWithSystemToSave);
+        if (startWithSystemToSave is bool startupOnly && defaults with { StartWithSystem = saved.StartWithSystem } == saved)
+        {
+            await settings.SetGlobalAsync(SettingsCatalogue.StartWithSystem, startupOnly);
+        }
+        else
+        {
+            await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
+                reminders: defaults.Reminders, startWithSystem: startWithSystemToSave);
+        }
+
         saved = defaults;
         Validate();
 
@@ -262,13 +280,13 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     /// <inheritdoc />
     public async Task<bool> ConfirmLeaveAsync()
     {
-        if (!IsDirty)
+        if (!HasUnsavedChanges)
         {
             return true;
         }
 
         return await dialogs.ConfirmAsync("Discard unsaved settings?",
-            "Your changes to the global defaults haven't been saved.", "Discard");
+            "Your changes to App Settings haven't been saved.", "Discard");
     }
 
     private async Task BackAsync()

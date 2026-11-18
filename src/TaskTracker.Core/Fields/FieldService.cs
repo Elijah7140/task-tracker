@@ -1,5 +1,6 @@
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core.Fields;
 
@@ -37,7 +38,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         var field = FieldDefinition.Create(name, type, projectId, order, usedKeys);
         EnsureUniqueName(fields, field);
         work.Fields.Add(field);
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.AddField(field.DisplayName), cancellationToken);
         return field;
     }
 
@@ -49,7 +50,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         var field = Find(fields, id);
         field.Rename(name);
         EnsureUniqueName(fields, field);
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.RenameField(field.DisplayName), cancellationToken);
     }
 
     public async Task ChangeTypeAsync(Guid id, FieldDataType type, CancellationToken cancellationToken = default)
@@ -59,7 +60,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         var fields = await work.Fields.DefinitionsAsync(cancellationToken);
         var field = Find(fields, id);
         field.ChangeType(type, await work.Fields.HasValuesAsync(id, cancellationToken));
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.ChangeFieldType(field.DisplayName), cancellationToken);
     }
 
     public async Task ArchiveAsync(Guid id, CancellationToken cancellationToken = default)
@@ -67,8 +68,9 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = unitOfWorkFactory.Begin();
         var fields = await work.Fields.DefinitionsAsync(cancellationToken);
-        Find(fields, id).Archive();
-        await work.SaveChangesAsync(cancellationToken);
+        var field = Find(fields, id);
+        field.Archive();
+        await work.SaveChangesAsync(UndoLabels.ArchiveField(field.DisplayName), cancellationToken);
     }
 
     public async Task UnarchiveAsync(Guid id, CancellationToken cancellationToken = default)
@@ -79,7 +81,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         var field = Find(fields, id);
         field.Unarchive();
         EnsureUniqueName(fields, field);
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.RestoreField(field.DisplayName), cancellationToken);
     }
 
     /// <summary>Orders every definition in the given scope, including archived rows; a project scope accepts only its own definitions.</summary>
@@ -96,7 +98,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
             fields.Single(field => field.Id == ids[index]).Reorder(index);
         }
 
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.ReorderFields(), cancellationToken);
     }
 
     public async Task<IReadOnlyList<FieldChoice>> ListChoicesAsync(Guid fieldId, CancellationToken cancellationToken = default)
@@ -116,7 +118,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         var choice = FieldChoice.Create(fieldId, label, choices.Count);
         EnsureUniqueChoice(choices, choice);
         work.Fields.Add(choice);
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.AddChoice(choice.Label), cancellationToken);
         return choice;
     }
 
@@ -128,7 +130,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         var choice = FindChoice(choices, choiceId);
         choice.Rename(label);
         EnsureUniqueChoice(choices, choice);
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.RenameChoice(choice.Label), cancellationToken);
     }
 
     public async Task ArchiveChoiceAsync(Guid fieldId, Guid choiceId, CancellationToken cancellationToken = default)
@@ -136,8 +138,9 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = unitOfWorkFactory.Begin();
         var choices = await work.Fields.ChoicesAsync(fieldId, cancellationToken);
-        FindChoice(choices, choiceId).Archive();
-        await work.SaveChangesAsync(cancellationToken);
+        var choice = FindChoice(choices, choiceId);
+        choice.Archive();
+        await work.SaveChangesAsync(UndoLabels.ArchiveChoice(choice.Label), cancellationToken);
     }
 
     public async Task UnarchiveChoiceAsync(Guid fieldId, Guid choiceId, CancellationToken cancellationToken = default)
@@ -148,7 +151,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
         var choice = FindChoice(choices, choiceId);
         choice.Unarchive();
         EnsureUniqueChoice(choices, choice);
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.RestoreChoice(choice.Label), cancellationToken);
     }
 
     /// <summary>Orders every choice of this field, including archived choices.</summary>
@@ -164,7 +167,7 @@ public sealed class FieldService(IUnitOfWorkFactory unitOfWorkFactory, FieldWrit
             choices.Single(choice => choice.Id == ids[index]).Reorder(index);
         }
 
-        await work.SaveChangesAsync(cancellationToken);
+        await work.SaveChangesAsync(UndoLabels.ReorderChoices(), cancellationToken);
     }
 
     private static FieldDefinition Find(IEnumerable<FieldDefinition> fields, Guid id)

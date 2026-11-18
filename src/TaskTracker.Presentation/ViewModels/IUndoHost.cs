@@ -3,8 +3,8 @@ namespace TaskTracker.Presentation.ViewModels;
 /// <summary>What <see cref="UndoCoordinator"/> needs from the window around it.</summary>
 public interface IUndoHost
 {
-    /// <summary>True while an editor holds a draft that undo or redo must not disturb.</summary>
-    bool HasUnsavedEdits { get; }
+    /// <summary>Explains which draft blocks undo and redo, or returns null when a step can run.</summary>
+    string? UndoBlockedReason { get; }
 
     /// <summary>Reloads whatever screen is on show after a step was applied.</summary>
     Task ReloadAsync();

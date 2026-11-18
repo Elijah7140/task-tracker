@@ -1,4 +1,5 @@
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Undo;
@@ -9,8 +10,10 @@ namespace TaskTracker.Core.Trash;
 /// Lists deletion batches (§5.3) and restores or permanently removes them. Each public
 /// operation uses one unit of work and saves once.
 /// </summary>
-public sealed class TrashService(IUnitOfWorkFactory unitOfWorkFactory, TimeProvider clock) : ITrashService
+public sealed class TrashService(IUnitOfWorkFactory unitOfWorkFactory, TimeProvider clock, FieldWriteGate? writeGate = null) : ITrashService
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     private const string MissingBatchMessage =
         "That deletion no longer exists. It may already have been restored or deleted permanently.";
 
@@ -38,6 +41,7 @@ public sealed class TrashService(IUnitOfWorkFactory unitOfWorkFactory, TimeProvi
     /// </summary>
     public async Task RestoreAsync(Guid batchId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = unitOfWorkFactory.Begin();
         var batch = await LoadBatchAsync(work, batchId, cancellationToken);
 
@@ -58,6 +62,7 @@ public sealed class TrashService(IUnitOfWorkFactory unitOfWorkFactory, TimeProvi
     /// </summary>
     public async Task PurgeAsync(Guid batchId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = unitOfWorkFactory.Begin();
         var batch = await LoadBatchAsync(work, batchId, cancellationToken);
         await new TrashPurger(work.Trash).PurgeBatchAsync(batch, cancellationToken);
@@ -67,6 +72,7 @@ public sealed class TrashService(IUnitOfWorkFactory unitOfWorkFactory, TimeProvi
     /// <summary>Permanently removes every deleted row in scope, in one transaction.</summary>
     public async Task EmptyAsync(TrashScope scope, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = unitOfWorkFactory.Begin();
         var purger = new TrashPurger(work.Trash);
 

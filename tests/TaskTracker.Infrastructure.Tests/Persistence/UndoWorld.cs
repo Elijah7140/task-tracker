@@ -1,7 +1,10 @@
+using System.Text.Json;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Time.Testing;
 
+using TaskTracker.Core;
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
@@ -9,6 +12,7 @@ using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Reminders;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Tickets;
@@ -63,6 +67,8 @@ internal sealed class UndoWorld : IAsyncDisposable
 
     public ReminderService Reminders { get; private set; } = null!;
 
+    public SavedSearchService SavedSearches { get; private set; } = null!;
+
     public ItemSearchService Search { get; private set; } = null!;
 
     public DataTransferService Transfer { get; private set; } = null!;
@@ -72,13 +78,15 @@ internal sealed class UndoWorld : IAsyncDisposable
         return store.Open();
     }
 
-    /// <summary>Creates a world holding one project; creating a project is not an undoable step.</summary>
+    /// <summary>Creates a world holding one project with an empty undo history.</summary>
     public static async Task<UndoWorld> CreateAsync(IInterceptor? interceptor = null)
     {
         var world = new UndoWorld();
         await world.store.InitializeAsync();
         world.CreateServices(interceptor);
-        world.Project = await world.Projects.CreateAsync("Project");
+        var setupProjects = new ProjectService(new RecordingUnitOfWorkFactory(
+            new StoreContextFactory(world.store), NullUndoRecorder.Instance), world.Clock, TimeZoneInfo.Utc);
+        world.Project = await setupProjects.CreateAsync("Project");
         return world;
     }
 
@@ -92,6 +100,7 @@ internal sealed class UndoWorld : IAsyncDisposable
         Fields = new FieldService(units);
         Lookups = new LookupService(units);
         Settings = new SettingsService(units, store.Clock);
+        SavedSearches = new SavedSearchService(units, store.Clock);
         Reminders = new ReminderService(units, store.Clock, TimeZoneInfo.Utc);
         Rescheduler = new CalendarRescheduleService(units, store.Clock);
         CalendarQueries = new CalendarService(units);
@@ -132,35 +141,67 @@ internal sealed class UndoWorld : IAsyncDisposable
         return await database.ItemFieldValues.AsNoTracking().Where(value => value.ItemId == itemId).ToListAsync();
     }
 
-    /// <summary>Every item, folder and project row, deleted ones included, as comparable text.</summary>
-    public async Task<string> SnapshotAsync()
+    /// <summary>Every column in the branch and its owned data, including soft-deleted rows.</summary>
+    public Task<string> SnapshotAsync()
     {
-        await using var database = store.Open();
-        var lines = new List<string>();
-        var items = await database.TodoItems.IgnoreQueryFilters().AsNoTracking().OrderBy(item => item.Id).ToListAsync();
-        var folders = await database.Folders.IgnoreQueryFilters().AsNoTracking().OrderBy(folder => folder.Id).ToListAsync();
-        var projects = await database.Projects.IgnoreQueryFilters().AsNoTracking().OrderBy(project => project.Id).ToListAsync();
+        return SnapshotTablesAsync(["Project", "Folder", "TodoItem", "ItemLink", "ItemFieldValue", "ProjectSetting"]);
+    }
 
-        foreach (var item in items)
+    /// <summary>Compares every SQLite column before the action, after undo, and after redo.</summary>
+    public async Task VerifyRoundTripAsync(Func<Task> action, params string[] tables)
+    {
+        var before = await SnapshotTablesAsync(tables);
+        var stepsBefore = Recorder.Descriptions.Count;
+        Clock.Advance(TimeSpan.FromMinutes(1));
+        await action();
+        var after = await SnapshotTablesAsync(tables);
+
+        Assert.NotEqual(before, after);
+        Assert.Equal(stepsBefore + 1, Recorder.Descriptions.Count);
+        await History.UndoAsync();
+        Assert.Equal(before, await SnapshotTablesAsync(tables));
+        await History.RedoAsync();
+        Assert.Equal(after, await SnapshotTablesAsync(tables));
+    }
+
+    public async Task<string> VerifyRefusalAsync(string externalSql, bool redo, params string[] tables)
+    {
+        await using var database = OpenContext();
+        Assert.True(await database.Database.ExecuteSqlRawAsync(externalSql) > 0);
+        var before = await SnapshotTablesAsync(tables);
+        var undoDescription = History.UndoDescription;
+        var redoDescription = History.RedoDescription;
+
+        var error = await Assert.ThrowsAsync<DomainRuleException>(() => redo ? History.RedoAsync() : History.UndoAsync());
+
+        Assert.Equal(before, await SnapshotTablesAsync(tables));
+        Assert.Equal(undoDescription, History.UndoDescription);
+        Assert.Equal(redoDescription, History.RedoDescription);
+        return error.Message;
+    }
+
+    public async Task<string> SnapshotTablesAsync(IEnumerable<string> tables)
+    {
+        await using var database = OpenContext();
+        var snapshots = new List<string>();
+
+        foreach (var table in tables)
         {
-            lines.Add($"item {item.Id} {item.Title} {item.Description} {item.FolderId} {item.ParentItemId} " +
-                $"{item.SortOrder} {item.DueDate} {item.DueTime} {item.ScheduledStart:O} {item.ScheduledEnd:O} " +
-                $"{item.CompletedAtUtc:O} {item.DeletedAtUtc:O} {item.DeletionBatchId} {item.UpdatedAtUtc:O}");
+            using var command = database.Database.GetDbConnection().CreateCommand();
+            command.CommandText = $"SELECT * FROM [{table}]";
+            using var reader = await command.ExecuteReaderAsync();
+            var rows = new List<string>();
+            while (await reader.ReadAsync())
+            {
+                var values = new object[reader.FieldCount];
+                reader.GetValues(values);
+                rows.Add(JsonSerializer.Serialize(values));
+            }
+
+            snapshots.AddRange(rows.Order(StringComparer.Ordinal).Select(row => $"{table}: {row}"));
         }
 
-        foreach (var folder in folders)
-        {
-            lines.Add($"folder {folder.Id} {folder.Name} {folder.ParentFolderId} {folder.SortOrder} " +
-                $"{folder.DeletedAtUtc:O} {folder.DeletionBatchId} {folder.UpdatedAtUtc:O}");
-        }
-
-        foreach (var project in projects)
-        {
-            lines.Add($"project {project.Id} {project.Name} {project.SortOrder} " +
-                $"{project.DeletedAtUtc:O} {project.DeletionBatchId} {project.UpdatedAtUtc:O}");
-        }
-
-        return string.Join(Environment.NewLine, lines);
+        return string.Join(Environment.NewLine, snapshots);
     }
 
     /// <summary>Titles of the items matching a full-text query, in result order.</summary>

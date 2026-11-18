@@ -25,13 +25,14 @@ public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, 
 
     public async Task<ItemType> AddItemTypeAsync(string name, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.ItemTypesAsync(cancellationToken);
         var itemType = ItemType.Create(name, rows.Count);
         EnsureUniqueName(rows, itemType, "item type");
         repository.Add(itemType);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.AddItemType(itemType.Name), cancellationToken);
         return itemType;
     }
 
@@ -57,78 +58,89 @@ public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, 
 
     public async Task RenameItemTypeAsync(Guid id, string name, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.ItemTypesAsync(cancellationToken);
         var row = rows.Single(entry => entry.Id == id);
         row.Rename(name);
         EnsureUniqueName(rows, row, "item type");
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.RenameItemType(row.Name), cancellationToken);
     }
 
     public async Task RenamePriorityLevelAsync(Guid id, string name, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.PriorityLevelsAsync(cancellationToken);
         var row = rows.Single(entry => entry.Id == id);
         row.Rename(name);
         EnsureUniqueName(rows, row, "priority level");
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.RenamePriority(row.Label), cancellationToken);
     }
 
     public async Task ArchiveItemTypeAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.ItemTypesAsync(cancellationToken);
-        rows.Single(row => row.Id == id).Archive();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var entry = rows.Single(row => row.Id == id);
+        entry.Archive();
+        await unitOfWork.SaveChangesAsync(UndoLabels.ArchiveItemType(entry.Name), cancellationToken);
     }
 
     public async Task ArchivePriorityLevelAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.PriorityLevelsAsync(cancellationToken);
-        rows.Single(row => row.Id == id).Archive();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var entry = rows.Single(row => row.Id == id);
+        entry.Archive();
+        await unitOfWork.SaveChangesAsync(UndoLabels.ArchivePriority(entry.Label), cancellationToken);
     }
 
     public async Task UnarchiveItemTypeAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var rows = await unitOfWork.Lookups.ItemTypesAsync(cancellationToken);
-        rows.Single(row => row.Id == id).Unarchive();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var entry = rows.Single(row => row.Id == id);
+        entry.Unarchive();
+        await unitOfWork.SaveChangesAsync(UndoLabels.RestoreItemType(entry.Name), cancellationToken);
     }
 
     public async Task UnarchivePriorityLevelAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var rows = await unitOfWork.Lookups.PriorityLevelsAsync(cancellationToken);
         var level = rows.Single(row => row.Id == id);
         level.Unarchive();
         EnsureUniqueNumber(rows, level);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.RestorePriority(level.Label), cancellationToken);
     }
 
     public async Task ReorderItemTypesAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.ItemTypesAsync(cancellationToken);
         Reorder(rows, ids);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.ReorderItemTypes(), cancellationToken);
     }
 
     public async Task ReorderPriorityLevelsAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var repository = unitOfWork.Lookups;
         var rows = await repository.PriorityLevelsAsync(cancellationToken);
         Reorder(rows, ids);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.ReorderPriorities(), cancellationToken);
     }
 
     /// <summary>Sets or clears a level's number label. The number never affects rank (§7.15).</summary>
@@ -155,7 +167,7 @@ public sealed partial class LookupService(IUnitOfWorkFactory unitOfWorkFactory, 
     private static void EnsureUniqueName(IEnumerable<LookupEntity> rows, LookupEntity candidate, string kind)
     {
         var duplicate = candidate.Name.Length > 0 && rows.Any(row => row.Id != candidate.Id &&
-            string.Equals(row.Name, candidate.Name, StringComparison.OrdinalIgnoreCase));
+            LookupEntity.NameComparer.Equals(row.Name, candidate.Name));
 
         if (duplicate)
         {

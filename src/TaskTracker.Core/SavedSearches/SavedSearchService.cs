@@ -1,11 +1,15 @@
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core.SavedSearches;
 
 /// <summary>Lists, saves, renames, deletes and reorders saved searches; one unit of work per operation.</summary>
-public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider clock)
+public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider clock, FieldWriteGate? writeGate = null)
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     /// <summary>All saved searches in display order.</summary>
     public async Task<IReadOnlyList<SavedSearch>> ListAsync(CancellationToken cancellationToken = default)
     {
@@ -28,6 +32,7 @@ public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider 
         bool overwrite = false, CancellationToken cancellationToken = default)
     {
         var cleanName = SavedSearch.ValidateName(name);
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unit = factory.Begin();
         await EnsureScopeProjectExistsAsync(unit, definition.Scope, cancellationToken);
         var all = await unit.SavedSearches.ListAsync(cancellationToken);
@@ -40,7 +45,7 @@ public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider 
 
         var created = SavedSearch.Create(cleanName, definition, clock, NextSortOrder(all));
         unit.SavedSearches.Add(created);
-        await unit.SaveChangesAsync(cancellationToken);
+        await unit.SaveChangesAsync(UndoLabels.SaveSearch(created.Name), cancellationToken);
         return created;
     }
 
@@ -48,20 +53,22 @@ public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider 
     public async Task RenameAsync(Guid id, string name, CancellationToken cancellationToken = default)
     {
         var cleanName = SavedSearch.ValidateName(name);
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unit = factory.Begin();
         var search = await RequireAsync(unit, id, cancellationToken);
         var all = await unit.SavedSearches.ListAsync(cancellationToken);
         EnsureNameFree(all, cleanName, id);
         search.Rename(cleanName, clock);
-        await unit.SaveChangesAsync(cancellationToken);
+        await unit.SaveChangesAsync(UndoLabels.RenameSearch(search.Name), cancellationToken);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unit = factory.Begin();
         var search = await RequireAsync(unit, id, cancellationToken);
         unit.SavedSearches.Remove(search);
-        await unit.SaveChangesAsync(cancellationToken);
+        await unit.SaveChangesAsync(UndoLabels.DeleteSearch(search.Name), cancellationToken);
     }
 
     /// <summary>
@@ -70,6 +77,7 @@ public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider 
     /// </summary>
     public async Task ReorderAsync(IReadOnlyList<Guid> orderedIds, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unit = factory.Begin();
         var all = await unit.SavedSearches.ListAsync(cancellationToken);
         var sequence = ArrangeByRequestedOrder(all, orderedIds);
@@ -79,7 +87,7 @@ public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider 
             sequence[index].SetSortOrder(index);
         }
 
-        await unit.SaveChangesAsync(cancellationToken);
+        await unit.SaveChangesAsync(UndoLabels.ReorderSearches(), cancellationToken);
     }
 
     private async Task<SavedSearch> ReplaceAsync(IUnitOfWork unit, SavedSearch existing,
@@ -91,7 +99,7 @@ public sealed class SavedSearchService(IUnitOfWorkFactory factory, TimeProvider 
         }
 
         existing.Update(definition, clock);
-        await unit.SaveChangesAsync(cancellationToken);
+        await unit.SaveChangesAsync(UndoLabels.ReplaceSearch(existing.Name), cancellationToken);
         return existing;
     }
 

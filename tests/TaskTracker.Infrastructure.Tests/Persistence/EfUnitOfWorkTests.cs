@@ -33,6 +33,27 @@ public sealed class EfUnitOfWorkTests
         Assert.Equal(1, settingsCommits);
     }
 
+    [Fact]
+    public async Task Undo_and_redo_publish_global_setting_commits()
+    {
+        await using var store = new SqliteTestStore();
+        await store.InitializeAsync();
+        var saved = new DataSaved();
+        var history = new UndoHistory();
+        var units = new EfUnitOfWorkFactory(new StoreContexts(store), history, saved);
+        var settings = new SettingsService(units, store.Clock);
+        var settingsCommits = 0;
+        saved.GlobalSettingsCommitted += () => settingsCommits++;
+        var cancellation = TestContext.Current.CancellationToken;
+        await settings.SetGlobalAsync(SettingsCatalogue.KeepRunningInTray, true, cancellationToken: cancellation);
+
+        await history.UndoAsync(cancellation);
+        Assert.Equal(2, settingsCommits);
+        await history.RedoAsync(cancellation);
+
+        Assert.Equal(3, settingsCommits);
+    }
+
     private sealed class StoreContexts(SqliteTestStore store) : IDbContextFactory<TaskTrackerDbContext>
     {
         public TaskTrackerDbContext CreateDbContext()

@@ -119,10 +119,12 @@ public sealed class TicketsViewTests
         await HeadlessInput.WaitUntilAsync(() => scroll.Offset.Y > 60 &&
             HeadlessInput.FindAll<Border>(window, "TicketRow").Any(row =>
                 row.Classes.Contains("dropBefore") || row.Classes.Contains("dropAfter")));
-        await HeadlessInput.WaitUntilAsync(() => HeadlessInput.CentreOf(window, offscreen).Y < edge.Y - 55);
+        // Ticket 35 is the last row, so once the board is scrolled to the end it can no longer move
+        // under the pointer while auto-scroll keeps running near the edge.
+        await HeadlessInput.WaitUntilAsync(() => IsScrolledToEnd(scroll));
         var drop = HeadlessInput.PointIn(window, offscreen, 40, offscreen.Bounds.Height - 3);
         HeadlessInput.MoveMouse(window, drop);
-        Assert.Contains("dropAfter", offscreen.Classes);
+        await HeadlessInput.WaitUntilAsync(() => offscreen.Classes.Contains("dropAfter"));
         HeadlessInput.ReleaseMouse(window, drop);
 
         var page = Assert.IsType<TicketsViewModel>(shell.CurrentPage);
@@ -303,6 +305,11 @@ public sealed class TicketsViewTests
         var (shell, window) = await OpenHomeAsync(services, dark);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeTicketsButton"));
         return (shell, window);
+    }
+
+    private static bool IsScrolledToEnd(ScrollViewer scroll)
+    {
+        return scroll.Offset.Y >= scroll.Extent.Height - scroll.Viewport.Height - 0.5;
     }
 
     private static Border Row(MainWindow window, string title)

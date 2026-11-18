@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 
 using Microsoft.Extensions.Time.Testing;
 
-using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Presentation.ViewModels;
 
@@ -52,7 +51,7 @@ public sealed class MainWindowViewModelTodayTests
 
         Task reopen;
         Task back;
-        using (await FieldWriteGate.Shared.EnterAsync())
+        using (await store.WriteGate.EnterAsync())
         {
             reopen = ((IAsyncRelayCommand)row.ReopenCommand).ExecuteAsync(null);
             Assert.False(reopen.IsCompleted);
@@ -89,7 +88,7 @@ public sealed class MainWindowViewModelTodayTests
 
         Task pushBack;
         Task back;
-        using (await FieldWriteGate.Shared.EnterAsync())
+        using (await store.WriteGate.EnterAsync())
         {
             pushBack = shell.PushBackAsync(item.Id);
             back = shell.ReturnFromCalendarAsync();

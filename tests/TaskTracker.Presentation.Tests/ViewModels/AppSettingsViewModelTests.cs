@@ -312,6 +312,7 @@ public sealed class AppSettingsViewModelTests
 
         Assert.True(await store.Settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem));
         Assert.Equal([true], startup.Applied);
+        Assert.False(store.History.CanUndo);
         Assert.False(page.IsDirty);
     }
 
