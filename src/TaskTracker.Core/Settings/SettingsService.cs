@@ -77,9 +77,11 @@ public sealed class SettingsService(
     /// Saves auto-complete and both urgency thresholds globally as one operation: every project is
     /// validated first, then the values, any completion reconciliation and one save commit together.
     /// Throws if auto-complete turns on for some project and <paramref name="confirmed"/> is false.
+    /// A null <paramref name="startWithSystem"/> leaves that setting unchanged.
     /// </summary>
     public async Task SaveGlobalAsync(bool autoCompleteParents, TimeSpan yellow, TimeSpan red,
-        bool confirmed = false, ReminderPreferences reminders = default, CancellationToken cancellationToken = default)
+        bool confirmed = false, ReminderPreferences reminders = default, bool? startWithSystem = null,
+        CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
@@ -93,6 +95,7 @@ public sealed class SettingsService(
         await StoreGlobalAsync(store, SettingsCatalogue.UrgencyYellowThreshold, proposed, cancellationToken);
         await StoreGlobalAsync(store, SettingsCatalogue.UrgencyRedThreshold, proposed, cancellationToken);
         await SaveReminderSettingsAsync(store, null, reminders, cancellationToken);
+        await SaveOptionalSettingAsync(store, null, SettingsCatalogue.StartWithSystem, startWithSystem, cancellationToken);
         await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
     }
 
@@ -126,17 +129,17 @@ public sealed class SettingsService(
     private static async Task SaveReminderSettingsAsync(ISettingsStore store, Guid? projectId,
         ReminderPreferences preferences, CancellationToken cancellationToken)
     {
-        await SaveReminderSettingAsync(store, projectId, SettingsCatalogue.RemindersEnabled, preferences.Enabled, cancellationToken);
-        await SaveReminderSettingAsync(store, projectId, SettingsCatalogue.DefaultReminderOffset, preferences.Offset, cancellationToken);
-        await SaveReminderSettingAsync(store, projectId, SettingsCatalogue.DateOnlyReminderTime, preferences.DateOnlyTime, cancellationToken);
+        await SaveOptionalSettingAsync(store, projectId, SettingsCatalogue.RemindersEnabled, preferences.Enabled, cancellationToken);
+        await SaveOptionalSettingAsync(store, projectId, SettingsCatalogue.DefaultReminderOffset, preferences.Offset, cancellationToken);
+        await SaveOptionalSettingAsync(store, projectId, SettingsCatalogue.DateOnlyReminderTime, preferences.DateOnlyTime, cancellationToken);
         if (projectId is null)
         {
-            await SaveReminderSettingAsync(store, null, SettingsCatalogue.KeepRunningInTray,
+            await SaveOptionalSettingAsync(store, null, SettingsCatalogue.KeepRunningInTray,
                 preferences.KeepRunningInTray, cancellationToken);
         }
     }
 
-    private static Task SaveReminderSettingAsync<T>(ISettingsStore store, Guid? projectId,
+    private static Task SaveOptionalSettingAsync<T>(ISettingsStore store, Guid? projectId,
         SettingDefinition<T> definition, T? value, CancellationToken cancellationToken) where T : struct
     {
         var text = value.HasValue ? definition.Format(value.Value) : null;

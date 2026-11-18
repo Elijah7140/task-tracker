@@ -6,6 +6,7 @@ using Microsoft.Extensions.Time.Testing;
 using TaskTracker.App.Desktop.Dialogs;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Infrastructure.Persistence;
+using TaskTracker.Presentation.Installation;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.App.Desktop.Tests;
@@ -20,13 +21,25 @@ public static class TestServices
     /// <summary>Initializes an isolated SQLite database and returns its disposable service scope.</summary>
     public static async Task<TestServiceScope> CreateAsync(
         Window? dialogOwner = null, IFilePickerService? filePicker = null, IDatabaseBackup? backup = null,
-        ILinkLauncher? linkLauncher = null)
+        ILinkLauncher? linkLauncher = null, InstallationServices? installation = null)
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"tasktracker-ui-{Guid.NewGuid()}.db");
         var services = CompositionRoot.BuildServices(Clock, TimeZone, databasePath,
-            dialogOwner is null ? null : new AvaloniaDialogService(dialogOwner), filePicker, backup, linkLauncher);
+            dialogOwner is null ? null : new AvaloniaDialogService(dialogOwner), filePicker, backup, linkLauncher,
+            installation: installation ?? CreateInstallation());
         using var scope = services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync();
         return new TestServiceScope(services, databasePath);
+    }
+
+    /// <summary>
+    /// A fixed version and fakes, so tests never reach the network, the registry or the autostart
+    /// folder, and snapshots do not change when the real version does.
+    /// </summary>
+    public static InstallationServices CreateInstallation(FakeUpdateService? updates = null,
+        FakeStartupRegistration? startup = null)
+    {
+        return new InstallationServices(new AppVersion("0.1.0"), updates ?? new FakeUpdateService(),
+            startup ?? new FakeStartupRegistration());
     }
 }

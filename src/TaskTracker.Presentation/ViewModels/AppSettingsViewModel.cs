@@ -6,6 +6,7 @@ using TaskTracker.Core;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Settings;
+using TaskTracker.Presentation.Installation;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -16,11 +17,16 @@ namespace TaskTracker.Presentation.ViewModels;
 /// </summary>
 public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 {
+    public const string StartupEntryFailedText =
+        "Settings were saved, but the system refused to update the start-with-system entry.";
+
     private readonly SettingsService settings;
     private readonly IDialogService dialogs;
     private readonly INavigationService navigation;
     private readonly Guid? returnProjectId;
+    private readonly IStartupRegistration? startup;
     private bool autoCompleteParents;
+    private bool startWithSystem;
     private double yellowAmount;
     private double redAmount;
     private string yellowUnit = "days";
@@ -30,12 +36,19 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     public AppSettingsViewModel(SettingsService settings, IDialogService dialogs,
         INavigationService navigation, LookupService? lookups = null, Guid? returnProjectId = null,
-        FieldService? fields = null)
+        FieldService? fields = null, InstallationServices? installation = null, AppUpdateViewModel? updates = null)
     {
         this.settings = settings;
         this.dialogs = dialogs;
         this.navigation = navigation;
         this.returnProjectId = returnProjectId;
+        startup = installation?.Startup;
+        About = installation?.Version.AboutText;
+
+        if (installation is not null)
+        {
+            Updates = updates ?? new AppUpdateViewModel(installation.Updates, ConfirmLeaveAsync);
+        }
 
         if (lookups is not null)
         {
@@ -62,6 +75,25 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
             Validate();
         }
     }
+
+    /// <summary>Starts the installed app at sign-in; saved with the other defaults.</summary>
+    public bool StartWithSystem
+    {
+        get => startWithSystem;
+        set
+        {
+            SetProperty(ref startWithSystem, value);
+            Validate();
+        }
+    }
+
+    /// <summary>The option is offered only for an installed app on Windows or Linux.</summary>
+    public bool IsStartWithSystemAvailable => startup?.IsAvailable == true;
+
+    /// <summary>The About line with the app version; null when the host supplies no version.</summary>
+    public string? About { get; }
+
+    public AppUpdateViewModel? Updates { get; }
 
     public double YellowAmount
     {
@@ -136,6 +168,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         YellowUnit = "days";
         RedUnit = "hours";
         await Reminders.LoadGlobalAsync(settings);
+        StartWithSystem = await settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem);
         saved = CurrentDefaults();
         Validate();
 
@@ -168,11 +201,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         {
             if (await ConfirmCompletionAsync())
             {
-                var defaults = CurrentDefaults();
-                await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
-                    reminders: defaults.Reminders);
-                saved = defaults;
-                Validate();
+                await SaveConfirmedAsync(CurrentDefaults());
             }
         }
         catch (DomainRuleException exception)
@@ -182,9 +211,24 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         }
     }
 
+    private async Task SaveConfirmedAsync(GlobalDefaults defaults)
+    {
+        bool? startWithSystemToSave = IsStartWithSystemAvailable ? defaults.StartWithSystem : null;
+        await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
+            reminders: defaults.Reminders, startWithSystem: startWithSystemToSave);
+        saved = defaults;
+        Validate();
+
+        if (startWithSystemToSave is bool enabled && startup?.TryApply(enabled) == false)
+        {
+            Error = StartupEntryFailedText;
+        }
+    }
+
     private GlobalDefaults CurrentDefaults()
     {
-        return new GlobalDefaults(AutoCompleteParents, Duration(YellowAmount, YellowUnit), Duration(RedAmount, RedUnit), Reminders.Preferences);
+        return new GlobalDefaults(AutoCompleteParents, Duration(YellowAmount, YellowUnit), Duration(RedAmount, RedUnit),
+            Reminders.Preferences, StartWithSystem);
     }
 
     private async Task<bool> ConfirmCompletionAsync()
@@ -252,5 +296,6 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         return unit == "days" ? TimeSpan.FromDays(amount) : TimeSpan.FromHours(amount);
     }
 
-    private readonly record struct GlobalDefaults(bool AutoCompleteParents, TimeSpan Yellow, TimeSpan Red, ReminderPreferences Reminders);
+    private readonly record struct GlobalDefaults(bool AutoCompleteParents, TimeSpan Yellow, TimeSpan Red,
+        ReminderPreferences Reminders, bool StartWithSystem);
 }

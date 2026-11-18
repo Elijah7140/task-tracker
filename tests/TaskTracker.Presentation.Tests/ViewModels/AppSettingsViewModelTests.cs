@@ -1,6 +1,7 @@
 #pragma warning disable xUnit1051
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Settings;
+using TaskTracker.Presentation.Installation;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.Presentation.Tests.ViewModels;
@@ -270,6 +271,120 @@ public sealed class AppSettingsViewModelTests
     }
 
     [Fact]
+    public async Task The_about_line_shows_the_app_version()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var page = CreatePage(store, new FakeStartupRegistration());
+
+        await page.LoadAsync();
+
+        Assert.Equal("Task Tracker version 0.1.0", page.About);
+        Assert.NotNull(page.Updates);
+    }
+
+    [Fact]
+    public async Task Start_with_system_is_offered_only_when_the_system_supports_it()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var supported = CreatePage(store, new FakeStartupRegistration { IsAvailable = true });
+        var unsupported = CreatePage(store, new FakeStartupRegistration { IsAvailable = false });
+
+        await supported.LoadAsync();
+        await unsupported.LoadAsync();
+
+        Assert.True(supported.IsStartWithSystemAvailable);
+        Assert.False(unsupported.IsStartWithSystemAvailable);
+    }
+
+    [Fact]
+    public async Task Saving_start_with_system_persists_it_and_writes_the_entry()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var startup = new FakeStartupRegistration();
+        var page = CreatePage(store, startup);
+        await page.LoadAsync();
+
+        page.StartWithSystem = true;
+        await page.SaveAsync();
+
+        Assert.True(await store.Settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+        Assert.Equal([true], startup.Applied);
+        Assert.False(page.IsDirty);
+    }
+
+    [Fact]
+    public async Task Turning_start_with_system_off_removes_the_entry()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        await store.Settings.SetGlobalAsync(SettingsCatalogue.StartWithSystem, true);
+        var startup = new FakeStartupRegistration();
+        var page = CreatePage(store, startup);
+        await page.LoadAsync();
+        Assert.True(page.StartWithSystem);
+
+        page.StartWithSystem = false;
+        await page.SaveAsync();
+
+        Assert.False(await store.Settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+        Assert.Equal([false], startup.Applied);
+    }
+
+    [Fact]
+    public async Task Where_start_with_system_is_unavailable_saving_neither_stores_nor_applies_it()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var startup = new FakeStartupRegistration { IsAvailable = false };
+        var page = CreatePage(store, startup);
+        await page.LoadAsync();
+
+        page.StartWithSystem = true;
+        await page.SaveAsync();
+
+        Assert.False(await store.Settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+        Assert.Empty(startup.Applied);
+    }
+
+    [Fact]
+    public async Task A_refused_entry_change_keeps_the_saved_setting_and_says_so()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var page = CreatePage(store, new FakeStartupRegistration { Succeeds = false });
+        await page.LoadAsync();
+
+        page.StartWithSystem = true;
+        await page.SaveAsync();
+
+        Assert.True(await store.Settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem));
+        Assert.Equal(AppSettingsViewModel.StartupEntryFailedText, page.Error);
+    }
+
+    [Fact]
+    public async Task Restart_with_unsaved_defaults_asks_before_closing_the_app()
+    {
+        await using var store = new PresentationTestStore();
+        await store.InitializeAsync();
+        var dialogs = new FakeDialogService { ConfirmResult = false };
+        var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0") };
+        var installation = new InstallationServices(new AppVersion("0.1.0"), updates, new FakeStartupRegistration());
+        var page = new AppSettingsViewModel(store.Settings, dialogs, new FakeNavigationService(), installation: installation);
+        await page.LoadAsync();
+        page.YellowAmount = 5;
+        await page.Updates!.CheckCommand.ExecuteAsync(null);
+        await page.Updates.DownloadCommand.ExecuteAsync(null);
+
+        await page.Updates.RestartCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, updates.RestartCount);
+        Assert.Equal(["Discard unsaved settings?"], dialogs.ConfirmTitles);
+    }
+
+    [Fact]
     public async Task Without_a_field_service_the_page_has_no_custom_field_manager()
     {
         await using var store = new PresentationTestStore();
@@ -279,5 +394,13 @@ public sealed class AppSettingsViewModelTests
         await page.LoadAsync();
 
         Assert.Null(page.CustomFields);
+    }
+
+    private static AppSettingsViewModel CreatePage(PresentationTestStore store, FakeStartupRegistration startup)
+    {
+        var installation = new InstallationServices(new AppVersion("0.1.0"), new FakeUpdateService(), startup);
+
+        return new AppSettingsViewModel(store.Settings, new FakeDialogService(), new FakeNavigationService(),
+            installation: installation);
     }
 }

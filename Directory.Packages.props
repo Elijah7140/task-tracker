@@ -19,6 +19,8 @@
     <PackageVersion Include="Markdig" Version="1.5.1" />
     <!-- Linux reminders (§7.12) use the D-Bus client Avalonia already brings in; pinned to the same version. -->
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
+    <!-- Installers and update checks (§7.13). 1.2.161 is the newest stable release older than two weeks; vpk in .config/dotnet-tools.json uses the same version. -->
+    <PackageVersion Include="Velopack" Version="1.2.161" />
     <!-- Data -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$(EfCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EfCoreVersion)" />
