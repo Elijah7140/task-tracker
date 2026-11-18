@@ -499,6 +499,12 @@ public sealed class CalendarViewModel : ViewModelBase, IDisposable
 
         foreach (var day in days)
         {
+            foreach (var entry in day.Entries)
+            {
+                entry.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(entry.Entry.ItemId),
+                    () => entry.PushBackReason is null);
+            }
+
             Days.Add(day);
         }
 

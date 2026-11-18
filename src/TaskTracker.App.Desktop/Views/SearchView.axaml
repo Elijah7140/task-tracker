@@ -145,6 +145,7 @@
         <TextBlock Grid.Column="6" Text="Due" FontWeight="SemiBold" />
       </Grid>
       <ListBox Grid.Row="2" x:Name="SearchResultsList" ItemsSource="{Binding Results}"
+               SelectedItem="{Binding SelectedResult, Mode=TwoWay}"
                AutomationProperties.AutomationId="SearchResultsList">
         <ListBox.Styles>
           <Style Selector="ListBoxItem">
@@ -156,7 +157,14 @@
         </ListBox.Styles>
         <ListBox.ItemTemplate>
           <DataTemplate>
-            <Grid ColumnDefinitions="24,2*,60,1.5*,60,65,150" ColumnSpacing="8">
+            <Grid ColumnDefinitions="24,2*,60,1.5*,60,65,150" ColumnSpacing="8" Background="Transparent">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
+                            ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
+                            AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+                </ContextMenu>
+              </Grid.ContextMenu>
               <TextBlock Text="{Binding CompletedMark}" />
               <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
               <TextBlock Grid.Column="2" Text="{Binding Ticket}" TextTrimming="CharacterEllipsis" />

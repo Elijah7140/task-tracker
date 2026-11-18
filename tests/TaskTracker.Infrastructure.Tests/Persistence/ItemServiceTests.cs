@@ -6,6 +6,7 @@ using TaskTracker.Core;
 using TaskTracker.Core.Completion;
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Items.Recurrence;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Urgency;
 using TaskTracker.Infrastructure.Persistence;
@@ -14,6 +15,61 @@ namespace TaskTracker.Infrastructure.Tests.Persistence;
 
 public sealed class ItemServiceTests
 {
+    [Fact]
+    public async Task Push_back_shifts_both_floating_dates_and_keeps_the_repeat_rule_and_child_dates()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var parent = await world.Items.CreateAsync(world.Project.Id, null, null, "Overdue");
+        var child = await world.Items.CreateAsync(world.Project.Id, null, parent.Id, "Child");
+        var due = new DateOnly(2026, 11, 10);
+        var time = new TimeOnly(15, 30);
+        var start = due.ToDateTime(new TimeOnly(23, 45));
+        var end = start.AddHours(2);
+        var rule = new RecurrenceRule(RecurrenceFrequency.Daily, EndKind: RecurrenceEndKind.AfterCount, Remaining: 3);
+        await world.Items.EditAsync(parent.Id, new ItemEdit(parent.Title, null, null, null, null, due, time, start, end)
+        {
+            UpdateRecurrence = true,
+            Recurrence = rule
+        });
+        await world.Items.EditAsync(child.Id, new ItemEdit(child.Title, null, null, null, null, due, null, null, null));
+
+        await world.Items.PushBackOneDayAsync(parent.Id);
+        var moved = await world.ReadItemAsync(parent.Id);
+
+        Assert.Equal(due.AddDays(1), moved.DueDate);
+        Assert.Equal(time, moved.DueTime);
+        Assert.Equal(start.AddDays(1), moved.ScheduledStart);
+        Assert.Equal(end.AddDays(1), moved.ScheduledEnd);
+        Assert.Equal(rule, moved.Recurrence);
+        Assert.Equal(due, (await world.ReadItemAsync(child.Id)).DueDate);
+        Assert.Equal("Push back 'Overdue'", world.History.UndoDescription);
+
+        await world.History.UndoAsync();
+
+        Assert.Equal(due, (await world.ReadItemAsync(parent.Id)).DueDate);
+    }
+
+    [Fact]
+    public async Task Push_back_rejects_completed_undated_and_overflowing_items_without_saving()
+    {
+        await using var world = await UndoWorld.CreateAsync();
+        var undated = await world.Items.CreateAsync(world.Project.Id, null, null, "Undated");
+        var completed = await world.Items.CreateAsync(world.Project.Id, null, null, "Completed");
+        var overflow = await world.Items.CreateAsync(world.Project.Id, null, null, "Overflow");
+        await world.Items.SetCompletedAsync(world.Project.Id, null, completed.Id, true);
+        var start = new DateTime(2026, 11, 10, 13, 0, 0);
+        await world.Items.EditAsync(overflow.Id, new ItemEdit(overflow.Title, null, null, null, null,
+            DateOnly.MaxValue, null, start, null));
+        var before = await world.SnapshotAsync();
+
+        await Assert.ThrowsAsync<DomainRuleException>(() => world.Items.PushBackOneDayAsync(undated.Id));
+        await Assert.ThrowsAsync<DomainRuleException>(() => world.Items.PushBackOneDayAsync(completed.Id));
+        await Assert.ThrowsAsync<DomainRuleException>(() => world.Items.PushBackOneDayAsync(overflow.Id));
+
+        Assert.Equal(before, await world.SnapshotAsync());
+        Assert.Equal("Edit 'Overflow'", world.History.UndoDescription);
+    }
+
     [Fact]
     public async Task Moving_at_an_index_reparents_and_renumbers_both_sibling_lists()
     {

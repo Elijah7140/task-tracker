@@ -22,6 +22,34 @@ namespace TaskTracker.App.Desktop.SmokeTests;
 public sealed class SmokeTests
 {
     [Fact]
+    public void Today_shows_a_completed_task_and_push_back_moves_another_task()
+    {
+        Run(session =>
+        {
+            OpenProject(session);
+            AddItem(session, "Filed report");
+            session.FindRowCheckbox("Filed report").Click();
+            session.Find("TopTodayButton").AsButton().Invoke();
+            session.FindNamed("TodayOpenItemButton", "Filed report");
+            session.Find("TodayBackButton").AsButton().Invoke();
+
+            const string title = "Send follow-up";
+            var due = new DateTime(2026, 11, 20);
+            AddItem(session, title);
+            session.FindNamed("ItemTitleButton", title).Click();
+            ReplaceText(session, PickerEdit(session, "EditorDueDatePicker"), FormatDate(due));
+            session.Press(VirtualKeyShort.TAB);
+            session.Find("EditorSaveButton").AsButton().Invoke();
+            session.WaitUntil(() => SavedDueDate(session, title) == "2026-11-20", "the due date to be saved");
+            session.FindNamed("ItemTitleButton", title).Click();
+            session.TypeChord(VirtualKeyShort.CONTROL, VirtualKeyShort.SHIFT, VirtualKeyShort.KEY_P);
+
+            session.WaitUntil(() => PickerEdit(session, "EditorDueDatePicker").AsTextBox().Text == FormatDate(due.AddDays(1)),
+                "the task's due date to move one day");
+        });
+    }
+
+    [Fact]
     public void Undo_restores_deleted_and_completed_item_then_redo_completes_it()
     {
         Run(session =>
@@ -787,6 +815,21 @@ public sealed class SmokeTests
     /// Saves the item and waits until the save has finished. After a successful save the editor's
     /// custom inputs are rebuilt from the database, so a new text box means the save is complete.
     /// </summary>
+    /// <summary>
+    /// Reads an item's stored due date (yyyy-MM-dd) from the app's database. Item rows do not expose
+    /// their date to UI Automation, so this is how a scenario knows a save has finished.
+    /// </summary>
+    private static string? SavedDueDate(SmokeSession session, string title)
+    {
+        var connectionString = $"Data Source={session.DatabasePath};Mode=ReadOnly;Pooling=False";
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT DueDate FROM TodoItem WHERE Title = $title AND DeletedAtUtc IS NULL";
+        command.Parameters.AddWithValue("$title", title);
+        return command.ExecuteScalar() as string;
+    }
+
     private static void SaveAndWaitForEditorReload(SmokeSession session)
     {
         var before = session.Find("EditorCustomTextBox").Properties.RuntimeId.Value;

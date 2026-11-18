@@ -35,6 +35,7 @@ public sealed class TodoItemConfiguration : IEntityTypeConfiguration<TodoItem>
         builder.HasIndex(item => item.ParentItemId);
         builder.HasIndex(item => item.TicketNumber);
         builder.HasIndex(item => item.DueDate);
+        builder.HasIndex(item => item.CompletedAtUtc).HasFilter("CompletedAtUtc IS NOT NULL AND DeletedAtUtc IS NULL");
         builder.HasOne<Project>().WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Folder>().WithMany().HasForeignKey(item => item.FolderId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<TodoItem>().WithMany().HasForeignKey(item => item.ParentItemId).OnDelete(DeleteBehavior.Restrict);

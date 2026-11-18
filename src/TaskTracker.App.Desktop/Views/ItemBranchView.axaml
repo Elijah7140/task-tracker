@@ -68,6 +68,9 @@
         <ContextMenu>
           <MenuItem Header="Move to…" Command="{Binding MoveItemToAreaCommand}" IsVisible="{Binding IsTopLevel}"
                     AutomationProperties.AutomationId="MoveItemToAreaMenuItem" />
+          <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
+                    ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
+                    AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
           <MenuItem Header="Skip this one" Command="{Binding SkipRepeatCommand}" IsVisible="{Binding CanSkipRepeat}"
                     AutomationProperties.AutomationId="ItemSkipRepeatMenuItem" />
           <MenuItem Header="Stop repeating" Command="{Binding StopRepeatingCommand}" IsVisible="{Binding Repeats}"

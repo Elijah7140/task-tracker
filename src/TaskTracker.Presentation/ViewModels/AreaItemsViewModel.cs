@@ -219,6 +219,24 @@ public sealed class AreaItemsViewModel
         }
     }
 
+    internal async Task PushBackAsync(ItemRowViewModel row)
+    {
+        if (items is null || !await workspace.ResolveDraftAsync())
+        {
+            return;
+        }
+
+        try
+        {
+            await items.PushBackOneDayAsync(row.Id);
+            await workspace.LoadItemsAsync(workspace.SelectedItem?.Id);
+        }
+        catch (DomainRuleException exception)
+        {
+            await dialogs.ShowMessageAsync("Push back one day", exception.Message);
+        }
+    }
+
     internal async Task ChangeRepeatAsync(ItemRowViewModel row, bool skip)
     {
         if (items is null || !await workspace.ResolveDraftAsync())

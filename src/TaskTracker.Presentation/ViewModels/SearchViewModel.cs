@@ -91,6 +91,8 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
 
     public ICommand OpenResultCommand { get; }
 
+    public SearchResultViewModel? SelectedResult { get; set; }
+
     /// <summary>Free text matched against title, description and ticket number.</summary>
     public string Text
     {
@@ -369,6 +371,8 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
 
         foreach (var row in rows)
         {
+            row.PushBackCommand = new AsyncRelayCommand(() => navigation.PushBackAsync(row.Item.ItemId),
+                () => row.PushBackReason is null);
             Results.Add(row);
         }
 

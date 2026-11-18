@@ -1301,7 +1301,18 @@ were made autonomously; they are listed for review.
   - The row menu offers Open and Push back one day.
 - **Live updates.** The view refreshes after any save. It also refreshes at local midnight, through
   a `TimeProvider` timer, so a new day starts empty.
-- **Not in this slice:** browsing earlier days.
+- **Implementation decisions.**
+- Today covers all projects and breaks ties in project order by name. Within a project the root
+  area comes first, then folders by breadcrumb. Siblings keep their workspace order.
+- A completed ancestor from an earlier day remains as context, labeled “Completed earlier”. Only
+  today's completions contribute to the total. Reopening a parent leaves it as open context if
+  today's completions still include any of its descendants.
+- A collapsed row counts all of its completed-today descendants. Completed rows retain their
+  expansion choices while they remain in the view.
+- In Calendar and Today, the focused row is the keyboard target. If adding a day overflows the
+  supported calendar, the operation shows an error and saves nothing.
+
+**Not in this slice:** browsing earlier days.
 - **Tests.**
   - Core/SQLite: the day boundaries in fixed zones, including DST days; the reopened-today exclusion;
     the ancestor context rows; and the exclusion of deleted items.
@@ -1331,6 +1342,7 @@ were made autonomously; they are listed for review.
 5. **Calendar** — scoped month and week views of due dates and scheduled blocks; activating an entry opens its item (§7.4).
 6. **Trash** — deletion batches with Restore, Delete permanently and Empty trash, scoped to all projects or one (§7.6).
 7. **Search** — query box with text syntax, filter rows, saved searches (§7.2, §7.7); Home lists saved searches.
+8. **Today** — today's completions grouped by project and area, with their ancestor rows (§7.14).
 
 ### Keyboard
 
@@ -1339,7 +1351,8 @@ editing keeps its own undo). Ctrl+N new item, Ctrl+Shift+N new sub-item, Space t
 Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outdent,
 Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
-Ctrl+Shift+T trash (§7.6), Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
+Ctrl+Shift+T trash (§7.6), Ctrl+Shift+D Today and Ctrl+Shift+P push back one day (§7.14),
+Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
 and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where
 Alt+↑/↓ reorders items, so the two never clash.
 
@@ -1456,6 +1469,30 @@ When one of these is picked up, its agreed design replaces the sections it confl
   - **Context menu.** "Set priority" on each item. If the level changes, the item moves to
     the bottom of the drag order in its new section.
   - Priority changes made here are labelled undo steps.
+- **Statuses.** The owner asked for this on 2026-11-18; it is built in the same slice as the
+  numbered priority levels and the Tickets view.
+  - **One status per item.** Each item has at most one status, such as Queued, In progress,
+    Testing or Completed. Statuses are mutually exclusive, like priority: one status and one
+    priority at a time. An item may also have no status.
+  - **Context menu.** "Set status" is on each item's context menu, everywhere item rows appear
+    (tree, search, calendar, Today, Tickets), and in the editor. Changes are labelled undo steps.
+  - **Editable list (owner's choice).** Statuses are an editable, reorderable list in App
+    Settings, like item types and priority levels: add, rename, reorder and archive. The
+    starting set is Queued, In progress, Testing and Completed.
+  - **Linked to completion (owner's choice).** Each status is either *open* or *done*; the seeded
+    Completed is done.
+    - Setting a done status completes the item, with all the §6.1 rules.
+    - Checking an item off sets the first done status.
+    - Reopening restores the open status the item had before, or no status if it had none.
+    - Auto-completed parents also get the done status.
+    - Completion and status can therefore never disagree.
+  - **Still to decide when building:**
+    - The query key and filter field. The existing built-in `status` search key means
+      open/completed, so saved searches must keep their meaning; migrate them if the key is
+      reused.
+    - What happens to a user custom field already named "Status". The existing built-in-key
+      collision rules (§7.7) apply.
+    - Import/export and recurrence copy. A copy probably resets to the first open status.
 - **Today view (done today)** (decisions in §7.14). Shows the items completed today (local day, §5.4) that are
   still completed: an item checked off today and then unchecked does not appear.
   - Completed sub-items are grouped under their parent and collapsed by default.

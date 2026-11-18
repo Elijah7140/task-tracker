@@ -23,6 +23,7 @@ public sealed class ItemRowViewModel : ViewModelBase
         Node = node;
         urgency = node.DisplayedUrgency.Value;
         this.workspace = workspace;
+        PushBackCommand = new AsyncRelayCommand(() => workspace.PushBackAsync(this), () => PushBackReason is null);
         ToggleCommand = new AsyncRelayCommand(() => workspace.ToggleAsync(this));
         SkipRepeatCommand = new AsyncRelayCommand(() => workspace.ChangeRepeatAsync(this, skip: true));
         StopRepeatingCommand = new AsyncRelayCommand(() => workspace.ChangeRepeatAsync(this, skip: false));
@@ -37,6 +38,11 @@ public sealed class ItemRowViewModel : ViewModelBase
     public ICommand MoveItemToAreaCommand { get; }
 
     public ICommand SkipRepeatCommand { get; }
+
+    public ICommand PushBackCommand { get; }
+
+    public string? PushBackReason => PushBackOneDay.UnavailableReason(IsComplete,
+        Node.Item.DueDate is not null || Node.Item.ScheduledStart is not null);
 
     public ICommand StopRepeatingCommand { get; }
 

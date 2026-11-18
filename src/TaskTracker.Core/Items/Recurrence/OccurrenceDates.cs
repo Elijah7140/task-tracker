@@ -8,16 +8,18 @@ internal static class OccurrenceDates
         Shift(item, next.DayNumber - item.RecurrenceDate!.Value.DayNumber, clock);
     }
 
-    public static void Shift(TodoItem item, int days, TimeProvider clock)
+    public static void Shift(TodoItem item, int days, TimeProvider clock,
+        string overflowMessage = "The next repeat would move a date outside the supported calendar.")
     {
         try
         {
+            var due = item.DueDate?.AddDays(days);
             item.SetSchedule(item.ScheduledStart?.AddDays(days), item.ScheduledEnd?.AddDays(days), clock);
-            item.SetDue(item.DueDate?.AddDays(days), item.DueTime, clock);
+            item.SetDue(due, item.DueTime, clock);
         }
         catch (ArgumentOutOfRangeException)
         {
-            throw new DomainRuleException("The next repeat would move a date outside the supported calendar.");
+            throw new DomainRuleException(overflowMessage);
         }
     }
 

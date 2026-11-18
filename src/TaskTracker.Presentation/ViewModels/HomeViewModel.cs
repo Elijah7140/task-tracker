@@ -33,6 +33,7 @@ public sealed class HomeViewModel : ViewModelBase
         SearchCommand = new AsyncRelayCommand(navigation.OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(navigation.OpenCalendarAsync);
         TrashCommand = new AsyncRelayCommand(navigation.OpenTrashAsync);
+        TodayCommand = new AsyncRelayCommand(navigation.OpenTodayAsync);
         ProjectSettingsCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenProjectSettingsAsync);
     }
 
@@ -61,6 +62,8 @@ public sealed class HomeViewModel : ViewModelBase
     public ICommand CalendarCommand { get; }
 
     public ICommand TrashCommand { get; }
+
+    public ICommand TodayCommand { get; }
 
     public ICommand ProjectSettingsCommand { get; }
 
