@@ -1,11 +1,12 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Pulls the current branch, rebuilds the desktop app and starts it.
+    Closes the running app, pulls the current branch, rebuilds the desktop app and starts it.
 
 .DESCRIPTION
-    Closes any running Task Tracker first: the build cannot overwrite a running exe, and the
-    single-instance guard would hand the new launch to the old window. Each copy gets 10 seconds
+    Closes any running Task Tracker before pulling: the pull and build cannot overwrite files a
+    running exe holds open, and the single-instance guard would hand the new launch to the old
+    window. Each copy gets 10 seconds
     to close (it may only minimise to the tray) before it is stopped.
 
     When the Set-MpgAssemblySigned cmdlet is available, the built exe is signed with the first
@@ -66,8 +67,8 @@ function Set-ExeSignature
     Get-Item $exePath | Set-MpgAssemblySigned -CertificatePath 'Cert:\CurrentUser\My' -FriendlyNameSearch '*PCA MAD*'
 }
 
-Invoke-Native 'git pull' { git -C $repoRoot pull --ff-only }
 Stop-TaskTracker
+Invoke-Native 'git pull' { git -C $repoRoot pull --ff-only }
 Invoke-Native 'dotnet build' { dotnet build $projectPath }
 Set-ExeSignature
 Start-Process -FilePath $exePath -WorkingDirectory $outputFolder
