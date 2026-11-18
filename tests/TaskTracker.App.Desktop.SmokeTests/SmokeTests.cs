@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Infrastructure.Persistence;
@@ -21,6 +22,43 @@ namespace TaskTracker.App.Desktop.SmokeTests;
 /// <summary>Exercises the running desktop application through Windows UI Automation.</summary>
 public sealed class SmokeTests
 {
+    [Fact]
+    public void Tickets_alt_down_moves_the_focused_ticket_into_the_next_priority()
+    {
+        const string title = "Reconcile payments";
+        Run(session =>
+        {
+            session.Find("HomeTicketsButton").AsButton().Invoke();
+            session.FindNamed("TicketRow", title).Click();
+            session.TypeChord(VirtualKeyShort.ALT, VirtualKeyShort.DOWN);
+
+            session.WaitUntil(() => TicketPriority(session, title) == BuiltInLookups.CriticalId,
+                "the ticket to acquire Critical priority");
+        }, seed: path => SeedTicketAsync(path, title).GetAwaiter().GetResult());
+    }
+
+    private static async Task SeedTicketAsync(string path, string title)
+    {
+        using var services = CompositionRoot.BuildServices(databasePath: path);
+        await InitializeDatabaseAsync(services);
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Ticket Smoke");
+        var items = services.GetRequiredService<ItemService>();
+        var item = await items.CreateAsync(project.Id, null, null, title);
+        await items.EditAsync(item.Id, new ItemEdit(title, null, "PAY-17", null, null, null, null, null, null));
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    private static Guid? TicketPriority(SmokeSession session, string title)
+    {
+        var connectionString = $"Data Source={session.DatabasePath};Mode=ReadOnly;Pooling=False";
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT PriorityLevelId FROM TodoItem WHERE Title = $title";
+        command.Parameters.AddWithValue("$title", title);
+        return Guid.TryParse(command.ExecuteScalar() as string, out var priority) ? priority : null;
+    }
+
     [Fact]
     public void Setting_a_status_from_the_row_menu_shows_the_status_chip()
     {

@@ -53,7 +53,8 @@ public static class CompositionRoot
             .Register<SearchViewModel, SearchView>()
             .Register<CalendarViewModel, CalendarView>()
             .Register<TrashViewModel, TrashView>()
-            .Register<TodayViewModel, TodayView>());
+            .Register<TodayViewModel, TodayView>()
+            .Register<TicketsViewModel, TicketsView>());
 
         services.AddSingleton<DesktopReminderNotifier>();
         services.AddSingleton<IReminderNotifier>(provider =>

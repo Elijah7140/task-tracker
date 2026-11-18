@@ -1,6 +1,7 @@
 using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Tickets;
 using TaskTracker.Core.Today;
 using TaskTracker.Core.Trash;
 
@@ -26,6 +27,8 @@ public interface IUnitOfWork : IAsyncDisposable
     ICalendarRepository Calendar { get; }
 
     ITodayRepository Today => throw new NotSupportedException();
+
+    ITicketRepository Tickets => throw new NotSupportedException();
 
     ITrashRepository Trash { get; }
 

@@ -132,6 +132,7 @@ Phase 3: FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldVal
 | `ParentItemId` | Guid? | null = top-level item |
 | `Title` | string (required, ≤ 300) | |
 | `Description` | string? | Markdown (a superset of the plain text stored before); previewed read-only in the editor, §7.10 |
+| `TicketRank` | double? | Position in the Tickets priority section (§7.16) |
 | `TicketNumber` | string? (≤ 100) | Free text, e.g. `JIRA-1234`. Indexed, not unique |
 | `PriorityLevelId` | Guid? | null = no priority |
 | `ItemTypeId` | Guid? | |
@@ -1482,6 +1483,22 @@ request was silent, the decisions below were made autonomously; they are listed 
 - **Menus.** **Set priority ▸** moves the item to the bottom of its new section when the level
   changes. **Set status ▸**, Open and Push back one day are also available.
 - **Undo.** Every move and priority change is one labelled undo step.
+- **Implementation decisions.**
+  - Tickets opens on All projects. The list includes open numbered sub-items, and excludes items
+    in deleted projects or folders. Active levels have headers even when empty. An archived level
+    has a header while it contains visible tickets, which may be reordered or moved out.
+  - Listing does not write ranks. Unranked tickets follow ranked tickets by creation time, with
+    item ID breaking ties. An effective move assigns consecutive ranks in its destination section.
+    Clearing a ticket number or changing priority elsewhere clears the rank. Reopening a ticket
+    keeps its rank. Ticket ranks are local to the database and omitted from import/export.
+  - The upper and lower halves of a row insert before and after it. A drop on a header inserts at
+    the section start. Alt+Down at a section end enters the next assignable section before its
+    first visible row. Alt+Up at a section start enters the preceding assignable section after its
+    last visible row. An empty section accepts either direction at the header. The project filter
+    hides rows without changing the global order, so moves use the visible target as an anchor
+    among all projects. Set priority appends after every ticket in the destination section.
+  - The project filter takes focus on opening. A row opens with Enter or its menu, and moved rows
+    retain focus so successive keyboard moves are possible. Ctrl+Shift+P uses the focused ticket.
 - **Tests.**
   - The ordering, using a non-monotonic number mapping such as 1, 7, 2.
   - Rank assignment, and the drop rules at section edges.
@@ -1502,7 +1519,7 @@ request was silent, the decisions below were made autonomously; they are listed 
      - Quick-add box at top (type a title, Enter).
      - Open items as an expandable tree, each row showing checkbox, type icon, title, a status
        chip when the item has a status, ticket, priority, due/scheduled date, with (rolled-up)
-       urgency background. Every item row menu here and on Search, Calendar and Today has
+       urgency background. Every item row menu here and on Search, Calendar, Today and Tickets has
        **Set status ▸** and **Set priority ▸** (§7.15).
      - **Completed (n)** expander at the bottom, collapsed by default (§6.2).
    - **Right:** detail editor for the selected item (all fields, including Status below Priority, the Markdown description with Edit and Preview, links, sub-item list; §7.10, §7.15).
@@ -1515,6 +1532,7 @@ request was silent, the decisions below were made autonomously; they are listed 
 6. **Trash** — deletion batches with Restore, Delete permanently and Empty trash, scoped to all projects or one (§7.6).
 7. **Search** — query box with text syntax, filter rows, saved searches (§7.2, §7.7); Home lists saved searches.
 8. **Today** — today's completions grouped by project and area, with their ancestor rows (§7.14).
+9. **Tickets** — open numbered items grouped by priority, with a project filter and manual ordering (§7.16).
 
 ### Keyboard
 
@@ -1524,6 +1542,7 @@ Delete delete (with confirm), Alt+↑/↓ reorder, Alt+→ indent, Alt+← outde
 Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
 Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
 Ctrl+Shift+T trash (§7.6), Ctrl+Shift+D Today and Ctrl+Shift+P push back one day (§7.14),
+Ctrl+Shift+K Tickets, where Alt+↑/↓ moves the focused ticket within or between priority sections (§7.16),
 Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
 and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where
 Alt+↑/↓ reorders items, so the two never clash. The Menu key or Shift+F10 opens a focused row's

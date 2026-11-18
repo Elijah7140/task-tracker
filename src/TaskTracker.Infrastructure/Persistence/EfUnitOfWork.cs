@@ -4,6 +4,7 @@ using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
+using TaskTracker.Core.Tickets;
 using TaskTracker.Core.Today;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
@@ -40,6 +41,7 @@ public sealed class EfUnitOfWork : IUnitOfWork
         Settings = new EfSettingsStore(database);
         Search = new SqlItemSearch(database);
         Calendar = new EfCalendarRepository(database);
+        Tickets = new EfTicketRepository(database);
         Today = new EfTodayRepository(database);
         Trash = new EfTrashRepository(database);
         SavedSearches = new EfSavedSearchRepository(database);
@@ -61,6 +63,8 @@ public sealed class EfUnitOfWork : IUnitOfWork
     public IItemSearch Search { get; }
 
     public ICalendarRepository Calendar { get; }
+
+    public ITicketRepository Tickets { get; }
 
     public ITodayRepository Today { get; }
 

@@ -9,7 +9,7 @@
         Title="{Binding Title}"
         Width="1200" Height="800" MinWidth="800" MinHeight="500">
     <Grid RowDefinitions="Auto,*">
-      <Grid x:Name="AppTitleBar" Height="36" ColumnDefinitions="*,Auto,Auto,146"
+      <Grid x:Name="AppTitleBar" Height="36" ColumnDefinitions="*,Auto,Auto,Auto,146"
             Background="{DynamicResource AppCardBackgroundBrush}"
             IsVisible="{Binding Reminders, Converter={x:Static ObjectConverters.IsNotNull}}">
         <Border Background="Transparent" chrome:WindowDecorationProperties.ElementRole="TitleBar">
@@ -18,7 +18,10 @@
         <Button Grid.Column="1" Content="Today" Classes="subtle" VerticalAlignment="Center"
                 Command="{Binding TodayCommand}" chrome:WindowDecorationProperties.ElementRole="User"
                 AutomationProperties.AutomationId="TopTodayButton" ToolTip.Tip="Today (Ctrl+Shift+D)" />
-        <Button Grid.Column="2" Background="Transparent"
+        <Button Grid.Column="2" Content="Tickets" Classes="subtle" VerticalAlignment="Center"
+                Command="{Binding TicketsCommand}" chrome:WindowDecorationProperties.ElementRole="User"
+                AutomationProperties.AutomationId="TopTicketsButton" ToolTip.Tip="Tickets (Ctrl+Shift+K)" />
+        <Button Grid.Column="3" Background="Transparent"
                 Classes="subtle icon" VerticalAlignment="Center" Command="{Binding Reminders.ToggleCommand}"
                 chrome:WindowDecorationProperties.ElementRole="User"
                 AutomationProperties.AutomationId="ReminderBell" AutomationProperties.Name="{Binding Reminders.BellName}"

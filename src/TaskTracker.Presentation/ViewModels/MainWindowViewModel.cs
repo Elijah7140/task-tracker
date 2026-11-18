@@ -15,6 +15,7 @@ using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
 using TaskTracker.Core.Settings;
+using TaskTracker.Core.Tickets;
 using TaskTracker.Core.Today;
 using TaskTracker.Core.Trash;
 using TaskTracker.Core.Undo;
@@ -43,6 +44,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private readonly ICalendarRescheduler? rescheduler;
     private readonly ITrashService? trash;
     private readonly TodayService? today;
+    private readonly TicketService? tickets;
     private readonly DataSaved? saves;
     private readonly SavedSearchService? savedSearches;
     private readonly ItemQueryParser? queryParser;
@@ -58,6 +60,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private bool isOpeningCalendar;
     private bool isOpeningTrash;
     private bool isOpeningToday;
+    private bool isOpeningTickets;
     private bool isChangingTransientItem;
     private ViewModelBase? currentPage;
     private RemindersViewModel? reminders;
@@ -71,7 +74,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         CalendarService? calendar = null, ICalendarRescheduler? rescheduler = null,
         ITrashService? trash = null, SavedSearchService? savedSearches = null, ItemQueryParser? queryParser = null,
         UndoHistory? undoHistory = null, TransferServices? transfer = null, ILinkLauncher? linkLauncher = null,
-        InstallationServices? installation = null, TodayService? today = null, DataSaved? saves = null)
+        InstallationServices? installation = null, TodayService? today = null, DataSaved? saves = null,
+        TicketService? tickets = null)
     {
         this.projectService = projectService;
         this.folderService = folderService;
@@ -89,6 +93,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         this.rescheduler = rescheduler;
         this.trash = trash;
         this.today = today;
+        this.tickets = tickets;
         this.saves = saves;
         this.savedSearches = savedSearches;
         this.queryParser = queryParser;
@@ -105,6 +110,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         SearchCommand = new AsyncRelayCommand(OpenSearchAsync);
         CalendarCommand = new AsyncRelayCommand(OpenCalendarAsync);
         TrashCommand = new AsyncRelayCommand(OpenTrashAsync);
+        TicketsCommand = new AsyncRelayCommand(OpenTicketsAsync);
         TodayCommand = new AsyncRelayCommand(OpenTodayAsync);
     }
 
@@ -166,6 +172,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
 
     public ICommand TrashCommand { get; }
 
+    public ICommand TicketsCommand { get; }
+
     public ICommand TodayCommand { get; }
 
     /// <summary>Undo and redo for the whole window; null when the shell was built without a history.</summary>
@@ -191,6 +199,9 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
                 break;
             case CalendarViewModel calendarPage:
                 await calendarPage.LoadAsync();
+                break;
+            case TicketsViewModel ticketsPage:
+                await ticketsPage.LoadAsync();
                 break;
             case TodayViewModel todayPage:
                 await todayPage.LoadAsync();
@@ -390,6 +401,49 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         {
             await ReturnFromTransientPageAsync();
         }
+    }
+
+    /// <inheritdoc />
+    public async Task OpenTicketsAsync()
+    {
+        if (tickets is null || saves is null || isOpeningTickets || CurrentPage is TicketsViewModel)
+        {
+            return;
+        }
+
+        isOpeningTickets = true;
+        try
+        {
+            var version = pageVersion;
+            var origin = PageBehind(CurrentPage);
+            var ui = dispatcher ?? new SynchronizationContextDispatcher(SynchronizationContext.Current);
+            var page = new TicketsViewModel(tickets, this, saves, ui);
+            page.WriteStarted += TrackTransientWrite;
+            await page.LoadAsync();
+            if (version != pageVersion)
+            {
+                page.Dispose();
+                return;
+            }
+
+            ShowTransientPage(origin, page);
+        }
+        finally
+        {
+            isOpeningTickets = false;
+        }
+    }
+
+    /// <inheritdoc />
+    public Task ReturnFromTicketsAsync()
+    {
+        return CurrentPage is TicketsViewModel ? ReturnFromTransientPageAsync() : Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<SearchOpenOutcome> OpenTicketItemAsync(Guid itemId)
+    {
+        return OpenItemFromTransientPageAsync(itemId, transientReturnPage);
     }
 
     /// <inheritdoc />
@@ -784,7 +838,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
 
     private static bool IsTransientPage(ViewModelBase? page)
     {
-        return page is SearchViewModel or CalendarViewModel or TrashViewModel or TodayViewModel;
+        return page is SearchViewModel or CalendarViewModel or TrashViewModel or TodayViewModel or TicketsViewModel;
     }
 
     private void ShowTransientPage(ViewModelBase? origin, ViewModelBase page)
