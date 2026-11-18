@@ -44,7 +44,6 @@ and ICU library on the path when present).
 - Snapshot tests run on both Windows and Linux; never skip one on an OS. Approve only the
   `*.windows.png` baselines locally. The project lead adds `*.linux.png` from the CI run's
   `received-snapshots-ubuntu-latest` artifact.
-- Do not commit; the project lead reviews and commits.
 - A migration that makes EF rebuild `TodoItem` must recreate the `TodoItemSearch`
   triggers and reconcile `TodoItemSearchRow`/`TodoItemSearch`; the schema test catches
   a missing trigger.
