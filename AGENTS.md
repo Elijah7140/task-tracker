@@ -3,6 +3,17 @@
 Read `docs/PLAN.md` before changing anything; it is the source of truth for scope,
 business rules and architecture. Section numbers (§6.1 etc.) refer to it.
 
+## Roles
+
+- **Owner:** the person running the session. Sets scope, makes product decisions, and does
+  the hands-on review in §11.1.
+- **Project lead:** the top-level agent in the owner's session. Plans the work, briefs
+  subagents and delegates, reviews their changes, commits, opens and merges pull requests,
+  and adds the Linux snapshot baselines. Where this guide says "the project lead", that is you
+  if you are the top-level agent.
+- **Subagents and delegates:** implement and test what the brief asks, then report back.
+  They do not commit, push or merge; the project lead reviews and commits their work.
+
 ## Commands
 
 ```sh
@@ -42,8 +53,8 @@ and ICU library on the path when present).
   or changed screen gets a reviewed snapshot baseline; interactive controls get an
   `AutomationProperties.AutomationId`. A bug found by hand gets a regression test.
 - Snapshot tests run on both Windows and Linux; never skip one on an OS. Approve only the
-  `*.windows.png` baselines locally. The project lead adds `*.linux.png` from the CI run's
-  `received-snapshots-ubuntu-latest` artifact.
+  `*.windows.png` baselines locally. The project lead reviews the CI run's
+  `received-snapshots-ubuntu-latest` artifact and commits the `*.linux.png` baselines from it.
 - A migration that makes EF rebuild `TodoItem` must recreate the `TodoItemSearch`
   triggers and reconcile `TodoItemSearchRow`/`TodoItemSearch`; the schema test catches
   a missing trigger.
