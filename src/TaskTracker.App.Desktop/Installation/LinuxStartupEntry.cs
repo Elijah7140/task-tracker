@@ -61,7 +61,7 @@ internal sealed class LinuxStartupEntry : IStartupEntry
         text.Append("[Desktop Entry]\n");
         text.Append("Type=Application\n");
         text.Append("Name=Task Tracker\n");
-        text.Append($"Exec={QuoteExecArgument(executablePath)}\n");
+        text.Append($"Exec={EscapeStringValue(QuoteExecArgument(executablePath))}\n");
         text.Append("Terminal=false\n");
         text.Append("X-GNOME-Autostart-enabled=true\n");
 
@@ -70,7 +70,7 @@ internal sealed class LinuxStartupEntry : IStartupEntry
 
     /// <summary>
     /// Quotes a path for the <c>Exec</c> key. Inside quotes, the desktop entry specification escapes
-    /// <c>"</c>, <c>`</c> and <c>$</c> with a backslash, writes a backslash as four, and doubles <c>%</c>.
+    /// <c>"</c>, <c>`</c>, <c>$</c> and backslash with a backslash, and doubles <c>%</c>.
     /// </summary>
     private static string QuoteExecArgument(string path)
     {
@@ -87,10 +87,18 @@ internal sealed class LinuxStartupEntry : IStartupEntry
     {
         return character switch
         {
-            '"' or '`' or '$' => $"\\{character}",
-            '\\' => @"\\\\",
+            '"' or '`' or '$' or '\\' => $"\\{character}",
             '%' => "%%",
             _ => character.ToString(),
         };
+    }
+
+    // A launcher unescapes the desktop entry's string value before parsing Exec quotes.
+    private static string EscapeStringValue(string value)
+    {
+        return value.Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("\n", @"\n", StringComparison.Ordinal)
+            .Replace("\r", @"\r", StringComparison.Ordinal)
+            .Replace("\t", @"\t", StringComparison.Ordinal);
     }
 }

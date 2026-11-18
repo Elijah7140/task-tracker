@@ -39,8 +39,15 @@ public sealed class LinuxStartupEntryTests : IDisposable
 
         entry.Write();
 
-        var lines = File.ReadAllLines(entry.FilePath);
-        Assert.Contains(@"Exec=""/home/alex/My \$Apps/100%%/Task\""Tracker\`\\\\.AppImage""", lines);
+        var expected = """
+            [Desktop Entry]
+            Type=Application
+            Name=Task Tracker
+            Exec="/home/alex/My \\$Apps/100%%/Task\\"Tracker\\`\\\\.AppImage"
+            Terminal=false
+            X-GNOME-Autostart-enabled=true
+            """;
+        Assert.Equal(expected.ReplaceLineEndings("\n") + "\n", File.ReadAllText(entry.FilePath));
     }
 
     [Fact]

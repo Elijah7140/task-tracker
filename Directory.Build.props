@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <!-- The release workflow overrides this from the tag (§7.13). -->
     <Version>0.1.0</Version>
+    <TaskTrackerUpdateFeedUrl Condition="'$(TaskTrackerUpdateFeedUrl)' == ''">https://github.com/Elijah7140/task-tracker</TaskTrackerUpdateFeedUrl>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

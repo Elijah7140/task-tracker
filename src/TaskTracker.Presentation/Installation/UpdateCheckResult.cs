@@ -7,6 +7,8 @@ public sealed record UpdateCheckResult(UpdateCheckOutcome Outcome, string? NewVe
 
     public static UpdateCheckResult Failed { get; } = new(UpdateCheckOutcome.Failed);
 
+    public static UpdateCheckResult FeedUnavailable { get; } = new(UpdateCheckOutcome.FeedUnavailable);
+
     public static UpdateCheckResult Available(string newVersion)
     {
         return new UpdateCheckResult(UpdateCheckOutcome.UpdateAvailable, newVersion);

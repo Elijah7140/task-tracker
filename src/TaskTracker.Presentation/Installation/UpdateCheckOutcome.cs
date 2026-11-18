@@ -5,5 +5,6 @@ public enum UpdateCheckOutcome
 {
     UpToDate,
     UpdateAvailable,
+    FeedUnavailable,
     Failed,
 }

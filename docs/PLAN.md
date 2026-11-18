@@ -1153,20 +1153,29 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
 - **Startup hook.** `VelopackApp.Build().Run()` is the first statement in `Main`, before the
   single-instance guard (§7.12), so install, update and uninstall hooks run without opening a window.
 - **Self-contained publish.** The publish is self-contained, so users need no .NET install. It targets
-  `win-x64`, `linux-x64` and `osx-arm64`, plus `osx-x64` if the runner allows. It is not trimmed,
+  `win-x64`, `linux-x64` and `osx-arm64`. It is not trimmed,
   because Avalonia and EF Core reflection make trimming risky.
 - **Version.** One `<Version>` in `Directory.Build.props`, `0.1.0` for now. The release workflow takes
   the version from the tag (`v0.2.0` becomes `0.2.0`) and passes it to both `dotnet publish` and `vpk`.
   App Settings shows the version in an **About** line.
-- **Data is never touched.** The database, its backups and the settings stay in the user's
+- **The default data location is preserved.** The database, its backups and the settings stay in the user's
   local-app-data folder (`DatabaseInitializer.DefaultPath`). Install, update and uninstall leave that
-  folder alone; uninstalling keeps the data, and reinstalling picks it up. Migrations still run at
-  start-up with the usual backup first (§11).
-- **Updates.** App Settings has a **Check for updates** button. It asks GitHub Releases for this
-  repository through Velopack's GitHub source. If a newer version exists, it offers **Download and
-  restart**.
+  folder alone. A reinstall picks up the existing data. A custom `TASKTRACKER_DB_PATH` inside the
+  install folder can be lost during install, update, or uninstall. Migrations run at startup with a backup
+  first (§11).
+- **Updates.** App Settings has a **Check for updates** button. Velopack's GitHub source checks
+  stable releases anonymously. If a newer version exists, it offers **Download**.
+  - The `TaskTrackerUpdateFeedUrl` MSBuild property defaults to
+    `https://github.com/Elijah7140/task-tracker` in `Directory.Build.props` and is embedded in
+    the desktop assembly metadata. Both pack scripts accept an override. The release workflow
+    reads the optional GitHub Actions repository variable `TASKTRACKER_UPDATE_FEED_URL`.
+  - Auto-update requires releases published to a public repository. The default repository is
+    currently private. Making it public or using a separate public release repository is an
+    open owner decision. The workflow uploads to its own repository.
   - There is no automatic background check, so the app makes no network call unless the user asks.
-  - With no network, or when the app runs uninstalled (a dev or test build), it shows a plain message.
+  - HTTP 404 and 401 show “No update feed is available yet. Releases are published to a private or
+    missing repository.” Network failures keep the generic check error. Uninstalled builds have
+    their own message.
   - The update service sits behind an interface, so tests use a fake.
 - **Start with the OS.** There is a global `StartWithSystem` setting, default off, in App Settings
   next to `KeepRunningInTray`.
@@ -1180,7 +1189,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   certificates or an Apple developer account.
 - **CI.**
   - **On pull requests:** a `package` job runs on Windows and Linux. It publishes and runs `vpk pack`
-    to catch packaging breakage, then uploads the installer as a workflow artifact. Pull requests
+    to catch packaging breakage, checks the actual package ids in the release manifest, then uploads
+    the installer as a workflow artifact. Pull requests
     publish no release.
   - **On a `v*` tag:** a `release.yml` workflow builds Windows, Linux and macOS packages and creates
     a GitHub Release with the Velopack release files, which update checks need.
@@ -1188,8 +1198,9 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - Unit tests: the version text, the update-check states with a fake service (up to date, update
     available, failure, not installed), and the start-with-system entry writer with a temp folder or
     a registry abstraction.
-  - Headless tests: the About line and Check for updates.
-  - App Settings snapshot updates.
+  - Headless tests: the About line, Check for updates and the real discard prompt after an edit
+    made during a download.
+  - App Settings snapshots cover the ready-to-restart state.
   - The CI pack job proves the package builds.
   - Installing, updating and uninstalling are checked by hand on Windows; the README has a checklist.
 - **Implementation decisions** (made where the bullets above are silent):
@@ -1198,15 +1209,24 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
     package.
   - **The pack id is `TaskTrackerApp`, not `TaskTracker`.** Velopack installs to
     `%LocalAppData%\<packId>` and deletes that whole folder on uninstall, so the id `TaskTracker`
-    would delete the database. A test guards both pack scripts.
+    would delete the database. Tests guard the pack id passed to Velopack, and CI checks
+    `Assets[].PackageId` in the generated channel manifest.
     - The main executable stays `TaskTracker.App.Desktop`, and shortcuts show the title "Task Tracker".
     - The exe embeds `app.ico`. Linux and macOS packages use Velopack's default icon, because the
       repository has no `.png` or `.icns` icon yet.
   - **Packages.**
     - `osx-x64` is not built: it would share the `osx` update channel with `osx-arm64`.
     - Releases carry full packages only, with no deltas.
+    - Both scripts run .NET commands from the repository root. They validate the runtime
+      against `win-x64`, `linux-x64` and `osx-arm64` and check both output paths under
+      `artifacts/` before cleaning up. Symlinks and junctions in those paths are rejected.
     - Each OS packs on its own runner. One `publish` job then uploads the three channels in turn with
-      `vpk upload github --publish --merge`, so they never race to create the release.
+      `vpk upload github --merge` into a draft. Runs for the same tag are serialized. A rerun
+      replaces any package artifacts it rebuilds, deletes a leftover draft and uploads from
+      scratch. The job verifies all three uploaded channel manifests before publishing once.
+      A rerun after a complete publication is a no-op.
+    - A release version containing `-` uses `--pre`, so it is published as a GitHub prerelease
+      and excluded from stable update checks.
   - **StartWithSystem saving.** It saves with the other global defaults on **Save defaults**.
     - After a successful save, the entry is written or removed. This happens on every save while the
       option is available; the operation is idempotent.
@@ -1215,18 +1235,23 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - **The entries.**
     - Windows: a `TaskTracker` value under the `HKCU` `Run` key, holding the quoted path of the running
       exe. Velopack keeps that path stable across updates (`…\current\`).
-    - Linux: `Exec` is the AppImage path from Velopack's locator, quoted as the desktop entry
-      specification requires. The mounted copy's path changes on every run, so it can't be used.
+    - Linux: `Exec` uses the AppImage path from Velopack's locator. The path is quoted under the
+      Exec argument rules, then escaped as a desktop entry string value. The mounted copy's path
+      changes on every run.
     - `XDG_CONFIG_HOME` is used only when it is an absolute path.
   - **Hooks.** Only Windows has a Velopack uninstall hook, which removes the `Run` value. No install or
     update hooks are needed, because the exe path does not change on update.
     - On Linux the user deletes the AppImage, and the README says to delete the autostart file too.
     - A reinstall keeps the stored setting but not the entry; saving the setting again recreates it.
-  - **Download and restart.**
-    - If the page has unsaved defaults, the app asks before closing.
-    - It downloads the update, then starts Velopack's updater with `WaitExitThenApplyUpdates`.
-    - It then shuts the app down normally, so the tray icon and services are disposed.
+  - **Download, then restart.**
     - While downloading, it shows "Downloading version X…", without a percentage.
+    - When the download completes, App Settings shows "Ready to restart" with a **Restart to
+      update** button. The update state survives navigating away and back.
+    - Restart checks the active page for unsaved changes immediately before the updater handoff.
+      If the user declines, the app stays open and the downloaded update is applied by Velopack
+      on the next normal start. The UI says “The update will be installed the next time Task Tracker starts”.
+    - When approved, the app starts Velopack's updater with `WaitExitThenApplyUpdates` and shuts
+      down normally, so the tray icon, services and single-instance guard are disposed.
   - **Uninstalled builds** never call the network. They say "Updates are available only in installed
     builds."
   - **App Settings layout.** The About card sits between the global defaults and the lookup lists. UI

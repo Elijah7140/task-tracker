@@ -11,14 +11,29 @@ public sealed class FakeUpdateService : IUpdateService
 
     public int DownloadCount { get; private set; }
 
+    public int RestartCount { get; private set; }
+
+    public TaskCompletionSource? DownloadGate { get; set; }
+
     public Task<UpdateCheckResult> CheckAsync()
     {
         return Task.FromResult(CheckResult);
     }
 
-    public Task<bool> DownloadAndRestartAsync()
+    public async Task<bool> DownloadAsync()
     {
         DownloadCount++;
-        return Task.FromResult(true);
+        if (DownloadGate is not null)
+        {
+            await DownloadGate.Task;
+        }
+
+        return true;
+    }
+
+    public bool RestartToUpdate()
+    {
+        RestartCount++;
+        return true;
     }
 }

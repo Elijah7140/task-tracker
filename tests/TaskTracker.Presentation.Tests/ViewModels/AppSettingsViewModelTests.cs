@@ -365,7 +365,7 @@ public sealed class AppSettingsViewModelTests
     }
 
     [Fact]
-    public async Task Download_and_restart_with_unsaved_defaults_asks_before_closing_the_app()
+    public async Task Restart_with_unsaved_defaults_asks_before_closing_the_app()
     {
         await using var store = new PresentationTestStore();
         await store.InitializeAsync();
@@ -376,10 +376,11 @@ public sealed class AppSettingsViewModelTests
         await page.LoadAsync();
         page.YellowAmount = 5;
         await page.Updates!.CheckCommand.ExecuteAsync(null);
+        await page.Updates.DownloadCommand.ExecuteAsync(null);
 
-        await page.Updates.DownloadAndRestartCommand.ExecuteAsync(null);
+        await page.Updates.RestartCommand.ExecuteAsync(null);
 
-        Assert.Equal(0, updates.DownloadCount);
+        Assert.Equal(0, updates.RestartCount);
         Assert.Equal(["Discard unsaved settings?"], dialogs.ConfirmTitles);
     }
 

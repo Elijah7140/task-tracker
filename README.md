@@ -45,13 +45,17 @@ code-signed yet, so Windows and macOS warn the first time you open them; the ste
   Control-click) the app → Open → Open**. On macOS 15 or later, instead open the app once, then choose
   **System Settings → Privacy & Security → Open Anyway**.
 
-**Your data stays put.** The database and its backups live in `LocalApplicationData/TaskTracker`
+**The default data location is preserved.** The database and its backups live in `LocalApplicationData/TaskTracker`
 (`%LocalAppData%\TaskTracker` on Windows, `~/.local/share/TaskTracker` on Linux), outside the install
-folder. Installing, updating and uninstalling never touch it, and a reinstall picks it up again.
+folder. Installing, updating and uninstalling preserve that location, and a reinstall picks it up
+again. A custom `TASKTRACKER_DB_PATH` inside the install folder can be lost during install, update, or uninstall.
 
 **Updates:** App Settings → **Check for updates**. If a newer release exists, **Download and restart**
-installs it. The app never checks on its own. Updates work only in an installed build, not in one
-run from source.
+downloads it. Use **Restart to update** when ready. If you keep working, Velopack applies the
+downloaded update the next time Task Tracker starts. The app checks only on request, in installed
+builds, and considers stable releases only. Auto-update requires releases published to a public
+GitHub repository. The default repository is currently private. Making it public or choosing a
+separate public release repository is an open owner decision.
 
 **Start with the system:** App Settings → **Start Task Tracker when I sign in** (installed builds on
 Windows and Linux). On Windows it adds a `TaskTracker` value under
@@ -73,14 +77,22 @@ dotnet tool pinned in `.config/dotnet-tools.json`; the scripts restore it.
 ```sh
 ./scripts/pack.ps1                  # Windows: win-x64, version from Directory.Build.props
 ./scripts/pack.ps1 -Version 0.2.0
+./scripts/pack.ps1 -UpdateFeedUrl https://github.com/example/task-tracker-releases
 bash scripts/pack.sh                # Linux: linux-x64; macOS: osx-arm64
 bash scripts/pack.sh linux-x64 0.2.0
+bash scripts/pack.sh linux-x64 0.2.0 https://github.com/example/task-tracker-releases
 ```
 
-Each script publishes a self-contained, untrimmed build to `artifacts/publish/<runtime>` and writes the
+Each script runs from the repository root regardless of the caller's directory. It publishes a
+self-contained, untrimmed build to `artifacts/publish/<runtime>` and writes the
 release files to `artifacts/releases/<runtime>`. `artifacts/` is git-ignored. Velopack packs only for the
 OS it runs on. The pack id is `TaskTrackerApp`, not `TaskTracker`: on Windows, Velopack deletes
 `%LocalAppData%\<packId>` on uninstall, and that must never be the data folder.
+
+The desktop build embeds the `TaskTrackerUpdateFeedUrl` MSBuild property from `Directory.Build.props`.
+The examples above override it at pack time. Tagged builds use the GitHub Actions repository
+variable `TASKTRACKER_UPDATE_FEED_URL` when set. The workflow publishes to the repository that runs
+it. If you configure a separate public feed, publish the release assets to that repository too.
 
 On every pull request and push to `main`, the CI `package` job packs for Windows and Linux and uploads
 the result as the `package-win-x64` and `package-linux-x64` workflow artifacts. It never publishes a
@@ -94,8 +106,10 @@ git push origin v0.2.0
 ```
 
 `.github/workflows/release.yml` takes the version from the tag (`v0.2.0` → `0.2.0`), packs win-x64,
-linux-x64 and osx-arm64, and publishes a GitHub Release with the Velopack files. Update checks read
-those files. `<Version>` in `Directory.Build.props` is only the version of local builds.
+linux-x64 and osx-arm64, and uploads all three feeds to a draft before publishing the GitHub Release.
+A rerun rebuilds an incomplete draft. A version containing a hyphen, such as `0.2.0-rc.1`, is
+published as a GitHub prerelease and skipped by the app's stable update check.
+`<Version>` in `Directory.Build.props` is only the version of local builds.
 
 ### Manual install, update and uninstall checklist (Windows)
 
@@ -112,8 +126,9 @@ Run this on a Windows machine before signing off a release. Back up `%LocalAppDa
    `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, the `TaskTracker` value is the quoted path to
    `%LocalAppData%\TaskTrackerApp\current\TaskTracker.App.Desktop.exe`. Sign out and in: the app starts.
    Untick and save: the value is gone.
-7. **Update:** with an older release installed and a newer one published, **Check for updates** shows
-   "Version Y is available." **Download and restart** closes the app and reopens it. About shows Y,
+7. **Update:** with an older release installed and a newer stable one published to the configured
+   public feed, **Check for updates** shows "Version Y is available." Choose **Download**, wait for
+   "Ready to restart," then choose **Restart to update**. About shows Y after the app reopens,
    the data is intact, and a ticked start-with-system entry still works.
 8. **Uninstall:** Settings → Apps → Task Tracker → Uninstall. `%LocalAppData%\TaskTrackerApp` and the
    `Run` value are gone. `%LocalAppData%\TaskTracker\tasktracker.db` and its backups are still there.

@@ -11,11 +11,15 @@ internal sealed class FakeUpdateService : IUpdateService
 
     public bool DownloadSucceeds { get; set; } = true;
 
+    public bool RestartSucceeds { get; set; } = true;
+
     public TaskCompletionSource? CheckGate { get; set; }
 
     public int CheckCount { get; private set; }
 
     public int DownloadCount { get; private set; }
+
+    public int RestartCount { get; private set; }
 
     public async Task<UpdateCheckResult> CheckAsync()
     {
@@ -28,9 +32,15 @@ internal sealed class FakeUpdateService : IUpdateService
         return CheckResult;
     }
 
-    public Task<bool> DownloadAndRestartAsync()
+    public Task<bool> DownloadAsync()
     {
         DownloadCount++;
         return Task.FromResult(DownloadSucceeds);
+    }
+
+    public bool RestartToUpdate()
+    {
+        RestartCount++;
+        return RestartSucceeds;
     }
 }

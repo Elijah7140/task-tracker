@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Publishes Task Tracker self-contained for one runtime and packs it with Velopack (§7.13).
 #
-# Usage: scripts/pack.sh [runtime] [version]
+# Usage: scripts/pack.sh [runtime] [version] [update-feed-url]
 #   runtime  a .NET runtime identifier: linux-x64 (default on Linux) or osx-arm64 (default on macOS)
 #   version  the package version, e.g. 0.2.0; defaults to <Version> in Directory.Build.props
+#   update-feed-url  the public GitHub repository for updates; defaults to TaskTrackerUpdateFeedUrl
 #
 # Writes the publish output to artifacts/publish/<runtime> and the Velopack release files
 # (the AppImage or .app bundle, the .nupkg and releases.<channel>.json) to
@@ -16,7 +17,7 @@ set -euo pipefail
 # every OS keeps the packages consistent. Keep in step with pack.ps1.
 pack_id="TaskTrackerApp"
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 project="$root/src/TaskTracker.App.Desktop/TaskTracker.App.Desktop.csproj"
 
 if [ "$(uname -s)" = "Darwin" ]; then
@@ -27,17 +28,42 @@ fi
 
 runtime="${1:-$default_runtime}"
 version="${2:-}"
+feed_url="${3:-}"
+case "$runtime" in
+  win-x64|linux-x64|osx-arm64) ;;
+  *)
+    echo "Unsupported runtime '$runtime'. Use win-x64, linux-x64, or osx-arm64." >&2
+    exit 1
+    ;;
+esac
+
+safe_output_directory() {
+  local parent="$root/artifacts/$1"
+  local folder="$parent/$runtime"
+  if [[ "$folder" != "$root/artifacts/"* || -L "$root/artifacts" || -L "$parent" || -L "$folder" ]]; then
+    echo "Output directory '$folder' must stay under '$root/artifacts' without symbolic links." >&2
+    return 1
+  fi
+  printf '%s\n' "$folder"
+}
+
+publish_dir="$(safe_output_directory publish)"
+release_dir="$(safe_output_directory releases)"
+cd "$root"
+
 if [ -z "$version" ]; then
   version="$(dotnet msbuild "$project" -getProperty:Version | tr -d '[:space:]')"
 fi
 
-publish_dir="$root/artifacts/publish/$runtime"
-release_dir="$root/artifacts/releases/$runtime"
-rm -rf "$publish_dir" "$release_dir"
+rm -rf -- "$publish_dir" "$release_dir"
 
 echo "Publishing Task Tracker $version for $runtime"
-dotnet publish "$project" --configuration Release --runtime "$runtime" \
-  --self-contained true "-p:Version=$version" --output "$publish_dir"
+publish_args=(publish "$project" --configuration Release --runtime "$runtime"
+  --self-contained true "-p:Version=$version" --output "$publish_dir")
+if [ -n "$feed_url" ]; then
+  publish_args+=("-p:TaskTrackerUpdateFeedUrl=$feed_url")
+fi
+dotnet "${publish_args[@]}"
 
 dotnet tool restore
 

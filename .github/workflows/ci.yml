@@ -20,6 +20,9 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
       - run: dotnet test --no-build --configuration Release
+      - name: Test draft release and retry behavior
+        if: runner.os == 'Linux'
+        run: bash tests/scripts/publish-release-tests.sh
       # Snapshot tests write *.received.png when an image differs or a baseline is missing.
       - name: Upload received snapshots
         if: failure()
@@ -38,8 +41,10 @@ jobs:
         include:
           - os: windows-latest
             runtime: win-x64
+            channel: win
           - os: ubuntu-latest
             runtime: linux-x64
+            channel: linux
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +58,13 @@ jobs:
       - name: Pack (Linux)
         if: runner.os != 'Windows'
         run: bash scripts/pack.sh ${{ matrix.runtime }}
+      - name: Verify the package id protects the default data folder
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -LiteralPath 'artifacts/releases/${{ matrix.runtime }}/releases.${{ matrix.channel }}.json' -Raw | ConvertFrom-Json
+          if (-not $manifest.Assets -or $manifest.Assets.PackageId -contains 'TaskTracker') {
+              throw 'The release manifest must contain package assets whose id differs from the TaskTracker data folder.'
+          }
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:

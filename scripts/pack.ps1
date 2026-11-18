@@ -14,13 +14,17 @@
 .PARAMETER Version
     The package version, e.g. 0.2.0. Defaults to <Version> in Directory.Build.props.
 
+.PARAMETER UpdateFeedUrl
+    The public GitHub repository for updates. Defaults to TaskTrackerUpdateFeedUrl in Directory.Build.props.
+
 .EXAMPLE
     ./scripts/pack.ps1
     ./scripts/pack.ps1 -Runtime win-x64 -Version 0.2.0
 #>
 param(
     [string] $Runtime = 'win-x64',
-    [string] $Version = ''
+    [string] $Version = '',
+    [string] $UpdateFeedUrl = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,11 +34,39 @@ Set-StrictMode -Version Latest
 # uninstall, while the database lives in %LocalAppData%\TaskTracker (§7.13). Keep in step with pack.sh.
 $packId = 'TaskTrackerApp'
 
-$root = Split-Path -Parent $PSScriptRoot
+if ($Runtime -cnotin @('win-x64', 'linux-x64', 'osx-arm64'))
+{
+    throw "Unsupported runtime '$Runtime'. Use win-x64, linux-x64, or osx-arm64."
+}
+
+$root = (Resolve-Path -LiteralPath (Split-Path -Parent $PSScriptRoot)).ProviderPath
 $project = Join-Path $root 'src/TaskTracker.App.Desktop/TaskTracker.App.Desktop.csproj'
-$publishDir = Join-Path $root "artifacts/publish/$Runtime"
-$releaseDir = Join-Path $root "artifacts/releases/$Runtime"
+$artifactsDir = Join-Path $root 'artifacts'
 $icon = Join-Path $root 'src/TaskTracker.App.Desktop/Assets/app.ico'
+
+function Get-SafeOutputDirectory
+{
+    param([string] $Kind)
+
+    $parent = Join-Path $artifactsDir $Kind
+    $folder = [IO.Path]::GetFullPath((Join-Path $parent $Runtime))
+    $prefix = $artifactsDir + [IO.Path]::DirectorySeparatorChar
+    if (-not $folder.StartsWith($prefix, [StringComparison]::Ordinal))
+    {
+        throw "Output directory '$folder' must stay under '$artifactsDir'."
+    }
+
+    foreach ($path in $artifactsDir, $parent, $folder)
+    {
+        $entry = Get-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        if ($null -ne $entry -and ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint))
+        {
+            throw "Output path '$path' must not be a symbolic link or junction."
+        }
+    }
+
+    return $folder
+}
 
 function Invoke-Checked
 {
@@ -47,35 +79,51 @@ function Invoke-Checked
     }
 }
 
-if (-not $Version)
-{
-    $Version = (dotnet msbuild $project -getProperty:Version).Trim()
-}
+$publishDir = Get-SafeOutputDirectory 'publish'
+$releaseDir = Get-SafeOutputDirectory 'releases'
 
-foreach ($folder in $publishDir, $releaseDir)
+Push-Location -LiteralPath $root
+try
 {
-    if (Test-Path $folder)
+    if (-not $Version)
     {
-        Remove-Item -Recurse -Force $folder
+        $Version = (Invoke-Checked 'dotnet' @('msbuild', $project, '-getProperty:Version')).Trim()
     }
+
+    foreach ($folder in $publishDir, $releaseDir)
+    {
+        if (Test-Path -LiteralPath $folder)
+        {
+            Remove-Item -LiteralPath $folder -Recurse -Force
+        }
+    }
+
+    Write-Host "Publishing Task Tracker $Version for $Runtime"
+    $publishArguments = @('publish', $project, '--configuration', 'Release', '--runtime', $Runtime,
+        '--self-contained', 'true', "-p:Version=$Version", '--output', $publishDir)
+    if ($UpdateFeedUrl)
+    {
+        $publishArguments += "-p:TaskTrackerUpdateFeedUrl=$UpdateFeedUrl"
+    }
+    Invoke-Checked 'dotnet' $publishArguments
+
+    Invoke-Checked 'dotnet' @('tool', 'restore')
+
+    $packArguments = @('vpk', 'pack',
+        '--packId', $packId,
+        '--packVersion', $Version,
+        '--packTitle', 'Task Tracker',
+        '--packAuthors', 'Task Tracker',
+        '--packDir', $publishDir,
+        '--mainExe', 'TaskTracker.App.Desktop.exe',
+        '--runtime', $Runtime,
+        '--icon', $icon,
+        '--outputDir', $releaseDir)
+    Invoke-Checked 'dotnet' $packArguments
+
+    Write-Host "Release files in $releaseDir"
 }
-
-Write-Host "Publishing Task Tracker $Version for $Runtime"
-Invoke-Checked 'dotnet' @('publish', $project, '--configuration', 'Release', '--runtime', $Runtime,
-    '--self-contained', 'true', "-p:Version=$Version", '--output', $publishDir)
-
-Invoke-Checked 'dotnet' @('tool', 'restore')
-
-$packArguments = @('vpk', 'pack',
-    '--packId', $packId,
-    '--packVersion', $Version,
-    '--packTitle', 'Task Tracker',
-    '--packAuthors', 'Task Tracker',
-    '--packDir', $publishDir,
-    '--mainExe', 'TaskTracker.App.Desktop.exe',
-    '--runtime', $Runtime,
-    '--icon', $icon,
-    '--outputDir', $releaseDir)
-Invoke-Checked 'dotnet' $packArguments
-
-Write-Host "Release files in $releaseDir"
+finally
+{
+    Pop-Location
+}

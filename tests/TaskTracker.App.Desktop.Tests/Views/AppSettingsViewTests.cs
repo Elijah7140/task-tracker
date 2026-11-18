@@ -140,7 +140,7 @@ public sealed class AppSettingsViewTests
         var view = await OpenAppSettingsAsync(window, services);
 
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "CheckForUpdatesButton"));
-        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "DownloadAndRestartButton"));
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "DownloadUpdateButton"));
 
         Assert.Equal("Version 0.2.0 is available.", HeadlessInput.Find<TextBlock>(view, "UpdateStatus").Text);
         window.Close();
@@ -158,24 +158,69 @@ public sealed class AppSettingsViewTests
         await HeadlessInput.WaitUntilAsync(() => IsShown(view, "UpdateStatus"));
 
         Assert.Equal(AppUpdateViewModel.NotInstalledText, HeadlessInput.Find<TextBlock>(view, "UpdateStatus").Text);
-        Assert.False(IsShown(view, "DownloadAndRestartButton"));
+        Assert.False(IsShown(view, "DownloadUpdateButton"));
         window.Close();
     }
 
     [AvaloniaFact]
-    public async Task Clicking_download_and_restart_hands_over_to_the_updater()
+    public async Task Restart_prompts_for_edits_made_while_the_update_downloaded()
     {
         var window = new MainWindow();
-        var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0") };
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0"), DownloadGate = gate };
+        using var services = await TestServices.CreateAsync(window, installation: TestServices.CreateInstallation(updates));
+        var view = await OpenAppSettingsAsync(window, services);
+        var page = Assert.IsType<AppSettingsViewModel>(view.DataContext);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "CheckForUpdatesButton"));
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "DownloadUpdateButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "DownloadUpdateButton"));
+        await HeadlessInput.WaitUntilAsync(() => updates.DownloadCount == 1);
+        HeadlessInput.Click(window, HeadlessInput.Find<CheckBox>(view, "GlobalAutoCompleteCheckBox"));
+        Assert.True(page.IsDirty);
+        Assert.Empty(window.OwnedWindows);
+
+        gate.SetResult();
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "RestartToUpdateButton"));
+        Assert.Equal(0, updates.RestartCount);
+        Assert.Empty(window.OwnedWindows);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "RestartToUpdateButton"));
+        var dialog = Assert.Single(window.OwnedWindows);
+        Assert.Equal("Discard unsaved settings?", dialog.Title);
+        HeadlessInput.Press(dialog, Key.Escape);
+
+        Assert.True(page.IsDirty);
+        Assert.Equal(0, updates.RestartCount);
+        Assert.Equal(AppUpdateViewModel.ReadyToRestartText, HeadlessInput.Find<TextBlock>(view, "UpdateStatus").Text);
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "RestartToUpdateButton"));
+        HeadlessInput.Press(Assert.Single(window.OwnedWindows), Key.Enter);
+        await HeadlessInput.WaitUntilAsync(() => updates.RestartCount == 1);
+        Assert.Equal(1, updates.DownloadCount);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task An_update_can_be_restarted_after_returning_to_settings()
+    {
+        var window = new MainWindow();
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0"), DownloadGate = gate };
         using var services = await TestServices.CreateAsync(window, installation: TestServices.CreateInstallation(updates));
         var view = await OpenAppSettingsAsync(window, services);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "CheckForUpdatesButton"));
-        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "DownloadAndRestartButton"));
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "DownloadUpdateButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "DownloadUpdateButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "AppSettingsBackButton"));
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        await HeadlessInput.WaitUntilAsync(() => shell.CurrentPage is HomeViewModel);
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "DownloadAndRestartButton"));
-        await HeadlessInput.WaitUntilAsync(() => updates.DownloadCount == 1);
+        gate.SetResult();
+        await shell.OpenAppSettingsAsync();
+        view = window.GetVisualDescendants().OfType<AppSettingsView>().Single();
+        await HeadlessInput.WaitUntilAsync(() => IsShown(view, "RestartToUpdateButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(view, "RestartToUpdateButton"));
 
-        Assert.Equal(AppUpdateViewModel.RestartingText, HeadlessInput.Find<TextBlock>(view, "UpdateStatus").Text);
+        await HeadlessInput.WaitUntilAsync(() => updates.RestartCount == 1);
+        Assert.Empty(window.OwnedWindows);
         window.Close();
     }
 

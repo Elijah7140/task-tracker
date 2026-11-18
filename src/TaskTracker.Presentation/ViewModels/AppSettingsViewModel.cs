@@ -36,7 +36,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     public AppSettingsViewModel(SettingsService settings, IDialogService dialogs,
         INavigationService navigation, LookupService? lookups = null, Guid? returnProjectId = null,
-        FieldService? fields = null, InstallationServices? installation = null)
+        FieldService? fields = null, InstallationServices? installation = null, AppUpdateViewModel? updates = null)
     {
         this.settings = settings;
         this.dialogs = dialogs;
@@ -47,7 +47,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
         if (installation is not null)
         {
-            Updates = new AppUpdateViewModel(installation.Updates, ConfirmLeaveAsync);
+            Updates = updates ?? new AppUpdateViewModel(installation.Updates, ConfirmLeaveAsync);
         }
 
         if (lookups is not null)

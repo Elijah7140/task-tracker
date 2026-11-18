@@ -61,8 +61,10 @@
             <StackPanel Orientation="Horizontal" Spacing="10">
               <Button Content="Check for updates" Command="{Binding CheckCommand}"
                       AutomationProperties.AutomationId="CheckForUpdatesButton" />
-              <Button Content="Download and restart" Classes="accent" Command="{Binding DownloadAndRestartCommand}"
-                      IsVisible="{Binding IsUpdateAvailable}" AutomationProperties.AutomationId="DownloadAndRestartButton" />
+              <Button Content="Download" Classes="accent" Command="{Binding DownloadCommand}"
+                      IsVisible="{Binding IsUpdateAvailable}" AutomationProperties.AutomationId="DownloadUpdateButton" />
+              <Button Content="Restart to update" Classes="accent" Command="{Binding RestartCommand}"
+                      IsVisible="{Binding IsReadyToRestart}" AutomationProperties.AutomationId="RestartToUpdateButton" />
             </StackPanel>
             <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
                        IsVisible="{Binding Status, Converter={x:Static ObjectConverters.IsNotNull}}"

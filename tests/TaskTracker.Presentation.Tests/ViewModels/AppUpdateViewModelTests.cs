@@ -34,7 +34,7 @@ public sealed class AppUpdateViewModelTests
 
         Assert.Equal(AppUpdateViewModel.UpToDateText, page.Status);
         Assert.False(page.IsUpdateAvailable);
-        Assert.False(page.DownloadAndRestartCommand.CanExecute(null));
+        Assert.False(page.DownloadCommand.CanExecute(null));
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class AppUpdateViewModelTests
 
         Assert.Equal("Version 0.2.0 is available.", page.Status);
         Assert.True(page.IsUpdateAvailable);
-        Assert.True(page.DownloadAndRestartCommand.CanExecute(null));
+        Assert.True(page.DownloadCommand.CanExecute(null));
     }
 
     [Fact]
@@ -59,6 +59,18 @@ public sealed class AppUpdateViewModelTests
         await page.CheckCommand.ExecuteAsync(null);
 
         Assert.Equal(AppUpdateViewModel.CheckFailedText, page.Status);
+        Assert.False(page.IsUpdateAvailable);
+        Assert.True(page.CheckCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task A_private_or_missing_repository_has_a_specific_message()
+    {
+        var page = CreatePage(new FakeUpdateService { CheckResult = UpdateCheckResult.FeedUnavailable });
+
+        await page.CheckCommand.ExecuteAsync(null);
+
+        Assert.Equal("No update feed is available yet. Releases are published to a private or missing repository.", page.Status);
         Assert.False(page.IsUpdateAvailable);
         Assert.True(page.CheckCommand.CanExecute(null));
     }
@@ -76,16 +88,18 @@ public sealed class AppUpdateViewModelTests
     }
 
     [Fact]
-    public async Task Download_and_restart_hands_over_to_the_updater()
+    public async Task Downloading_makes_restart_available_without_handing_over_to_the_updater()
     {
         var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0") };
         var page = CreatePage(updates);
         await page.CheckCommand.ExecuteAsync(null);
 
-        await page.DownloadAndRestartCommand.ExecuteAsync(null);
+        await page.DownloadCommand.ExecuteAsync(null);
 
         Assert.Equal(1, updates.DownloadCount);
-        Assert.Equal(AppUpdateViewModel.RestartingText, page.Status);
+        Assert.Equal(0, updates.RestartCount);
+        Assert.Equal(AppUpdateViewModel.ReadyToRestartText, page.Status);
+        Assert.True(page.RestartCommand.CanExecute(null));
         Assert.False(page.CheckCommand.CanExecute(null));
     }
 
@@ -100,23 +114,47 @@ public sealed class AppUpdateViewModelTests
         var page = CreatePage(updates);
         await page.CheckCommand.ExecuteAsync(null);
 
-        await page.DownloadAndRestartCommand.ExecuteAsync(null);
+        await page.DownloadCommand.ExecuteAsync(null);
 
         Assert.Equal(AppUpdateViewModel.DownloadFailedText, page.Status);
-        Assert.True(page.DownloadAndRestartCommand.CanExecute(null));
+        Assert.True(page.DownloadCommand.CanExecute(null));
+        Assert.False(page.RestartCommand.CanExecute(null));
     }
 
     [Fact]
-    public async Task Declining_to_close_the_app_keeps_it_running_without_downloading()
+    public async Task Declining_to_restart_keeps_the_download_ready()
     {
         var updates = new FakeUpdateService { CheckResult = UpdateCheckResult.Available("0.2.0") };
         var page = new AppUpdateViewModel(updates, () => Task.FromResult(false));
         await page.CheckCommand.ExecuteAsync(null);
+        await page.DownloadCommand.ExecuteAsync(null);
 
-        await page.DownloadAndRestartCommand.ExecuteAsync(null);
+        await page.RestartCommand.ExecuteAsync(null);
 
-        Assert.Equal(0, updates.DownloadCount);
-        Assert.Equal("Version 0.2.0 is available.", page.Status);
+        Assert.Equal(1, updates.DownloadCount);
+        Assert.Equal(0, updates.RestartCount);
+        Assert.True(page.RestartCommand.CanExecute(null));
+        Assert.Equal(AppUpdateViewModel.ReadyToRestartText, page.Status);
+    }
+
+    [Fact]
+    public async Task A_failed_restart_can_be_retried_without_redownloading()
+    {
+        var updates = new FakeUpdateService
+        {
+            CheckResult = UpdateCheckResult.Available("0.2.0"),
+            RestartSucceeds = false,
+        };
+        var page = CreatePage(updates);
+        await page.CheckCommand.ExecuteAsync(null);
+        await page.DownloadCommand.ExecuteAsync(null);
+
+        await page.RestartCommand.ExecuteAsync(null);
+
+        Assert.Equal(AppUpdateViewModel.RestartFailedText, page.Status);
+        Assert.True(page.RestartCommand.CanExecute(null));
+        Assert.False(page.DownloadCommand.CanExecute(null));
+        Assert.Equal(1, updates.DownloadCount);
     }
 
     private static AppUpdateViewModel CreatePage(FakeUpdateService updates)

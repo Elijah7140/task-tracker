@@ -8,6 +8,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
+    <AssemblyMetadata Include="TaskTrackerUpdateFeedUrl" Value="$(TaskTrackerUpdateFeedUrl)" />
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
   <ItemGroup>

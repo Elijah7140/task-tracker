@@ -9,9 +9,9 @@ public interface IUpdateService
     /// <summary>Asks the release feed for a newer version. Failures are reported in the result, not thrown.</summary>
     Task<UpdateCheckResult> CheckAsync();
 
-    /// <summary>
-    /// Downloads the version the last check found, then closes the app so it restarts on the new
-    /// version. Returns false, and keeps the app running, if the download or hand-over failed.
-    /// </summary>
-    Task<bool> DownloadAndRestartAsync();
+    /// <summary>Downloads the version the last check found. Returns false if the download failed.</summary>
+    Task<bool> DownloadAsync();
+
+    /// <summary>Starts the updater and requests a normal app shutdown. Returns false if handoff failed.</summary>
+    bool RestartToUpdate();
 }
