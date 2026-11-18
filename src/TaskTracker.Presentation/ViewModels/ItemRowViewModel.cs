@@ -29,11 +29,27 @@ public sealed class ItemRowViewModel : ViewModelBase
         StopRepeatingCommand = new AsyncRelayCommand(() => workspace.ChangeRepeatAsync(this, skip: false));
         SelectCommand = new AsyncRelayCommand(() => workspace.SelectItemAsync(this));
         MoveItemToAreaCommand = new AsyncRelayCommand(() => workspace.MoveRowToAreaAsync(this));
+        ToggleCurrentCommand = new AsyncRelayCommand(() => workspace.ToggleCurrentAsync(this));
     }
 
     public ItemNode Node { get; }
 
     public Guid Id => Node.Item.Id;
+
+    /// <summary>Whether this is the item the tray card shows (§7.17).</summary>
+    public bool IsCurrent => workspace.CurrentItemId == Id;
+
+    /// <summary>The row menu entry that makes this item current, or clears it.</summary>
+    public string CurrentMenuHeader => IsCurrent ? "Clear current item" : "Set as current item";
+
+    /// <summary>Makes this item current, or clears it when it already is.</summary>
+    public ICommand ToggleCurrentCommand { get; }
+
+    internal void RaiseCurrentChanged()
+    {
+        OnPropertyChanged(nameof(IsCurrent));
+        OnPropertyChanged(nameof(CurrentMenuHeader));
+    }
 
     public ICommand MoveItemToAreaCommand { get; }
 

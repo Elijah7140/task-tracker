@@ -22,6 +22,7 @@ public sealed class TicketRowViewModel
         PushBackReason = PushBackOneDay.UnavailableReason(isCompleted: false, hasDates);
         OpenCommand = new AsyncRelayCommand(() => page.OpenAsync(Id));
         PushBackCommand = new AsyncRelayCommand(() => page.PushBackAsync(Id), () => PushBackReason is null);
+        SetCurrentCommand = new AsyncRelayCommand(() => page.SetCurrentAsync(Id));
         StatusChoices = menus.Statuses(item.StatusId, status => page.SetStatusAsync(Id, status));
         PriorityChoices = menus.Priorities(PriorityId, priority => page.SetPriorityAsync(Id, priority));
     }
@@ -45,6 +46,9 @@ public sealed class TicketRowViewModel
     public ICommand OpenCommand { get; }
 
     public ICommand PushBackCommand { get; }
+
+    /// <summary>Makes this item the one the tray card shows.</summary>
+    public ICommand SetCurrentCommand { get; }
 
     public IReadOnlyList<RowLookupChoice> StatusChoices { get; }
 

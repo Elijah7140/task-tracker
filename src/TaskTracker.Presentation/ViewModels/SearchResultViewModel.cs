@@ -25,6 +25,9 @@ public sealed class SearchResultViewModel(ItemSearchResult item, string location
 
     public ICommand? PushBackCommand { get; internal set; }
 
+    /// <summary>Makes this item the one the tray card shows.</summary>
+    public ICommand? SetCurrentCommand { get; internal set; }
+
     public string Ticket => Item.TicketNumber ?? string.Empty;
 
     /// <summary>Project › Folder › Subfolder; only the project name for an item at the project root.</summary>

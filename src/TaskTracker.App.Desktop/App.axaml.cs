@@ -80,6 +80,7 @@ public sealed partial class App : Application
         try
         {
             await _shell!.GoHomeAsync();
+            await _shell.LoadCurrentItemAsync();
             await _reminders!.StartAsync();
         }
         catch (Exception exception)

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 
+using TaskTracker.App.Desktop.Tray;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Settings;
 
@@ -40,6 +41,9 @@ internal sealed class ReminderTray : IDisposable
         window.Closing += OnClosing;
         saves.GlobalSettingsCommitted += OnSettingsSaved;
     }
+
+    /// <summary>Raised when the user left-clicks the icon, where the platform reports it.</summary>
+    public event Action? IconClicked;
 
     public void Open()
     {
@@ -87,12 +91,12 @@ internal sealed class ReminderTray : IDisposable
         quit.Click += (_, _) => Quit();
         var tray = new TrayIcon
         {
-            Icon = window.Icon,
+            Icon = TrayIconArt.Create(),
             ToolTipText = "Task Tracker",
             IsVisible = false,
             Menu = new NativeMenu { Items = { open, quit } },
         };
-        tray.Clicked += (_, _) => Open();
+        tray.Clicked += (_, _) => IconClicked?.Invoke();
         return tray;
     }
 

@@ -100,6 +100,9 @@ public sealed class CalendarEntryViewModel : ViewModelBase
 
     public ICommand? PushBackCommand { get; internal set; }
 
+    /// <summary>Makes this item the one the tray card shows.</summary>
+    public ICommand? SetCurrentCommand { get; internal set; }
+
     public string? StatusName { get; internal set; }
 
     public bool HasStatus => StatusName is not null;

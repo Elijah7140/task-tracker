@@ -183,7 +183,19 @@
       <Border Grid.Column="2" BorderThickness="1,0,0,0"
               BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="16,20,16,16">
         <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
-          <TextBlock Text="DETAILS" FontSize="12" FontWeight="SemiBold" Opacity="0.6" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="DETAILS" FontSize="12" FontWeight="SemiBold" Opacity="0.6" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="subtle" Padding="6,2"
+                    IsVisible="{Binding HasEditor}" Command="{Binding ToggleSelectedCurrentCommand}"
+                    ToolTip.Tip="The current item is shown when you click the tray icon"
+                    AutomationProperties.AutomationId="EditorCurrentItemButton">
+              <Panel>
+                <TextBlock Text="☆ Set as current" IsVisible="{Binding !IsSelectedItemCurrent}" />
+                <TextBlock Text="★ Current item" IsVisible="{Binding IsSelectedItemCurrent}"
+                           Foreground="{DynamicResource SystemControlHighlightAccentBrush}" />
+              </Panel>
+            </Button>
+          </Grid>
           <ScrollViewer x:Name="EditorScrollViewer" Grid.Row="1" AllowAutoHide="False" VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8" Margin="0,0,20,0">

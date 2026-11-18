@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using TaskTracker.App.Desktop.Tray;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Settings;
@@ -11,7 +12,7 @@ using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Reminders;
 
-/// <summary>Connects the reminder scheduler, window activation, and optional notification-area icon.</summary>
+/// <summary>Connects the reminder scheduler, window activation, the optional notification-area icon and its current-item card.</summary>
 internal sealed class DesktopReminderHost : IDisposable
 {
     private readonly Window window;
@@ -20,6 +21,7 @@ internal sealed class DesktopReminderHost : IDisposable
     private readonly DesktopReminderNotifier notifier;
     private readonly ReminderTray tray;
     private readonly MainWindowViewModel shell;
+    private readonly CurrentItemCardPopup card;
     private LinuxResumeMonitor? resume;
 
     public DesktopReminderHost(IServiceProvider services, IClassicDesktopStyleApplicationLifetime lifetime,
@@ -32,6 +34,9 @@ internal sealed class DesktopReminderHost : IDisposable
         scheduler = services.GetRequiredService<ReminderScheduler>();
         tray = new ReminderTray(lifetime, window, services.GetRequiredService<SettingsService>(),
             services.GetRequiredService<DataSaved>(), shell.ReportUnexpectedErrorAsync);
+        card = new CurrentItemCardPopup(new CurrentItemCardViewModel(shell.LoadCurrentItemCardAsync, OpenFromCardAsync),
+            services.GetRequiredService<TimeProvider>());
+        tray.IconClicked += ToggleCard;
         scheduler.Delivered += panel.Add;
         scheduler.RefreshPanelAsync = panel.RefreshAsync;
         window.Activated += OnActivated;
@@ -75,15 +80,34 @@ internal sealed class DesktopReminderHost : IDisposable
         tray.Open();
     }
 
+    private async void ToggleCard()
+    {
+        try
+        {
+            await card.ToggleAsync();
+        }
+        catch (Exception exception)
+        {
+            await shell.ReportUnexpectedErrorAsync(exception);
+        }
+    }
+
+    private async Task OpenFromCardAsync(Guid itemId)
+    {
+        tray.Open();
+        await shell.OpenItemAsync(itemId);
+    }
+
     private void OnActivated(object? sender, EventArgs args)
     {
         scheduler.RequestCheck();
     }
 
-    /// <summary>Removes the platform notification icon while the window handle still exists.</summary>
+    /// <summary>Removes the platform notification icon while the window handle still exists, and closes the tray card.</summary>
     private void OnClosed(object? sender, EventArgs args)
     {
         notifier.Dispose();
+        card.Dispose();
     }
 
     private async void Activate(Guid? itemId)
@@ -115,6 +139,8 @@ internal sealed class DesktopReminderHost : IDisposable
         scheduler.Dispose();
         resume?.Dispose();
         notifier.Dispose();
+        tray.IconClicked -= ToggleCard;
+        card.Dispose();
         tray.Dispose();
     }
 }

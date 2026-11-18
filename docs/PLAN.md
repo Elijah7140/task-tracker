@@ -1151,8 +1151,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - Any new package needs an exact, at least two-weeks-old version in
     `Directory.Packages.props`. Prefer no new dependency on Windows.
 - **Tray.** With `KeepRunningInTray` on, closing the window hides it to a notification-area icon
-  instead of quitting, so reminders keep firing. The tray menu has **Open** and **Quit**.
-  Starting with the OS is out of scope; it belongs with installers.
+  instead of quitting, so reminders keep firing. The tray menu has **Open** and **Quit**; a left
+  click shows the current item's card (§7.18). Starting with the OS is out of scope; it belongs with installers.
   - The window hides only when a tray host really shows the icon. Windows and macOS always
     have one. On Linux, a `StatusNotifierWatcher` must own its name on the session bus.
   - Without a tray host, closing minimises instead, so the window is never unreachable.
@@ -1612,6 +1612,43 @@ below were made while building it and are listed for review.
   an archived level. ViewModel: the section order (with a 1, 7, 2 numbering), the drop and step
   mapping, header drops and the setting. Headless: the grid layout, card and header drags, and
   Alt+↓ across a section. Light and dark snapshots of the grid.
+
+### 7.18 Current item and the tray card
+
+Requested by the owner on 18 Nov 2026: a checklist tray icon whose left click shows the item
+the owner is working on.
+
+- **Current item.** At most one item is current. It is stored as the global setting
+  `currentItemId` (empty when none), outside undo history and not shown on the settings screen.
+  - Set it from any item's right-click menu: **Set as current item** on Search, Calendar, Today
+    and Tickets rows. A workspace card or row menu toggles between **Set as current item** and
+    **Clear current item**.
+  - Each workspace item card has a ☆ button in its header that makes the item current; the
+    current card shows ★, and clicking it again clears the choice.
+  - The details panel has a **Set as current** / **Current item** button beside its heading.
+  - A current sub-item row shows a ★ marker.
+  - A deleted item, or an item in a deleted project, is treated as no current item. Restoring
+    it from the trash makes it current again.
+- **Tray icon.** The tray icon is a drawn checklist: three ticks and lines on a blue tile. It
+  shows under the same `KeepRunningInTray` rules as before (§7.12). The menu keeps **Open** and
+  **Quit**.
+- **Tray card.** A single left click on the icon shows a small borderless card next to it.
+  - **Contents:** the title, the project and folder path, a Completed chip, status, priority, due
+    date and time, the first lines of the notes, and **Open in Task Tracker**, which brings the
+    window forward with the item selected.
+  - **Empty state:** with no current item, the card explains how to choose one.
+  - **Closing:** clicking elsewhere, Escape, or clicking the icon again hides the card.
+  - **Placement:** on Windows the card sits centred above the cursor, kept inside the working
+    area of that screen. Elsewhere, where the cursor position isn't read, it goes in the top-right
+    corner of the primary screen.
+  - Avalonia reports tray clicks only on Windows and some Linux desktops. Elsewhere the card is
+    unreachable and the icon's menu still works.
+- **Tests.**
+  - The service against SQLite.
+  - The card and workspace view models.
+  - Headless right-click and button interactions on every surface.
+  - Placement rules.
+  - Card and icon snapshots.
 
 ## 8. User interface (Avalonia)
 

@@ -19,6 +19,10 @@ public static class SettingsCatalogue
     public static readonly SettingDefinition<bool> StartWithSystem =
         new("startWithSystem", false, false, new BoolCodec());
 
+    /// <summary>The item the tray card shows; chosen from an item's menu, not from the settings screen.</summary>
+    public static readonly SettingDefinition<Guid?> CurrentItem =
+        new("currentItemId", null, false, new OptionalGuidCodec());
+
     /// <summary>How many item cards sit side by side in the project workspace (§8). Global only.</summary>
     public static readonly SettingDefinition<int> WorkspaceCardColumns =
         new("workspaceCardColumns", 4, false, new WholeNumberCodec(1, 8));

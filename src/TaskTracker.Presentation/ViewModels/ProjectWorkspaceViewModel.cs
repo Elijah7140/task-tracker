@@ -15,7 +15,7 @@ using TaskTracker.Presentation.Navigation;
 namespace TaskTracker.Presentation.ViewModels;
 
 /// <summary>Displays a project folder tree and the selected area.</summary>
-public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUnsavedChangesGuard
+public sealed partial class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUnsavedChangesGuard
 {
     private readonly Guid projectId;
     private readonly ProjectService projects;
@@ -80,6 +80,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         SkipRepeatCommand = new AsyncRelayCommand(() => ChangeSelectedRepeatAsync(skip: true));
         StopRepeatingCommand = new AsyncRelayCommand(() => ChangeSelectedRepeatAsync(skip: false));
         OpenLinkCommand = new AsyncRelayCommand<string?>(OpenLinkAsync);
+        ToggleSelectedCurrentCommand = new AsyncRelayCommand(ToggleSelectedCurrentAsync);
     }
 
     public ObservableCollection<FolderNodeViewModel> FolderRoots => folderTree.Roots;
@@ -469,6 +470,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         Editor = draft;
         OnPropertyChanged(nameof(HasEditor));
         OnPropertyChanged(nameof(SelectedSubItems));
+        OnCurrentSelectionChanged();
 
         if (row is not null)
         {
@@ -1046,6 +1048,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         selectedItem = row;
         row.IsSelected = true;
         OnPropertyChanged(nameof(SelectedSubItems));
+        OnCurrentSelectionChanged();
     }
 
     public Task CreateFolderAsync(FolderNodeViewModel parent)

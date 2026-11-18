@@ -28,6 +28,12 @@ public interface INavigationService
     /// <summary>Opens an item from Today in its current workspace.</summary>
     Task<SearchOpenOutcome> OpenTodayItemAsync(Guid itemId) => Task.FromResult(SearchOpenOutcome.Cancelled);
 
+    /// <summary>The item the tray card shows, or null when none is chosen (§7.17).</summary>
+    Guid? CurrentItemId => null;
+
+    /// <summary>Makes an item the one the tray card shows, or clears the choice when null (§7.17).</summary>
+    Task SetCurrentItemAsync(Guid? itemId) => Task.CompletedTask;
+
     /// <summary>Pushes back an item displayed by the current transient page.</summary>
     Task PushBackAsync(Guid itemId) => Task.CompletedTask;
 
