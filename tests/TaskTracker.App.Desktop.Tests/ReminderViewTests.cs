@@ -226,6 +226,7 @@ public sealed class ReminderViewTests
     private static ReminderScheduler StartPanel(IServiceProvider services, MainWindowViewModel shell)
     {
         var panel = shell.EnableReminders(services.GetRequiredService<ReminderService>());
+        shell.ShowsTitleBar = true;
         var scheduler = services.GetRequiredService<ReminderScheduler>();
         scheduler.Delivered += panel.Add;
         scheduler.RefreshPanelAsync = panel.RefreshAsync;

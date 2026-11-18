@@ -96,6 +96,7 @@ public sealed class SavedSearchSnapshotTests
         using var services = await TestServices.CreateAsync();
         await SeedAsync(services);
         var shell = services.GetRequiredService<MainWindowViewModel>();
+        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark);
 
         await shell.GoHomeAsync();

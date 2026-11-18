@@ -54,6 +54,7 @@ public sealed class MainWindowTests
         using var services = await TestServices.CreateAsync();
         var shell = services.GetRequiredService<MainWindowViewModel>();
         shell.EnableReminders(services.GetRequiredService<ReminderService>());
+        shell.ShowsTitleBar = true;
         var window = new MainWindow { DataContext = shell };
 
         window.Show();

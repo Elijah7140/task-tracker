@@ -109,10 +109,11 @@ public sealed class TrashViewTests
         using var services = await TestServices.CreateAsync(window);
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
         var shell = ShowShell(window, services);
+        shell.ShowsTitleBar = true;
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeTrashButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopTrashButton"));
         Assert.IsType<TrashViewModel>(shell.CurrentPage);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TrashBackButton"));
         Assert.IsType<HomeViewModel>(shell.CurrentPage);

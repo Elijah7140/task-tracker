@@ -27,11 +27,12 @@ public sealed class TodayViewTests
     {
         using var services = await TestServices.CreateAsync();
         var shell = services.GetRequiredService<MainWindowViewModel>();
+        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark: false);
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
         var home = shell.CurrentPage;
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeSearchButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopSearchButton"));
 
         HeadlessInput.Press(window, Key.D, ControlShift);
 
@@ -50,6 +51,7 @@ public sealed class TodayViewTests
         await services.GetRequiredService<ItemService>().SetCompletedAsync(item.ProjectId, null, item.Id, true);
         var shell = services.GetRequiredService<MainWindowViewModel>();
         shell.EnableReminders(services.GetRequiredService<ReminderService>());
+        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark: false);
         await shell.GoHomeAsync();
         await shell.OpenSearchAsync();
@@ -71,10 +73,11 @@ public sealed class TodayViewTests
         var item = await items.CreateAsync(project.Id, null, null, "Filed report");
         await items.SetCompletedAsync(project.Id, null, item.Id, true);
         var shell = services.GetRequiredService<MainWindowViewModel>();
+        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark: false);
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeTodayButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopTodayButton"));
 
         HeadlessInput.Click(window, HeadlessInput.Find<CheckBox>(window, "TodayReopenCheckBox"));
 
@@ -279,6 +282,7 @@ public sealed class TodayViewTests
         await SeedNestedTodayAsync(services);
         var shell = services.GetRequiredService<MainWindowViewModel>();
         shell.EnableReminders(services.GetRequiredService<ReminderService>());
+        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark);
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();

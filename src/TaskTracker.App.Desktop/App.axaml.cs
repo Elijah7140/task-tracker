@@ -60,6 +60,7 @@ public sealed partial class App : Application
         };
         desktop.MainWindow = window;
         _shell = shell;
+        shell.ShowsTitleBar = true;
         _reminders = new DesktopReminderHost(services, desktop, window, shell);
         window.Opened += OnWindowOpened;
         desktop.Exit += OnExit;

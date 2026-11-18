@@ -121,9 +121,10 @@ public sealed class CalendarViewTests
         var window = new MainWindow();
         using var services = await TestServices.CreateAsync(window);
         var shell = ShowShell(window, services);
+        shell.ShowsTitleBar = true;
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeCalendarButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopCalendarButton"));
         var calendar = Assert.IsType<CalendarViewModel>(shell.CurrentPage);
         var original = calendar.Title;
 

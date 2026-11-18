@@ -16,12 +16,6 @@
         <TextBlock Text="Choose a space to continue your work." Opacity="0.7" />
       </StackPanel>
       <WrapPanel Grid.Column="1" Classes="homeActions" HorizontalAlignment="Right" VerticalAlignment="Center">
-        <Button Content="⚙ Settings" Command="{Binding SettingsCommand}" AutomationProperties.AutomationId="AppSettingsButton" />
-        <Button Content="Search" Command="{Binding SearchCommand}" AutomationProperties.AutomationId="HomeSearchButton" />
-        <Button Content="Calendar" Command="{Binding CalendarCommand}" AutomationProperties.AutomationId="HomeCalendarButton" />
-        <Button Content="Trash" Command="{Binding TrashCommand}" AutomationProperties.AutomationId="HomeTrashButton" />
-        <Button Content="Today" Command="{Binding TodayCommand}" AutomationProperties.AutomationId="HomeTodayButton" ToolTip.Tip="Today (Ctrl+Shift+D)" />
-        <Button Content="Tickets" Command="{Binding TicketsCommand}" AutomationProperties.AutomationId="HomeTicketsButton" ToolTip.Tip="Tickets (Ctrl+Shift+K)" />
         <Button Content="Import / Export ▾" AutomationProperties.AutomationId="ImportExportButton"
                 IsVisible="{Binding Transfer, Converter={x:Static ObjectConverters.IsNotNull}}"
                 IsEnabled="{Binding Transfer.IsIdle}">

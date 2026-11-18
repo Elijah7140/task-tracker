@@ -119,10 +119,11 @@ public sealed class SearchViewTests
         using var services = await TestServices.CreateAsync(window);
         var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
         var shell = ShowShell(window, services);
+        shell.ShowsTitleBar = true;
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeSearchButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopSearchButton"));
         Assert.IsType<SearchViewModel>(shell.CurrentPage);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "SearchBackButton"));
         Assert.IsType<HomeViewModel>(shell.CurrentPage);

@@ -28,7 +28,7 @@ public sealed class SmokeTests
         const string title = "Reconcile payments";
         Run(session =>
         {
-            session.Find("HomeTicketsButton").AsButton().Invoke();
+            session.Find("TopTicketsButton").AsButton().Invoke();
             session.FindNamed("TicketRow", title).Click();
             session.TypeChord(VirtualKeyShort.ALT, VirtualKeyShort.DOWN);
 
@@ -294,7 +294,7 @@ public sealed class SmokeTests
         {
             session.Window.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
             CreateProject(session);
-            session.Find("AppSettingsButton").Click();
+            session.Find("TopSettingsButton").Click();
             AddField(session, "Effort", FieldDataType.Number);
             session.Find("AppSettingsBackButton").AsButton().Invoke();
             session.WaitUntil(() => session.HasControl("OpenProjectButton"), "home after settings");
@@ -304,7 +304,7 @@ public sealed class SmokeTests
             AddItemWithPriorityAndEffort(session, "Effort match", "Low", "10");
 
             session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
-            session.Find("HomeSearchButton").AsButton().Invoke();
+            session.Find("TopSearchButton").AsButton().Invoke();
             AddSearchFilter(session, "Priority", "is");
             session.SelectByName("FilterValueChoiceComboBox", "High");
             session.Find("SearchButton").AsButton().Invoke();
@@ -385,7 +385,7 @@ public sealed class SmokeTests
             AddItem(session, "Invoice review");
             AddItem(session, "Other task");
             session.FindNamed("BreadcrumbButton", "Home").AsButton().Invoke();
-            session.Find("HomeSearchButton").AsButton().Invoke();
+            session.Find("TopSearchButton").AsButton().Invoke();
 
             session.TypeInto("SearchTextBox", query);
             session.Press(VirtualKeyShort.RETURN);
@@ -554,7 +554,7 @@ public sealed class SmokeTests
     {
         Run(session =>
         {
-            session.Find("AppSettingsButton").Click();
+            session.Find("TopSettingsButton").Click();
 
             ReplaceText(session, "GlobalYellowThresholdBox", "4");
             Assert.True(session.Find("AppSettingsSaveButton").Properties.IsEnabled.Value);
@@ -563,7 +563,7 @@ public sealed class SmokeTests
             session.WaitUntil(() => !session.Find("AppSettingsSaveButton").Properties.IsEnabled.Value,
                 "app settings to finish saving");
             session.Find("AppSettingsBackButton").Click();
-            session.Find("AppSettingsButton").Click();
+            session.Find("TopSettingsButton").Click();
 
             var amount = session.Find("GlobalYellowThresholdBox")
                 .FindFirstDescendant(query => query.ByControlType(ControlType.Edit));
@@ -772,7 +772,7 @@ public sealed class SmokeTests
 
     private static void CreateOneFieldOfEachTypeInAppSettings(SmokeSession session)
     {
-        session.Find("AppSettingsButton").Click();
+        session.Find("TopSettingsButton").Click();
         AddField(session, "Summary", FieldDataType.Text);
         AddField(session, "Effort", FieldDataType.Number);
         AddField(session, "Review date", FieldDataType.Date);

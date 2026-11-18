@@ -33,7 +33,7 @@ public sealed class TicketsViewTests
         var (shell, window) = await OpenHomeAsync(services);
         var home = shell.CurrentPage;
 
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeTicketsButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopTicketsButton"));
         Assert.IsType<TicketsViewModel>(shell.CurrentPage);
         Assert.True(HeadlessInput.Find<ComboBox>(window, "TicketsProjectFilter").IsFocused);
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TicketsBackButton"));
@@ -42,7 +42,7 @@ public sealed class TicketsViewTests
         HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopTicketsButton"));
         Assert.IsType<TicketsViewModel>(shell.CurrentPage);
         HeadlessInput.Press(window, Key.Escape);
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeSearchButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopSearchButton"));
         HeadlessInput.Press(window, Key.K, ControlShift);
         Assert.IsType<TicketsViewModel>(shell.CurrentPage);
         HeadlessInput.Press(window, Key.Escape);
@@ -293,6 +293,7 @@ public sealed class TicketsViewTests
     {
         var shell = services.GetRequiredService<MainWindowViewModel>();
         shell.EnableReminders(services.GetRequiredService<ReminderService>());
+        shell.ShowsTitleBar = true;
         var window = ScreenSnapshotTests.OpenWindow(shell, dark);
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
@@ -303,7 +304,7 @@ public sealed class TicketsViewTests
         bool dark = false)
     {
         var (shell, window) = await OpenHomeAsync(services, dark);
-        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "HomeTicketsButton"));
+        HeadlessInput.Click(window, HeadlessInput.Find<Button>(window, "TopTicketsButton"));
         return (shell, window);
     }
 
