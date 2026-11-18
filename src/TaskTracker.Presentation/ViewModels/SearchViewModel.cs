@@ -176,9 +176,10 @@ public sealed partial class SearchViewModel : ViewModelBase, IDisposable
         await LoadSavedSearchesAsync();
     }
 
-    /// <summary>Runs the search again when one has already run, so results reflect changes made since, such as an undo.</summary>
+    /// <summary>Reloads saved searches and reruns the current query if it has already run.</summary>
     public async Task RefreshAsync()
     {
+        await LoadSavedSearchesAsync();
         if (hasSearched)
         {
             await RunAsync();

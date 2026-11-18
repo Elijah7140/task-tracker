@@ -44,6 +44,8 @@ internal sealed class PresentationTestStore : IAsyncDisposable
 
     public FolderService Folders => services.GetRequiredService<FolderService>();
 
+    public FieldWriteGate WriteGate => services.GetRequiredService<FieldWriteGate>();
+
     public UndoHistory History => services.GetRequiredService<UndoHistory>();
 
     public TrashService Trash => services.GetRequiredService<TrashService>();
@@ -61,7 +63,7 @@ internal sealed class PresentationTestStore : IAsyncDisposable
         {
             var contexts = services.GetRequiredService<IDbContextFactory<TaskTrackerDbContext>>();
             var units = new EfUnitOfWorkFactory(contexts, NullUndoRecorder.Instance);
-            return new ItemService(units, TimeProvider.System, TimeZoneInfo.Utc);
+            return new ItemService(units, TimeProvider.System, TimeZoneInfo.Utc, WriteGate);
         }
     }
 

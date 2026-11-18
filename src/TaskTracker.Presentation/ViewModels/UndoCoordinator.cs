@@ -14,8 +14,6 @@ namespace TaskTracker.Presentation.ViewModels;
 /// </summary>
 public sealed class UndoCoordinator : ViewModelBase
 {
-    private const string UnsavedEditsMessage = "Save or discard your item edits before undoing or redoing.";
-
     private readonly UndoHistory history;
     private readonly IUndoHost host;
     private readonly AsyncRelayCommand undoCommand;
@@ -93,10 +91,10 @@ public sealed class UndoCoordinator : ViewModelBase
 
         try
         {
-            if (host.HasUnsavedEdits)
+            if (host.UndoBlockedReason is string reason)
             {
-                Status = UnsavedEditsMessage;
-                await host.ReportRefusalAsync(UnsavedEditsMessage);
+                Status = reason;
+                await host.ReportRefusalAsync(reason);
                 return;
             }
 

@@ -1,3 +1,4 @@
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Undo;
@@ -5,13 +6,16 @@ using TaskTracker.Core.Undo;
 namespace TaskTracker.Core.Calendar;
 
 /// <summary>Reschedules items from the calendar, one unit of work per operation.</summary>
-public sealed class CalendarRescheduleService(IUnitOfWorkFactory factory, TimeProvider clock)
+public sealed class CalendarRescheduleService(IUnitOfWorkFactory factory, TimeProvider clock, FieldWriteGate? writeGate = null)
     : ICalendarRescheduler
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     /// <inheritdoc />
     public async Task MoveDueAsync(Guid itemId, DateOnly date, TimeOnly? time,
         CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unit = factory.Begin();
         var item = await FindActiveItemAsync(unit, itemId, cancellationToken);
         item.SetDue(date, time, clock);
@@ -27,6 +31,7 @@ public sealed class CalendarRescheduleService(IUnitOfWorkFactory factory, TimePr
             throw new DomainRuleException("Scheduled times must be floating local values.");
         }
 
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unit = factory.Begin();
         var item = await FindActiveItemAsync(unit, itemId, cancellationToken);
         var newEnd = ShiftedEnd(item, newStart);

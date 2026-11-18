@@ -1,6 +1,8 @@
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Core.Settings;
 
@@ -10,8 +12,10 @@ namespace TaskTracker.Core.Settings;
 /// </summary>
 public sealed class SettingsService(
     IUnitOfWorkFactory unitOfWorkFactory,
-    TimeProvider clock)
+    TimeProvider clock, FieldWriteGate? writeGate = null)
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     private const string InvalidThresholdsMessage = "Red threshold must be nonnegative and no greater than yellow.";
 
     /// <summary>Returns the global value of a setting, or its default when none is stored.</summary>
@@ -61,6 +65,7 @@ public sealed class SettingsService(
     public async Task SetGlobalAsync<T>(SettingDefinition<T> definition, T value,
         bool confirmed = false, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
         var proposedGlobal = new Dictionary<string, string>(await store.GetGlobalAsync(cancellationToken))
@@ -70,7 +75,7 @@ public sealed class SettingsService(
 
         var enabledProjects = await ValidateChangeAsync(unitOfWork, proposedGlobal, proposedProject: null, confirmed, cancellationToken);
         await store.SetGlobalAsync(definition.Key, definition.Format(value), cancellationToken);
-        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, UndoLabels.EditGlobalSettings(), cancellationToken);
     }
 
     /// <summary>
@@ -83,6 +88,7 @@ public sealed class SettingsService(
         bool confirmed = false, ReminderPreferences reminders = default, bool? startWithSystem = null,
         CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
         var proposed = new Dictionary<string, string>(await store.GetGlobalAsync(cancellationToken));
@@ -96,7 +102,7 @@ public sealed class SettingsService(
         await StoreGlobalAsync(store, SettingsCatalogue.UrgencyRedThreshold, proposed, cancellationToken);
         await SaveReminderSettingsAsync(store, null, reminders, cancellationToken);
         await SaveOptionalSettingAsync(store, null, SettingsCatalogue.StartWithSystem, startWithSystem, cancellationToken);
-        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, UndoLabels.EditGlobalSettings(), cancellationToken);
     }
 
     /// <summary>
@@ -107,6 +113,7 @@ public sealed class SettingsService(
     public async Task SaveProjectAsync(Guid projectId, bool? autoCompleteParents, TimeSpan? yellow, TimeSpan? red,
         bool confirmed = false, ReminderPreferences? reminders = null, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
         var proposed = new Dictionary<string, string>(await store.GetProjectAsync(projectId, cancellationToken));
@@ -123,7 +130,7 @@ public sealed class SettingsService(
             await SaveReminderSettingsAsync(store, projectId, preferences, cancellationToken);
         }
 
-        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, UndoLabels.EditProjectSettings(), cancellationToken);
     }
 
     private static async Task SaveReminderSettingsAsync(ISettingsStore store, Guid? projectId,
@@ -195,6 +202,7 @@ public sealed class SettingsService(
             throw new DomainRuleException("This setting cannot be overridden.");
         }
 
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
         var proposedOverrides = new Dictionary<string, string>(await store.GetProjectAsync(projectId, cancellationToken))
@@ -204,7 +212,7 @@ public sealed class SettingsService(
 
         var enabledProjects = await ValidateProjectChangeAsync(unitOfWork, projectId, proposedOverrides, confirmed, cancellationToken);
         await store.SetProjectAsync(projectId, definition.Key, definition.Format(value), cancellationToken);
-        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, UndoLabels.EditProjectSettings(), cancellationToken);
     }
 
     /// <summary>
@@ -214,6 +222,7 @@ public sealed class SettingsService(
     public async Task ClearProjectOverrideAsync<T>(Guid projectId, SettingDefinition<T> definition,
         bool confirmed = false, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var store = unitOfWork.Settings;
         var proposedOverrides = new Dictionary<string, string>(await store.GetProjectAsync(projectId, cancellationToken));
@@ -221,7 +230,7 @@ public sealed class SettingsService(
 
         var enabledProjects = await ValidateProjectChangeAsync(unitOfWork, projectId, proposedOverrides, confirmed, cancellationToken);
         await store.SetProjectAsync(projectId, definition.Key, null, cancellationToken);
-        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, cancellationToken);
+        await ReconcileAndSaveAsync(unitOfWork, enabledProjects, UndoLabels.EditProjectSettings(), cancellationToken);
     }
 
     private static async Task<EffectiveSettings> ResolveEffectiveAsync(IUnitOfWork unitOfWork,
@@ -357,13 +366,14 @@ public sealed class SettingsService(
             : $"{value.TotalHours:0.##} hours";
     }
 
-    private async Task ReconcileAndSaveAsync(IUnitOfWork unitOfWork, IReadOnlyList<Guid> enabledProjects, CancellationToken cancellationToken)
+    private async Task ReconcileAndSaveAsync(IUnitOfWork unitOfWork, IReadOnlyList<Guid> enabledProjects,
+        string label, CancellationToken cancellationToken)
     {
         foreach (var projectId in enabledProjects)
         {
             await ProjectCompletionReconciler.ReconcileAsync(unitOfWork, projectId, clock, cancellationToken);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(label, cancellationToken);
     }
 }

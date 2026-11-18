@@ -1,10 +1,13 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 using TaskTracker.Core;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
 using TaskTracker.Core.Undo;
 
 namespace TaskTracker.Infrastructure.Persistence;
@@ -35,6 +38,8 @@ internal sealed class EfUndoableChange(
     {
         await using var database = await contexts.CreateDbContextAsync(cancellationToken);
         var current = await LoadAndVerifyAsync(database, forward, cancellationToken);
+        await UndoSettingsGuard.VerifyAsync(database, rows, forward, cancellationToken);
+        await UndoDependencyGuard.VerifyAsync(database, rows, forward, cancellationToken);
 
         for (var index = 0; index < rows.Count; index++)
         {
@@ -42,7 +47,7 @@ internal sealed class EfUndoableChange(
         }
 
         await SaveAsync(database, forward, cancellationToken);
-        saved?.Publish();
+        saved?.Publish(rows.Any(row => row.EntityType == typeof(GlobalSettingRow)));
     }
 
     /// <summary>Translates a refused database write into an explanation for the user.</summary>
@@ -71,6 +76,12 @@ internal sealed class EfUndoableChange(
         if (reason?.Contains("At least one Done status must stay active", StringComparison.Ordinal) == true)
         {
             return $"At least one Done status must stay active. Add or restore another Done status before trying to {Verb(forward)}.";
+        }
+
+        const int uniqueConstraint = 2067;
+        if (exception.InnerException is SqliteException { SqliteExtendedErrorCode: uniqueConstraint })
+        {
+            return $"Another entry now uses the same name, key or number; can't {Verb(forward)}.";
         }
 
         return $"This change references something that was removed; can't {Verb(forward)}.";
@@ -181,6 +192,31 @@ internal sealed class EfUndoableChange(
             return "priority level";
         }
 
+        if (row.EntityType == typeof(ItemType))
+        {
+            return "item type";
+        }
+
+        if (row.EntityType == typeof(FieldDefinition))
+        {
+            return "field";
+        }
+
+        if (row.EntityType == typeof(FieldChoice))
+        {
+            return "field choice";
+        }
+
+        if (row.EntityType == typeof(SavedSearch))
+        {
+            return "saved search";
+        }
+
+        if (row.EntityType == typeof(GlobalSettingRow) || row.EntityType == typeof(ProjectSettingRow))
+        {
+            return "setting";
+        }
+
         return "item";
     }
 
@@ -200,8 +236,13 @@ internal sealed class EfUndoableChange(
             return;
         }
 
-        var entity = existing ?? AddNewRow(database, row.EntityType);
-        CopyValues(database, entity, target);
+        if (existing is null)
+        {
+            AddNewRow(database, row.EntityType, target);
+            return;
+        }
+
+        CopyValues(database, existing, target);
     }
 
     private static void RemoveRow(TaskTrackerDbContext database, object? existing)
@@ -213,12 +254,12 @@ internal sealed class EfUndoableChange(
     }
 
     /// <summary>Entities have private constructors, so the row is created reflectively and then filled with its values.</summary>
-    private static object AddNewRow(TaskTrackerDbContext database, Type entityType)
+    private static void AddNewRow(TaskTrackerDbContext database, Type entityType, Dictionary<string, object?> values)
     {
         var entity = Activator.CreateInstance(entityType, nonPublic: true)
             ?? throw new InvalidOperationException($"Cannot create a {entityType.Name}.");
+        CopyValues(database, entity, values);
         database.Add(entity);
-        return entity;
     }
 
     private static void CopyValues(TaskTrackerDbContext database, object entity, Dictionary<string, object?> values)

@@ -100,7 +100,6 @@ public sealed class EfUnitOfWork : IUnitOfWork
         }
     }
 
-    /// <summary>Settings are never part of an undo step, so only these direct saves can change one.</summary>
     private bool HasGlobalSettingChanges()
     {
         database.ChangeTracker.DetectChanges();

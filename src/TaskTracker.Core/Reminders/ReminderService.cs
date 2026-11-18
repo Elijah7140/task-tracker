@@ -1,3 +1,4 @@
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Time;
@@ -6,8 +7,10 @@ using TaskTracker.Core.Undo;
 namespace TaskTracker.Core.Reminders;
 
 /// <summary>Reads due reminders and persists delivery or snooze through fresh units of work.</summary>
-public sealed class ReminderService(IUnitOfWorkFactory factory, TimeProvider clock, TimeZoneInfo zone)
+public sealed class ReminderService(IUnitOfWorkFactory factory, TimeProvider clock, TimeZoneInfo zone, FieldWriteGate? writeGate = null)
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     public Task<IReadOnlyList<ReminderEntry>> DueAsync(CancellationToken cancellationToken = default)
     {
         return DueAsync(clock.GetUtcNow().UtcDateTime, null, 0, cancellationToken);
@@ -31,6 +34,7 @@ public sealed class ReminderService(IUnitOfWorkFactory factory, TimeProvider clo
     public async Task RecordDeliveryAsync(IReadOnlyList<ReminderEntry> entries,
         CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = factory.Begin();
         var instants = entries.ToDictionary(entry => entry.ItemId, entry => entry.InstantUtc);
         var items = await work.Reminders.LoadForDeliveryAsync(instants.Keys, cancellationToken);
@@ -46,6 +50,7 @@ public sealed class ReminderService(IUnitOfWorkFactory factory, TimeProvider clo
     public async Task SnoozeAsync(ReminderEntry entry, ReminderSnooze option,
         CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var work = factory.Begin();
         var item = await work.Items.FindAsync(entry.ItemId, cancellationToken);
         if (item is null || await work.Projects.FindAsync(item.ProjectId, false, cancellationToken) is null)

@@ -155,7 +155,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
 
     public LookupListViewModel? Statuses { get; }
 
-    /// <summary>Reloads the lookup lists, on opening and after an undo or redo changed one of them.</summary>
+    /// <summary>Reloads the lookup lists.</summary>
     public async Task LoadLookupsAsync()
     {
         foreach (var list in new[] { ItemTypes, PriorityLevels, Statuses })
@@ -221,8 +221,16 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     private async Task SaveConfirmedAsync(GlobalDefaults defaults)
     {
         bool? startWithSystemToSave = IsStartWithSystemAvailable ? defaults.StartWithSystem : null;
-        await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
-            reminders: defaults.Reminders, startWithSystem: startWithSystemToSave);
+        if (startWithSystemToSave is bool startupOnly && defaults with { StartWithSystem = saved.StartWithSystem } == saved)
+        {
+            await settings.SetGlobalAsync(SettingsCatalogue.StartWithSystem, startupOnly);
+        }
+        else
+        {
+            await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
+                reminders: defaults.Reminders, startWithSystem: startWithSystemToSave);
+        }
+
         saved = defaults;
         Validate();
 

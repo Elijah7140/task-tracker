@@ -349,7 +349,7 @@ public sealed class JsonImportValidationTests
 
         Assert.True(result.Succeeded);
         Assert.Equal(steps, world.Recorder.Descriptions.Count);
-        Assert.False(world.History.CanUndo);
+        Assert.Equal("Create 'Existing'", world.History.UndoDescription);
     }
 
     private static async Task<string> ExportSeedAsync()

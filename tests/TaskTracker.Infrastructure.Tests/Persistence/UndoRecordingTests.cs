@@ -60,19 +60,20 @@ public sealed class UndoRecordingTests
     }
 
     [Fact]
-    public async Task Turning_on_auto_complete_records_nothing_even_though_it_completes_parents()
+    public async Task Turning_on_auto_complete_records_the_setting_and_completed_parents_as_one_step()
     {
         await using var world = await UndoWorld.CreateAsync();
         await world.Settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, false);
         var parent = await world.Items.CreateAsync(world.Project.Id, null, null, "Parent");
         var child = await world.Items.CreateAsync(world.Project.Id, null, parent.Id, "Child");
         await world.Items.SetCompletedAsync(world.Project.Id, null, child.Id, true);
-        var stepsBefore = world.Recorder.Descriptions.Count;
-
-        await world.Settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, true, confirmed: true);
+        await world.VerifyRoundTripAsync(
+            () => world.Settings.SetGlobalAsync(SettingsCatalogue.AutoCompleteParents, true, confirmed: true),
+            "GlobalSetting", "TodoItem");
 
         Assert.NotNull((await world.ReadItemAsync(parent.Id)).CompletedAtUtc);
-        Assert.Equal(stepsBefore, world.Recorder.Descriptions.Count);
+        await world.VerifyRefusalAsync("UPDATE TodoItem SET Title = 'Changed' WHERE Title = 'Parent'",
+            redo: false, "GlobalSetting", "TodoItem");
     }
 
     [Fact]
@@ -123,12 +124,9 @@ public sealed class UndoRecordingTests
     public async Task Saving_without_a_label_records_nothing()
     {
         await using var world = await UndoWorld.CreateAsync();
-        var item = await world.Items.CreateAsync(world.Project.Id, null, null, "Task");
-        var batchId = await world.Items.DeleteAsync(world.Project.Id, null, item.Id);
         var stepsBefore = world.Recorder.Descriptions.Count;
 
-        await world.Items.RestoreAsync(world.Project.Id, null, batchId);
-        await world.Fields.CreateAsync("Notes", FieldDataType.Text, null);
+        await world.Settings.SetGlobalAsync(SettingsCatalogue.StartWithSystem, true);
 
         Assert.Equal(stepsBefore, world.Recorder.Descriptions.Count);
     }

@@ -120,16 +120,6 @@ public sealed class UndoRefusalTests
     }
 
     [Fact]
-    public async Task Settings_and_field_definitions_are_not_recorded()
-    {
-        await using var world = await UndoWorld.CreateAsync();
-
-        await world.Fields.CreateAsync("Notes", FieldDataType.Text, null);
-
-        Assert.Empty(world.Recorder.Descriptions);
-    }
-
-    [Fact]
     public async Task An_edit_that_changes_nothing_records_no_step()
     {
         await using var world = await UndoWorld.CreateAsync();

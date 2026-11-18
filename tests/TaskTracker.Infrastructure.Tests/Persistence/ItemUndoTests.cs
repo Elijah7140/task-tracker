@@ -57,7 +57,7 @@ public sealed class ItemUndoTests
 
         await world.History.UndoAsync();
 
-        Assert.Equal(["Create 'Task'", "Edit 'Renamed'"], world.Recorder.Descriptions);
+        Assert.Equal(["Add field 'Notes'", "Create 'Task'", "Edit 'Renamed'"], world.Recorder.Descriptions);
         Assert.Equal(before, await world.SnapshotAsync());
         Assert.Empty(await world.ReadFieldValuesAsync(item.Id));
 

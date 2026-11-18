@@ -5,13 +5,13 @@ using TaskTracker.Core.Fields;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.SavedSearches;
+using TaskTracker.Core.Settings;
 
 namespace TaskTracker.Infrastructure.Persistence;
 
 /// <summary>
-/// Snapshots the pending changes of a labelled save: every added, modified or deleted item, folder,
-/// project, item field value, item link, status and priority level. A row whose only change is its
-/// <c>UpdatedAtUtc</c> stamp is left out, so a step holds just the rows the user action really changed.
+/// Snapshots pending user-data changes in a labelled save and discards incidental update stamps.
 /// </summary>
 internal static class UndoRowCollector
 {
@@ -24,7 +24,7 @@ internal static class UndoRowCollector
 
         foreach (var entry in tracker.Entries())
         {
-            if (IsUndoableEntity(entry.Entity) && HasMeaningfulChange(entry))
+            if (IsUndoableEntity(entry.Entity) && CaptureChange(entry))
             {
                 rows.Add(UndoRowSnapshot.Capture(entry));
             }
@@ -35,17 +35,31 @@ internal static class UndoRowCollector
 
     private static bool IsUndoableEntity(object entity)
     {
-        return entity is TodoItem or Folder or Project or ItemFieldValue or ItemLink or StatusLevel or PriorityLevel;
+        return entity is TodoItem or Folder or Project or ItemFieldValue or ItemLink or LookupEntity
+            or FieldDefinition or FieldChoice or ProjectSettingRow or SavedSearch
+            || entity is GlobalSettingRow setting && setting.Key != SettingsCatalogue.StartWithSystem.Key;
     }
 
-    private static bool HasMeaningfulChange(EntityEntry entry)
+    private static bool CaptureChange(EntityEntry entry)
     {
         if (entry.State is EntityState.Added or EntityState.Deleted)
         {
             return true;
         }
 
-        return entry.State == EntityState.Modified && ChangesMoreThanUpdateStamp(entry);
+        if (entry.State != EntityState.Modified)
+        {
+            return false;
+        }
+
+        if (ChangesMoreThanUpdateStamp(entry))
+        {
+            return true;
+        }
+
+        // A timestamp-only write would leave no step and invalidate earlier snapshots of this row.
+        entry.State = EntityState.Unchanged;
+        return false;
     }
 
     private static bool ChangesMoreThanUpdateStamp(EntityEntry entry)

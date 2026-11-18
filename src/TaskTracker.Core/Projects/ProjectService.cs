@@ -1,4 +1,5 @@
 using TaskTracker.Core.Completion;
+using TaskTracker.Core.Fields;
 using TaskTracker.Core.Persistence;
 using TaskTracker.Core.Settings;
 using TaskTracker.Core.Undo;
@@ -10,8 +11,10 @@ namespace TaskTracker.Core.Projects;
 public sealed class ProjectService(
     IUnitOfWorkFactory unitOfWorkFactory,
     TimeProvider clock,
-    TimeZoneInfo timeZone)
+    TimeZoneInfo timeZone, FieldWriteGate? writeGate = null)
 {
+    private readonly FieldWriteGate gate = writeGate ?? FieldWriteGate.Shared;
+
     /// <summary>
     /// Loads the project's name and folder tree in one unit of work.
     /// Throws <see cref="DomainRuleException"/> if the project is missing or deleted.
@@ -27,16 +30,18 @@ public sealed class ProjectService(
 
     public async Task<Project> CreateAsync(string name, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var projects = unitOfWork.Projects;
         var project = Project.Create(name, clock);
         projects.Add(project);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Create(project.Name), cancellationToken);
         return project;
     }
 
     public async Task RenameAsync(Guid id, string name, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var project = await GetAsync(unitOfWork, id, cancellationToken);
         project.Rename(name, clock);
@@ -45,6 +50,7 @@ public sealed class ProjectService(
 
     public async Task ReorderAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var projects = unitOfWork.Projects;
         var rows = await projects.ListAsync(false, cancellationToken);
@@ -59,7 +65,7 @@ public sealed class ProjectService(
             rows.Single(row => row.Id == ids[index]).SetSortOrder(index, clock);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.ReorderProjects(), cancellationToken);
     }
 
     public async Task<IReadOnlyList<ProjectSummary>> ListAsync(CancellationToken cancellationToken = default)
@@ -88,6 +94,7 @@ public sealed class ProjectService(
 
     public async Task<Guid> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var folders = unitOfWork.Folders;
         var items = unitOfWork.Items;
@@ -111,6 +118,7 @@ public sealed class ProjectService(
 
     public async Task RestoreAsync(Guid batchId, CancellationToken cancellationToken = default)
     {
+        using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
         var projects = unitOfWork.Projects;
         var folders = unitOfWork.Folders;
@@ -136,7 +144,7 @@ public sealed class ProjectService(
         }
 
         await ProjectCompletionReconciler.ReconcileIfEnabledAsync(unitOfWork, project.Id, clock, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(UndoLabels.Restore(project.Name), cancellationToken);
     }
 
     private async Task<Project> GetAsync(IUnitOfWork unitOfWork, Guid id, CancellationToken cancellationToken)

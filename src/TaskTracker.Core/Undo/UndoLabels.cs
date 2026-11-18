@@ -15,7 +15,7 @@ public static class UndoLabels
 
     public static string StopRepeating(string title) => $"Stop repeating '{title}'";
 
-    /// <summary>Creating an item or sub-item.</summary>
+    /// <summary>Creating a project, folder, item or sub-item.</summary>
     public static string Create(string name)
     {
         return Label("Create", name);
@@ -115,6 +115,62 @@ public static class UndoLabels
     public static string AddPriority(string name) => Label("Add priority", name);
 
     public static string SetPriorityNumber(string name) => Label("Edit priority", name);
+
+    public static string AddItemType(string name) => Label("Add item type", name);
+
+    public static string RenameItemType(string name) => Label("Rename item type", name);
+
+    public static string ArchiveItemType(string name) => Label("Archive item type", name);
+
+    public static string RestoreItemType(string name) => Label("Restore item type", name);
+
+    public static string RenamePriority(string name) => Label("Rename priority", name);
+
+    public static string ArchivePriority(string name) => Label("Archive priority", name);
+
+    public static string RestorePriority(string name) => Label("Restore priority", name);
+
+    public static string AddField(string name) => Label("Add field", name);
+
+    public static string RenameField(string name) => Label("Rename field", name);
+
+    public static string ChangeFieldType(string name) => Label("Change type of field", name);
+
+    public static string ArchiveField(string name) => Label("Archive field", name);
+
+    public static string RestoreField(string name) => Label("Restore field", name);
+
+    public static string AddChoice(string name) => Label("Add choice", name);
+
+    public static string RenameChoice(string name) => Label("Rename choice", name);
+
+    public static string ArchiveChoice(string name) => Label("Archive choice", name);
+
+    public static string RestoreChoice(string name) => Label("Restore choice", name);
+
+    public static string SaveSearch(string name) => Label("Save search", name);
+
+    public static string ReplaceSearch(string name) => Label("Replace saved search", name);
+
+    public static string RenameSearch(string name) => Label("Rename saved search", name);
+
+    public static string DeleteSearch(string name) => Label("Delete saved search", name);
+
+    public static string ReorderProjects() => "Reorder projects";
+
+    public static string ReorderItemTypes() => "Reorder item types";
+
+    public static string ReorderPriorities() => "Reorder priority levels";
+
+    public static string ReorderFields() => "Reorder fields";
+
+    public static string ReorderChoices() => "Reorder choices";
+
+    public static string ReorderSearches() => "Reorder saved searches";
+
+    public static string EditGlobalSettings() => "Edit global settings";
+
+    public static string EditProjectSettings() => "Edit project settings";
 
     private static string Label(string verb, string name)
     {
