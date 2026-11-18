@@ -94,9 +94,11 @@ The examples above override it at pack time. Tagged builds use the GitHub Action
 variable `TASKTRACKER_UPDATE_FEED_URL` when set. The workflow publishes to the repository that runs
 it. If you configure a separate public feed, publish the release assets to that repository too.
 
-On every pull request and push to `main`, the CI `package` job packs for Windows and Linux and uploads
-the result as the `package-win-x64` and `package-linux-x64` workflow artifacts. It never publishes a
-release.
+On every pull request and push to `main`, CI runs on self-hosted runners (see
+[docs/CI.md](docs/CI.md); GitHub-hosted minutes are billed). Its `package` job packs for each OS with
+a runner and uploads the result as the `package-win-x64` and `package-linux-x64` workflow artifacts.
+It never publishes a release. `scripts/ci-local.ps1` and `scripts/ci-local.sh` run the same checks
+on your machine.
 
 **Cutting a release:** when `main` is green, tag it and push the tag:
 

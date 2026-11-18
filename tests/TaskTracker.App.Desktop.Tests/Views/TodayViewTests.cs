@@ -336,7 +336,7 @@ public sealed class TodayViewTests
         switch (surface)
         {
             case "workspace":
-                return HeadlessInput.Find<Border>(window, "ItemDragRow");
+                return HeadlessInput.Find<Border>(window, "ItemCard");
             case "search":
                 await shell.OpenSearchAsync();
                 Dispatcher.UIThread.RunJobs();

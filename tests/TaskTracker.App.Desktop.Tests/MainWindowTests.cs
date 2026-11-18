@@ -16,6 +16,7 @@ using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Reminders;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Settings;
 using TaskTracker.Infrastructure.Persistence;
@@ -44,6 +45,27 @@ public sealed class MainWindowTests
         Assert.NotNull(frame);
         Assert.NotEmpty(window.GetVisualDescendants().OfType<HomeView>());
         TestScreenshots.SaveIfRequested(frame!, "home.png");
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task App_title_bar_leaves_the_window_title_to_the_drawn_decorations()
+    {
+        using var services = await TestServices.CreateAsync();
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        shell.EnableReminders(services.GetRequiredService<ReminderService>());
+        shell.ShowsTitleBar = true;
+        var window = new MainWindow { DataContext = shell };
+
+        window.Show();
+        await shell.GoHomeAsync();
+        var titleBar = window.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == "AppTitleBar");
+        var titleTexts = titleBar.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .Where(block => block.Text == window.Title);
+
+        Assert.True(titleBar.IsEffectivelyVisible);
+        Assert.Empty(titleTexts);
         window.Close();
     }
 
@@ -275,7 +297,7 @@ public sealed class MainWindowTests
         Assert.Contains(controls.OfType<TextBlock>(), text => text.Text == "Overdue");
         Assert.Contains(controls.OfType<TextBlock>(), text => text.Text == "↳ sub");
         Assert.Contains(controls.OfType<Border>(), border => border.Classes.Contains("selected"));
-        Assert.Contains(controls.OfType<ToggleButton>(), toggle => Equals(toggle.Content, "▾"));
+        Assert.Contains(controls.OfType<Border>(), border => border.Classes.Contains("itemCard"));
         Assert.True(save.Bounds.Bottom <= window.Bounds.Bottom);
         Assert.True(revert.Bounds.Bottom <= window.Bounds.Bottom);
         Assert.Equal(3, controls.OfType<CalendarDatePicker>().Count());

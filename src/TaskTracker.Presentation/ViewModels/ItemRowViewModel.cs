@@ -68,6 +68,15 @@ public sealed class ItemRowViewModel : ViewModelBase
 
     public string? TicketNumber => Node.Item.TicketNumber;
 
+    public bool HasTicketNumber => !string.IsNullOrWhiteSpace(TicketNumber);
+
+    /// <summary>The description as typed, shown as a short preview on the item's card.</summary>
+    public string? Description => string.IsNullOrWhiteSpace(Node.Item.Description) ? null : Node.Item.Description.Trim();
+
+    public bool HasDescription => Description is not null;
+
+    public bool HasDeadline => Deadline.Length > 0;
+
     public bool IsComplete => Node.Item.CompletedAtUtc is not null;
 
     public bool IsFinished => Node.IsFinished;
@@ -84,6 +93,7 @@ public sealed class ItemRowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsUrgent));
                 OnPropertyChanged(nameof(IsApproaching));
                 OnPropertyChanged(nameof(IsImmediate));
+                OnRowDetailsChanged();
             }
         }
     }
@@ -106,13 +116,35 @@ public sealed class ItemRowViewModel : ViewModelBase
             if (SetProperty(ref sourceTitle, value))
             {
                 OnPropertyChanged(nameof(HasSource));
+                OnRowDetailsChanged();
             }
         }
     }
 
     public bool HasSource => SourceTitle is not null;
 
+    /// <summary>
+    /// The sub-item row's second line: ticket, priority, date and urgency, plus "↳ sub" when the
+    /// urgency comes from a sub-item. Empty when the item has none of these.
+    /// </summary>
+    public string RowDetails
+    {
+        get
+        {
+            var source = HasSource ? "↳ sub" : null;
+            string?[] parts = [TicketNumber, PriorityName, Deadline, UrgencyLabel, source];
+            return string.Join(" · ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+        }
+    }
+
+    public bool HasRowDetails => RowDetails.Length > 0;
+
+    /// <summary>Names the sub-item the urgency comes from, when there is one.</summary>
+    public string? RowDetailsTip => HasSource ? $"Urgency from {SourceTitle}" : null;
+
     public string? TypeName { get; set; }
+
+    public bool HasType => TypeName is not null;
 
     public string TypeIcon => TypeName switch
     {
@@ -173,6 +205,13 @@ public sealed class ItemRowViewModel : ViewModelBase
     {
         Urgency = value;
         SourceTitle = source;
+    }
+
+    private void OnRowDetailsChanged()
+    {
+        OnPropertyChanged(nameof(RowDetails));
+        OnPropertyChanged(nameof(HasRowDetails));
+        OnPropertyChanged(nameof(RowDetailsTip));
     }
 
     /// <summary>Restores a checkbox after a completion action was canceled or blocked.</summary>

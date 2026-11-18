@@ -305,7 +305,7 @@ public sealed class AreaItemsViewModelTests
     }
 
     [Fact]
-    public async Task Reorder_moves_only_among_visible_open_siblings()
+    public async Task Alt_down_on_a_card_moves_it_past_the_next_open_card_and_skips_finished_items()
     {
         await using var store = new PresentationTestStore();
         await store.InitializeAsync();
@@ -321,6 +321,6 @@ public sealed class AreaItemsViewModelTests
         await page.ReorderSelectedAsync(1);
         var snapshot = await store.Items.LoadAreaAsync(project.Id, null);
 
-        Assert.Equal([last.Id, finished.Id, first.Id], snapshot.Items.Select(node => node.Item.Id));
+        Assert.Equal([finished.Id, last.Id, first.Id], snapshot.Items.Select(node => node.Item.Id));
     }
 }

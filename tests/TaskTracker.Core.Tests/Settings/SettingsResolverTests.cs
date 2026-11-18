@@ -73,4 +73,19 @@ public sealed class SettingsResolverTests
         Assert.Contains(SettingsCatalogue.AutoCompleteParents.Key, booleanError.Message);
         Assert.Contains(SettingsCatalogue.UrgencyRedThreshold.Key, durationError.Message);
     }
+
+    [Fact]
+    public void Card_columns_default_to_four_and_ignore_project_overrides()
+    {
+        var empty = new Dictionary<string, string>();
+        var project = new Dictionary<string, string> { [SettingsCatalogue.WorkspaceCardColumns.Key] = "2" };
+        var global = new Dictionary<string, string> { [SettingsCatalogue.WorkspaceCardColumns.Key] = "5" };
+
+        var defaults = SettingsResolver.Resolve(empty, empty);
+        var resolved = SettingsResolver.Resolve(global, project);
+
+        Assert.Equal(4, defaults.WorkspaceCardColumns.Value);
+        Assert.Equal(5, resolved.WorkspaceCardColumns.Value);
+        Assert.Equal(SettingSource.Global, resolved.WorkspaceCardColumns.Source);
+    }
 }

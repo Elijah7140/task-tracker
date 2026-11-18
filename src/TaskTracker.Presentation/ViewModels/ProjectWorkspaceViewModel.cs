@@ -9,6 +9,7 @@ using TaskTracker.Core.Completion;
 using TaskTracker.Core.Items;
 using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Settings;
 using TaskTracker.Presentation.Navigation;
 
 namespace TaskTracker.Presentation.ViewModels;
@@ -145,6 +146,13 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     public ObservableCollection<ItemRowViewModel> OpenItems => areaItems.OpenItems;
 
     public ObservableCollection<ItemRowViewModel> CompletedItems => areaItems.CompletedItems;
+
+    /// <summary>The open top-level items as cards, one section per priority (§8).</summary>
+    public ObservableCollection<PriorityGroupViewModel> OpenGroups => areaItems.OpenGroups;
+
+    /// <summary>How many cards sit side by side; the global <c>workspaceCardColumns</c> setting.</summary>
+    public int CardColumns => areaSnapshot?.Settings.WorkspaceCardColumns.Value
+        ?? SettingsCatalogue.WorkspaceCardColumns.DefaultValue;
 
     public ObservableCollection<ItemType> ItemTypes { get; } = [];
 
@@ -378,6 +386,7 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         }
 
         areaItems.Load(snapshot, this);
+        OnPropertyChanged(nameof(CardColumns));
         OnPropertyChanged(nameof(CompletedLabel));
         OnPropertyChanged(nameof(HasCompletedItems));
     }
@@ -665,22 +674,62 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
         return areaItems.DeleteItemAsync();
     }
 
+    /// <summary>
+    /// Alt+↑/↓. An open card moves one place in the card grid and takes the priority of the
+    /// section it enters; a sub-item or a completed card reorders among its siblings.
+    /// </summary>
     public Task ReorderSelectedAsync(int offset)
     {
+        if (selectedItem is { IsTopLevel: true, IsFinished: false } card)
+        {
+            var id = card.Id;
+            return RunItemMoveAsync(id, (service, origin) =>
+                SaveCardPlacementAsync(service, origin, id, CardDropMapper.Step(AllItems().ToArray(), OpenGroups, id, offset)));
+        }
+
         return areaItems.ReorderSelectedAsync(offset);
     }
 
-    /// <summary>Places a dragged row before, after, or inside a row in the current area.</summary>
+    /// <summary>
+    /// Places a dragged item before, after, or inside a row or card in the current area. Before
+    /// or after an open card, the item also takes that card's priority section.
+    /// </summary>
     public Task DropItemAsync(Guid sourceId, Guid targetId, ItemDropPosition position)
     {
         return RunItemMoveAsync(sourceId,
             (service, origin) => SaveDropAsync(service, origin, sourceId, targetId, position));
     }
 
-    /// <summary>True when a drop at that row position would be accepted and change the order or parent.</summary>
+    /// <summary>True when a drop at that row or card position would be accepted.</summary>
     public bool CanDropItem(Guid sourceId, Guid targetId, ItemDropPosition position)
     {
-        return ItemDropMapper.Map(AllItems().ToArray(), sourceId, targetId, position) is not null;
+        var rows = AllItems().ToArray();
+
+        if (ItemDropMapper.Map(rows, sourceId, targetId, position) is null)
+        {
+            return false;
+        }
+
+        return !IsOpenCard(targetId) || position == ItemDropPosition.Into ||
+            CardDropMapper.Map(rows, OpenGroups, sourceId, targetId, position) is not null;
+    }
+
+    /// <summary>Moves a dragged item to the end of a priority section and gives it that priority.</summary>
+    public Task DropItemOnGroupAsync(Guid sourceId, PriorityGroupViewModel group)
+    {
+        return RunItemMoveAsync(sourceId, (service, origin) => SaveCardPlacementAsync(service, origin, sourceId,
+            CardDropMapper.MapToGroupEnd(AllItems().ToArray(), OpenGroups, sourceId, group)));
+    }
+
+    /// <summary>True when dropping on the section's header would move the item.</summary>
+    public bool CanDropOnGroup(Guid sourceId, PriorityGroupViewModel group)
+    {
+        return CardDropMapper.MapToGroupEnd(AllItems().ToArray(), OpenGroups, sourceId, group) is not null;
+    }
+
+    private bool IsOpenCard(Guid id)
+    {
+        return OpenGroups.Any(group => group.Cards.Any(card => card.Id == id));
     }
 
     /// <summary>Promotes a dragged sub-item to the end of the area's top-level list.</summary>
@@ -758,6 +807,12 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
     private async Task<bool> SaveDropAsync(ItemService service, ItemMoveOrigin origin, Guid sourceId,
         Guid targetId, ItemDropPosition position)
     {
+        if (IsOpenCard(targetId) && position != ItemDropPosition.Into)
+        {
+            var cardPlacement = CardDropMapper.Map(AllItems().ToArray(), OpenGroups, sourceId, targetId, position);
+            return await SaveCardPlacementAsync(service, origin, sourceId, cardPlacement);
+        }
+
         var placement = ItemDropMapper.Map(AllItems().ToArray(), sourceId, targetId, position);
 
         if (placement is null)
@@ -767,6 +822,19 @@ public sealed class ProjectWorkspaceViewModel : ViewModelBase, IDisposable, IUns
 
         await service.MoveAtAsync(projectId, origin.FolderId, sourceId,
             placement.Value.ParentId, placement.Value.Index);
+        return true;
+    }
+
+    private async Task<bool> SaveCardPlacementAsync(ItemService service, ItemMoveOrigin origin, Guid sourceId,
+        CardPlacement? placement)
+    {
+        if (placement is not CardPlacement target)
+        {
+            return false;
+        }
+
+        await service.MoveToPriorityGroupAsync(projectId, origin.FolderId, sourceId,
+            target.PriorityLevelId, target.Index);
         return true;
     }
 

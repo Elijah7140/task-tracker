@@ -26,6 +26,15 @@
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
     </Style>
+    <!-- A transparent background makes the whole header width a drop target. -->
+    <Style Selector="Border.groupHeader">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.groupHeader.dropGroup">
+      <Setter Property="Background">
+        <SolidColorBrush Color="{DynamicResource SystemAccentColor}" Opacity="0.25" />
+      </Setter>
+    </Style>
     <Style Selector="ScrollViewer.dropRoot">
       <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
       <Setter Property="BorderThickness" Value="0,0,0,3" />
@@ -118,12 +127,37 @@
             <KeyBinding Gesture="Space" Command="{Binding ToggleSelectedCommand}" />
             <KeyBinding Gesture="Delete" Command="{Binding DeleteItemCommand}" />
           </ScrollViewer.KeyBindings>
-          <!-- Shared size scope: item rows size their detail columns together, so they align. -->
-          <StackPanel Spacing="12" Grid.IsSharedSizeScope="True">
-            <ItemsControl ItemsSource="{Binding OpenItems}">
+          <!-- Open top-level items are cards, one section per priority (§8). Each grid row is as
+               tall as its tallest card, and at least CardMinHeight, so about two rows fill the pane. -->
+          <StackPanel Spacing="20" Margin="0,0,14,0">
+            <ItemsControl ItemsSource="{Binding OpenGroups}" AutomationProperties.AutomationId="PriorityGroups">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Spacing="20" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <views:ItemBranchView />
+                  <StackPanel Spacing="8">
+                    <Border Classes="groupHeader" Padding="6,3" CornerRadius="4" HorizontalAlignment="Stretch"
+                            AutomationProperties.AutomationId="PriorityGroupHeader" AutomationProperties.Name="{Binding Title}">
+                      <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding CountLabel}" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Cards}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <views:CardGridPanel Columns="{Binding $parent[views:ProjectWorkspaceView].DataContext.CardColumns}"
+                                               MinRowHeight="{Binding $parent[views:ProjectWorkspaceView].CardMinHeight}" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <views:ItemCardView />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -131,9 +165,14 @@
                       IsVisible="{Binding HasCompletedItems}"
                       HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
               <ItemsControl ItemsSource="{Binding CompletedItems}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <views:CardGridPanel Columns="{Binding $parent[views:ProjectWorkspaceView].DataContext.CardColumns}" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <views:ItemBranchView />
+                    <views:ItemCardView />
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>

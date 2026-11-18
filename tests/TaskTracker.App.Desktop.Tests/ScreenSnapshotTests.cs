@@ -41,12 +41,12 @@ public sealed class ScreenSnapshotTests
         await shell.OpenProjectAsync(project.Id);
         Dispatcher.UIThread.RunJobs();
         var rows = window.GetVisualDescendants().OfType<Border>()
-            .Where(border => border.Classes.Contains("itemRow")).ToArray();
+            .Where(border => (border.Classes.Contains("itemRow") || border.Classes.Contains("itemCard"))).ToArray();
         var firstRow = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == first.Id);
         var secondRow = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == second.Id);
         var start = HeadlessInput.CentreOf(window, secondRow);
-        var finish = HeadlessInput.PointIn(window, firstRow, firstRow.Bounds.Width / 2,
-            into ? firstRow.Bounds.Height / 2 : firstRow.Bounds.Height * 0.3);
+        var finish = HeadlessInput.PointIn(window, firstRow,
+            into ? firstRow.Bounds.Width / 2 : firstRow.Bounds.Width * 0.2, firstRow.Bounds.Height / 2);
 
         HeadlessInput.PressMouse(window, start);
         HeadlessInput.MoveMouse(window, finish);
@@ -501,6 +501,28 @@ public sealed class ScreenSnapshotTests
         window.Close();
     }
 
+    /// <summary>The card grid at the owner's 1440p target: four cards across, about two rows tall (§7.17).</summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Workspace_card_grid_at_1440p_matches_approved_image(bool dark)
+    {
+        using var services = await TestServices.CreateAsync();
+        var projectId = await SeedCardGridAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = OpenWindow(shell, dark, height: 1440, width: 2560);
+
+        await shell.OpenProjectAsync(projectId);
+        Dispatcher.UIThread.RunJobs();
+        using var frame = window.CaptureRenderedFrame();
+
+        Assert.NotNull(frame);
+        var grid = window.GetVisualDescendants().OfType<CardGridPanel>().First();
+        Assert.Equal(4, grid.ColumnsFor(grid.Bounds.Width));
+        SnapshotComparer.AssertMatches(frame, $"workspace-card-grid-{ThemeName(dark)}");
+        window.Close();
+    }
+
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
@@ -651,6 +673,42 @@ public sealed class ScreenSnapshotTests
             null, new DateOnly(2026, 11, 15), null, null, null));
         await items.SetCompletedAsync(project.Id, null, finished.Id, true);
         return (project.Id, parent.Id);
+    }
+
+    /// <summary>
+    /// Seeds a "No priority" section with two cards, a full "High" section of five cards (so it
+    /// wraps), and one "Low" card. Cards carry descriptions, tickets, dates and sub-items of
+    /// different lengths, so rows show the tallest-card rule.
+    /// </summary>
+    private static async Task<Guid> SeedCardGridAsync(IServiceProvider services)
+    {
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing DB");
+        var items = services.GetRequiredService<ItemService>();
+        await AddCardAsync(items, project.Id, "Draft the Q1 roadmap", null, "Collect the requests from the owner review.", 0);
+        await AddCardAsync(items, project.Id, "Tidy the test fixtures", null, null, 2);
+        await AddCardAsync(items, project.Id, "Add index to Invoice.CustomerId", BuiltInLookups.HighId,
+            "Slow invoice lookups on the customer page. Check the plan before and after.", 3);
+        await AddCardAsync(items, project.Id, "Review migration", BuiltInLookups.HighId, null, 0);
+        await AddCardAsync(items, project.Id, "Fix rounding in tax totals", BuiltInLookups.HighId,
+            "Totals are off by a cent when a discount applies.", 1);
+        await AddCardAsync(items, project.Id, "Prepare release notes", BuiltInLookups.HighId, null, 6);
+        await AddCardAsync(items, project.Id, "Archive old audit rows", BuiltInLookups.HighId, null, 0);
+        await AddCardAsync(items, project.Id, "Rename the reporting schema", BuiltInLookups.LowId, null, 1);
+        return project.Id;
+    }
+
+    private static async Task AddCardAsync(ItemService items, Guid projectId, string title, Guid? priorityId,
+        string? description, int subItems)
+    {
+        var card = await items.CreateAsync(projectId, null, null, title);
+        var ticket = priorityId is null ? null : $"DB-{130 + title.Length}";
+        await items.EditAsync(card.Id, new ItemEdit(title, description, ticket, null, priorityId,
+            new DateOnly(2026, 11, 25), null, null, null));
+
+        for (var number = 1; number <= subItems; number++)
+        {
+            await items.CreateAsync(projectId, null, card.Id, $"Step {number}");
+        }
     }
 
     /// <summary>
