@@ -20,7 +20,12 @@ business rules and architecture. Section numbers (§6.1 etc.) refer to it.
 dotnet build                 # must finish with 0 warnings (warnings are errors)
 dotnet test                  # Microsoft.Testing.Platform runner (see global.json)
 dotnet test --project tests/TaskTracker.Core.Tests
+pwsh ./scripts/ci-local.ps1  # the full CI gate on this machine (bash scripts/ci-local.sh on Linux)
 ```
+
+GitHub-hosted CI minutes are billed, so pushes and pull requests run CI only on self-hosted
+runners, and only for an OS whose runner is switched on (`docs/CI.md`). Run the local gate
+before pushing; never start a GitHub-hosted run unless the owner asks for one.
 
 On the Linux dev machine, first run `. scripts/dev-env.sh` (puts a user-local .NET SDK
 and ICU library on the path when present).
@@ -54,7 +59,8 @@ and ICU library on the path when present).
   `AutomationProperties.AutomationId`. A bug found by hand gets a regression test.
 - Snapshot tests run on both Windows and Linux; never skip one on an OS. Approve only the
   `*.windows.png` baselines locally. The project lead reviews the CI run's
-  `received-snapshots-ubuntu-latest` artifact and commits the `*.linux.png` baselines from it.
+  `received-snapshots-linux` artifact (or the received images from a Linux machine when no
+  Linux runner is on) and commits the `*.linux.png` baselines from it.
 - A migration that makes EF rebuild `TodoItem` must recreate the `TodoItemSearch`
   triggers and reconcile `TodoItemSearchRow`/`TodoItemSearch`; the schema test catches
   a missing trigger.

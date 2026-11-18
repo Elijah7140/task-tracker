@@ -1,73 +1,41 @@
 name: CI
 
+# Pushes and pull requests run on self-hosted runners, so they use no billed GitHub minutes
+# (docs/CI.md). Each OS runs only when its repository variable is 'true':
+#   CI_LINUX_SELF_HOSTED    a runner with the labels self-hosted, linux, x64 is online
+#   CI_WINDOWS_SELF_HOSTED  a runner with the labels self-hosted, windows, x64 is online
+# With a variable unset, that OS is skipped and the local gate (scripts/ci-local.*) covers it.
+# A manual run can pick GitHub-hosted runners instead; those minutes are billed.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      github_hosted:
+        description: Use GitHub-hosted runners (billed minutes)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-      - run: dotnet restore
-      - run: dotnet build --no-restore --configuration Release
-      - run: dotnet test --no-build --configuration Release
-      - name: Test draft release and retry behavior
-        if: runner.os == 'Linux'
-        run: bash tests/scripts/publish-release-tests.sh
-      # Snapshot tests write *.received.png when an image differs or a baseline is missing.
-      - name: Upload received snapshots
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: received-snapshots-${{ matrix.os }}
-          path: tests/**/Snapshots/*.received.png
-          if-no-files-found: ignore
+  linux:
+    if: inputs.github_hosted || vars.CI_LINUX_SELF_HOSTED == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      runs-on: ${{ inputs.github_hosted && '"ubuntu-latest"' || '["self-hosted", "linux", "x64"]' }}
+      os-name: linux
+      runtime: linux-x64
+      channel: linux
 
-  # Publishes self-contained and runs vpk pack to catch packaging breakage (§7.13). Pull requests
-  # publish no release; the installer is kept as a workflow artifact for manual testing.
-  package:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            runtime: win-x64
-            channel: win
-          - os: ubuntu-latest
-            runtime: linux-x64
-            channel: linux
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-      - name: Pack (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/pack.ps1 -Runtime ${{ matrix.runtime }}
-      - name: Pack (Linux)
-        if: runner.os != 'Windows'
-        run: bash scripts/pack.sh ${{ matrix.runtime }}
-      - name: Verify the package id protects the default data folder
-        shell: pwsh
-        run: |
-          $manifest = Get-Content -LiteralPath 'artifacts/releases/${{ matrix.runtime }}/releases.${{ matrix.channel }}.json' -Raw | ConvertFrom-Json
-          if (-not $manifest.Assets -or $manifest.Assets.PackageId -contains 'TaskTracker') {
-              throw 'The release manifest must contain package assets whose id differs from the TaskTracker data folder.'
-          }
-      - name: Upload package
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-${{ matrix.runtime }}
-          path: artifacts/releases/${{ matrix.runtime }}
-          if-no-files-found: error
+  windows:
+    if: inputs.github_hosted || vars.CI_WINDOWS_SELF_HOSTED == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      runs-on: ${{ inputs.github_hosted && '"windows-latest"' || '["self-hosted", "windows", "x64"]' }}
+      os-name: windows
+      runtime: win-x64
+      channel: win
