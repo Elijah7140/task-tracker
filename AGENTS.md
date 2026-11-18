@@ -1,52 +1,75 @@
 # Agent guide
 
-Read `docs/PLAN.md` before changing anything; it is the source of truth for scope,
-business rules and architecture. Section numbers (§6.1 etc.) refer to it.
+Read [docs/PLAN.md](docs/PLAN.md) before changing anything. It defines product scope,
+business rules and architecture. For the stack pivot, read the assigned work package
+in [docs/MIGRATION.md](docs/MIGRATION.md).
 
 ## Commands
 
+Use Node 26 and pnpm 12. Run from the workspace root once the scaffold lands.
+
 ```sh
-dotnet build                 # must finish with 0 warnings (warnings are errors)
-dotnet test                  # Microsoft.Testing.Platform runner (see global.json)
-dotnet test --project tests/TaskTracker.Core.Tests
+pnpm install --frozen-lockfile
+pnpm exec vp check
+pnpm run build
+pnpm exec playwright install chromium
+pnpm exec vp test run
+pnpm exec vp test run --project core
+pnpm run package:desktop
+pnpm run test:desktop
 ```
 
-On the Linux dev machine, first run `. scripts/dev-env.sh` (puts a user-local .NET SDK
-and ICU library on the path when present).
+Run the static check before finishing. Build and checks must have zero warnings.
+Package before running Electron smoke.
 
-## Rules
+## Legacy .NET (until WP24 removes it)
 
-- Dependencies point inward: `App.Desktop → Presentation → Core ← Infrastructure`.
-  Core references no EF Core and no UI. Presentation references no Avalonia.
-- Package versions live only in `Directory.Packages.props`; `PackageReference`s have no `Version`.
-- One public type per file; file-scoped namespaces; folder = namespace.
-- Readability first: write code a new team member can follow on first read.
-  - One statement per line. Blocks with braces on their own lines (Allman style).
-  - Expression-bodied members only for one simple expression (a getter, a one-line
-    delegate); never to cram logic or a long object initializer onto one line.
-  - Methods short and single-purpose (aim ≤ ~25 lines); extract well-named helpers
-    instead of nesting local functions or long LINQ chains.
-  - Blank line between members. Intention-revealing names; no 1–2 letter names
-    except loop indices and lambda parameters in trivial lambdas.
-  - XML doc comments on public types and non-obvious members; no comments restating code.
-- Run `dotnet format TaskTracker.slnx --verify-no-changes` before finishing.
-- Time comes from an injected `TimeProvider`; time zones are passed explicitly (§5.4).
-  Never call `DateTime.Now`/`UtcNow` or `TimeZoneInfo.Local` outside the composition root.
-- Tests: xUnit v3 with plain `Assert`. One test class per unit under test, in a
-  folder mirroring the source namespace (e.g. `Completion/CompletionServiceTests.cs`).
-  Arrange / act / assert separated by blank lines. Test names read as sentences
-  (`Completing_last_open_sub_item_completes_parent`). Database behaviour is tested
-  against real SQLite (in-memory connection), never the EF in-memory provider.
-- UI changes follow the testing standard in §11.1: a new shortcut, gesture or dialog
-  gets a headless interaction test (simulated input, not a direct command call); a new
-  or changed screen gets a reviewed snapshot baseline; interactive controls get an
-  `AutomationProperties.AutomationId`. A bug found by hand gets a regression test.
-- Do not commit; the project lead reviews and commits.
+On Linux, load the development environment first.
+
+```sh
+. scripts/dev-env.sh
+dotnet build
+dotnet test
+dotnet format TaskTracker.slnx --verify-no-changes
+```
+
+The legacy build must finish with zero warnings.
+
+## Code
+
+- Follow §4. Server depends on Core and contracts. Web depends on contracts and
+  never imports Core or server. Core is pure and imports nothing from the workspace.
+  Business rules live in Core and server.
+- Use strict TypeScript and ESM. Keep shared dependency versions in the pnpm catalog.
+- Use Oxfmt and Oxlint. Keep one exported concept per file where sensible. Write
+  short, single-purpose functions (aim for about 25 lines), one statement per line
+  and intention-revealing names. Use one- or two-letter names only for loop indices
+  and trivial callback parameters. Prefer a named helper over deep nesting.
+- Document exported concepts and non-obvious behavior with JSDoc. Comments should
+  explain intent or constraints.
+- Take current time and timers from Effect Clock. Resolve the OS zone at the server
+  composition root and pass time and zones explicitly (§5.4). Outside that root,
+  do not use `Date.now()`, `new Date()`, `Temporal.Now` or
+  `Intl...resolvedOptions().timeZone`.
 
 ## Application operations
 
-Application services are singletons. Each public operation opens and disposes one
-`IUnitOfWork` from `IUnitOfWorkFactory`; repositories share that operation's fresh
-DbContext. Save once after successful validation and domain changes. A failed operation
-must leave no tracked changes for the next operation to persist. Tests read results
-through a fresh context.
+Compose long-lived services with Effect Layers. Each public database operation
+owns one SQL transaction. Repositories share it from validation through every
+resulting write. Commit once on success and roll back the entire write on failure
+or interruption. Read persisted results through a fresh operation in tests.
+Treat confirmation as a new request and revalidate before applying it.
+
+## Tests
+
+- Use Vitest and `@effect/vitest`. Keep one test file per unit under test, mirroring
+  the source layout. Use sentence test names and separate arrange, act and assert
+  with blank lines.
+- Test database behavior against real `node:sqlite`. Use an isolated in-memory
+  connection by default and temporary files for backup, reopen and EF fixture tests.
+- Follow §11.1. Cover new shortcuts, gestures and dialogs with simulated browser
+  input. Give interactive controls accessible names and stable `data-testid`
+  identifiers. Review screenshot baselines for new or changed screens. Add a
+  regression test for each bug found by hand.
+
+Do not commit. The project lead reviews and commits.
