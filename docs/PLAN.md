@@ -1259,6 +1259,57 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - The tool manifest moved from the repository root to `.config/dotnet-tools.json`. The `dotnet-ef`
     entry is unchanged.
 
+### 7.14 Push back one day, and the Today view
+
+These are owner requests from 2026-11-17 (§10). Where the request was silent, the decisions below
+were made autonomously; they are listed for review.
+
+**Push back one day**
+- **Where it appears.** "Push back one day" is in the right-click menu of item rows in the workspace
+  tree, search results, calendar entries and the Today view. The keyboard shortcut is
+  **Ctrl+Shift+P** on the selected item. It is not handled while a text box has focus.
+- **What it moves.**
+  - The item's due date moves one day later, and the due time stays the same.
+  - If the item has a scheduled block, the block's start and end both move one day later.
+  - The move counts from the item's own current date, not from today, so an item three days
+    overdue becomes two days overdue.
+  - Only that item moves. Its sub-items keep their dates.
+  - On a repeating item (§7.11), only this occurrence moves. The rule is unchanged.
+  - A reminder (§7.12) re-arms by itself.
+- **When it is unavailable.** It is disabled, with an explanatory tooltip, for completed items and
+  for items with no due date and no scheduled block.
+- **Undo.** Each push back is one labelled undo step, "Push back ⟨title⟩" (§7.8).
+
+**Today view**
+- **Opening it.** A **Today** button in the top navigation and on Home, and **Ctrl+Shift+D**,
+  open it. It uses the shared transient page and the stale-page rules (§7.2 shell navigation).
+- **What it lists.** Items completed today that are still completed: `CompletedAtUtc` falls within
+  today's local day, which is computed with the explicitly passed time zone (§5.4). Reopening an
+  item removes it. Deleted items, and items in deleted projects or folders, are excluded.
+- **Layout.**
+  - Items are grouped by project, in project order, with the area path, for example
+    "Billing DB › dbo", shown as a subtitle.
+  - Within a project the tree shape is kept.
+  - A completed parent with completed-today children is collapsed by default and shows a count.
+  - An open ancestor of a completed-today item is shown as context. It is expanded, and visibly
+    marked "Not completed" (muted text and an open checkbox). This applies at any depth.
+  - Children completed on other days are not shown.
+- **Header.** "N completed today", plus an empty state when nothing has been completed yet.
+- **Actions.**
+  - Clicking a title opens the item in its workspace.
+  - Unchecking reopens the item (one undo step), and it drops out of the list.
+  - The row menu offers Open and Push back one day.
+- **Live updates.** The view refreshes after any save. It also refreshes at local midnight, through
+  a `TimeProvider` timer, so a new day starts empty.
+- **Not in this slice:** browsing earlier days.
+- **Tests.**
+  - Core/SQLite: the day boundaries in fixed zones, including DST days; the reopened-today exclusion;
+    the ancestor context rows; and the exclusion of deleted items.
+  - ViewModel: grouping and collapse state, and the midnight rollover with a fake `TimeProvider`.
+  - Headless interaction: Ctrl+Shift+D, Ctrl+Shift+P, the context menu, and unchecking.
+  - Light and dark snapshots of the Today view and of the row menu.
+  - A smoke scenario.
+
 ## 8. User interface (Avalonia)
 
 ### Screens
@@ -1380,7 +1431,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
 - ~~Undo/redo for recent actions~~ (done, §7.8).
 - ~~Import/export (JSON, CSV)~~ (done, §7.9).
 - Packaged installers per OS (decisions in §7.13: Velopack for Windows, Linux and macOS).
-- **Quick reschedule from the context menu.** Right-click an item (tree, search results,
+- **Quick reschedule from the context menu** (decisions in §7.14). Right-click an item (tree, search results,
   calendar) and choose "Push back one day", which moves its due date (and its scheduled
   block, if any) one day later. A labelled undo step, with a keyboard equivalent.
 - **Tickets view.** A list of tickets in the order the owner wants to work on them. A
@@ -1405,7 +1456,7 @@ When one of these is picked up, its agreed design replaces the sections it confl
   - **Context menu.** "Set priority" on each item. If the level changes, the item moves to
     the bottom of the drag order in its new section.
   - Priority changes made here are labelled undo steps.
-- **Today view (done today).** Shows the items completed today (local day, §5.4) that are
+- **Today view (done today)** (decisions in §7.14). Shows the items completed today (local day, §5.4) that are
   still completed: an item checked off today and then unchecked does not appear.
   - Completed sub-items are grouped under their parent and collapsed by default.
   - A parent that is not itself completed still appears, as context, so its completed
