@@ -23,22 +23,38 @@ namespace TaskTracker.App.Desktop.Tests.Views;
 public sealed class CurrentItemViewTests
 {
     [AvaloniaFact]
-    public async Task Workspace_row_menu_sets_and_then_clears_the_current_item()
+    public async Task Item_card_menu_sets_and_then_clears_the_current_item()
     {
         using var services = await TestServices.CreateAsync();
         var (window, item) = await OpenWorkspaceAsync(services);
 
-        await ClickRowMenuAsync(window, HeadlessInput.Find<Border>(window, "ItemDragRow"), "ToggleCurrentItemMenuItem");
+        await ClickRowMenuAsync(window, HeadlessInput.Find<Border>(window, "ItemCard"), "ToggleCurrentItemMenuItem");
 
         Assert.Equal(item.Id, await StoredCurrentAsync(services));
-        Assert.Single(HeadlessInput.FindAll<TextBlock>(window, "ItemCurrentMarker"));
-        var menu = await ClickRowMenuAsync(window, HeadlessInput.Find<Border>(window, "ItemDragRow"),
+        Assert.Single(HeadlessInput.FindAll<TextBlock>(window, "ItemCardCurrentMarker"));
+        var menu = await ClickRowMenuAsync(window, HeadlessInput.Find<Border>(window, "ItemCard"),
             "ToggleCurrentItemMenuItem", click: false);
         Assert.Equal("Clear current item", menu.Header);
         HeadlessInput.Click(window, menu);
         await WaitForCommandAsync(menu.Command);
         Assert.Null(await StoredCurrentAsync(services));
-        Assert.Empty(HeadlessInput.FindAll<TextBlock>(window, "ItemCurrentMarker"));
+        Assert.Empty(HeadlessInput.FindAll<TextBlock>(window, "ItemCardCurrentMarker"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Star_on_an_item_card_sets_the_current_item()
+    {
+        using var services = await TestServices.CreateAsync();
+        var (window, item) = await OpenWorkspaceAsync(services);
+        var star = HeadlessInput.Find<Button>(window, "ItemCardCurrentButton");
+
+        HeadlessInput.Click(window, star);
+
+        await WaitForCommandAsync(star.Command);
+        Assert.Equal(item.Id, await StoredCurrentAsync(services));
+        Assert.Single(HeadlessInput.FindAll<TextBlock>(window, "ItemCardCurrentMarker"));
+        Assert.Equal("Clear current item", Avalonia.Automation.AutomationProperties.GetName(star));
         window.Close();
     }
 
@@ -55,7 +71,7 @@ public sealed class CurrentItemViewTests
 
         await WaitForCommandAsync(button.Command);
         Assert.Equal(item.Id, await StoredCurrentAsync(services));
-        Assert.True(HeadlessInput.Find<TextBlock>(window, "ItemCurrentMarker").IsEffectivelyVisible);
+        Assert.True(HeadlessInput.Find<TextBlock>(window, "ItemCardCurrentMarker").IsEffectivelyVisible);
         window.Close();
     }
 

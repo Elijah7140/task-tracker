@@ -10,17 +10,20 @@ internal readonly struct ItemDrop
     private readonly Guid rowId;
     private readonly Guid? folderId;
     private readonly ItemDropPosition position;
+    private readonly PriorityGroupViewModel? group;
 
-    private ItemDrop(ItemDropKind kind, Guid draggedId, Guid rowId, Guid? folderId, ItemDropPosition position)
+    private ItemDrop(ItemDropKind kind, Guid draggedId, Guid rowId, Guid? folderId, ItemDropPosition position,
+        PriorityGroupViewModel? group = null)
     {
         this.kind = kind;
         this.draggedId = draggedId;
         this.rowId = rowId;
         this.folderId = folderId;
         this.position = position;
+        this.group = group;
     }
 
-    /// <summary>A drop before, after, or inside another item row.</summary>
+    /// <summary>A drop before, after, or inside another item row or card.</summary>
     public static ItemDrop OnRow(Guid draggedId, Guid rowId, ItemDropPosition position)
     {
         return new ItemDrop(ItemDropKind.OnRow, draggedId, rowId, null, position);
@@ -38,6 +41,12 @@ internal readonly struct ItemDrop
         return new ItemDrop(ItemDropKind.AtRootEnd, draggedId, Guid.Empty, null, ItemDropPosition.After);
     }
 
+    /// <summary>A drop on a priority section's header.</summary>
+    public static ItemDrop OnGroup(Guid draggedId, PriorityGroupViewModel group)
+    {
+        return new ItemDrop(ItemDropKind.OnGroup, draggedId, Guid.Empty, null, ItemDropPosition.After, group);
+    }
+
     /// <summary>Asks the workspace to perform the move this drop describes.</summary>
     public Task ApplyAsync(ProjectWorkspaceViewModel workspace)
     {
@@ -45,6 +54,7 @@ internal readonly struct ItemDrop
         {
             ItemDropKind.OnRow => workspace.DropItemAsync(draggedId, rowId, position),
             ItemDropKind.OnFolder => workspace.DropItemOnFolderAsync(draggedId, folderId),
+            ItemDropKind.OnGroup => workspace.DropItemOnGroupAsync(draggedId, group!),
             _ => workspace.DropItemAtRootEndAsync(draggedId)
         };
     }

@@ -132,7 +132,7 @@ public sealed class ItemRecurrenceViewTests
             return;
         }
 
-        var row = HeadlessInput.Find<Border>(window, "ItemDragRow");
+        var row = HeadlessInput.Find<Border>(window, "ItemCard");
         var point = HeadlessInput.CentreOf(window, row);
         window.MouseDown(point, MouseButton.Right, RawInputModifiers.None);
         window.MouseUp(point, MouseButton.Right, RawInputModifiers.None);

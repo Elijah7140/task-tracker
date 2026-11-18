@@ -13,6 +13,8 @@ namespace TaskTracker.App.Desktop.Views;
 internal sealed class ItemDragController
 {
     private const double DragThresholdSquared = 16;
+    private const string RowClass = "itemRow";
+    private const string CardClass = "itemCard";
 
     private readonly ProjectWorkspaceView view;
     private ItemRowViewModel? source;
@@ -160,7 +162,7 @@ internal sealed class ItemDragController
             return;
         }
 
-        var hasTarget = TryShowFolderDrop(hit) || TryShowRootEndDrop(point);
+        var hasTarget = TryShowGroupDrop(hit) || TryShowFolderDrop(hit) || TryShowRootEndDrop(point);
         SetCursor(hasTarget ? StandardCursorType.DragMove : StandardCursorType.No);
     }
 
@@ -175,7 +177,9 @@ internal sealed class ItemDragController
             return;
         }
 
-        var position = PositionInRow(local.Value.Y, border.Bounds.Height);
+        var position = border.Classes.Contains(CardClass)
+            ? PositionAcross(local.Value.X, border.Bounds.Width)
+            : PositionAcross(local.Value.Y, border.Bounds.Height);
 
         if (!workspace.CanDropItem(source.Id, row.Id, position))
         {
@@ -227,19 +231,40 @@ internal sealed class ItemDragController
         };
     }
 
-    private static ItemDropPosition PositionInRow(double y, double height)
+    /// <summary>
+    /// Splits a target into thirds along the direction items flow: top to bottom for rows, left to
+    /// right for cards. The first third inserts before, the middle third makes a sub-item, and the
+    /// last third inserts after.
+    /// </summary>
+    private static ItemDropPosition PositionAcross(double offset, double length)
     {
-        if (y < height / 3)
+        if (offset < length / 3)
         {
             return ItemDropPosition.Before;
         }
 
-        if (y > height * 2 / 3)
+        if (offset > length * 2 / 3)
         {
             return ItemDropPosition.After;
         }
 
         return ItemDropPosition.Into;
+    }
+
+    private bool TryShowGroupDrop(object? hit)
+    {
+        var header = FindAncestor<Border>(hit, border => border.Classes.Contains("groupHeader"));
+
+        if (header?.DataContext is not PriorityGroupViewModel group || source is null ||
+            view.DataContext is not ProjectWorkspaceViewModel workspace ||
+            !workspace.CanDropOnGroup(source.Id, group))
+        {
+            return false;
+        }
+
+        pendingDrop = ItemDrop.OnGroup(source.Id, group);
+        Highlight(header, "dropGroup");
+        return true;
     }
 
     private void Highlight(Control control, string styleClass)
@@ -276,15 +301,26 @@ internal sealed class ItemDragController
         return (start as Visual)?.GetVisualAncestors().OfType<T>().FirstOrDefault();
     }
 
-    private static Border? FindItemRow(object? start)
+    private static T? FindAncestor<T>(object? start, Func<T, bool> match) where T : Control
     {
-        if (start is Border border && border.Classes.Contains("itemRow"))
+        if (start is T self && match(self))
         {
-            return border;
+            return self;
         }
 
-        return (start as Visual)?.GetVisualAncestors().OfType<Border>()
-            .FirstOrDefault(candidate => candidate.Classes.Contains("itemRow"));
+        return (start as Visual)?.GetVisualAncestors().OfType<T>().FirstOrDefault(match);
+    }
+
+    /// <summary>True for a sub-item row or a card: the borders an item drag starts from and drops on.</summary>
+    internal static bool IsItemTarget(Border border)
+    {
+        return border.Classes.Contains(RowClass) || border.Classes.Contains(CardClass);
+    }
+
+    /// <summary>Finds the nearest row or card around a visual, so a sub-item row inside a card wins.</summary>
+    private static Border? FindItemRow(object? start)
+    {
+        return FindAncestor<Border>(start, IsItemTarget);
     }
 
     /// <summary>
@@ -305,7 +341,7 @@ internal sealed class ItemDragController
 
     private bool IsVisibleRowAt(Border border, Point point)
     {
-        return border.Classes.Contains("itemRow") &&
+        return IsItemTarget(border) &&
             border.IsEffectivelyVisible &&
             BoundsInView(border).Contains(point) &&
             !IsClippedAway(border, point);

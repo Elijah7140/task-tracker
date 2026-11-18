@@ -23,6 +23,12 @@
             <ComboBox Grid.Row="1" Grid.Column="2" ItemsSource="{Binding DurationUnits}"
                       SelectedItem="{Binding RedUnit, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="GlobalRedUnitBox" />
           </Grid>
+          <Grid ColumnDefinitions="220,120" ColumnSpacing="10">
+            <TextBlock Text="Cards per row" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding CardColumnChoices}" SelectedItem="{Binding CardColumns, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" AutomationProperties.Name="Cards per row"
+                      AutomationProperties.AutomationId="GlobalCardColumnsBox" />
+          </Grid>
           <StackPanel DataContext="{Binding Reminders}" Spacing="8">
             <TextBlock Text="Reminders" Classes="cardTitle" />
             <CheckBox Content="Enable reminders" IsChecked="{Binding Enabled, Mode=TwoWay}"

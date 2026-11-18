@@ -1,0 +1,150 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:TaskTracker.App.Desktop.Views"
+             xmlns:converters="clr-namespace:TaskTracker.App.Desktop.Converters"
+             x:Class="TaskTracker.App.Desktop.Views.ItemCardView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <Style Selector="Border.itemCard">
+      <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Border.itemCard.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!-- A drop before or after a card shows a thick bar on that side; cards flow left to right. -->
+    <Style Selector="Border.itemCard.dropBefore">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="5,1,1,1" />
+    </Style>
+    <Style Selector="Border.itemCard.dropAfter">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="1,1,5,1" />
+    </Style>
+    <Style Selector="Border.itemCard.dropInto">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="Background">
+        <SolidColorBrush Color="{DynamicResource SystemAccentColor}" Opacity="0.2" />
+      </Setter>
+    </Style>
+    <Style Selector="Border.itemCard.dragging">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="Border.cardHeader.approaching">
+      <Setter Property="Background" Value="{DynamicResource UrgencyApproachingBrush}" />
+    </Style>
+    <Style Selector="Border.cardHeader.immediate">
+      <Setter Property="Background" Value="{DynamicResource UrgencyImmediateBrush}" />
+    </Style>
+    <Style Selector="Border.cardHeader.approaching TextBlock, Border.cardHeader.immediate TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource UrgencyForegroundBrush}" />
+    </Style>
+    <Style Selector="Border.cardDropHint">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.itemCard.dropInto Border.cardDropHint">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="WrapPanel.cardMeta > TextBlock">
+      <Setter Property="Margin" Value="0,0,12,0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Opacity" Value="0.8" />
+    </Style>
+  </UserControl.Styles>
+  <UserControl.Resources>
+    <converters:CompletionDecorationsConverter x:Key="CompletionDecorations" />
+    <converters:UrgencyWeightConverter x:Key="UrgencyWeight" />
+  </UserControl.Resources>
+  <Border Classes="itemCard" Classes.selected="{Binding IsSelected}"
+          AutomationProperties.AutomationId="ItemCard" AutomationProperties.Name="{Binding Title}">
+    <Border.ContextMenu>
+      <ContextMenu>
+        <MenuItem Header="Move to…" Command="{Binding MoveItemToAreaCommand}" IsVisible="{Binding IsTopLevel}"
+                  AutomationProperties.AutomationId="MoveItemToAreaMenuItem" />
+        <views:RowLookupMenuItem Header="Set status" Choices="{Binding StatusChoices}" AutomationProperties.AutomationId="SetStatusMenuItem" />
+        <views:RowLookupMenuItem Header="Set priority" Choices="{Binding PriorityChoices}" AutomationProperties.AutomationId="SetPriorityMenuItem" />
+        <MenuItem Header="Push back one day" Command="{Binding PushBackCommand}"
+                  ToolTip.Tip="{Binding PushBackReason}" ToolTip.ShowOnDisabled="True"
+                  AutomationProperties.AutomationId="PushBackOneDayMenuItem" />
+        <MenuItem Header="{Binding CurrentMenuHeader}" Command="{Binding ToggleCurrentCommand}"
+                  AutomationProperties.AutomationId="ToggleCurrentItemMenuItem" />
+        <MenuItem Header="Skip this one" Command="{Binding SkipRepeatCommand}" IsVisible="{Binding CanSkipRepeat}"
+                  AutomationProperties.AutomationId="ItemSkipRepeatMenuItem" />
+        <MenuItem Header="Stop repeating" Command="{Binding StopRepeatingCommand}" IsVisible="{Binding Repeats}"
+                  AutomationProperties.AutomationId="ItemStopRepeatingMenuItem" />
+      </ContextMenu>
+    </Border.ContextMenu>
+    <Grid RowDefinitions="Auto,*">
+      <Border Classes="cardHeader" Classes.approaching="{Binding IsApproaching}" Classes.immediate="{Binding IsImmediate}"
+              CornerRadius="7,7,0,0" Padding="10,8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="2">
+          <CheckBox IsChecked="{Binding IsComplete, Mode=OneWay}" Command="{Binding ToggleCommand}"
+                    VerticalAlignment="Top" MinWidth="0" AutomationProperties.AutomationId="ItemCompleteCheckBox" />
+          <Button Grid.Column="1" Command="{Binding SelectCommand}" Background="Transparent" BorderThickness="0"
+                  Padding="2,5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                  AutomationProperties.AutomationId="ItemTitleButton" AutomationProperties.Name="{Binding Title}">
+            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"
+                       FontSize="15" ToolTip.Tip="{Binding Title}"
+                       TextDecorations="{Binding IsComplete, Converter={StaticResource CompletionDecorations}}"
+                       FontWeight="{Binding IsOverdue, Converter={StaticResource UrgencyWeight}}" />
+          </Button>
+          <Border Grid.Column="2" Classes="statusChip" VerticalAlignment="Top" Margin="0,5,0,0"
+                  IsVisible="{Binding HasStatus}" ToolTip.Tip="{Binding StatusName}">
+            <TextBlock Text="{Binding StatusName}" TextTrimming="CharacterEllipsis"
+                       AutomationProperties.AutomationId="ItemStatusChip" AutomationProperties.Name="{Binding StatusName}" />
+          </Border>
+          <Button Grid.Column="3" Classes="subtle" Padding="4,2" VerticalAlignment="Top" Margin="0,2,0,0"
+                  Command="{Binding ToggleCurrentCommand}" ToolTip.Tip="{Binding CurrentMenuHeader}"
+                  AutomationProperties.Name="{Binding CurrentMenuHeader}" AutomationProperties.AutomationId="ItemCardCurrentButton">
+            <Panel>
+              <TextBlock Text="☆" Opacity="0.5" IsVisible="{Binding !IsCurrent}" />
+              <TextBlock Text="★" IsVisible="{Binding IsCurrent}" Foreground="{DynamicResource SystemControlHighlightAccentBrush}"
+                         AutomationProperties.AutomationId="ItemCardCurrentMarker" />
+            </Panel>
+          </Button>
+          <WrapPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Classes="cardMeta" Margin="2,0,0,0">
+            <TextBlock Text="{Binding TypeIcon}" ToolTip.Tip="{Binding TypeName}" IsVisible="{Binding HasType}" />
+            <TextBlock Text="{Binding TicketNumber}" IsVisible="{Binding HasTicketNumber}"
+                       AutomationProperties.AutomationId="ItemCardTicket" />
+            <TextBlock Text="{Binding Deadline}" IsVisible="{Binding HasDeadline}"
+                       AutomationProperties.AutomationId="ItemCardDeadline" />
+            <TextBlock Text="{Binding UrgencyLabel}" IsVisible="{Binding IsUrgent}" FontWeight="SemiBold" />
+            <TextBlock Text="↳ sub" IsVisible="{Binding HasSource}" ToolTip.Tip="{Binding SourceTitle}" />
+            <TextBlock Text="↻" IsVisible="{Binding Repeats}" ToolTip.Tip="{Binding RepeatSummary}"
+                       AutomationProperties.AutomationId="ItemRepeatMarker" />
+          </WrapPanel>
+        </Grid>
+      </Border>
+      <!-- Sub-item rows size their detail columns together within this card. -->
+      <StackPanel Grid.Row="1" Margin="10,6,10,10" Spacing="6" Grid.IsSharedSizeScope="True">
+        <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap"
+                   MaxLines="4" TextTrimming="CharacterEllipsis" Opacity="0.75" Margin="2,0"
+                   AutomationProperties.AutomationId="ItemCardDescription" />
+        <ItemsControl ItemsSource="{Binding Children}" HorizontalAlignment="Stretch">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate><views:ItemBranchView /></DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Expander Header="{Binding CompletedLabel}" IsVisible="{Binding HasCompletedChildren}"
+                  AutomationProperties.AutomationId="CompletedSubItemsExpander"
+                  IsExpanded="{Binding IsCompletedExpanded, Mode=TwoWay}"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+          <ItemsControl ItemsSource="{Binding CompletedChildren}" HorizontalAlignment="Stretch">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate><views:ItemBranchView /></DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </Expander>
+      </StackPanel>
+      <Border Grid.RowSpan="2" Classes="cardDropHint" IsHitTestVisible="False" HorizontalAlignment="Center"
+              VerticalAlignment="Center" Padding="8,2" CornerRadius="3" Background="{DynamicResource SystemAccentColor}">
+        <TextBlock Text="↳ Make sub-item" FontSize="11" FontWeight="SemiBold" Foreground="White"
+                   AutomationProperties.AutomationId="DropIntoHint" />
+      </Border>
+    </Grid>
+  </Border>
+</UserControl>

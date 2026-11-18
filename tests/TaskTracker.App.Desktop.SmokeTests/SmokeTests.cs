@@ -1002,13 +1002,12 @@ public sealed class SmokeTests
     }
 
     /// <summary>
-    /// With the parent expanded, the area must show exactly the parent followed by its children,
-    /// each indented under it. Only these rows exist in the area, so a child that was not
-    /// re-parented would appear unindented or elsewhere.
+    /// The parent's card lists its children (§7.17), so the area must show exactly the parent
+    /// followed by its children, each indented under it. Only these rows exist in the area, so a
+    /// child that was not re-parented would appear unindented or elsewhere.
     /// </summary>
     private static void AssertChildrenBeneathParent(SmokeSession session, string parent, params string[] children)
     {
-        session.Find("ItemExpandButton").Click();
         session.WaitUntil(() => TitleButtons(session).Count == children.Length + 1, "the sub-items to show");
         var rows = TitleButtons(session).OrderBy(button => button.BoundingRectangle.Top).ToList();
         var parentLeft = rows[0].BoundingRectangle.Left;

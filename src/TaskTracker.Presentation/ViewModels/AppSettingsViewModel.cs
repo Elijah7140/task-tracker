@@ -27,6 +27,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     private readonly IStartupRegistration? startup;
     private bool autoCompleteParents;
     private bool startWithSystem;
+    private int cardColumns = SettingsCatalogue.WorkspaceCardColumns.DefaultValue;
     private double yellowAmount;
     private double redAmount;
     private string yellowUnit = "days";
@@ -87,6 +88,19 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
             Validate();
         }
     }
+
+    /// <summary>How many item cards sit side by side in the project workspace; saved with the other defaults.</summary>
+    public int CardColumns
+    {
+        get => cardColumns;
+        set
+        {
+            SetProperty(ref cardColumns, value);
+            Validate();
+        }
+    }
+
+    public IReadOnlyList<int> CardColumnChoices { get; } = [1, 2, 3, 4, 5, 6, 7, 8];
 
     /// <summary>The option is offered only for an installed app on Windows or Linux.</summary>
     public bool IsStartWithSystemAvailable => startup?.IsAvailable == true;
@@ -189,6 +203,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         RedUnit = "hours";
         await Reminders.LoadGlobalAsync(settings);
         StartWithSystem = await settings.GetGlobalAsync(SettingsCatalogue.StartWithSystem);
+        CardColumns = await settings.GetGlobalAsync(SettingsCatalogue.WorkspaceCardColumns);
         saved = CurrentDefaults();
         Validate();
 
@@ -243,7 +258,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
         else
         {
             await settings.SaveGlobalAsync(defaults.AutoCompleteParents, defaults.Yellow, defaults.Red, confirmed: true,
-                reminders: defaults.Reminders, startWithSystem: startWithSystemToSave);
+                reminders: defaults.Reminders, startWithSystem: startWithSystemToSave, cardColumns: defaults.CardColumns);
         }
 
         saved = defaults;
@@ -258,7 +273,7 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     private GlobalDefaults CurrentDefaults()
     {
         return new GlobalDefaults(AutoCompleteParents, Duration(YellowAmount, YellowUnit), Duration(RedAmount, RedUnit),
-            Reminders.Preferences, StartWithSystem);
+            Reminders.Preferences, StartWithSystem, CardColumns);
     }
 
     private async Task<bool> ConfirmCompletionAsync()
@@ -327,5 +342,5 @@ public sealed class AppSettingsViewModel : ViewModelBase, IUnsavedChangesGuard
     }
 
     private readonly record struct GlobalDefaults(bool AutoCompleteParents, TimeSpan Yellow, TimeSpan Red,
-        ReminderPreferences Reminders, bool StartWithSystem);
+        ReminderPreferences Reminders, bool StartWithSystem, int CardColumns);
 }

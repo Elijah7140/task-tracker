@@ -132,7 +132,7 @@ public sealed class UndoInputTests
         HeadlessInput.Press(scenario.Window, Key.Z, RawInputModifiers.Control);
         await HeadlessInput.WaitUntilAsync(() => scenario.OpenTitles() == "Task,Second");
 
-        Assert.Equal("Undid: Reorder items", scenario.Shell.Undo!.Status);
+        Assert.Equal("Undid: Move 'Task'", scenario.Shell.Undo!.Status);
 
         HeadlessInput.Press(scenario.Window, Key.Y, RawInputModifiers.Control);
         await HeadlessInput.WaitUntilAsync(() => scenario.OpenTitles() == "Second,Task");

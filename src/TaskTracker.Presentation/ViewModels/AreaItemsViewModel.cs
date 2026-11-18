@@ -30,11 +30,15 @@ public sealed class AreaItemsViewModel
 
     public ObservableCollection<ItemRowViewModel> CompletedItems { get; } = [];
 
+    /// <summary>The open top-level items as cards, grouped by priority (§8).</summary>
+    public ObservableCollection<PriorityGroupViewModel> OpenGroups { get; } = [];
+
     public void Load(AreaSnapshot snapshot, ProjectWorkspaceViewModel workspace)
     {
         RememberExpansion();
         OpenItems.Clear();
         CompletedItems.Clear();
+        OpenGroups.Clear();
 
         foreach (var node in snapshot.Items)
         {
@@ -43,6 +47,11 @@ public sealed class AreaItemsViewModel
         }
 
         SortCompleted(CompletedItems);
+
+        foreach (var group in PriorityGroupBuilder.Build(OpenItems, snapshot.PriorityLevels))
+        {
+            OpenGroups.Add(group);
+        }
     }
 
     public IEnumerable<ItemRowViewModel> AllItems()

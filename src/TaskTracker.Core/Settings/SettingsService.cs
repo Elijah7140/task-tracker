@@ -82,11 +82,11 @@ public sealed class SettingsService(
     /// Saves auto-complete and both urgency thresholds globally as one operation: every project is
     /// validated first, then the values, any completion reconciliation and one save commit together.
     /// Throws if auto-complete turns on for some project and <paramref name="confirmed"/> is false.
-    /// A null <paramref name="startWithSystem"/> leaves that setting unchanged.
+    /// A null <paramref name="startWithSystem"/> or <paramref name="cardColumns"/> leaves that setting unchanged.
     /// </summary>
     public async Task SaveGlobalAsync(bool autoCompleteParents, TimeSpan yellow, TimeSpan red,
         bool confirmed = false, ReminderPreferences reminders = default, bool? startWithSystem = null,
-        CancellationToken cancellationToken = default)
+        int? cardColumns = null, CancellationToken cancellationToken = default)
     {
         using var lease = await gate.EnterAsync(cancellationToken);
         await using var unitOfWork = unitOfWorkFactory.Begin();
@@ -101,6 +101,7 @@ public sealed class SettingsService(
         ProposeGlobal(proposed, SettingsCatalogue.DateOnlyReminderTime, reminders.DateOnlyTime);
         ProposeGlobal(proposed, SettingsCatalogue.KeepRunningInTray, reminders.KeepRunningInTray);
         ProposeGlobal(proposed, SettingsCatalogue.StartWithSystem, startWithSystem);
+        ProposeGlobal(proposed, SettingsCatalogue.WorkspaceCardColumns, cardColumns);
 
         var enabledProjects = await ValidateChangeAsync(unitOfWork, proposed, proposedProject: null, confirmed, cancellationToken);
         foreach (var (key, value) in proposed)

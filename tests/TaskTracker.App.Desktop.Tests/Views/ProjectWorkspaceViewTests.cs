@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -11,7 +12,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Items;
+using TaskTracker.Core.Lookups;
 using TaskTracker.Core.Projects;
+using TaskTracker.Core.Settings;
 using TaskTracker.Presentation.ViewModels;
 
 namespace TaskTracker.App.Desktop.Tests.Views;
@@ -33,7 +36,7 @@ public sealed class ProjectWorkspaceViewTests
         await shell.OpenProjectAsync(project.Id);
         Dispatcher.UIThread.RunJobs();
         var rows = window.GetVisualDescendants().OfType<Border>()
-            .Where(border => border.Classes.Contains("itemRow")).ToArray();
+            .Where(border => (border.Classes.Contains("itemRow") || border.Classes.Contains("itemCard"))).ToArray();
         var source = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == second.Id);
         var target = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == first.Id);
 
@@ -92,7 +95,7 @@ public sealed class ProjectWorkspaceViewTests
         page.OpenItems[0].IsExpanded = true;
         Dispatcher.UIThread.RunJobs();
         var row = window.GetVisualDescendants().OfType<Border>()
-            .Single(border => border.Classes.Contains("itemRow") &&
+            .Single(border => (border.Classes.Contains("itemRow") || border.Classes.Contains("itemCard")) &&
                 (border.DataContext as ItemRowViewModel)?.Id == child.Id);
         var folder = window.GetVisualDescendants().OfType<TreeViewItem>()
             .Single(item => (item.DataContext as FolderNodeViewModel)?.Name == "Area");
@@ -148,7 +151,7 @@ public sealed class ProjectWorkspaceViewTests
         await shell.OpenProjectAsync(project.Id);
         Dispatcher.UIThread.RunJobs();
         var rows = window.GetVisualDescendants().OfType<Border>()
-            .Where(border => border.Classes.Contains("itemRow")).ToArray();
+            .Where(border => (border.Classes.Contains("itemRow") || border.Classes.Contains("itemCard"))).ToArray();
         var source = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == second.Id);
         var target = rows.Single(border => (border.DataContext as ItemRowViewModel)?.Id == first.Id);
         var start = HeadlessInput.CentreOf(window, source);
@@ -208,7 +211,7 @@ public sealed class ProjectWorkspaceViewTests
         page.OpenItems[0].IsExpanded = true;
         Dispatcher.UIThread.RunJobs();
         var row = window.GetVisualDescendants().OfType<Border>()
-            .Single(border => border.Classes.Contains("itemRow") &&
+            .Single(border => (border.Classes.Contains("itemRow") || border.Classes.Contains("itemCard")) &&
                 (border.DataContext as ItemRowViewModel)?.Id == child.Id);
         var scroll = window.GetVisualDescendants().OfType<ScrollViewer>()
             .Single(viewer => viewer.Name == "ItemsScrollViewer");
@@ -238,7 +241,7 @@ public sealed class ProjectWorkspaceViewTests
         await shell.OpenProjectAsync(project.Id);
         Dispatcher.UIThread.RunJobs();
         var row = window.GetVisualDescendants().OfType<Border>()
-            .Single(border => border.Classes.Contains("itemRow") &&
+            .Single(border => (border.Classes.Contains("itemRow") || border.Classes.Contains("itemCard")) &&
                 (border.DataContext as ItemRowViewModel)?.Id == item.Id);
         var point = HeadlessInput.CentreOf(window, row);
 
@@ -439,6 +442,59 @@ public sealed class ProjectWorkspaceViewTests
 
         Assert.Equal("Second item", page.OpenItems[0].Title);
         Assert.Equal("First item", page.OpenItems[1].Title);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Alt_down_at_the_end_of_a_section_moves_the_card_into_the_next_section()
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        var items = services.GetRequiredService<ItemService>();
+        await items.CreateAsync(project.Id, null, null, "Plain item");
+        var high = await items.CreateAsync(project.Id, null, null, "High item");
+        await items.SetPriorityAsync(high.Id, BuiltInLookups.HighId);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = shell };
+
+        window.Show();
+        await shell.OpenProjectAsync(project.Id);
+        Dispatcher.UIThread.RunJobs();
+        ClickTitle(window, "Plain item");
+        window.KeyPress(Key.Down, RawInputModifiers.Alt, PhysicalKey.None, null);
+        var page = Assert.IsType<ProjectWorkspaceViewModel>(shell.CurrentPage);
+        await HeadlessInput.WaitUntilAsync(() => page.OpenGroups.Count == 1);
+
+        var section = page.OpenGroups.Single();
+        Assert.Equal("High", section.Title);
+        Assert.Equal(["Plain item", "High item"], section.Cards.Select(card => card.Title));
+        Assert.Equal(BuiltInLookups.HighId, (await items.LoadAreaAsync(project.Id, null)).Items
+            .Single(node => node.Item.Title == "Plain item").Item.PriorityLevelId);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_workspace_groups_cards_under_priority_headers_with_the_configured_columns()
+    {
+        using var services = await TestServices.CreateAsync();
+        var project = await services.GetRequiredService<ProjectService>().CreateAsync("Billing");
+        var items = services.GetRequiredService<ItemService>();
+        await items.CreateAsync(project.Id, null, null, "Plain item");
+        var high = await items.CreateAsync(project.Id, null, null, "High item");
+        await items.SetPriorityAsync(high.Id, BuiltInLookups.HighId);
+        await services.GetRequiredService<SettingsService>().SetGlobalAsync(SettingsCatalogue.WorkspaceCardColumns, 3);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = shell };
+
+        window.Show();
+        await shell.OpenProjectAsync(project.Id);
+        Dispatcher.UIThread.RunJobs();
+        var headers = HeadlessInput.FindAll<Border>(window, "PriorityGroupHeader");
+        var panels = window.GetVisualDescendants().OfType<CardGridPanel>().ToArray();
+
+        Assert.Equal(["No priority", "High"], headers.Select(AutomationProperties.GetName));
+        Assert.All(panels, panel => Assert.Equal(3, panel.Columns));
+        Assert.Equal(2, HeadlessInput.FindAll<Border>(window, "ItemCard").Count);
         window.Close();
     }
 

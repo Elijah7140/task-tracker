@@ -23,6 +23,10 @@ public static class SettingsCatalogue
     public static readonly SettingDefinition<Guid?> CurrentItem =
         new("currentItemId", null, false, new OptionalGuidCodec());
 
+    /// <summary>How many item cards sit side by side in the project workspace (§8). Global only.</summary>
+    public static readonly SettingDefinition<int> WorkspaceCardColumns =
+        new("workspaceCardColumns", 4, false, new WholeNumberCodec(1, 8));
+
     public static readonly SettingDefinition<bool> AutoCompleteParents =
         new("autoCompleteParents", true, true, new BoolCodec());
 

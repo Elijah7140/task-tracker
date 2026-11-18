@@ -16,6 +16,7 @@ public static class SettingsResolver
             RemindersEnabled = ResolveValue(SettingsCatalogue.RemindersEnabled, global, project),
             DefaultReminderOffset = ResolveValue(SettingsCatalogue.DefaultReminderOffset, global, project),
             DateOnlyReminderTime = ResolveValue(SettingsCatalogue.DateOnlyReminderTime, global, project),
+            WorkspaceCardColumns = ResolveValue(SettingsCatalogue.WorkspaceCardColumns, global, project),
         };
     }
 

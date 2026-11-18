@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -11,15 +12,40 @@ namespace TaskTracker.App.Desktop.Views;
 /// <summary>Three-pane project workspace view.</summary>
 public sealed partial class ProjectWorkspaceView : UserControl
 {
+    /// <summary>The smallest card height; it follows the item pane so about two card rows fill it.</summary>
+    public static readonly StyledProperty<double> CardMinHeightProperty =
+        AvaloniaProperty.Register<ProjectWorkspaceView, double>(nameof(CardMinHeight));
+
+    /// <summary>How many card rows the minimum card height lets the item pane show at once.</summary>
+    private const int VisibleCardRows = 2;
+
+    /// <summary>Room left for a section header above the cards.</summary>
+    private const double SectionHeaderAllowance = 40;
+
+    private const double CardRowSpacing = 12;
+
     private readonly ItemDragController itemDrag;
 
     public ProjectWorkspaceView()
     {
         InitializeComponent();
         itemDrag = new ItemDragController(this);
+        ItemsScrollViewer.SizeChanged += OnItemsViewportSizeChanged;
+    }
+
+    public double CardMinHeight
+    {
+        get => GetValue(CardMinHeightProperty);
+        set => SetValue(CardMinHeightProperty, value);
     }
 
     internal ScrollViewer ItemScrollViewer => ItemsScrollViewer;
+
+    private void OnItemsViewportSizeChanged(object? sender, SizeChangedEventArgs eventArgs)
+    {
+        var cardsHeight = eventArgs.NewSize.Height - SectionHeaderAllowance;
+        CardMinHeight = Math.Max(0, cardsHeight / VisibleCardRows - CardRowSpacing);
+    }
 
     /// <summary>
     /// Puts keyboard focus in the quick-add box when the workspace opens. Without a focused
@@ -170,7 +196,7 @@ public sealed partial class ProjectWorkspaceView : UserControl
         }
 
         var row = title.GetVisualAncestors().OfType<Border>()
-            .FirstOrDefault(border => border.Classes.Contains("itemRow"));
+            .FirstOrDefault(ItemDragController.IsItemTarget);
         ((Control?)row ?? title).BringIntoView();
         title.Focus();
     }
