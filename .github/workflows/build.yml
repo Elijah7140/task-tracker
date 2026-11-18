@@ -1,0 +1,77 @@
+name: Build, test and pack
+
+# Called by ci.yml once per OS. The same steps run locally through scripts/ci-local.*.
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: The runs-on value as JSON, e.g. "ubuntu-latest" or ["self-hosted", "linux", "x64"]
+        type: string
+        required: true
+      os-name:
+        description: linux or windows; names the snapshot artifact
+        type: string
+        required: true
+      runtime:
+        description: The .NET runtime identifier to pack, e.g. linux-x64
+        type: string
+        required: true
+      channel:
+        description: The Velopack channel the runtime packs to, e.g. linux
+        type: string
+        required: true
+
+jobs:
+  build-and-test:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+        env:
+          # A self-hosted runner may not be allowed to write to the system dotnet folder.
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet format TaskTracker.slnx --verify-no-changes --no-restore
+      - run: dotnet test --no-build --configuration Release
+      - name: Test draft release and retry behavior
+        if: runner.os == 'Linux'
+        run: bash tests/scripts/publish-release-tests.sh
+      # Snapshot tests write *.received.png when an image differs or a baseline is missing.
+      - name: Upload received snapshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: received-snapshots-${{ inputs.os-name }}
+          path: tests/**/Snapshots/*.received.png
+          if-no-files-found: ignore
+
+  # Publishes self-contained and runs vpk pack to catch packaging breakage (§7.13). CI publishes
+  # no release; the installer is kept as a workflow artifact for manual testing.
+  package:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
+      - name: Pack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/pack.ps1 -Runtime ${{ inputs.runtime }}
+      - name: Pack (Linux)
+        if: runner.os != 'Windows'
+        run: bash scripts/pack.sh ${{ inputs.runtime }}
+      - name: Verify the package id protects the default data folder
+        shell: pwsh
+        run: ./scripts/verify-package-id.ps1 -Runtime ${{ inputs.runtime }} -Channel ${{ inputs.channel }}
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ inputs.runtime }}
+          path: artifacts/releases/${{ inputs.runtime }}
+          if-no-files-found: error

@@ -1247,7 +1247,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   the README says how to get past that. Signing is a later decision for the owner, as it needs
   certificates or an Apple developer account.
 - **CI.**
-  - **On pull requests:** a `package` job runs on Windows and Linux. It publishes and runs `vpk pack`
+  - **On pull requests:** a `package` job runs on Windows and Linux, on self-hosted runners
+    (owner decision 8). It publishes and runs `vpk pack`
     to catch packaging breakage, checks the actual package ids in the release manifest, then uploads
     the installer as a workflow artifact. Pull requests
     publish no release.
@@ -1785,6 +1786,9 @@ expensive ones stay small.
 | End-to-end smoke | `App.Desktop.SmokeTests` (Windows) | The real app on a real desktop through UI Automation (FlaUI), using stable `AutomationProperties.AutomationId`s; 5–10 core scenarios | Before each phase sign-off, on the Windows machine |
 | Owner review | — | A short hands-on pass by the owner | End of each phase, before merge |
 
+"CI on both OSes" means the self-hosted runners in `docs/CI.md`, plus the local gate
+(`scripts/ci-local.*`) run on a machine with each OS that has no runner switched on.
+
 Rules:
 
 - A new keyboard shortcut, gesture or dialog ships with a headless interaction test.
@@ -1807,6 +1811,11 @@ Rules:
    machine will be added to the T3 Code machine set for Windows testing, plus CI on both OSes.
 7. **Testing standard:** the layered approach in §11.1 (headless interaction tests, snapshot
    baselines, a Windows end-to-end smoke suite, owner review) is the standard for every phase.
+8. **CI without billed minutes (18 Nov 2026):** the repository is private and the owner does not
+   pay for GitHub Actions. Pushes and pull requests run CI on self-hosted runners only (Linux in
+   Docker on the owner's server, Windows optional), each switched on by a repository variable;
+   the local gate `scripts/ci-local.*` covers the rest. GitHub-hosted runners are used only for
+   tagged releases (`release.yml`, which needs macOS) and manual runs. Details in `docs/CI.md`.
 
 ## Appendix A. Review log
 
