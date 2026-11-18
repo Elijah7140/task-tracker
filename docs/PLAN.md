@@ -1299,8 +1299,7 @@ were made autonomously; they are listed for review.
   - Clicking a title opens the item in its workspace.
   - Unchecking reopens the item (one undo step), and it drops out of the list.
   - The row menu offers Open and Push back one day.
-- **Live updates.** The view refreshes after any save. It also refreshes at local midnight, through
-  a `TimeProvider` timer, so a new day starts empty.
+- **Live updates.** The view refreshes after any save and when the local date changes.
 - **Implementation decisions.**
 - Today covers all projects and breaks ties in project order by name. Within a project the root
   area comes first, then folders by breadcrumb. Siblings keep their workspace order.
@@ -1311,6 +1310,16 @@ were made autonomously; they are listed for review.
   expansion choices while they remain in the view.
 - In Calendar and Today, the focused row is the keyboard target. If adding a day overflows the
   supported calendar, the operation shows an error and saves nothing.
+- The Menu key and Shift+F10 open the focused item row's menu in the workspace, Search,
+  Calendar and Today.
+- Undo and redo consult the workspace behind Today, Search, Calendar and Trash. If its editor
+  has a draft, the refusal appears on the page on screen and the draft is preserved.
+- Back waits for in-flight Today reopens, calendar moves and push backs, including after a switch
+  between transient pages. A commit while the return page is hidden makes Back reload it through
+  its existing unsaved-changes guard.
+- Today checks the local date every minute using a `TimeProvider` timer and again on window
+  activation, so it catches wall-clock changes and sleep across midnight. These checks query
+  only when the date changes.
 
 **Not in this slice:** browsing earlier days.
 - **Tests.**

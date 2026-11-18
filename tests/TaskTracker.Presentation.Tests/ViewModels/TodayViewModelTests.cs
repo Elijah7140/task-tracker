@@ -94,6 +94,26 @@ public sealed class TodayViewModelTests
         Assert.Empty(page.Projects);
     }
 
+    [Fact]
+    public async Task A_periodic_check_notices_a_wall_clock_jump_past_midnight()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 13, 10, 0, 0, TimeSpan.Zero));
+        await using var store = new PresentationTestStore(clock);
+        await store.InitializeAsync();
+        var project = await store.Projects.CreateAsync("Project");
+        var item = await store.Items.CreateAsync(project.Id, null, null, "Last task");
+        await store.Items.SetCompletedAsync(project.Id, null, item.Id, true);
+        using var page = CreatePage(store, clock, TimeZoneInfo.Utc);
+        await page.LoadAsync();
+        Assert.Equal(1, page.CompletedCount);
+
+        clock.AdjustTime(new DateTimeOffset(2026, 11, 14, 1, 0, 0, TimeSpan.Zero));
+        clock.Advance(TimeSpan.FromMinutes(1));
+
+        Assert.True(page.IsEmpty);
+        Assert.Empty(page.Projects);
+    }
+
     private static TodayViewModel CreatePage(PresentationTestStore store, TimeProvider clock, TimeZoneInfo zone)
     {
         var service = new TodayService(store.UnitOfWorkFactory, clock, zone);

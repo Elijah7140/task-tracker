@@ -13,10 +13,11 @@ namespace TaskTracker.Presentation.ViewModels;
 /// <summary>Displays today's completion tree and keeps it current while the page is open.</summary>
 public sealed class TodayViewModel : ViewModelBase, IDisposable
 {
+    private static readonly TimeSpan DayCheckInterval = TimeSpan.FromMinutes(1);
+
     private readonly TodayService service;
     private readonly ItemService items;
     private readonly DataSaved saves;
-    private readonly TimeProvider clock;
     private readonly IUiDispatcher dispatcher;
     private readonly INavigationService navigation;
     private readonly ITimer timer;
@@ -24,6 +25,8 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
     private IReadOnlyList<TodayProjectViewModel> projects = [];
     private string? error;
     private int loadVersion;
+    private DateOnly? shownDay;
+    private DateOnly? loadingDay;
     private bool disposed;
 
     public TodayViewModel(TodayService service, ItemService items, DataSaved saves, TimeProvider clock,
@@ -32,12 +35,10 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
         this.service = service;
         this.items = items;
         this.saves = saves;
-        this.clock = clock;
         this.dispatcher = dispatcher;
         this.navigation = navigation;
         BackCommand = new AsyncRelayCommand(navigation.ReturnFromTodayAsync);
-        timer = clock.CreateTimer(_ => dispatcher.Post(Refresh), null,
-            Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        timer = clock.CreateTimer(_ => dispatcher.Post(CheckDay), null, DayCheckInterval, DayCheckInterval);
         saves.Committed += OnSaved;
     }
 
@@ -59,10 +60,22 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
         private set => SetProperty(ref error, value);
     }
 
-    /// <summary>Signals that the page behind Today may need to reload when it is shown again.</summary>
-    internal event Action? SavedWhileOpen;
+    /// <summary>Lets Back wait for a reopen even if another transient page replaces Today.</summary>
+    internal event Action<Task>? WriteStarted;
 
-    public async Task LoadAsync()
+    /// <summary>Refreshes the view after a local date change, including when the window wakes or is activated.</summary>
+    public Task RefreshIfDayChangedAsync()
+    {
+        var day = service.LocalDay;
+        return day == (loadingDay ?? shownDay) ? Task.CompletedTask : LoadAsync(day);
+    }
+
+    public Task LoadAsync()
+    {
+        return LoadAsync(service.LocalDay);
+    }
+
+    private async Task LoadAsync(DateOnly day)
     {
         if (disposed)
         {
@@ -70,12 +83,13 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
         }
 
         var version = ++loadVersion;
-        ScheduleMidnight();
+        loadingDay = day;
         try
         {
-            var found = await service.LoadAsync();
+            var found = await service.LoadForDayAsync(day);
             if (!disposed && version == loadVersion)
             {
+                shownDay = day;
                 ApplyResults(found);
             }
         }
@@ -84,6 +98,13 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
             if (!disposed && version == loadVersion)
             {
                 Error = exception.Message;
+            }
+        }
+        finally
+        {
+            if (version == loadVersion)
+            {
+                loadingDay = null;
             }
         }
     }
@@ -102,13 +123,20 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
         return disposed ? Task.CompletedTask : navigation.PushBackAsync(id);
     }
 
-    internal async Task ReopenAsync(TodayRowViewModel row)
+    internal Task ReopenAsync(TodayRowViewModel row)
     {
         if (disposed)
         {
-            return;
+            return Task.CompletedTask;
         }
 
+        var write = SaveReopenAsync(row);
+        WriteStarted?.Invoke(write);
+        return write;
+    }
+
+    private async Task SaveReopenAsync(TodayRowViewModel row)
+    {
         try
         {
             var item = row.Item;
@@ -177,22 +205,14 @@ public sealed class TodayViewModel : ViewModelBase, IDisposable
         return row;
     }
 
-    private void ScheduleMidnight()
+    private async void CheckDay()
     {
-        var delay = service.NextMidnight - clock.GetUtcNow();
-        timer.Change(delay > TimeSpan.Zero ? delay : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+        await RefreshIfDayChangedAsync();
     }
 
     private void OnSaved()
     {
-        dispatcher.Post(() =>
-        {
-            if (!disposed)
-            {
-                SavedWhileOpen?.Invoke();
-                Refresh();
-            }
-        });
+        dispatcher.Post(Refresh);
     }
 
     private async void Refresh()

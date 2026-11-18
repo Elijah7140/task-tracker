@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 
 using TaskTracker.App.Desktop.Views;
 using TaskTracker.Core.Items;
@@ -108,6 +109,30 @@ public sealed class TodayViewTests
     }
 
     [AvaloniaFact]
+    public async Task Window_activation_refreshes_today_before_the_next_timer_tick()
+    {
+        using var services = await TestServices.CreateAsync();
+        var clock = Assert.IsType<FakeTimeProvider>(services.GetRequiredService<TimeProvider>());
+        clock.AdjustTime(new DateTimeOffset(2026, 11, 13, 10, 0, 0, TimeSpan.Zero));
+        var item = await SeedDatedItemAsync(services);
+        await services.GetRequiredService<ItemService>().SetCompletedAsync(item.ProjectId, null, item.Id, true);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = ScreenSnapshotTests.OpenWindow(shell, dark: false);
+        await shell.GoHomeAsync();
+        await shell.OpenTodayAsync();
+        var today = Assert.IsType<TodayViewModel>(shell.CurrentPage);
+        Assert.Equal(1, today.CompletedCount);
+
+        clock.AdjustTime(new DateTimeOffset(2026, 11, 14, 1, 0, 0, TimeSpan.Zero));
+        window.Activate();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(today.IsEmpty);
+        await shell.GoHomeAsync();
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Push_back_shortcut_in_search_moves_a_schedule_only_result()
     {
         using var services = await TestServices.CreateAsync();
@@ -151,6 +176,69 @@ public sealed class TodayViewTests
         Assert.Equal(Due.AddDays(1), await ReadDueAsync(services, item));
         await shell.GoHomeAsync();
         Dispatcher.UIThread.RunJobs();
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData("workspace", Key.Apps, RawInputModifiers.None)]
+    [InlineData("workspace", Key.F10, RawInputModifiers.Shift)]
+    [InlineData("search", Key.Apps, RawInputModifiers.None)]
+    [InlineData("search", Key.F10, RawInputModifiers.Shift)]
+    [InlineData("calendar", Key.Apps, RawInputModifiers.None)]
+    [InlineData("calendar", Key.F10, RawInputModifiers.Shift)]
+    [InlineData("today", Key.Apps, RawInputModifiers.None)]
+    [InlineData("today", Key.F10, RawInputModifiers.Shift)]
+    public async Task A_focused_row_opens_its_push_back_menu_from_the_keyboard(string surface, Key key,
+        RawInputModifiers modifiers)
+    {
+        using var services = await TestServices.CreateAsync();
+        var item = await SeedDatedItemAsync(services);
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = ScreenSnapshotTests.OpenWindow(shell, dark: false);
+        await shell.OpenProjectAsync(item.ProjectId);
+        Dispatcher.UIThread.RunJobs();
+        var row = surface == "workspace"
+            ? HeadlessInput.FindNamed<Button>(window, "ItemTitleButton", item.Title)
+            : await OpenSurfaceAsync(services, window, shell, item, surface);
+        Assert.True(row.Focus());
+
+        window.KeyPress(key, modifiers, PhysicalKey.None, null);
+        window.KeyRelease(key, modifiers, PhysicalKey.None, null);
+        Dispatcher.UIThread.RunJobs();
+
+        var menu = HeadlessInput.Find<MenuItem>(window, "PushBackOneDayMenuItem");
+        Assert.Equal("Push back one day", menu.Header);
+        Assert.True(menu.IsEffectivelyEnabled);
+        await shell.GoHomeAsync();
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData("calendar")]
+    [InlineData("today")]
+    public async Task Push_back_shortcut_moves_only_the_focused_row(string surface)
+    {
+        using var services = await TestServices.CreateAsync();
+        var first = await SeedDatedItemAsync(services);
+        var items = services.GetRequiredService<ItemService>();
+        var second = await items.CreateAsync(first.ProjectId, null, null, "Other task");
+        await items.EditAsync(second.Id, new ItemEdit(second.Title, null, null, null, null, Due, null, null, null));
+        if (surface == "today")
+        {
+            await AddCompletedChildAndOpenChildAsync(items, first);
+        }
+
+        var shell = services.GetRequiredService<MainWindowViewModel>();
+        var window = ScreenSnapshotTests.OpenWindow(shell, dark: false);
+        await shell.OpenProjectAsync(first.ProjectId);
+        var focused = await OpenSurfaceAsync(services, window, shell, second, surface);
+        Assert.True(focused.Focus());
+
+        HeadlessInput.Press(window, Key.P, ControlShift);
+
+        Assert.Equal(Due, await ReadDueAsync(services, first));
+        Assert.Equal(Due.AddDays(1), await ReadDueAsync(services, second));
+        await shell.GoHomeAsync();
         window.Close();
     }
 
@@ -255,13 +343,18 @@ public sealed class TodayViewTests
                 return HeadlessInput.FindNamed<Button>(window, "CalendarEntryButton", item.Title);
             default:
                 var items = services.GetRequiredService<ItemService>();
-                var child = await items.CreateAsync(item.ProjectId, null, item.Id, "Done");
-                await items.CreateAsync(item.ProjectId, null, item.Id, "Still open");
-                await items.SetCompletedAsync(item.ProjectId, null, child.Id, true);
+                await AddCompletedChildAndOpenChildAsync(items, item);
                 await shell.OpenTodayAsync();
                 Dispatcher.UIThread.RunJobs();
                 return HeadlessInput.FindNamed<Grid>(window, "TodayItemRow", item.Title);
         }
+    }
+
+    private static async Task AddCompletedChildAndOpenChildAsync(ItemService items, TodoItem parent)
+    {
+        var child = await items.CreateAsync(parent.ProjectId, null, parent.Id, "Done");
+        await items.CreateAsync(parent.ProjectId, null, parent.Id, "Still open");
+        await items.SetCompletedAsync(parent.ProjectId, null, child.Id, true);
     }
 
     private static async Task<MenuItem> OpenPushBackMenuAsync(MainWindow window, Control row)

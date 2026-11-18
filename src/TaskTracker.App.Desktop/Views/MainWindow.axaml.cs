@@ -24,6 +24,29 @@ public sealed partial class MainWindow : Window
             .Register<TodayViewModel, TodayView>());
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
+        KeyUp += OnKeyUp;
+        Activated += OnActivated;
+    }
+
+    private void OnKeyUp(object? sender, KeyEventArgs args)
+    {
+        if (args.Key != Key.F10 || args.KeyModifiers != KeyModifiers.Shift ||
+            FocusManager?.GetFocusedElement() is not Control focused)
+        {
+            return;
+        }
+
+        var request = new ContextRequestedEventArgs { RoutedEvent = ContextRequestedEvent };
+        focused.RaiseEvent(request);
+        args.Handled = request.Handled;
+    }
+
+    private async void OnActivated(object? sender, EventArgs args)
+    {
+        if (DataContext is MainWindowViewModel { CurrentPage: TodayViewModel today })
+        {
+            await today.RefreshIfDayChangedAsync();
+        }
     }
 
     /// <summary>

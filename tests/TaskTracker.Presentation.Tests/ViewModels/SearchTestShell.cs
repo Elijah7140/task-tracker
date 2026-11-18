@@ -2,6 +2,7 @@ using TaskTracker.Core.Calendar;
 using TaskTracker.Core.Projects;
 using TaskTracker.Core.Search;
 using TaskTracker.Core.Search.Syntax;
+using TaskTracker.Core.Today;
 using TaskTracker.Core.Trash;
 using TaskTracker.Presentation.Navigation;
 using TaskTracker.Presentation.ViewModels;
@@ -26,7 +27,9 @@ internal static class SearchTestShell
             trash: trash ?? store.Trash,
             rescheduler: new CalendarRescheduleService(store.UnitOfWorkFactory, clock ?? TimeProvider.System),
             savedSearches: store.SavedSearches, queryParser: new ItemQueryParser(clock ?? TimeProvider.System, timeZone ?? TimeZoneInfo.Utc),
-            undoHistory: store.History);
+            undoHistory: store.History,
+            today: new TodayService(store.UnitOfWorkFactory, clock ?? TimeProvider.System, timeZone ?? TimeZoneInfo.Utc),
+            saves: store.Saves);
     }
 
     internal static SearchViewModel CreatePage(PresentationTestStore store, IItemSearchService search,

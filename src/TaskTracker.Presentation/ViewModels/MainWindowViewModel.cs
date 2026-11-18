@@ -51,6 +51,8 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private readonly InstallationServices? installation;
     private readonly AppUpdateViewModel? appUpdates;
     private ViewModelBase? transientReturnPage;
+    private long returnPageRevision;
+    private Task pendingTransientWrites = Task.CompletedTask;
     private bool returnPageIsStale;
     private bool isOpeningSearch;
     private bool isOpeningCalendar;
@@ -60,6 +62,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     private ViewModelBase? currentPage;
     private RemindersViewModel? reminders;
     private int pageVersion;
+    private int? returningPageVersion;
 
     public MainWindowViewModel(ProjectService projectService, FolderService folderService, IDialogService dialogs,
         ItemService? itemService = null, TimeProvider? clock = null, TimeZoneInfo? timeZone = null,
@@ -168,7 +171,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     /// <summary>Undo and redo for the whole window; null when the shell was built without a history.</summary>
     public UndoCoordinator? Undo { get; }
 
-    bool IUndoHost.HasUnsavedEdits => CurrentPage is ProjectWorkspaceViewModel { HasUnsavedChanges: true };
+    bool IUndoHost.HasUnsavedEdits => PageBehind(CurrentPage) is ProjectWorkspaceViewModel { HasUnsavedChanges: true };
 
     /// <summary>
     /// Brings the screen on show up to date. A transient page also marks the page
@@ -360,6 +363,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
             var projectId = (origin as ProjectWorkspaceViewModel)?.ProjectId;
             var page = new CalendarViewModel(calendar, rescheduler, this, clock, timeZone, projectId,
                 dispatcher: dispatcher);
+            page.WriteStarted += TrackTransientWrite;
             await page.LoadAsync();
 
             if (version != pageVersion)
@@ -411,7 +415,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         var origin = PageBehind(CurrentPage);
         var ui = dispatcher ?? new SynchronizationContextDispatcher(SynchronizationContext.Current);
         var page = new TodayViewModel(service, items, dataSaved, time, ui, this);
-        page.SavedWhileOpen += () => returnPageIsStale |= ReferenceEquals(CurrentPage, page);
+        page.WriteStarted += TrackTransientWrite;
         await page.LoadAsync();
 
         if (version != pageVersion)
@@ -436,19 +440,26 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     }
 
     /// <inheritdoc />
-    public async Task PushBackAsync(Guid itemId)
+    public Task PushBackAsync(Guid itemId)
     {
         if (itemService is null || !IsTransientPage(CurrentPage) || isPushingBack)
         {
-            return;
+            return Task.CompletedTask;
         }
 
+        var write = SavePushBackAsync(itemService, itemId);
+        TrackTransientWrite(write);
+        return write;
+    }
+
+    private async Task SavePushBackAsync(ItemService items, Guid itemId)
+    {
         var page = CurrentPage;
         var origin = transientReturnPage;
         isPushingBack = true;
         try
         {
-            await itemService.PushBackOneDayAsync(itemId);
+            await items.PushBackOneDayAsync(itemId);
             returnPageIsStale |= origin is not null && ReferenceEquals(origin, transientReturnPage);
             if (ReferenceEquals(page, CurrentPage))
             {
@@ -466,6 +477,16 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         finally
         {
             isPushingBack = false;
+        }
+    }
+
+    private void TrackTransientWrite(Task write)
+    {
+        if (!write.IsCompleted)
+        {
+            pendingTransientWrites = pendingTransientWrites.IsCompleted
+                ? write
+                : Task.WhenAll(pendingTransientWrites, write);
         }
     }
 
@@ -639,23 +660,36 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     }
 
     /// <summary>
-    /// Brings the page behind a transient page up to date after a restore: Home recounts its
-    /// projects and a workspace reloads, which asks its unsaved-changes guard once. Returns false
-    /// when the transient page should stay on screen: the user cancelled that question, or
-    /// navigation moved elsewhere meanwhile.
+    /// Reloads the return page through its normal draft guard and checks for commits during the reload.
     /// </summary>
-    private async Task<bool> RefreshPageBehindAsync(ViewModelBase leavingPage)
+    private async Task<bool> PrepareReturnPageAsync(int version)
     {
-        var version = pageVersion;
-        var reloaded = await ReloadPageBehindAsync();
-
-        if (!reloaded)
+        while (version == pageVersion)
         {
-            return false;
+            if (!pendingTransientWrites.IsCompleted)
+            {
+                await pendingTransientWrites;
+                continue;
+            }
+
+            var revision = saves?.Revision ?? 0;
+            if (!ReturnPageIsOutOfDate())
+            {
+                return true;
+            }
+
+            if (!await ReloadPageBehindAsync())
+            {
+                return false;
+            }
+
+            if (pendingTransientWrites.IsCompleted && (saves?.Revision ?? 0) == revision)
+            {
+                return version == pageVersion;
+            }
         }
 
-        var navigatedAway = version != pageVersion || !ReferenceEquals(CurrentPage, leavingPage);
-        return !navigatedAway;
+        return false;
     }
 
     private async Task<bool> ReloadPageBehindAsync()
@@ -675,12 +709,12 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
     }
 
     /// <summary>
-    /// True when something was restored while the page behind the transient page was out of sight,
-    /// either from the trash on screen or from a trash page that was replaced by search or the calendar.
+    /// A commit while the return page was hidden invalidates its snapshot.
     /// </summary>
     private bool ReturnPageIsOutOfDate()
     {
-        return returnPageIsStale || CurrentPage is TrashViewModel { MayHaveRestored: true };
+        return returnPageIsStale || saves?.Revision > returnPageRevision
+            || CurrentPage is TrashViewModel { MayHaveRestored: true };
     }
 
     /// <summary>
@@ -708,6 +742,7 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
         else
         {
             returnPageIsStale = false;
+            returnPageRevision = saves?.Revision ?? 0;
         }
 
         transientReturnPage = origin;
@@ -723,16 +758,31 @@ public sealed class MainWindowViewModel : ViewModelBase, INavigationService, IUn
             return;
         }
 
-        if (ReturnPageIsOutOfDate())
+        var version = pageVersion;
+        if (returningPageVersion == version)
         {
-            var refreshed = await RefreshPageBehindAsync(CurrentPage!);
-
-            if (!refreshed)
-            {
-                return;
-            }
+            return;
         }
 
+        returningPageVersion = version;
+        try
+        {
+            if (await PrepareReturnPageAsync(version))
+            {
+                await ShowReturnPageAsync();
+            }
+        }
+        finally
+        {
+            if (returningPageVersion == version)
+            {
+                returningPageVersion = null;
+            }
+        }
+    }
+
+    private async Task ShowReturnPageAsync()
+    {
         (CurrentPage as IDisposable)?.Dispose();
         CurrentPage = transientReturnPage;
         transientReturnPage = null;
