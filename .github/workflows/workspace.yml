@@ -37,6 +37,8 @@ jobs:
         if: runner.os == 'Windows'
         run: pnpm exec playwright install chromium
       - run: pnpm exec vp test run
+      - name: Run SQLite tests under the Electron runtime
+        run: pnpm run test:server-db:electron
       - name: Verify Electron runtime on Linux
         if: runner.os == 'Linux'
         run: xvfb-run -a pnpm run check:electron
