@@ -94,7 +94,8 @@ public static class SnapshotComparer
         Assert.Fail($"{message} Received: {path}");
     }
 
-    private static int CountDifferentPixels(SKBitmap baseline, SKBitmap received)
+    /// <summary>Counts pixels whose colour differs beyond the tolerance or whose alpha differs at all.</summary>
+    public static int CountDifferentPixels(SKBitmap baseline, SKBitmap received)
     {
         var different = 0;
 
@@ -119,6 +120,12 @@ public static class SnapshotComparer
 
     private static string FindSnapshotDirectory()
     {
+        return Path.Combine(FindSolutionRoot(), "tests", "TaskTracker.App.Desktop.Tests", "Snapshots");
+    }
+
+    /// <summary>Finds the folder holding TaskTracker.slnx, walking up from the test output.</summary>
+    public static string FindSolutionRoot()
+    {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TaskTracker.slnx")))
@@ -126,7 +133,6 @@ public static class SnapshotComparer
             directory = directory.Parent;
         }
 
-        return Path.Combine(directory?.FullName ?? throw new InvalidOperationException("Solution root unavailable."),
-            "tests", "TaskTracker.App.Desktop.Tests", "Snapshots");
+        return directory?.FullName ?? throw new InvalidOperationException("Solution root unavailable.");
     }
 }

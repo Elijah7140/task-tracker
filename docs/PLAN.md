@@ -1629,7 +1629,9 @@ the owner is working on.
   - A current sub-item row shows a ★ marker.
   - A deleted item, or an item in a deleted project, is treated as no current item. Restoring
     it from the trash makes it current again.
-- **Tray icon.** The tray icon is a drawn checklist: three ticks and lines on a blue tile. It
+- **Tray icon.** The tray icon is a drawn checklist: three ticks and lines on a blue tile. The
+  window, taskbar and exe use the same art: `app.ico` is built from the tray drawing at 16–256 px,
+  and a test fails if the two drift (rebuild it with `TASKTRACKER_ACCEPT_SNAPSHOTS=1`). The tray icon
   shows under the same `KeepRunningInTray` rules as before (§7.12). The menu keeps **Open** and
   **Quit**.
 - **Tray card.** A single left click on the icon shows a small borderless card next to it.

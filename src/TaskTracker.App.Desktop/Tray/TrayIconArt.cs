@@ -5,7 +5,10 @@ using Avalonia.Media.Imaging;
 
 namespace TaskTracker.App.Desktop.Tray;
 
-/// <summary>Draws the notification-area icon: a checklist of three ticked lines on a blue tile.</summary>
+/// <summary>
+/// Draws the app icon: a checklist of three ticked lines on a blue tile. The tray draws it at run time;
+/// <c>Assets/app.ico</c>, used by the window, the taskbar and the exe, is built from it by <see cref="AppIconFile"/>.
+/// </summary>
 internal static class TrayIconArt
 {
     private const int Size = 64;
@@ -21,8 +24,16 @@ internal static class TrayIconArt
     /// <summary>Renders the icon at 64×64 pixels; the tray scales it down.</summary>
     public static RenderTargetBitmap Render()
     {
-        var bitmap = new RenderTargetBitmap(new PixelSize(Size, Size));
+        return Render(Size);
+    }
+
+    /// <summary>Renders the icon at <paramref name="pixels"/> pixels square by scaling the 64-pixel design.</summary>
+    public static RenderTargetBitmap Render(int pixels)
+    {
+        var scale = pixels / (double)Size;
+        var bitmap = new RenderTargetBitmap(new PixelSize(pixels, pixels));
         using (var context = bitmap.CreateDrawingContext())
+        using (context.PushTransform(Matrix.CreateScale(scale, scale)))
         {
             DrawTile(context);
             for (var row = 0; row < 3; row++)
