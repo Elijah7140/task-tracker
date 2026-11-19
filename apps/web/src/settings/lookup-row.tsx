@@ -3,11 +3,9 @@ import type { KeyboardEvent, PointerEvent } from "react";
 import { Button } from "../ui/button.js";
 import { cx } from "../ui/class-names.js";
 import { Tooltip } from "../ui/tooltip.js";
+import type { DropEdge } from "../ui/use-pointer-reorder.js";
 import { ItemTypeIcon } from "../workspace/item-type-icon.js";
 import type { LookupItem, LookupKind } from "./use-lookup-actions.js";
-
-/** Drop placement relative to a hovered row during pointer drag. */
-export type DropEdge = "before" | "after" | null;
 
 /** Props for {@link LookupRow}. */
 export interface LookupRowProps {

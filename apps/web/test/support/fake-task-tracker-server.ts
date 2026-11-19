@@ -23,6 +23,7 @@ import {
   type FakeAreaState,
   itemHandlers,
 } from "./fake-item-operations.js";
+import { customFieldHandlers, FakeCustomFields } from "./fake-custom-fields.js";
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
 
 type Summary = typeof ProjectSummary.Type;
@@ -79,6 +80,8 @@ export class FakeProjectStore {
   };
 
   readonly settingsAndLookups = new FakeSettingsAndLookups(this.nextId);
+
+  readonly customFields = new FakeCustomFields(this.nextId);
 
   /** Returns an increasing UTC ISO instant for deterministic newest-first ordering in tests. */
   nextTimestamp = () => {
@@ -470,20 +473,7 @@ function handlers(store: FakeProjectStore) {
     ...itemHandlers(store, record),
     ...settingsAndLookupHandlers(store, record),
     LoadItemFieldValues: notUsed,
-    ListFields: notUsed,
-    ListEffectiveFields: notUsed,
-    CreateField: notUsed,
-    RenameField: notUsed,
-    ChangeFieldType: notUsed,
-    ArchiveField: notUsed,
-    RestoreField: notUsed,
-    ReorderFields: notUsed,
-    ListFieldChoices: notUsed,
-    AddFieldChoice: notUsed,
-    RenameFieldChoice: notUsed,
-    ArchiveFieldChoice: notUsed,
-    RestoreFieldChoice: notUsed,
-    ReorderFieldChoices: notUsed,
+    ...customFieldHandlers(store, record),
   });
 }
 

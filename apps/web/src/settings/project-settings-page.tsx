@@ -13,6 +13,7 @@ import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
 import { areaTarget, useCurrentArea } from "../workspace/area-route.js";
 import { useUnavailableProjectRedirect } from "../workspace/use-unavailable-project-redirect.js";
+import { FieldManagerCard } from "./field-manager-card.js";
 import { ProjectOverridesCard } from "./project-overrides-card.js";
 import { useUnsavedSettingsGuard } from "./use-unsaved-settings-guard.js";
 
@@ -53,7 +54,8 @@ function SettingsBreadcrumbs({
 
 /**
  * The Project Settings route (`/projects/$projectId/settings`): edits optional
- * per-project overrides while showing inherited global values.
+ * per-project overrides while showing inherited global values, and manages the
+ * project's own custom fields beside the inherited global fields.
  */
 export function ProjectSettingsPage() {
   const { projectId = "" } = useCurrentArea();
@@ -157,14 +159,20 @@ export function ProjectSettingsPage() {
           </Link>
         }
       />
-      <ProjectOverridesCard
-        key={workspace.value.projectId}
-        projectId={workspace.value.projectId}
-        globalDefaults={globalSettings.value}
-        initial={projectSettings.value}
-        onDirtyChange={setDirty}
-        onProjectMissing={handleMissingOnSave}
-      />
+      <div className="flex flex-col gap-6">
+        <ProjectOverridesCard
+          key={workspace.value.projectId}
+          projectId={workspace.value.projectId}
+          globalDefaults={globalSettings.value}
+          initial={projectSettings.value}
+          onDirtyChange={setDirty}
+          onProjectMissing={handleMissingOnSave}
+        />
+        <FieldManagerCard
+          key={`fields:${workspace.value.projectId}`}
+          projectId={workspace.value.projectId}
+        />
+      </div>
     </PageContainer>
   );
 }

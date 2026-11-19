@@ -7,6 +7,7 @@ import { globalSettingsAtom } from "../rpc/settings-queries.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
+import { FieldManagerCard } from "./field-manager-card.js";
 import { GlobalDefaultsCard } from "./global-defaults-card.js";
 import { LookupListCard } from "./lookup-list-card.js";
 import { useUnsavedSettingsGuard } from "./use-unsaved-settings-guard.js";
@@ -24,8 +25,8 @@ function SettingsSkeleton() {
 }
 
 /**
- * The App Settings route (`/settings`): global completion and urgency defaults
- * paired with editable item type and priority level lists.
+ * The App Settings route (`/settings`): global completion and urgency defaults,
+ * editable item type and priority level lists and the global custom fields.
  */
 export function AppSettingsPage() {
   const [dirty, setDirty] = useState(false);
@@ -56,7 +57,7 @@ export function AppSettingsPage() {
     <PageContainer>
       <PageHeader
         title="App Settings"
-        description="Global defaults, item types and priority levels."
+        description="Global defaults, item types, priority levels and custom fields."
       />
       {failure !== undefined ? (
         <LoadFailure
@@ -75,6 +76,7 @@ export function AppSettingsPage() {
             <LookupListCard kind="itemTypes" rows={itemTypes.value} />
             <LookupListCard kind="priorityLevels" rows={priorityLevels.value} />
           </div>
+          <FieldManagerCard projectId={null} />
         </div>
       )}
     </PageContainer>

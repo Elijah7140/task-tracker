@@ -1,62 +1,19 @@
 import { Input } from "@base-ui/react/input";
-import {
-  type FormEvent,
-  type PointerEvent as ReactPointerEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { Button } from "../ui/button.js";
 import { SectionCard } from "../ui/section-card.js";
+import { usePointerReorder } from "../ui/use-pointer-reorder.js";
+import { useRestoreRowFocus } from "../ui/use-restore-row-focus.js";
 import { partitionLookups } from "./lookup-order.js";
-import { type DropEdge, LookupRow } from "./lookup-row.js";
+import { LookupRow } from "./lookup-row.js";
 import { type LookupItem, type LookupKind, useLookupActions } from "./use-lookup-actions.js";
+
+const ROW_ATTRIBUTE = "data-lookup-row-id";
 
 /** Props for {@link LookupListCard}. */
 export interface LookupListCardProps {
   readonly kind: LookupKind;
   readonly rows: ReadonlyArray<LookupItem>;
-}
-
-function findRowIdAtY(list: HTMLUListElement | null, clientY: number): string | null {
-  if (list === null) {
-    return null;
-  }
-  const elements = list.querySelectorAll<HTMLElement>("[data-lookup-row-id]");
-  let nearestId: string | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  for (const element of elements) {
-    const rect = element.getBoundingClientRect();
-    const id = element.dataset["lookupRowId"] ?? null;
-    if (id === null) {
-      continue;
-    }
-    if (clientY >= rect.top && clientY <= rect.bottom) {
-      return id;
-    }
-    const distance = Math.min(Math.abs(clientY - rect.top), Math.abs(clientY - rect.bottom));
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestId = id;
-    }
-  }
-  return nearestId;
-}
-
-function dropEdgeFor(
-  rowId: string,
-  active: ReadonlyArray<LookupItem>,
-  dragState: { readonly draggedId: string; readonly overId: string | null } | null,
-): DropEdge {
-  if (dragState === null || dragState.overId !== rowId || dragState.draggedId === rowId) {
-    return null;
-  }
-  const fromIndex = active.findIndex((row) => row.id === dragState.draggedId);
-  const toIndex = active.findIndex((row) => row.id === rowId);
-  if (fromIndex < 0 || toIndex < 0) {
-    return null;
-  }
-  return toIndex < fromIndex ? "before" : "after";
 }
 
 function ArchivedRows({
@@ -112,50 +69,16 @@ export function LookupListCard({ kind, rows }: LookupListCardProps) {
   const testId = isItemType ? "lookup-list-item-types" : "lookup-list-priority-levels";
 
   const [newName, setNewName] = useState("");
-  const [dragState, setDragState] = useState<{
-    readonly draggedId: string;
-    readonly overId: string | null;
-  } | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const pendingFocusIdRef = useRef<string | null>(null);
   const actions = useLookupActions(kind);
   const { active, archived } = partitionLookups(rows);
-
-  useEffect(() => {
-    const focusId = pendingFocusIdRef.current;
-    if (focusId === null) {
-      return;
-    }
-    pendingFocusIdRef.current = null;
-    listRef.current?.querySelector<HTMLElement>(`[data-lookup-row-id="${focusId}"]`)?.focus();
-  }, [rows]);
-
-  useEffect(() => {
-    if (dragState === null) {
-      return;
-    }
-    const handleMove = (event: PointerEvent) => {
-      const overId = findRowIdAtY(listRef.current, event.clientY);
-      setDragState((current) => (current === null ? null : { ...current, overId }));
-    };
-    const handleUp = (event: PointerEvent) => {
-      const targetId = findRowIdAtY(listRef.current, event.clientY);
-      const draggedId = dragState.draggedId;
-      setDragState(null);
-      if (targetId !== null && targetId !== draggedId) {
-        void actions.dragReorder(rows, draggedId, targetId);
-      }
-    };
-    const handleCancel = () => setDragState(null);
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-    window.addEventListener("pointercancel", handleCancel);
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-      window.removeEventListener("pointercancel", handleCancel);
-    };
-  }, [dragState, actions, rows]);
+  const restoreFocus = useRestoreRowFocus(listRef, ROW_ATTRIBUTE, rows);
+  const drag = usePointerReorder({
+    listRef,
+    rowAttribute: ROW_ATTRIBUTE,
+    activeIds: active.map((row) => row.id),
+    onDrop: (draggedId, targetId) => void actions.dragReorder(rows, draggedId, targetId),
+  });
 
   const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -164,14 +87,9 @@ export function LookupListCard({ kind, rows }: LookupListCardProps) {
     }
   };
 
-  const handleMove = (id: string, direction: -1 | 1, restoreFocus: boolean) => {
-    pendingFocusIdRef.current = restoreFocus ? id : null;
+  const handleMove = (id: string, direction: -1 | 1, keepFocus: boolean) => {
+    restoreFocus(keepFocus ? id : null);
     void actions.move(rows, id, direction);
-  };
-
-  const handleDragStart = (id: string, event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    setDragState({ draggedId: id, overId: id });
   };
 
   return (
@@ -197,9 +115,9 @@ export function LookupListCard({ kind, rows }: LookupListCardProps) {
             kind={kind}
             isFirst={index === 0}
             isLast={index === active.length - 1}
-            isDragging={dragState?.draggedId === row.id}
-            dropEdge={dropEdgeFor(row.id, active, dragState)}
-            onDragStart={handleDragStart}
+            isDragging={drag.draggedId === row.id}
+            dropEdge={drag.dropEdgeFor(row.id)}
+            onDragStart={drag.startDrag}
             onMove={handleMove}
             onRename={(target) => void actions.rename(target)}
             onArchive={(target) => void actions.archive(target)}

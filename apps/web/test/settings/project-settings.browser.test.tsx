@@ -345,6 +345,7 @@ describe("ProjectSettingsPage", () => {
           });
         },
       });
+      await expect.element(page.getByText("No global fields.")).toBeVisible();
 
       await settleTheme(theme);
 
