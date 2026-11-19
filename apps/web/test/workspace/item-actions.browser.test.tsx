@@ -14,6 +14,12 @@ const itemsTree = () => page.getByRole("tree", { name: "Items in Billing DB" });
 const row = (name: string) => itemsTree().getByRole("treeitem", { name, exact: true });
 const quickAdd = () => page.getByTestId("quick-add-input");
 
+/** Whether the row titled `first` is rendered above the row titled `second`. */
+function rendersBefore(first: string, second: string) {
+  const position = row(first).element().compareDocumentPosition(row(second).element());
+  return (position & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+}
+
 async function openRoot(
   projects: ReadonlyArray<SeedProject> = [BILLING_PROJECT],
   clock?: ReturnType<typeof createTestClock>["clock"],
@@ -528,10 +534,14 @@ describe("Item actions and reorder", () => {
 
     await expect.element(row("First")).toHaveFocus();
     expect(store.areaSiblingTitles(projectId, null)).toEqual(["Last", "Finished", "First"]);
+    // A reorder pressed before the saved order arrives is ignored, so wait for it.
+    await expect.poll(() => rendersBefore("Last", "First")).toBe(true);
 
     await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
     await expect.element(row("First")).toHaveFocus();
-    expect(store.areaSiblingTitles(projectId, null)).toEqual(["First", "Finished", "Last"]);
+    await expect
+      .poll(() => store.areaSiblingTitles(projectId, null))
+      .toEqual(["First", "Finished", "Last"]);
 
     await row("First").getByTestId("item-toggle").first().click();
     await focusRow("Sub B");
