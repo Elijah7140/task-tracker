@@ -52,10 +52,23 @@ export function servePackagedRenderer(rpcPort: () => number | undefined) {
   });
 }
 
+/** Decodes a request path, or returns undefined for a malformed percent escape. */
+function decodePath(pathname: string) {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Resolves a GET for `index.html` or `assets/…` inside the root, rejecting anything else. */
 function bundledFile(root: string, request: Request) {
   const url = new URL(request.url);
-  const file = resolve(root, `.${decodeURIComponent(url.pathname)}`);
+  const pathname = decodePath(url.pathname);
+  if (pathname === undefined) {
+    return undefined;
+  }
+  const file = resolve(root, `.${pathname}`);
   const path = relative(root, file);
   const allowed = path === "index.html" || path.startsWith(`assets${sep}`);
   if (request.method !== "GET" || url.host !== "app" || isAbsolute(path) || !allowed) {
