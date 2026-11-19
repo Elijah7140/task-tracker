@@ -32,6 +32,16 @@ export default defineConfig({
         },
       },
       {
+        resolve: { alias: webTestResolve.alias },
+        test: {
+          name: "desktop-unit",
+          include: [
+            "apps/desktop/test/renderer.test.ts",
+            "apps/desktop/test/server-process.test.ts",
+          ],
+        },
+      },
+      {
         extends: "./apps/web/vite.config.ts",
         root: "./apps/web",
         resolve: webTestResolve,

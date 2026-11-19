@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RpcConnection } from "@task-tracker/contracts";
-import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session } from "electron";
 import {
   type RendererAddress,
   registerRendererScheme,
@@ -9,17 +9,34 @@ import {
   servePackagedRenderer,
 } from "./renderer.js";
 import { launchServer, type ServerProcess } from "./server-process.js";
+import { serverStoppedPage } from "./server-stopped-page.js";
 
 let window: BrowserWindow | undefined;
 let server: ServerProcess | undefined;
 let connection: RpcConnection | undefined;
 let quitting = false;
+let relaunchScheduled = false;
 
 function focusWindow() {
   if (window?.isMinimized()) {
     window.restore();
   }
   window?.focus();
+}
+
+/**
+ * The quitting instance keeps the single-instance lock until its server has stopped,
+ * so a launch during that window starts the app again once the quit finishes.
+ */
+function onSecondInstance() {
+  if (!quitting) {
+    focusWindow();
+    return;
+  }
+  if (!relaunchScheduled) {
+    relaunchScheduled = true;
+    app.relaunch();
+  }
 }
 
 /** Holds the quit until the server child has closed its database. */
@@ -51,9 +68,13 @@ function createWindow(url: string) {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      devTools: !app.isPackaged,
     },
   });
   renderer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  renderer.webContents.on("render-process-gone", (_event, details) => {
+    void handleRendererGone(renderer, url, details.reason);
+  });
   renderer.webContents.on("will-navigate", (event, target) => {
     if (target.split("#")[0] !== url) {
       event.preventDefault();
@@ -65,10 +86,42 @@ function createWindow(url: string) {
   return renderer;
 }
 
+/** Offers to reload the page or quit after the renderer process ends unexpectedly. */
+async function handleRendererGone(renderer: BrowserWindow, url: string, reason: string) {
+  if (quitting || renderer.isDestroyed()) {
+    return;
+  }
+  const { response } = await dialog.showMessageBox(renderer, {
+    type: "error",
+    title: "Task Tracker window stopped",
+    message: "The Task Tracker window stopped unexpectedly.",
+    detail: `Reason: ${reason}.`,
+    buttons: ["Reload", "Quit"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response !== 0 || quitting || renderer.isDestroyed()) {
+    app.quit();
+    return;
+  }
+  await renderer.loadURL(url).catch(() => undefined);
+}
+
+/** Stops the renderer calling the dead RPC port while the restart dialog is open. */
+async function showServerStopped(renderer: BrowserWindow) {
+  renderer.webContents.stop();
+  // A navigation started by main aborts any pending one, which rejects harmlessly.
+  await renderer.loadURL(serverStoppedPage).catch(() => undefined);
+}
+
 /** Reports an unexpected server exit and restarts it on request. */
 async function handleCrash(diagnostic: string, address: RendererAddress) {
   server = undefined;
   connection = undefined;
+  if (quitting || window === undefined) {
+    return;
+  }
+  await showServerStopped(window);
   if (quitting || window === undefined) {
     return;
   }
@@ -122,6 +175,8 @@ async function startupFailed(error: unknown) {
 async function openApplication() {
   const address = rendererAddress();
   if (app.isPackaged) {
+    // Packaged builds offer no reload or developer tools shortcuts.
+    Menu.setApplicationMenu(null);
     servePackagedRenderer(() => connection?.port);
   }
   denyPermissions();
@@ -154,7 +209,7 @@ function serveRpcConnection(address: RendererAddress) {
 
 if (app.requestSingleInstanceLock()) {
   registerRendererScheme();
-  app.on("second-instance", focusWindow);
+  app.on("second-instance", onSecondInstance);
   app.on("before-quit", beforeQuit);
   app.on("window-all-closed", () => app.quit());
   void app.whenReady().then(openApplication).catch(startupFailed);

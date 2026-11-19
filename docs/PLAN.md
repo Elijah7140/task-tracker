@@ -90,7 +90,10 @@ the server sends and has no Temporal dependency.
 
 Electron main starts the built server with `process.execPath` and
 `ELECTRON_RUN_AS_NODE=1`, passes its database path, waits for readiness, loads the
-built renderer and stops the server on exit. The renderer uses a loopback RPC
+built renderer and stops the server on exit. Packaging keeps Electron's RunAsNode
+fuse enabled for this launch as an accepted risk, because anyone who can already run
+the executable can use it as plain Node, while the NODE_OPTIONS and inspector fuses
+stay disabled. The renderer uses a loopback RPC
 endpoint with a per-launch credential and origin validation. Preload exposes a
 narrow native API, such as clipboard access.
 Electron 45.3.4 embeds Node 24.22.3. The WP1 Linux probe verified SQLite FTS5

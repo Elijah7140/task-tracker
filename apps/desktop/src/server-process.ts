@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createInterface } from "node:readline";
+import { createInterface, type Interface } from "node:readline";
 import { RpcConnection } from "@task-tracker/contracts";
-import { Effect, Schema } from "effect";
+import { type Duration, Effect, Option, Schema } from "effect";
 
 interface ServerExit {
   readonly diagnostic: string;
@@ -14,24 +14,55 @@ export interface ServerProcess {
   readonly stop: () => Promise<void>;
 }
 
+/** How long the launcher waits for readiness and for a graceful stop before killing the child. */
+export interface ServerTimeouts {
+  readonly readiness: Duration.Input;
+  readonly stop: Duration.Input;
+}
+
+const defaultTimeouts: ServerTimeouts = { readiness: "30 seconds", stop: "10 seconds" };
+
+/** The crash dialog keeps the newest server output, where the fatal error appears. */
+const diagnosticLength = 4000;
+
 const decodeConnection = Schema.decodeUnknownSync(RpcConnection);
 
 /** Starts the built server under Electron's Node runtime and reads its private readiness line. */
-export function launchServer(entry: string, rendererOrigin: string): ServerProcess {
+export function launchServer(
+  entry: string,
+  rendererOrigin: string,
+  timeouts: ServerTimeouts = defaultTimeouts,
+): ServerProcess {
   const child = spawn(process.execPath, [entry], {
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-      TASKTRACKER_RENDERER_ORIGIN: rendererOrigin,
-      TASKTRACKER_PARENT_PIPE: "1",
-    },
+    env: serverEnvironment(rendererOrigin),
     windowsHide: true,
   });
   const closed = observeExit(child);
   return {
-    ready: waitForReadiness(child, closed),
+    ready: waitForReadiness(child, closed, timeouts.readiness),
     closed,
-    stop: () => stopServer(child, closed),
+    stop: () => stopServer(child, closed, timeouts.stop),
+  };
+}
+
+/** Node reads these at startup to load code or open an inspector, so the server never inherits them. */
+function isNodeDebuggingVariable(name: string) {
+  const upper = name.toUpperCase();
+  return (
+    upper === "NODE_OPTIONS" ||
+    upper === "NODE_DEBUG" ||
+    upper === "NODE_DEBUG_NATIVE" ||
+    upper.startsWith("NODE_INSPECT")
+  );
+}
+
+function serverEnvironment(rendererOrigin: string): NodeJS.ProcessEnv {
+  const inherited = Object.entries(process.env).filter(([name]) => !isNodeDebuggingVariable(name));
+  return {
+    ...Object.fromEntries(inherited),
+    ELECTRON_RUN_AS_NODE: "1",
+    TASKTRACKER_RENDERER_ORIGIN: rendererOrigin,
+    TASKTRACKER_PARENT_PIPE: "1",
   };
 }
 
@@ -40,7 +71,7 @@ function observeExit(child: ChildProcessWithoutNullStreams): Promise<ServerExit>
     let stderr = "";
     let spawnError: Error | undefined;
     child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-      stderr = (stderr + chunk).slice(0, 4000);
+      stderr = (stderr + chunk).slice(-diagnosticLength);
     });
     child.on("error", (error) => {
       spawnError = error;
@@ -55,34 +86,54 @@ function observeExit(child: ChildProcessWithoutNullStreams): Promise<ServerExit>
   });
 }
 
+/** Resolves the first stdout line, or rejects with the diagnostic if the child exits first. */
+function firstLine(lines: Interface, closed: Promise<ServerExit>) {
+  return Promise.race([
+    new Promise<string>((resolve) => lines.once("line", resolve)),
+    closed.then(({ diagnostic }) => Promise.reject(new Error(diagnostic))),
+  ]);
+}
+
+function decodeReadiness(line: string) {
+  try {
+    return decodeConnection(JSON.parse(line));
+  } catch {
+    // The raw line may contain a credential.
+    throw new Error("The server sent an invalid readiness message.");
+  }
+}
+
 async function waitForReadiness(
   child: ChildProcessWithoutNullStreams,
   closed: Promise<ServerExit>,
+  timeout: Duration.Input,
 ) {
   const lines = createInterface({ input: child.stdout });
   try {
-    const line = await Promise.race([
-      new Promise<string>((resolve) => lines.once("line", resolve)),
-      closed.then(({ diagnostic }) => Promise.reject(new Error(diagnostic))),
-    ]);
-    try {
-      return decodeConnection(JSON.parse(line));
-    } catch {
-      // The raw line may contain a credential.
-      throw new Error("The server sent an invalid readiness message.");
+    const line = await Effect.runPromise(
+      Effect.promise(() => firstLine(lines, closed)).pipe(Effect.timeoutOption(timeout)),
+    );
+    if (Option.isNone(line)) {
+      child.kill("SIGKILL");
+      throw new Error("Server did not become ready");
     }
+    return decodeReadiness(line.value);
   } finally {
     lines.close();
     child.stdout.resume();
   }
 }
 
-async function stopServer(child: ChildProcessWithoutNullStreams, closed: Promise<ServerExit>) {
+async function stopServer(
+  child: ChildProcessWithoutNullStreams,
+  closed: Promise<ServerExit>,
+  timeout: Duration.Input,
+) {
   child.stdin.end();
   const graceful = await Effect.runPromise(
-    Effect.promise(() => closed).pipe(Effect.timeoutOption("10 seconds")),
+    Effect.promise(() => closed).pipe(Effect.timeoutOption(timeout)),
   );
-  if (graceful._tag === "None") {
+  if (Option.isNone(graceful)) {
     child.kill("SIGKILL");
     await closed;
   }
