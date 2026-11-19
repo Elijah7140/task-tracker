@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import { page, server, userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import type { ResolvedTheme } from "../../src/state/theme-preference.js";
 import { useThemeStore } from "../../src/state/theme-store.js";
 
@@ -17,14 +17,11 @@ export async function settleTheme(theme: ResolvedTheme) {
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
-/** Matches the standard shell baseline, plus a 1080p Linux baseline for the same screen. */
+/** Matches the standard shell baseline, plus a 1080p baseline for the same screen. */
 export async function matchShellAtBothSizes(screen: string, theme: ResolvedTheme) {
   const shell = page.getByTestId("app-shell");
   await settleTheme(theme);
   await expect.element(shell).toMatchScreenshot(`${screen}-${theme}`);
-  if (server.platform !== "linux") {
-    return;
-  }
 
   const { innerWidth, innerHeight } = window;
   try {
