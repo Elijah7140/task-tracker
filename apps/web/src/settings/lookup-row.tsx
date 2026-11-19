@@ -15,6 +15,8 @@ export interface LookupRowProps {
   readonly kind: LookupKind;
   readonly isFirst: boolean;
   readonly isLast: boolean;
+  /** A reorder is saving. Move buttons stay focusable but ignore presses. */
+  readonly moveBusy: boolean;
   readonly isDragging: boolean;
   readonly dropEdge: DropEdge;
   readonly onDragStart: (id: string, event: PointerEvent<HTMLButtonElement>) => void;
@@ -32,6 +34,7 @@ export function LookupRow({
   kind,
   isFirst,
   isLast,
+  moveBusy,
   isDragging,
   dropEdge,
   onDragStart,
@@ -91,7 +94,8 @@ export function LookupRow({
             type="button"
             variant="ghost"
             size="icon"
-            disabled={isFirst}
+            disabled={isFirst || moveBusy}
+            focusableWhenDisabled={!isFirst}
             aria-label={`Move ${row.name} up`}
             onClick={() => onMove(row.id, -1, false)}
             data-testid="lookup-move-up"
@@ -104,7 +108,8 @@ export function LookupRow({
             type="button"
             variant="ghost"
             size="icon"
-            disabled={isLast}
+            disabled={isLast || moveBusy}
+            focusableWhenDisabled={!isLast}
             aria-label={`Move ${row.name} down`}
             onClick={() => onMove(row.id, 1, false)}
             data-testid="lookup-move-down"

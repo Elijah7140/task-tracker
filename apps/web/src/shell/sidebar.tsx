@@ -1,6 +1,7 @@
 import { CircleCheck, House, Plus, Settings } from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
 import { Button } from "../ui/button.js";
+import { useCurrentArea } from "../workspace/area-route.js";
 import { SidebarLink } from "./sidebar-link.js";
 import { SidebarProjectList } from "./sidebar-project-list.js";
 import { ThemeSwitcher } from "./theme-switcher.js";
@@ -38,6 +39,22 @@ function ProjectsSection() {
   );
 }
 
+/** The Settings link. From an open project, App Settings' Back returns to it. */
+function SettingsLink() {
+  const { projectId } = useCurrentArea();
+  const search = projectId === undefined ? {} : { returnProjectId: projectId };
+  return (
+    <SidebarLink
+      target={{ to: "/settings", search }}
+      icon={<Settings size={15} aria-hidden="true" />}
+      exact
+      testId="sidebar-settings"
+    >
+      Settings
+    </SidebarLink>
+  );
+}
+
 /**
  * The app's navigation sidebar. The open project's folder tree nests under its
  * project link. Later screens add sections (settings) between the project list
@@ -63,14 +80,7 @@ export function Sidebar() {
         <ProjectsSection />
       </div>
       <div className="border-t border-line px-2 py-2">
-        <SidebarLink
-          target={{ to: "/settings" }}
-          icon={<Settings size={15} aria-hidden="true" />}
-          exact
-          testId="sidebar-settings"
-        >
-          Settings
-        </SidebarLink>
+        <SettingsLink />
       </div>
       <div className="border-t border-line p-3">
         <ThemeSwitcher />

@@ -60,7 +60,7 @@ export function Select<Value extends string>({
                   className="flex h-8 cursor-default items-center justify-between gap-2 rounded-[0.375rem] px-2 text-sm outline-none select-none data-highlighted:bg-hover"
                 >
                   <BaseSelect.ItemText>{option.label}</BaseSelect.ItemText>
-                  <BaseSelect.ItemIndicator className="text-accent">
+                  <BaseSelect.ItemIndicator className="text-accent-text">
                     <Check size={14} aria-hidden="true" />
                   </BaseSelect.ItemIndicator>
                 </BaseSelect.Item>

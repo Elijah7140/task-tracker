@@ -1,16 +1,12 @@
 import { Input } from "@base-ui/react/input";
-import {
-  type FormEvent,
-  type PointerEvent as ReactPointerEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type FormEvent, type RefObject, useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button.js";
 import { SectionCard } from "../ui/section-card.js";
 import { partitionLookups } from "./lookup-order.js";
 import { type DropEdge, LookupRow } from "./lookup-row.js";
 import { type LookupItem, type LookupKind, useLookupActions } from "./use-lookup-actions.js";
+import { type LookupDragState, useLookupDrag } from "./use-lookup-drag.js";
+import { useLookupReorder } from "./use-lookup-reorder.js";
 
 /** Props for {@link LookupListCard}. */
 export interface LookupListCardProps {
@@ -18,35 +14,30 @@ export interface LookupListCardProps {
   readonly rows: ReadonlyArray<LookupItem>;
 }
 
-function findRowIdAtY(list: HTMLUListElement | null, clientY: number): string | null {
-  if (list === null) {
-    return null;
+/** Visible text and test IDs for one lookup list. */
+function lookupLabels(kind: LookupKind) {
+  if (kind === "itemTypes") {
+    return {
+      title: "Item types",
+      description: "Changes save immediately.",
+      listLabel: "item types",
+      singular: "item type",
+      testId: "lookup-list-item-types",
+    };
   }
-  const elements = list.querySelectorAll<HTMLElement>("[data-lookup-row-id]");
-  let nearestId: string | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  for (const element of elements) {
-    const rect = element.getBoundingClientRect();
-    const id = element.dataset["lookupRowId"] ?? null;
-    if (id === null) {
-      continue;
-    }
-    if (clientY >= rect.top && clientY <= rect.bottom) {
-      return id;
-    }
-    const distance = Math.min(Math.abs(clientY - rect.top), Math.abs(clientY - rect.bottom));
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestId = id;
-    }
-  }
-  return nearestId;
+  return {
+    title: "Priority levels",
+    description: "Top of the list is the most important. Changes save immediately.",
+    listLabel: "priority levels",
+    singular: "priority level",
+    testId: "lookup-list-priority-levels",
+  };
 }
 
 function dropEdgeFor(
   rowId: string,
   active: ReadonlyArray<LookupItem>,
-  dragState: { readonly draggedId: string; readonly overId: string | null } | null,
+  dragState: LookupDragState | null,
 ): DropEdge {
   if (dragState === null || dragState.overId !== rowId || dragState.draggedId === rowId) {
     return null;
@@ -57,6 +48,27 @@ function dropEdgeFor(
     return null;
   }
   return toIndex < fromIndex ? "before" : "after";
+}
+
+/** Focuses a requested row once the list re-renders with the saved order. */
+function useRowFocusAfterRefresh(
+  listRef: RefObject<HTMLUListElement | null>,
+  rows: ReadonlyArray<LookupItem>,
+) {
+  const pendingFocusIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const focusId = pendingFocusIdRef.current;
+    if (focusId === null) {
+      return;
+    }
+    pendingFocusIdRef.current = null;
+    listRef.current?.querySelector<HTMLElement>(`[data-lookup-row-id="${focusId}"]`)?.focus();
+  }, [listRef, rows]);
+
+  return (id: string | null) => {
+    pendingFocusIdRef.current = id;
+  };
 }
 
 function ArchivedRows({
@@ -100,93 +112,84 @@ function ArchivedRows({
   );
 }
 
+/** The new-name input. It clears only after the server accepts the name. */
+function AddLookupForm({
+  singular,
+  onAdd,
+}: {
+  readonly singular: string;
+  readonly onAdd: (name: string) => Promise<boolean>;
+}) {
+  const [newName, setNewName] = useState("");
+
+  const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (await onAdd(newName)) {
+      setNewName("");
+    }
+  };
+
+  return (
+    <form className="flex items-center gap-2 pt-1" onSubmit={(event) => void handleAdd(event)}>
+      <Input
+        value={newName}
+        onValueChange={setNewName}
+        placeholder="New name"
+        aria-label={`New ${singular} name`}
+        autoComplete="off"
+        spellCheck={false}
+        data-testid="lookup-new-name"
+        className="h-9 min-w-0 flex-1 rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg outline-none placeholder:text-fg-subtle focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus"
+      />
+      <Button type="submit" data-testid="lookup-add">
+        Add
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * Button, Alt+Arrow and pointer-drag reordering for the active rows. One
+ * reorder runs at a time and later requests wait for the saved order.
+ */
+function useActiveRowReorder(
+  kind: LookupKind,
+  rows: ReadonlyArray<LookupItem>,
+  listRef: RefObject<HTMLUListElement | null>,
+) {
+  const actions = useLookupActions(kind);
+  const reorder = useLookupReorder(rows);
+  const requestFocus = useRowFocusAfterRefresh(listRef, rows);
+  const drag = useLookupDrag(listRef, (draggedId, targetId) => {
+    void reorder.run((current) => actions.dragReorder(current, draggedId, targetId));
+  });
+
+  const move = (id: string, direction: -1 | 1, restoreFocus: boolean) => {
+    if (reorder.busy) {
+      return;
+    }
+    requestFocus(restoreFocus ? id : null);
+    void reorder.run((current) => actions.move(current, id, direction));
+  };
+
+  return { actions, busy: reorder.busy, drag, move };
+}
+
 /**
  * Editable card for either item types or priority levels. Supports adding,
  * renaming, button/Alt+Arrow/pointer-drag reordering, archiving and restoring.
  */
 export function LookupListCard({ kind, rows }: LookupListCardProps) {
-  const isItemType = kind === "itemTypes";
-  const title = isItemType ? "Item types" : "Priority levels";
-  const listLabel = isItemType ? "item types" : "priority levels";
-  const singular = isItemType ? "item type" : "priority level";
-  const testId = isItemType ? "lookup-list-item-types" : "lookup-list-priority-levels";
-
-  const [newName, setNewName] = useState("");
-  const [dragState, setDragState] = useState<{
-    readonly draggedId: string;
-    readonly overId: string | null;
-  } | null>(null);
+  const labels = lookupLabels(kind);
   const listRef = useRef<HTMLUListElement>(null);
-  const pendingFocusIdRef = useRef<string | null>(null);
-  const actions = useLookupActions(kind);
+  const { actions, busy, drag, move } = useActiveRowReorder(kind, rows, listRef);
   const { active, archived } = partitionLookups(rows);
 
-  useEffect(() => {
-    const focusId = pendingFocusIdRef.current;
-    if (focusId === null) {
-      return;
-    }
-    pendingFocusIdRef.current = null;
-    listRef.current?.querySelector<HTMLElement>(`[data-lookup-row-id="${focusId}"]`)?.focus();
-  }, [rows]);
-
-  useEffect(() => {
-    if (dragState === null) {
-      return;
-    }
-    const handleMove = (event: PointerEvent) => {
-      const overId = findRowIdAtY(listRef.current, event.clientY);
-      setDragState((current) => (current === null ? null : { ...current, overId }));
-    };
-    const handleUp = (event: PointerEvent) => {
-      const targetId = findRowIdAtY(listRef.current, event.clientY);
-      const draggedId = dragState.draggedId;
-      setDragState(null);
-      if (targetId !== null && targetId !== draggedId) {
-        void actions.dragReorder(rows, draggedId, targetId);
-      }
-    };
-    const handleCancel = () => setDragState(null);
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-    window.addEventListener("pointercancel", handleCancel);
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-      window.removeEventListener("pointercancel", handleCancel);
-    };
-  }, [dragState, actions, rows]);
-
-  const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (await actions.add(newName)) {
-      setNewName("");
-    }
-  };
-
-  const handleMove = (id: string, direction: -1 | 1, restoreFocus: boolean) => {
-    pendingFocusIdRef.current = restoreFocus ? id : null;
-    void actions.move(rows, id, direction);
-  };
-
-  const handleDragStart = (id: string, event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    setDragState({ draggedId: id, overId: id });
-  };
-
   return (
-    <SectionCard
-      title={title}
-      description={
-        isItemType
-          ? "Changes save immediately."
-          : "Top of the list is the most important. Changes save immediately."
-      }
-      testId={testId}
-    >
+    <SectionCard title={labels.title} description={labels.description} testId={labels.testId}>
       <ul
         ref={listRef}
-        aria-label={`Active ${listLabel}`}
+        aria-label={`Active ${labels.listLabel}`}
         data-testid="lookup-active-list"
         className="flex flex-col"
       >
@@ -197,37 +200,22 @@ export function LookupListCard({ kind, rows }: LookupListCardProps) {
             kind={kind}
             isFirst={index === 0}
             isLast={index === active.length - 1}
-            isDragging={dragState?.draggedId === row.id}
-            dropEdge={dropEdgeFor(row.id, active, dragState)}
-            onDragStart={handleDragStart}
-            onMove={handleMove}
+            moveBusy={busy}
+            isDragging={drag.dragState?.draggedId === row.id}
+            dropEdge={dropEdgeFor(row.id, active, drag.dragState)}
+            onDragStart={drag.startDrag}
+            onMove={move}
             onRename={(target) => void actions.rename(target)}
             onArchive={(target) => void actions.archive(target)}
           />
         ))}
       </ul>
-
       <ArchivedRows
         archived={archived}
-        listLabel={listLabel}
+        listLabel={labels.listLabel}
         onRestore={(target) => void actions.restore(target)}
       />
-
-      <form className="flex items-center gap-2 pt-1" onSubmit={(event) => void handleAdd(event)}>
-        <Input
-          value={newName}
-          onValueChange={setNewName}
-          placeholder="New name"
-          aria-label={`New ${singular} name`}
-          autoComplete="off"
-          spellCheck={false}
-          data-testid="lookup-new-name"
-          className="h-9 min-w-0 flex-1 rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg outline-none placeholder:text-fg-subtle focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus"
-        />
-        <Button type="submit" data-testid="lookup-add">
-          Add
-        </Button>
-      </form>
+      <AddLookupForm singular={labels.singular} onAdd={actions.add} />
     </SectionCard>
   );
 }

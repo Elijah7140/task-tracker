@@ -51,6 +51,14 @@ const guid = (sequence: number) => `0190A1B2-0000-7000-8000-${String(sequence).p
 
 const notUsed = () => Effect.die(new Error("The web tests do not call this RPC."));
 
+/** The real server's EntityMissing("Project") failure. */
+const missingProject = () =>
+  new NotFound({ entity: "Project", message: "Project is missing or deleted." });
+
+/** The real server's EntityMissing("Folder") failure. */
+const missingFolder = () =>
+  new NotFound({ entity: "Folder", message: "Folder is missing or deleted." });
+
 const areaKey = (projectId: string, folderId: string | null) =>
   `${projectId}:${folderId ?? "root"}`;
 
@@ -239,22 +247,24 @@ export class FakeProjectStore {
   /** Returns all active area states. */
   allAreas = () => [...this.areas.values()];
 
-  /** Requires an active project and folder area state. */
+  /**
+   * Requires an active project and folder area state. Like the real server, a
+   * missing project or folder fails with NotFound for that entity.
+   */
   requireArea = (
     projectId: string,
     folderId: string | null,
-  ): Effect.Effect<FakeAreaState, RuleViolation> => {
+  ): Effect.Effect<FakeAreaState, NotFound> => {
     const state = this.areas.get(areaKey(projectId, folderId));
     const knownProject = this.summaries.some((summary) => summary.project.id === projectId);
     const knownFolder =
       folderId === null ||
       this.folders.some((folder) => folder.id === folderId && folder.projectId === projectId);
-    return state === undefined || !knownProject || !knownFolder
-      ? Effect.fail(
-          new RuleViolation({
-            message: "Area folder is missing or belongs to another project.",
-          }),
-        )
+    if (!knownProject) {
+      return Effect.fail(missingProject());
+    }
+    return state === undefined || !knownFolder
+      ? Effect.fail(missingFolder())
       : Effect.succeed(state);
   };
 
@@ -300,9 +310,7 @@ export class FakeProjectStore {
     const folder = this.folders.find(
       (candidate) => candidate.id === folderId && candidate.projectId === projectId,
     );
-    return folder === undefined
-      ? Effect.fail(new RuleViolation({ message: "Folder is missing or deleted." }))
-      : Effect.succeed(folder);
+    return folder === undefined ? Effect.fail(missingFolder()) : Effect.succeed(folder);
   }
 
   /** Whether `folderId` is `ancestorId` or one of its descendants. */
@@ -326,9 +334,7 @@ export class FakeProjectStore {
 
   find(projectId: string) {
     const summary = this.summaries.find((candidate) => candidate.project.id === projectId);
-    return summary === undefined
-      ? Effect.fail(new NotFound({ entity: "Project", message: "Project is missing or deleted." }))
-      : Effect.succeed(summary);
+    return summary === undefined ? Effect.fail(missingProject()) : Effect.succeed(summary);
   }
 }
 

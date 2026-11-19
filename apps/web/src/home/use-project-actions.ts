@@ -1,15 +1,17 @@
 import { useAtomSet } from "@effect/atom-react";
 import type { ProjectProjection } from "@task-tracker/contracts";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { type Exit, Exit as ExitModule } from "effect";
-import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
+import type { Exit } from "effect";
+import { NAME_VALIDATION } from "../dialogs/name-validation.js";
+import { reportFailure } from "../dialogs/report-failure.js";
+import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
 import {
   createProjectAtom,
   deleteProjectAtom,
   PROJECTS_KEY,
   renameProjectAtom,
 } from "../rpc/project-queries.js";
-import { confirm, notify, prompt } from "../state/dialog-store.js";
+import { confirm, prompt } from "../state/dialog-store.js";
 
 /** The project fields the home and sidebar actions need. */
 export type ProjectRef = Pick<typeof ProjectProjection.Type, "id" | "name">;
@@ -17,13 +19,8 @@ export type ProjectRef = Pick<typeof ProjectProjection.Type, "id" | "name">;
 const reactivityKeys = [PROJECTS_KEY];
 
 /** Shows a failed project action and reports whether it succeeded. */
-async function reportFailure(exit: Exit.Exit<unknown, RpcFailure>): Promise<boolean> {
-  if (ExitModule.isSuccess(exit)) {
-    return true;
-  }
-  await notify({ title: "Project action failed", message: describeRpcFailure(exit.cause) });
-  return false;
-}
+const reportProjectFailure = (exit: Exit.Exit<unknown, RpcFailure>) =>
+  reportFailure("Project action failed", exit);
 
 function useCreateProject() {
   const create = useAtomSet(createProjectAtom, { mode: "promiseExit" });
@@ -32,9 +29,10 @@ function useCreateProject() {
       title: "New project",
       label: "Project name",
       confirmLabel: "Create",
+      validation: NAME_VALIDATION,
     });
     if (name !== null) {
-      await reportFailure(await create({ payload: { name }, reactivityKeys }));
+      await reportProjectFailure(await create({ payload: { name }, reactivityKeys }));
     }
   };
 }
@@ -47,9 +45,10 @@ function useRenameProject() {
       label: "Project name",
       initialValue: project.name,
       confirmLabel: "Rename",
+      validation: NAME_VALIDATION,
     });
     if (name !== null) {
-      await reportFailure(
+      await reportProjectFailure(
         await rename({ payload: { projectId: project.id, name }, reactivityKeys }),
       );
     }
@@ -70,7 +69,7 @@ function useDeleteProject() {
     if (!confirmed) {
       return;
     }
-    const deleted = await reportFailure(
+    const deleted = await reportProjectFailure(
       await remove({ payload: { projectId: project.id }, reactivityKeys }),
     );
     if (deleted && pathname.startsWith(`/projects/${project.id}`)) {

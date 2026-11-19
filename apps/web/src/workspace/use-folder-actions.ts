@@ -1,7 +1,9 @@
 import { useAtomSet } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
-import { Exit } from "effect";
-import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
+import type { Exit } from "effect";
+import { NAME_VALIDATION } from "../dialogs/name-validation.js";
+import { reportFailure } from "../dialogs/report-failure.js";
+import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
 import {
   createFolderAtom,
   deleteFolderAtom,
@@ -9,7 +11,7 @@ import {
   renameFolderAtom,
 } from "../rpc/folder-mutations.js";
 import { PROJECTS_KEY, projectKey } from "../rpc/project-queries.js";
-import { choose, confirm, notify, prompt } from "../state/dialog-store.js";
+import { choose, confirm, prompt } from "../state/dialog-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { areaTarget, useCurrentArea } from "./area-route.js";
 import {
@@ -30,13 +32,8 @@ export interface FolderActionScope {
 const ROOT_CHOICE = "root";
 
 /** Shows a failed folder action and reports whether it succeeded. */
-async function reportFailure(exit: Exit.Exit<unknown, RpcFailure>): Promise<boolean> {
-  if (Exit.isSuccess(exit)) {
-    return true;
-  }
-  await notify({ title: "Folder action failed", message: describeRpcFailure(exit.cause) });
-  return false;
-}
+const reportFolderFailure = (exit: Exit.Exit<unknown, RpcFailure>) =>
+  reportFailure("Folder action failed", exit);
 
 function useCreateFolder({ projectId }: FolderActionScope) {
   const create = useAtomSet(createFolderAtom, { mode: "promiseExit" });
@@ -46,6 +43,7 @@ function useCreateFolder({ projectId }: FolderActionScope) {
       title: "New folder",
       label: "Folder name",
       confirmLabel: "Create",
+      validation: NAME_VALIDATION,
     });
     if (name === null) {
       return;
@@ -54,7 +52,7 @@ function useCreateFolder({ projectId }: FolderActionScope) {
       setFolderExpanded(parentFolderId, true);
     }
     const payload = { projectId, parentFolderId, name };
-    await reportFailure(await create({ payload, reactivityKeys: [projectKey(projectId)] }));
+    await reportFolderFailure(await create({ payload, reactivityKeys: [projectKey(projectId)] }));
   };
 }
 
@@ -66,10 +64,11 @@ function useRenameFolder({ projectId }: FolderActionScope) {
       label: "Folder name",
       initialValue: folder.name,
       confirmLabel: "Rename",
+      validation: NAME_VALIDATION,
     });
     if (name !== null) {
       const payload = { projectId, folderId: folder.id, name };
-      await reportFailure(await rename({ payload, reactivityKeys: [projectKey(projectId)] }));
+      await reportFolderFailure(await rename({ payload, reactivityKeys: [projectKey(projectId)] }));
     }
   };
 }
@@ -102,7 +101,9 @@ function useMoveFolder(scope: FolderActionScope) {
       folderId: folder.id,
       parentFolderId: choice === ROOT_CHOICE ? null : choice,
     };
-    await reportFailure(await move({ payload, reactivityKeys: [projectKey(scope.projectId)] }));
+    await reportFolderFailure(
+      await move({ payload, reactivityKeys: [projectKey(scope.projectId)] }),
+    );
   };
 }
 
@@ -123,7 +124,9 @@ function useDeleteFolder({ projectId, folders }: FolderActionScope) {
     const leavesArea =
       currentFolderId !== null && isWithinFolder(folders, currentFolderId, folder.id);
     const payload = { projectId, folderId: folder.id };
-    const deleted = await reportFailure(await remove({ payload, reactivityKeys: [PROJECTS_KEY] }));
+    const deleted = await reportFolderFailure(
+      await remove({ payload, reactivityKeys: [PROJECTS_KEY] }),
+    );
     if (deleted && leavesArea) {
       await navigate(areaTarget(projectId, folder.parentFolderId));
     }

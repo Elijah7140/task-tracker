@@ -22,7 +22,7 @@ function ChoiceRow({ option }: { readonly option: ChoiceOption }) {
       <Radio.Root
         value={option.value}
         data-testid="choice-dialog-option"
-        className="grid size-4 shrink-0 place-items-center rounded-full border border-line-strong bg-canvas outline-none focus-visible:ring-3 focus-visible:ring-focus data-checked:border-accent data-checked:bg-accent"
+        className="grid size-4 shrink-0 place-items-center rounded-full border border-control-outline bg-canvas outline-none focus-visible:ring-3 focus-visible:ring-focus data-checked:border-accent data-checked:bg-accent"
       >
         <Radio.Indicator className="size-1.5 rounded-full bg-on-accent" />
       </Radio.Root>

@@ -1,6 +1,8 @@
 import { useAtomSet } from "@effect/atom-react";
-import { Exit } from "effect";
-import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
+import type { Exit } from "effect";
+import { NAME_VALIDATION } from "../dialogs/name-validation.js";
+import { reportFailure } from "../dialogs/report-failure.js";
+import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
 import {
   addItemTypeAtom,
   addPriorityLevelAtom,
@@ -16,7 +18,7 @@ import {
   restoreItemTypeAtom,
   restorePriorityLevelAtom,
 } from "../rpc/lookup-queries.js";
-import { notify, prompt } from "../state/dialog-store.js";
+import { prompt } from "../state/dialog-store.js";
 import { moveActiveLookup, type OrderedLookup, swapActiveLookup } from "./lookup-order.js";
 
 /** Which lookup list is being edited. */
@@ -28,15 +30,31 @@ export interface LookupItem extends OrderedLookup {
   readonly isBuiltIn: boolean;
 }
 
+/** Runs one lookup mutation and shows a rejection. Resolves with whether it succeeded. */
 async function runLookupMutation(
   action: () => Promise<Exit.Exit<unknown, RpcFailure>>,
 ): Promise<boolean> {
-  const exit = await action();
-  if (Exit.isSuccess(exit)) {
-    return true;
-  }
-  await notify({ title: "Lookup validation", message: describeRpcFailure(exit.cause) });
-  return false;
+  return reportFailure("Lookup validation", await action());
+}
+
+/** The add, rename, archive and restore RPC mutations for one lookup list. */
+function useLookupMutations(isItemType: boolean) {
+  const options = { mode: "promiseExit" } as const;
+  return {
+    add: useAtomSet(isItemType ? addItemTypeAtom : addPriorityLevelAtom, options),
+    rename: useAtomSet(isItemType ? renameItemTypeAtom : renamePriorityLevelAtom, options),
+    archive: useAtomSet(isItemType ? archiveItemTypeAtom : archivePriorityLevelAtom, options),
+    restore: useAtomSet(isItemType ? restoreItemTypeAtom : restorePriorityLevelAtom, options),
+  };
+}
+
+/** Saves `ids` as the new order, or resolves false without a request when nothing moved. */
+function useSaveOrder(isItemType: boolean, reactivityKeys: Array<string>) {
+  const reorder = useAtomSet(isItemType ? reorderItemTypesAtom : reorderPriorityLevelsAtom, {
+    mode: "promiseExit",
+  });
+  return async (ids: ReadonlyArray<string> | null) =>
+    ids === null ? false : runLookupMutation(() => reorder({ payload: { ids }, reactivityKeys }));
 }
 
 /**
@@ -47,65 +65,35 @@ export function useLookupActions(kind: LookupKind) {
   const isItemType = kind === "itemTypes";
   const singular = isItemType ? "item type" : "priority level";
   const reactivityKeys = [isItemType ? ITEM_TYPES_KEY : PRIORITY_LEVELS_KEY, LOOKUPS_KEY];
-
-  const addAtom = useAtomSet(isItemType ? addItemTypeAtom : addPriorityLevelAtom, {
-    mode: "promiseExit",
-  });
-  const renameAtom = useAtomSet(isItemType ? renameItemTypeAtom : renamePriorityLevelAtom, {
-    mode: "promiseExit",
-  });
-  const archiveAtom = useAtomSet(isItemType ? archiveItemTypeAtom : archivePriorityLevelAtom, {
-    mode: "promiseExit",
-  });
-  const restoreAtom = useAtomSet(isItemType ? restoreItemTypeAtom : restorePriorityLevelAtom, {
-    mode: "promiseExit",
-  });
-  const reorderAtom = useAtomSet(isItemType ? reorderItemTypesAtom : reorderPriorityLevelsAtom, {
-    mode: "promiseExit",
-  });
-
-  const add = (name: string) =>
-    runLookupMutation(() => addAtom({ payload: { name }, reactivityKeys }));
+  const mutations = useLookupMutations(isItemType);
+  const saveOrder = useSaveOrder(isItemType, reactivityKeys);
 
   const rename = async (row: LookupItem) => {
-    const next = await prompt({
+    const name = await prompt({
       title: `Rename ${singular}`,
       label: "Name",
       initialValue: row.name,
       confirmLabel: "Rename",
+      validation: NAME_VALIDATION,
     });
-    if (next !== null) {
+    if (name !== null) {
       await runLookupMutation(() =>
-        renameAtom({ payload: { id: row.id, name: next }, reactivityKeys }),
+        mutations.rename({ payload: { id: row.id, name }, reactivityKeys }),
       );
     }
   };
 
-  const archive = (row: LookupItem) =>
-    runLookupMutation(() => archiveAtom({ payload: { id: row.id }, reactivityKeys }));
-
-  const restore = (row: LookupItem) =>
-    runLookupMutation(() => restoreAtom({ payload: { id: row.id }, reactivityKeys }));
-
-  const move = async (rows: ReadonlyArray<LookupItem>, id: string, direction: -1 | 1) => {
-    const ids = swapActiveLookup(rows, id, direction);
-    if (ids === null) {
-      return false;
-    }
-    return runLookupMutation(() => reorderAtom({ payload: { ids }, reactivityKeys }));
+  return {
+    add: (name: string) =>
+      runLookupMutation(() => mutations.add({ payload: { name }, reactivityKeys })),
+    rename,
+    archive: (row: LookupItem) =>
+      runLookupMutation(() => mutations.archive({ payload: { id: row.id }, reactivityKeys })),
+    restore: (row: LookupItem) =>
+      runLookupMutation(() => mutations.restore({ payload: { id: row.id }, reactivityKeys })),
+    move: (rows: ReadonlyArray<LookupItem>, id: string, direction: -1 | 1) =>
+      saveOrder(swapActiveLookup(rows, id, direction)),
+    dragReorder: (rows: ReadonlyArray<LookupItem>, draggedId: string, targetId: string) =>
+      saveOrder(moveActiveLookup(rows, draggedId, targetId)),
   };
-
-  const dragReorder = async (
-    rows: ReadonlyArray<LookupItem>,
-    draggedId: string,
-    targetId: string,
-  ) => {
-    const ids = moveActiveLookup(rows, draggedId, targetId);
-    if (ids === null) {
-      return false;
-    }
-    return runLookupMutation(() => reorderAtom({ payload: { ids }, reactivityKeys }));
-  };
-
-  return { add, rename, archive, restore, move, dragReorder };
 }

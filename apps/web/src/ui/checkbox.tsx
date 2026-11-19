@@ -35,7 +35,7 @@ export function Checkbox({
         disabled={disabled}
         aria-label={ariaLabel}
         data-testid={testId}
-        className="grid size-4 shrink-0 place-items-center rounded-[0.25rem] border border-line-strong bg-canvas text-on-accent outline-none transition-colors focus-visible:ring-3 focus-visible:ring-focus data-checked:border-accent data-checked:bg-accent data-disabled:bg-hover"
+        className="grid size-4 shrink-0 place-items-center rounded-[0.25rem] border border-control-outline bg-canvas text-on-accent outline-none transition-colors focus-visible:ring-3 focus-visible:ring-focus data-checked:border-accent data-checked:bg-accent data-disabled:bg-hover"
       >
         <BaseCheckbox.Indicator className="grid place-items-center">
           <Check size={12} strokeWidth={2.75} aria-hidden="true" />

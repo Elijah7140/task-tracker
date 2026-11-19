@@ -59,19 +59,31 @@ describe("HomePage", () => {
     expect(store.names()).toEqual([]);
   });
 
-  it("Shows the server's message when a project name is rejected", async () => {
+  it("Keeps the new project prompt open with Enter a name when the name is blank", async () => {
     const { store } = await renderApp();
     await page.getByTestId("new-project-button").click();
 
     await userEvent.keyboard("   {Enter}");
 
-    const message = page.getByRole("alertdialog", { name: "Project action failed" });
     await expect
-      .element(message)
-      .toHaveAccessibleDescription("Project name must be 1 to 300 characters.");
-    await page.getByTestId("message-dialog-ok").click();
-    await expect.element(message).not.toBeInTheDocument();
+      .element(page.getByTestId("prompt-dialog-error"))
+      .toHaveTextContent("Enter a name.");
+    await expect.element(page.getByTestId("prompt-dialog-submit")).toBeDisabled();
+    expect(store.calls).not.toContain("CreateProject");
     expect(store.names()).toEqual([]);
+  });
+
+  it("Blocks renaming a project to a name longer than 300 characters", async () => {
+    const { store } = await renderApp({ projects: [billing] });
+    await openCardAction("Billing DB", "project-rename");
+
+    await page.getByTestId("prompt-dialog-input").fill("x".repeat(301));
+    await userEvent.keyboard("{Enter}");
+
+    await expect
+      .element(page.getByTestId("prompt-dialog-error"))
+      .toHaveTextContent("Name must be 300 characters or fewer.");
+    expect(store.calls).not.toContain("RenameProject");
   });
 
   it("Renames a project from its card menu", async () => {

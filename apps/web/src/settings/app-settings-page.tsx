@@ -1,15 +1,37 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { AsyncResult } from "effect/reactivity";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { itemTypesAtom, priorityLevelsAtom } from "../rpc/lookup-queries.js";
 import { globalSettingsAtom } from "../rpc/settings-queries.js";
+import { buttonClassName } from "../ui/button.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
+import { areaTarget } from "../workspace/area-route.js";
 import { GlobalDefaultsCard } from "./global-defaults-card.js";
 import { LookupListCard } from "./lookup-list-card.js";
 import { useUnsavedSettingsGuard } from "./use-unsaved-settings-guard.js";
+
+const appSettingsRoute = getRouteApi("/settings");
+
+/**
+ * Returns to the project App Settings was opened from, else home (the legacy
+ * BackCommand). The unsaved-settings guard still asks before leaving.
+ */
+function AppSettingsBack() {
+  const { returnProjectId } = appSettingsRoute.useSearch();
+  const target =
+    returnProjectId === undefined ? { to: "/" as const } : areaTarget(returnProjectId, null);
+  return (
+    <Link {...target} data-testid="app-settings-back" className={buttonClassName("ghost", "sm")}>
+      <ArrowLeft size={14} aria-hidden="true" />
+      Back
+    </Link>
+  );
+}
 
 function SettingsSkeleton() {
   return (
@@ -57,6 +79,7 @@ export function AppSettingsPage() {
       <PageHeader
         title="App Settings"
         description="Global defaults, item types and priority levels."
+        actions={<AppSettingsBack />}
       />
       {failure !== undefined ? (
         <LoadFailure

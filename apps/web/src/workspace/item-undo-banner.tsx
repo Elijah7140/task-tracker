@@ -53,7 +53,7 @@ export function ItemUndoBanner({ batch, onUndo, onDismiss }: ItemUndoBannerProps
         size="sm"
         onClick={() => void onUndo()}
         data-testid="item-undo-button"
-        className="text-accent hover:text-accent-hover"
+        className="text-accent-text hover:underline"
       >
         Undo
       </Button>
