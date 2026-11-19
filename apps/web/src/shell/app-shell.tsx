@@ -10,6 +10,7 @@ import { UndoBlockers } from "./undo-blockers.js";
 import { useCoveringPage } from "./use-covering-page.js";
 import { useHistoryActions } from "./use-history-actions.js";
 import { Sidebar } from "./sidebar.js";
+import { StatusNotice } from "./status-notice.js";
 
 /**
  * The undo and redo outcome toast. The live region stays mounted while empty, so
@@ -68,6 +69,7 @@ export function AppShell() {
               <SearchPage onBack={() => void goBack()} runGuards={returnGuards.run} />
             ) : null}
           </main>
+          <StatusNotice superseded={history.message !== null} />
           <HistoryStatus message={history.message} />
         </div>
       </ReturnGuards.Provider>

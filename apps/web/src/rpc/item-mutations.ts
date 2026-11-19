@@ -41,3 +41,9 @@ export const setItemPriorityAtom = TaskTrackerClient.mutation("SetItemPriority")
 
 /** Assigns a workflow status, using the normal completion and reopen rules. */
 export const setItemStatusAtom = TaskTrackerClient.mutation("SetItemStatus");
+
+/** Moves an open repeating item to its next date; false means the rule had no next date (§7.11). */
+export const skipRepeatAtom = TaskTrackerClient.mutation("SkipRepeat");
+
+/** Removes the repeat rule from one occurrence (§7.11). */
+export const stopRepeatingAtom = TaskTrackerClient.mutation("StopRepeating");

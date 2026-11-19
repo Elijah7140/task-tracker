@@ -7,8 +7,10 @@ import {
   CircleCheck,
   CornerDownRight,
   Ellipsis,
+  Repeat,
 } from "lucide-react";
 import { deadlineLabel, formatInstantDate } from "../format/item-dates.js";
+import { describeRepeat } from "../format/recurrence-summary.js";
 import { cx } from "../ui/class-names.js";
 import { MenuContent } from "../ui/menu.js";
 import { Tooltip } from "../ui/tooltip.js";
@@ -100,6 +102,29 @@ export function UrgencySource({ title }: { readonly title: string }) {
   );
 }
 
+/** The rule summary of a repeating item, such as "Weekly on Fri", or null (§7.11). */
+export function repeatSummary(node: ItemNode): string | null {
+  const rule = node.item.recurrence ?? null;
+  return rule === null ? null : describeRepeat(rule);
+}
+
+/** The ↻ marker on a repeating card or row, with the rule as its tooltip (§7.11). */
+export function RepeatMarker({ summary }: { readonly summary: string }) {
+  const label = `Repeats: ${summary}`;
+  return (
+    <Tooltip content={summary} testId="repeat-marker-tooltip">
+      <span
+        role="img"
+        aria-label={label}
+        data-testid="repeat-marker"
+        className="grid size-5 shrink-0 place-items-center rounded-full text-fg-subtle hover:bg-hover"
+      >
+        <Repeat size={12} aria-hidden="true" />
+      </span>
+    </Tooltip>
+  );
+}
+
 /** The name of the item's stored status, including an archived one. */
 export function statusName(node: ItemNode, lookups: ItemRowLookups): string | undefined {
   return lookups.statuses.find((status) => status.id === node.item.statusId)?.name;
@@ -131,6 +156,7 @@ function describeItemNode(node: ItemNode, lookups: ItemRowLookups, date: ItemDat
     date?.spoken ?? date?.text ?? null,
     urgency === "None" ? null : urgency,
     source === undefined ? null : `from sub-item ${source}`,
+    node.item.recurrence == null ? null : `repeats ${repeatSummary(node)}`,
   ]
     .filter((part) => part !== null && part !== "")
     .join(", ");
@@ -138,7 +164,7 @@ function describeItemNode(node: ItemNode, lookups: ItemRowLookups, date: ItemDat
 
 /**
  * The hidden description a card's or row's tree item points to with `aria-describedby`:
- * state, type, status, ticket, priority, date and urgency with its source.
+ * state, type, status, ticket, priority, date, urgency with its source, and the repeat rule.
  */
 export function ItemDescription({
   node,

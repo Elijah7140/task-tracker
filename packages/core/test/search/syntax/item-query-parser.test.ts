@@ -491,7 +491,7 @@ describe("parseItemQuery errors", () => {
     const error = onlyError("zzzzzz:1");
 
     expect(error.message).toBe(
-      "Unknown field 'zzzzzz'. Fields you can use: title, ticket, type, priority, due, scheduled, status, completed, link, effort, flagged.",
+      "Unknown field 'zzzzzz'. Fields you can use: title, ticket, type, priority, due, scheduled, status, completed, link, repeats, effort, flagged.",
     );
   });
 

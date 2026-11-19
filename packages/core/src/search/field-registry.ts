@@ -42,6 +42,7 @@ export const BUILT_IN_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("status", "Status", "Text"),
   builtInField("completed", "Completed", "Boolean"),
   builtInField("link", "Links", "Text"),
+  builtInField("repeats", "Repeats", "Boolean"),
 ];
 
 /** Active lookup and custom choice rows used to populate choice search filters. */

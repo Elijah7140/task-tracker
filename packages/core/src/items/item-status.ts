@@ -1,5 +1,6 @@
 import * as CompletionService from "../completion/completion-service.js";
 import type { CompletionResult } from "../completion/completion-result.js";
+import type { OccurrenceContext } from "../completion/recurring-completion.js";
 import type { StatusLevel } from "../lookups/status-level.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import type { ItemTree } from "./item-tree.js";
@@ -23,7 +24,11 @@ export function completionStatus(
   return { statusId: doneStatusId, reopenStatusId: item.statusId };
 }
 
-/** Validate a new selection and route completion changes through the normal tree rules. */
+/**
+ * Validate a new selection and route completion changes through the normal tree rules.
+ * When a Done selection leaves the item open because a new occurrence of a sub-item
+ * keeps it open, the result explains that and the status must not be assigned (§7.15).
+ */
 export function planStatusChange(
   tree: ItemTree,
   itemId: string,
@@ -32,6 +37,7 @@ export function planStatusChange(
   autoComplete: boolean,
   now: Temporal.Instant,
   approval?: readonly string[],
+  recurrence?: OccurrenceContext,
 ): CompletionResult {
   const item = tree.get(itemId);
   if (item.statusId === statusId) {
@@ -45,7 +51,18 @@ export function planStatusChange(
   if (done === (item.completedAtUtc !== null)) {
     return { kind: "applied", changes: [] };
   }
-  return done
-    ? CompletionService.complete(tree, itemId, autoComplete, now, approval)
-    : CompletionService.reopen(tree, itemId, autoComplete, now);
+  if (!done) {
+    return CompletionService.reopen(tree, itemId, autoComplete, now);
+  }
+  const result = CompletionService.complete(tree, itemId, autoComplete, now, approval, recurrence);
+  const completed =
+    result.kind === "applied" &&
+    result.changes.some((change) => change.itemId === itemId && change.completedAtUtc !== null);
+  if (result.kind !== "applied" || completed) {
+    return result;
+  }
+  return {
+    ...result,
+    parentKeptOpenMessage: `A new occurrence of a sub-item keeps '${item.title}' open.`,
+  };
 }

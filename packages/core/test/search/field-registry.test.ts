@@ -51,6 +51,7 @@ describe("listSearchableFields", () => {
       "status",
       "completed",
       "link",
+      "repeats",
       "global",
       "local",
     ]);
@@ -64,6 +65,7 @@ describe("listSearchableFields", () => {
       "status",
       "completed",
       "link",
+      "repeats",
       "global",
       "local",
       "other",

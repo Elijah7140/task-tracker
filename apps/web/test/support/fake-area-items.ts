@@ -1,4 +1,4 @@
-import type { AreaSnapshot } from "@task-tracker/contracts";
+import type { AreaSnapshot, RecurrenceRule } from "@task-tracker/contracts";
 
 type Snapshot = typeof AreaSnapshot.Type;
 type WireItemNode = Snapshot["items"]["open"][number];
@@ -27,6 +27,8 @@ export interface SeedItem {
   readonly urgency?: FakeUrgency;
   /** Overrides the displayed urgency, for example one rolled up from a sub-item. */
   readonly displayed?: { readonly value: FakeUrgency; readonly sourceTitle: string };
+  /** A seeded repeat rule (§7.11). */
+  readonly recurrence?: typeof RecurrenceRule.Type;
   readonly children?: ReadonlyArray<SeedItem>;
 }
 
@@ -168,6 +170,8 @@ export class FakeAreaBuilder {
             : COMPLETED_STATUS_ID,
       reopenStatusId: null,
       completedAtUtc: seed.completedAtUtc ?? null,
+      recurrence: seed.recurrence ?? null,
+      recurrenceSeriesId: seed.recurrence === undefined ? null : `${id.slice(0, -4)}5E21`,
       deletedAtUtc: null,
       deletionBatchId: null,
     };

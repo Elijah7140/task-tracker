@@ -224,3 +224,14 @@ it("rejects an index outside the destination siblings", () => {
   expect(() => tree.moveAt("first", null, -1, now)).toThrow(HierarchyError);
   expect(tree.children(null).map((row) => row.id)).toEqual(["first", "second"]);
 });
+
+it("Replaces an item's fields without moving it", () => {
+  const tree = new ItemTree(projectId, null, [item("first"), item("second", { sortOrder: 1 })]);
+
+  tree.replace({ ...tree.get("first"), title: "Renamed" });
+
+  expect(tree.children(null).map((row) => row.title)).toEqual(["Renamed", "Task"]);
+  expect(() => tree.replace({ ...tree.get("second"), sortOrder: 0 })).toThrow(
+    "Item replacement cannot move it.",
+  );
+});

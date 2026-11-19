@@ -47,6 +47,14 @@ export function itemFieldValueRepository(sql: SqlClient.SqlClient) {
           TextValue = excluded.TextValue, NumberValue = excluded.NumberValue,
           DateValue = excluded.DateValue, BoolValue = excluded.BoolValue, ChoiceId = excluded.ChoiceId`,
     }),
+    /** Copies every stored value of one item to a new next occurrence (§7.11). */
+    copy: SqlSchema.void({
+      Request: Schema.Struct({ sourceId: Guid, copyId: Guid }),
+      execute: ({ sourceId, copyId }) => sql`INSERT INTO ItemFieldValue
+        (ItemId, FieldDefinitionId, TextValue, NumberValue, DateValue, BoolValue, ChoiceId)
+        SELECT ${copyId}, FieldDefinitionId, TextValue, NumberValue, DateValue, BoolValue, ChoiceId
+        FROM ItemFieldValue WHERE ItemId = ${sourceId} ORDER BY rowid`,
+    }),
     remove: SqlSchema.void({
       Request: Schema.Struct(valueKey),
       execute: ({ itemId, fieldDefinitionId }) =>

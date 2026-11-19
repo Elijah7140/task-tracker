@@ -1,4 +1,4 @@
-import { EntityMissing } from "@task-tracker/core";
+import { EntityMissing, type TodoItem } from "@task-tracker/core";
 import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
@@ -7,10 +7,12 @@ import {
   ItemDatesRow,
   ItemEditRow,
   ItemPriorityRow,
+  ItemRecurrenceRow,
   ItemRow,
   itemRowColumns,
   ItemStructureRow,
 } from "./item-row.js";
+import { writeRecurrence } from "./recurrence-columns.js";
 
 const area = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
 
@@ -30,6 +32,12 @@ export function itemRepository(sql: SqlClient.SqlClient) {
         WHERE ProjectId = ${projectId} AND FolderId IS ${folderId}
         ${includeDeleted ? sql` ` : sql`AND ${activeRow(sql)}`} ORDER BY rowid`,
     });
+
+  const writeRecurrenceRow = SqlSchema.void({
+    Request: ItemRecurrenceRow,
+    execute: ({ Id, ...values }) =>
+      sql`UPDATE TodoItem SET ${sql.update(values)} WHERE Id = ${Id} AND ${activeRow(sql)}`,
+  });
 
   return {
     loadActiveArea: listArea(false),
@@ -69,6 +77,27 @@ export function itemRepository(sql: SqlClient.SqlClient) {
       Request: ItemDatesRow,
       execute: ({ Id, ...values }) =>
         sql`UPDATE TodoItem SET ${sql.update(values)} WHERE Id = ${Id} AND ${activeRow(sql)}`,
+    }),
+    /** Writes the item's rule, series and successor marker with its modification time. */
+    saveRecurrence: (item: TodoItem) =>
+      writeRecurrenceRow({
+        id: item.id,
+        updatedAtUtc: item.updatedAtUtc,
+        ...writeRecurrence(item),
+      }),
+    /** Remembers that completing this occurrence created its successor (§7.11). */
+    markSuccessorCreated: SqlSchema.void({
+      Request: Schema.Struct({ id: Guid, now: UtcTimestamp }),
+      execute: ({ id, now }) => sql`UPDATE TodoItem SET RecurrenceSuccessorCreated = 1,
+        UpdatedAtUtc = ${now} WHERE Id = ${id} AND ${activeRow(sql)}`,
+    }),
+    /** Copies the reminder choice, without delivery or snooze state, to a next occurrence. */
+    copyReminder: SqlSchema.void({
+      Request: Schema.Struct({ sourceId: Guid, copyId: Guid }),
+      execute: ({ sourceId, copyId }) => sql`UPDATE TodoItem SET
+        ReminderMode = (SELECT ReminderMode FROM TodoItem WHERE Id = ${sourceId}),
+        ReminderOffsetMinutes = (SELECT ReminderOffsetMinutes FROM TodoItem WHERE Id = ${sourceId})
+        WHERE Id = ${copyId}`,
     }),
     updateEdit: SqlSchema.void({
       Request: ItemEditRow,

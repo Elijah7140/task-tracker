@@ -1,6 +1,13 @@
-import { Schema } from "effect";
+import type { TodoItem } from "@task-tracker/core";
+import { Effect, Schema, SchemaIssue, SchemaTransformation } from "effect";
 import { Statement } from "effect/sql";
 import { DateText, FloatingTimestamp, Guid, TimeText, UtcTimestamp } from "../storage-codecs.js";
+import {
+  readRecurrence,
+  recurrenceColumnFields,
+  recurrenceColumnNames,
+  writeRecurrence,
+} from "./recurrence-columns.js";
 import { trackedColumns, trackedFields } from "./row-fields.js";
 
 const structureFields = {
@@ -39,17 +46,70 @@ const columns = {
 } as const;
 
 /** Selects the columns decoded by ItemRow. Reminder ticks require a separate bigint read. */
-export const itemRowColumns = Statement.csv(Object.values(columns));
+export const itemRowColumns = Statement.csv([
+  ...Object.values(columns),
+  ...Object.values(recurrenceColumnNames),
+]);
 
-/** TodoItem row with legacy column names and floating and UTC time codecs. */
-export const ItemRow = Schema.Struct({
+const FlatItemRow = Schema.Struct({
   ...trackedFields,
   ...structureFields,
   ...editFields,
   statusId: Schema.NullOr(Guid),
   reopenStatusId: Schema.NullOr(Guid),
   completedAtUtc: Schema.NullOr(UtcTimestamp),
-}).pipe(Schema.encodeKeys(columns));
+  ...recurrenceColumnFields,
+}).pipe(Schema.encodeKeys({ ...columns, ...recurrenceColumnNames }));
+
+type FlatItem = (typeof FlatItemRow)["Type"];
+
+function nestRecurrence(row: FlatItem): TodoItem {
+  const {
+    recurrenceFrequency: _frequency,
+    recurrenceInterval: _interval,
+    recurrenceWeekdays: _weekdays,
+    recurrenceMonthDay: _monthDay,
+    recurrenceMonth: _month,
+    recurrenceAnchor: _anchor,
+    recurrenceEndKind: _endKind,
+    recurrenceEndDate: _endDate,
+    recurrenceRemaining: _remaining,
+    ...item
+  } = row;
+  return { ...item, ...readRecurrence(row) };
+}
+
+function flattenRecurrence(item: TodoItem): FlatItem {
+  const { recurrence: _rule, ...rest } = item;
+  return { ...rest, ...writeRecurrence(item) };
+}
+
+/**
+ * TodoItem row with legacy column names, floating and UTC time codecs, and the
+ * recurrence columns joined into one rule (§7.11).
+ */
+export const ItemRow = FlatItemRow.pipe(
+  Schema.decodeTo(
+    Schema.declare(
+      (value: unknown): value is TodoItem => typeof value === "object" && value !== null,
+    ),
+    SchemaTransformation.transformEffect({
+      decode: (row: FlatItem) =>
+        Effect.try({
+          try: () => nestRecurrence(row),
+          catch: (error) => new SchemaIssue.InvalidValue({ message: String(error) }, row),
+        }),
+      encode: (item: TodoItem) => Effect.succeed(flattenRecurrence(item)),
+    }),
+  ),
+);
+
+/** Columns written when a rule is set, skipped, stopped or used to create a successor. */
+export const ItemRecurrenceRow = Schema.Struct({
+  id: Guid,
+  updatedAtUtc: UtcTimestamp,
+  ...recurrenceColumnFields,
+}).pipe(Schema.encodeKeys({ ...trackedColumns, ...recurrenceColumnNames }));
 
 const { createdAtUtc: _, ...mutableFields } = trackedFields;
 
