@@ -30,12 +30,18 @@ export function createPriorityLevel(
   return renameLookup(row, name, rows);
 }
 
+/** Legacy `PriorityLevel.Number` is a .NET Int32, so stored numbers stay within its range. */
+const maxPriorityNumber = 2_147_483_647;
+
 function validatePriorityNumber(row: PriorityLevel, rows: readonly PriorityLevel[]) {
   if (row.number === null) {
     return;
   }
   if (!Number.isSafeInteger(row.number) || row.number < 1) {
     throw new MetadataRuleError("Priority number must be a whole number of at least 1.");
+  }
+  if (row.number > maxPriorityNumber) {
+    throw new MetadataRuleError(`Priority number must be no greater than ${maxPriorityNumber}.`);
   }
   if (
     !row.isArchived &&

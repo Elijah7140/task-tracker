@@ -7,6 +7,7 @@ import type {
 import { useCallback, useEffect, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { missingEntityMessage } from "../rpc/missing-entity.js";
+import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import {
   invalidateSettingsKeysAtom,
@@ -215,7 +216,7 @@ function useSaveOverrides({
       }
     } else if (outcome.kind === "applied") {
       form.setSaved(overrides);
-      await invalidateKeys([projectSettingsKey(projectId), PROJECTS_KEY]);
+      await invalidateKeys([HISTORY_KEY, projectSettingsKey(projectId), PROJECTS_KEY]);
     }
   };
 

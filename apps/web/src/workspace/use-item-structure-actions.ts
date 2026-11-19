@@ -19,7 +19,7 @@ import { carryItemEditor, useItemEditorStore } from "../state/item-editor-store.
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { useSerialReorder } from "../ui/use-serial-reorder.js";
 import { areaTarget } from "./area-route.js";
-import { stepCard } from "./card-drop-mapper.js";
+import { keepsSection, stepCard } from "./card-drop-mapper.js";
 import { areaChoiceOptions, type Folder, ROOT_AREA_CHOICE } from "./folder-outline.js";
 import {
   departureFocusIds,
@@ -319,7 +319,32 @@ function useReorderItems(scope: ItemStructureScope) {
     if (placement === null) {
       return false;
     }
+    if (keepsSection(node, placement)) {
+      return swapCards(nodes, node, placement.targetId);
+    }
     return finishMove(nodes, node.item.id, await saveCardMove(node, placement));
+  };
+
+  /**
+   * A step inside the card's own section swaps it with its neighbour in the persisted sibling
+   * order, as legacy ReorderSelectedAsync did, so finished items keep their slots. A drop would
+   * insert into the full sibling list and move them (§6.4).
+   */
+  const swapCards = async (nodes: ItemSiblings, node: ItemNode, targetId: string) => {
+    const allIds = persistedSiblingOrder(siblingNodesOf(nodes, null));
+    const itemIds = allIds.map((id) =>
+      id === node.item.id ? targetId : id === targetId ? node.item.id : id,
+    );
+    const exit = await reorder({
+      payload: {
+        projectId: scope.projectId,
+        folderId: scope.folderId,
+        parentItemId: null,
+        itemIds,
+      },
+      reactivityKeys: [key, HISTORY_KEY],
+    });
+    return finishMove(nodes, node.item.id, exit);
   };
 
   /** Alt+↑/↓ on a sub-item or a completed card swaps it with its visible sibling. */

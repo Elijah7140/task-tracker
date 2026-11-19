@@ -46,6 +46,12 @@ async function copyDatabase(path: string, time: Temporal.Instant) {
   await pruneBackups(path, destination);
 }
 
+/**
+ * Migration backups are `tasktracker-` followed directly by the timestamp. Import backups
+ * (`tasktracker-import-…`) and any other files form separate pools that pruning never touches.
+ */
+const migrationBackupName = /^tasktracker-\d+\.db\.bak$/;
+
 async function pruneBackups(path: string, destination: string) {
   const folder = dirname(path);
   const active = basename(path).toLowerCase();
@@ -57,7 +63,7 @@ async function pruneBackups(path: string, destination: string) {
         entry.isFile() &&
         entry.name.toLowerCase() !== active &&
         entry.name !== saved &&
-        /^tasktracker-.*\.db\.bak$/.test(entry.name),
+        migrationBackupName.test(entry.name),
     )
     .map((entry) => entry.name)
     .sort()
@@ -67,7 +73,7 @@ async function pruneBackups(path: string, destination: string) {
   }
 }
 
-/** Saves the committed database before migration and retains the five newest backups. */
+/** Saves the committed database before migration and retains the five newest migration backups. */
 export const backupDatabase = Effect.fnUntraced(function* (path: string) {
   const milliseconds = yield* Clock.currentTimeMillis;
   const time = Temporal.Instant.fromEpochMilliseconds(milliseconds);

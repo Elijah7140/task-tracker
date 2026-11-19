@@ -43,29 +43,35 @@ function fakeGitHub() {
   let release: GitHubRelease | undefined;
   const faults = { failUpload: false, corruptUpload: false };
   const github: GitHubReleases = {
-    find: async () => release,
-    deleteDraft: async () => {
-      actions.push("delete");
-      release = undefined;
-    },
+    find: async () => release && structuredClone(release),
     createDraft: async (prerelease) => {
       actions.push(`draft (prerelease=${prerelease})`);
       release = { id: 42, draft: true, prerelease, assets: [] };
       return release.id;
     },
     upload: async (assets) => {
-      actions.push("upload");
+      actions.push(`upload ${assets.length}`);
       if (!release) {
         throw new Error("Draft missing");
       }
-      release.assets = assets.map(({ path, size, digest }) => ({
-        name: basename(path),
-        state: "uploaded",
-        size,
-        digest: faults.corruptUpload ? "sha256:wrong" : digest,
-      }));
+      const uploads = faults.failUpload ? assets.slice(0, 1) : assets;
+      const names = new Set(uploads.map(({ path }) => basename(path)));
+      release.assets = [
+        ...release.assets.filter(({ name }) => !names.has(name)),
+        ...uploads.map(({ path, size, digest }) => ({
+          name: basename(path),
+          state: "uploaded",
+          size,
+          digest: faults.corruptUpload ? "sha256:wrong" : digest,
+        })),
+      ];
       if (faults.failUpload) {
-        release.assets = release.assets.slice(0, 1);
+        release.assets.push({
+          name: basename(assets[1]!.path),
+          state: "starter",
+          size: 0,
+          digest: "",
+        });
         throw new Error("Upload interrupted");
       }
     },
@@ -76,8 +82,18 @@ function fakeGitHub() {
       }
     },
   };
-  return { actions, github, faults };
+  const setRelease = (next: GitHubRelease) => {
+    release = next;
+  };
+  return { actions, github, faults, setRelease };
 }
+
+const uploaded = ({ path, size, digest }: { path: string; size: number; digest: string }) => ({
+  name: basename(path),
+  state: "uploaded",
+  size,
+  digest,
+});
 
 test("Validates the tag and keeps prerelease metadata out of the stable channel", () => {
   expect(releaseFiles("linux-x64", releaseVersion("v0.2.0"))).toContain("latest-linux.yml");
@@ -102,7 +118,7 @@ releaseTest("Rejects a changed installer before publishing", async ({ directory 
 });
 
 releaseTest(
-  "Replaces an interrupted draft and leaves the published release alone on retry",
+  "Resumes an interrupted draft upload and leaves the published release alone on retry",
   async ({ directory }) => {
     const assets = await assemble(directory);
     const { actions, github, faults } = fakeGitHub();
@@ -116,13 +132,49 @@ releaseTest(
 
     expect(actions).toEqual([
       "draft (prerelease=true)",
-      "upload",
-      "delete",
-      "draft (prerelease=true)",
-      "upload",
+      `upload ${assets.length}`,
+      `upload ${assets.length - 1}`,
       "publish",
     ]);
-    expect((await github.find())?.draft).toBe(false);
+    const published = await github.find();
+    expect(published?.draft).toBe(false);
+    expect(published?.assets).toHaveLength(assets.length);
+  },
+);
+
+releaseTest("Refuses a draft whose asset conflicts without deleting it", async ({ directory }) => {
+  const assets = await assemble(directory);
+  const { actions, github, setRelease } = fakeGitHub();
+  const conflicting = { ...uploaded(assets[0]!), digest: "sha256:other" };
+  setRelease({ id: 7, draft: true, prerelease: true, assets: [conflicting] });
+
+  await expect(publishRelease(github, version, assets)).rejects.toThrow(
+    `The release draft already has a different '${conflicting.name}'`,
+  );
+
+  expect(actions).toEqual([]);
+  expect(await github.find()).toEqual({
+    id: 7,
+    draft: true,
+    prerelease: true,
+    assets: [conflicting],
+  });
+});
+
+releaseTest(
+  "Refuses a draft with an unexpected asset or prerelease setting",
+  async ({ directory }) => {
+    const assets = await assemble(directory);
+    const { actions, github, setRelease } = fakeGitHub();
+    const unexpected = { name: "notes.txt", state: "uploaded", size: 1, digest: "sha256:x" };
+
+    setRelease({ id: 7, draft: true, prerelease: true, assets: [unexpected] });
+    await expect(publishRelease(github, version, assets)).rejects.toThrow("notes.txt");
+    setRelease({ id: 7, draft: true, prerelease: false, assets: [] });
+    await expect(publishRelease(github, version, assets)).rejects.toThrow("prerelease");
+
+    expect(actions).toEqual([]);
+    expect((await github.find())?.draft).toBe(true);
   },
 );
 
@@ -137,7 +189,7 @@ releaseTest(
       "checksum",
     );
 
-    expect(actions).toEqual(["draft (prerelease=false)", "upload"]);
+    expect(actions).toEqual(["draft (prerelease=false)", `upload ${assets.length}`]);
     expect((await github.find())?.draft).toBe(true);
   },
 );

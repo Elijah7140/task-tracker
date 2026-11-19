@@ -128,6 +128,87 @@ function entriesFromItem(
   return result;
 }
 
+const CandidateRequest = Schema.Struct({
+  projectId: Schema.NullOr(Guid),
+  fromDate: Schema.String,
+  toDateExclusive: Schema.String,
+  rangeStart: Schema.String,
+  rangeEnd: Schema.String,
+  earliestDefaultStart: Schema.String,
+  includeCompleted: Schema.Boolean,
+});
+
+type CandidateBounds = typeof CandidateRequest.Type;
+
+/** Stored text bounds for a query. Untimed blocks starting this early can still reach the range. */
+function candidateBounds(query: CalendarQuery): CandidateBounds {
+  const rangeStart = query.fromDate.toPlainDateTime("00:00:00");
+  const rangeEnd = query.toDateExclusive.toPlainDateTime("00:00:00");
+  const earliestDefaultStart = rangeStart.subtract({ minutes: DEFAULT_CALENDAR_BLOCK_MINUTES });
+  return {
+    projectId: query.projectId,
+    fromDate: query.fromDate.toString(),
+    toDateExclusive: query.toDateExclusive.toString(),
+    rangeStart: formatBoundary(rangeStart),
+    rangeEnd: formatBoundary(rangeEnd),
+    earliestDefaultStart: formatBoundary(earliestDefaultStart),
+    includeCompleted: query.includeCompleted,
+  };
+}
+
+const candidateColumns = (sql: SqlClient.SqlClient) => sql`
+  i.Id AS id,
+  i.ProjectId AS projectId,
+  i.FolderId AS folderId,
+  i.Title AS title,
+  i.ItemTypeId AS itemTypeId,
+  i.PriorityLevelId AS priorityLevelId,
+  i.StatusId AS statusId,
+  i.DueDate AS dueDate,
+  i.DueTime AS dueTime,
+  i.ScheduledStart AS scheduledStart,
+  i.ScheduledEnd AS scheduledEnd,
+  i.CompletedAtUtc AS completedAtUtc`;
+
+/** The item `i` is active and so are its project and any folder. */
+const inActiveLocation = (sql: SqlClient.SqlClient) => sql`${activeRow(sql, "i")}
+  AND EXISTS (SELECT 1 FROM Project p WHERE p.Id = i.ProjectId AND ${activeRow(sql, "p")})
+  AND (i.FolderId IS NULL OR EXISTS (SELECT 1 FROM Folder f WHERE f.Id = i.FolderId AND ${activeRow(sql, "f")}))`;
+
+const inScope = (sql: SqlClient.SqlClient, projectId: string | null) =>
+  projectId === null ? sql`1 = 1` : sql`i.ProjectId = ${projectId}`;
+
+const matchesCompletion = (sql: SqlClient.SqlClient, includeCompleted: boolean) =>
+  includeCompleted ? sql`1 = 1` : sql`i.CompletedAtUtc IS NULL`;
+
+const dueInRange = (sql: SqlClient.SqlClient, bounds: CandidateBounds) =>
+  sql`(i.DueDate >= ${bounds.fromDate} AND i.DueDate < ${bounds.toDateExclusive})`;
+
+/** A block with a later end overlaps when it starts before the range end and ends after its start. */
+const timedBlockOverlaps = (sql: SqlClient.SqlClient, bounds: CandidateBounds) => sql`(
+  i.ScheduledStart < ${bounds.rangeEnd}
+  AND i.ScheduledEnd IS NOT NULL
+  AND i.ScheduledEnd > i.ScheduledStart
+  AND i.ScheduledEnd > ${bounds.rangeStart})`;
+
+/** A block without a later end lasts the default length, so it may start before the range. */
+const defaultBlockOverlaps = (sql: SqlClient.SqlClient, bounds: CandidateBounds) => sql`(
+  i.ScheduledStart >= ${bounds.earliestDefaultStart}
+  AND i.ScheduledStart < ${bounds.rangeEnd}
+  AND (i.ScheduledEnd IS NULL OR i.ScheduledEnd <= i.ScheduledStart))`;
+
+/** A coarse SQL prefilter. `entriesFromItem` applies the exact per-entry range rules. */
+const touchesRange = (sql: SqlClient.SqlClient, bounds: CandidateBounds) =>
+  sql`(${dueInRange(sql, bounds)} OR ${timedBlockOverlaps(sql, bounds)} OR ${defaultBlockOverlaps(sql, bounds)})`;
+
+const candidateQuery = (sql: SqlClient.SqlClient, bounds: CandidateBounds) => sql`
+  SELECT ${candidateColumns(sql)}
+  FROM TodoItem i
+  WHERE ${inActiveLocation(sql)}
+    AND ${inScope(sql, bounds.projectId)}
+    AND ${matchesCompletion(sql, bounds.includeCompleted)}
+    AND ${touchesRange(sql, bounds)}`;
+
 /** Queries active items touching a calendar range and resolves active item locations. */
 export function calendarRepository(sql: SqlClient.SqlClient) {
   const selectTypes = SqlSchema.findAll({
@@ -154,80 +235,19 @@ export function calendarRepository(sql: SqlClient.SqlClient) {
     execute: (itemId) => sql`
       SELECT i.Id AS itemId, i.ProjectId AS projectId, i.FolderId AS folderId
       FROM TodoItem i
-      WHERE i.Id = ${itemId}
-        AND ${activeRow(sql, "i")}
-        AND EXISTS (SELECT 1 FROM Project p WHERE p.Id = i.ProjectId AND ${activeRow(sql, "p")})
-        AND (i.FolderId IS NULL OR EXISTS (SELECT 1 FROM Folder f WHERE f.Id = i.FolderId AND ${activeRow(sql, "f")}))
+      WHERE i.Id = ${itemId} AND ${inActiveLocation(sql)}
     `,
   });
 
   const selectCandidates = SqlSchema.findAll({
-    Request: Schema.Struct({
-      projectId: Schema.NullOr(Guid),
-      fromDate: Schema.String,
-      toDateExclusive: Schema.String,
-      rangeStart: Schema.String,
-      rangeEnd: Schema.String,
-      earliestDefaultStart: Schema.String,
-      includeCompleted: Schema.Boolean,
-    }),
+    Request: CandidateRequest,
     Result: CalendarCandidateRow,
-    execute: (params) => {
-      const scopeFilter =
-        params.projectId === null ? sql`1 = 1` : sql`i.ProjectId = ${params.projectId}`;
-      const completionFilter = params.includeCompleted ? sql`1 = 1` : sql`i.CompletedAtUtc IS NULL`;
-      return sql`
-        SELECT
-          i.Id AS id,
-          i.ProjectId AS projectId,
-          i.FolderId AS folderId,
-          i.Title AS title,
-          i.ItemTypeId AS itemTypeId,
-          i.PriorityLevelId AS priorityLevelId,
-          i.StatusId AS statusId,
-          i.DueDate AS dueDate,
-          i.DueTime AS dueTime,
-          i.ScheduledStart AS scheduledStart,
-          i.ScheduledEnd AS scheduledEnd,
-          i.CompletedAtUtc AS completedAtUtc
-        FROM TodoItem i
-        WHERE ${activeRow(sql, "i")}
-          AND ${scopeFilter}
-          AND ${completionFilter}
-          AND EXISTS (SELECT 1 FROM Project p WHERE p.Id = i.ProjectId AND ${activeRow(sql, "p")})
-          AND (i.FolderId IS NULL OR EXISTS (SELECT 1 FROM Folder f WHERE f.Id = i.FolderId AND ${activeRow(sql, "f")}))
-          AND (
-            (i.DueDate >= ${params.fromDate} AND i.DueDate < ${params.toDateExclusive})
-            OR (
-              i.ScheduledStart < ${params.rangeEnd}
-              AND i.ScheduledEnd IS NOT NULL
-              AND i.ScheduledEnd > i.ScheduledStart
-              AND i.ScheduledEnd > ${params.rangeStart}
-            )
-            OR (
-              i.ScheduledStart >= ${params.earliestDefaultStart}
-              AND i.ScheduledStart < ${params.rangeEnd}
-              AND (i.ScheduledEnd IS NULL OR i.ScheduledEnd <= i.ScheduledStart)
-            )
-          )
-      `;
-    },
+    execute: (bounds) => candidateQuery(sql, bounds),
   });
 
   const load = Effect.fnUntraced(function* (query: CalendarQuery) {
-    const rangeStart = query.fromDate.toPlainDateTime("00:00:00");
-    const rangeEnd = query.toDateExclusive.toPlainDateTime("00:00:00");
-    const earliestDefaultStart = rangeStart.subtract({ minutes: DEFAULT_CALENDAR_BLOCK_MINUTES });
     const [candidates, typeRows, priorityRows, statusRows] = yield* Effect.all([
-      selectCandidates({
-        projectId: query.projectId,
-        fromDate: query.fromDate.toString(),
-        toDateExclusive: query.toDateExclusive.toString(),
-        rangeStart: formatBoundary(rangeStart),
-        rangeEnd: formatBoundary(rangeEnd),
-        earliestDefaultStart: formatBoundary(earliestDefaultStart),
-        includeCompleted: query.includeCompleted,
-      }),
+      selectCandidates(candidateBounds(query)),
       selectTypes(),
       selectPriorities(),
       selectStatuses(),

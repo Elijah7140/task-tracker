@@ -16,14 +16,22 @@ export interface GitHubRelease {
   assets: { name: string; digest: string; size: number; state: string }[];
 }
 
-/** GitHub operations for a single tag. */
+/**
+ * GitHub operations for a single tag. There is deliberately no way to delete a release:
+ * a draft found on retry may have been published since it was read.
+ */
 export interface GitHubReleases {
   find(): Promise<GitHubRelease | undefined>;
-  deleteDraft(id: number): Promise<void>;
   createDraft(prerelease: boolean): Promise<number>;
+  /** Uploads the files, replacing any incomplete asset with the same name. */
   upload(assets: readonly ReleaseAsset[]): Promise<void>;
   publish(id: number, prerelease: boolean): Promise<void>;
 }
+
+type UploadedAsset = GitHubRelease["assets"][number];
+
+const sameContent = (uploaded: UploadedAsset, { size, digest }: ReleaseAsset) =>
+  uploaded.size === size && uploaded.digest === digest;
 
 function verifyUpload(
   release: GitHubRelease,
@@ -44,7 +52,57 @@ function verifyUpload(
   }
 }
 
-/** Publishes only after a fresh draft has received every verified asset. */
+/**
+ * Lists the files a leftover draft still needs. Completed uploads must match a verified file
+ * by name and checksum, so a draft holding anything else is refused rather than replaced.
+ */
+function pendingUploads(
+  draft: GitHubRelease,
+  assets: readonly ReleaseAsset[],
+  prerelease: boolean,
+) {
+  if (draft.prerelease !== prerelease) {
+    throw new Error("The release draft has a different prerelease setting. Resolve it manually.");
+  }
+  const expected = new Map(assets.map((asset) => [basename(asset.path), asset]));
+  const complete = new Set<string>();
+  for (const uploaded of draft.assets) {
+    const asset = expected.get(uploaded.name);
+    if (asset === undefined) {
+      throw new Error(
+        `The release draft has unexpected asset '${uploaded.name}'. Resolve it manually.`,
+      );
+    }
+    if (uploaded.state !== "uploaded") {
+      continue;
+    }
+    if (!sameContent(uploaded, asset)) {
+      throw new Error(
+        `The release draft already has a different '${uploaded.name}'. Resolve it manually.`,
+      );
+    }
+    complete.add(uploaded.name);
+  }
+  return assets.filter(({ path }) => !complete.has(basename(path)));
+}
+
+/** Creates or resumes the tag's draft and returns its ID with the files it still needs. */
+async function prepareDraft(
+  github: GitHubReleases,
+  existing: GitHubRelease | undefined,
+  assets: readonly ReleaseAsset[],
+  prerelease: boolean,
+) {
+  if (existing === undefined) {
+    return { id: await github.createDraft(prerelease), pending: assets };
+  }
+  return { id: existing.id, pending: pendingUploads(existing, assets, prerelease) };
+}
+
+/**
+ * Publishes only after the tag's draft holds every verified asset. A retry resumes the
+ * existing draft and never deletes a release, which may have been published meanwhile.
+ */
 export async function publishRelease(
   github: GitHubReleases,
   version: string,
@@ -60,11 +118,10 @@ export async function publishRelease(
     console.log(`Release v${version} is already published.`);
     return;
   }
-  if (existing) {
-    await github.deleteDraft(existing.id);
+  const { id, pending } = await prepareDraft(github, existing, assets, prerelease);
+  if (pending.length > 0) {
+    await github.upload(pending);
   }
-  const id = await github.createDraft(prerelease);
-  await github.upload(assets);
   const draft = await github.find();
   if (draft?.id !== id || !draft.draft || draft.prerelease !== prerelease) {
     throw new Error("The release draft or its prerelease setting changed during upload.");
@@ -92,9 +149,6 @@ function githubReleases(repository: string, tag: string): GitHubReleases {
       ) as TagRelease[][];
       return pages.flat().find(({ tag_name }) => tag_name === tag);
     },
-    async deleteDraft(id) {
-      await gh("api", "--method", "DELETE", `${endpoint}/${id}`);
-    },
     async createDraft(prerelease) {
       await gh(
         "release",
@@ -116,7 +170,17 @@ function githubReleases(repository: string, tag: string): GitHubReleases {
       return draft.id;
     },
     async upload(assets) {
-      await gh("release", "upload", tag, "--repo", repository, ...assets.map(({ path }) => path));
+      // Clobber replaces an asset left incomplete by an interrupted upload. Completed
+      // assets were matched by checksum and are not uploaded again.
+      await gh(
+        "release",
+        "upload",
+        tag,
+        "--repo",
+        repository,
+        "--clobber",
+        ...assets.map(({ path }) => path),
+      );
     },
     async publish(id, prerelease) {
       await gh(

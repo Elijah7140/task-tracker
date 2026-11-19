@@ -444,7 +444,8 @@ describe("Workspace priority card grid", () => {
       HIGH_ID,
     );
     expect(moves(store)).toBe(1);
-    expect(store.calls.filter((call) => call === "DropItem")).toHaveLength(2);
+    // Steps inside a section swap siblings (legacy ReorderSelectedAsync), so finished slots hold.
+    expect(store.calls.filter((call) => call === "ReorderItems")).toHaveLength(2);
   });
 
   it("Selects a clicked sub-item row rather than its card, and opens cards in the editor", async () => {

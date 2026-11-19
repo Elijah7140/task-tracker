@@ -7,15 +7,21 @@ import {
   snapshotRows,
   type UndoRowChange,
   type UndoSource,
+  type UndoStepContext,
 } from "../db/undo/undo-rows.js";
 
 interface Step {
   readonly label: string;
   readonly rows: readonly UndoRowChange[];
+  readonly context: UndoStepContext;
 }
 
-const takeSnapshot = (sql: SqlClient.SqlClient, label: string, sources: readonly UndoSource[]) =>
-  Effect.map(snapshotRows(sql, sources), (before) => ({ label, sources, before }));
+const takeSnapshot = (
+  sql: SqlClient.SqlClient,
+  label: string,
+  sources: readonly UndoSource[],
+  context: UndoStepContext,
+) => Effect.map(snapshotRows(sql, sources), (before) => ({ label, sources, context, before }));
 
 class Recording extends Context.Service<
   Recording,
@@ -23,6 +29,7 @@ class Recording extends Context.Service<
     start: (
       label: string,
       sources: readonly UndoSource[],
+      context: UndoStepContext,
     ) => Effect.Effect<void, SqlError.SqlError>;
   }
 >()("TaskTracker/UndoRecording") {}
@@ -67,29 +74,29 @@ const make = Effect.gen(function* () {
       })),
     );
 
-  const capture = (label: string, sources: readonly UndoSource[]) =>
-    Effect.flatMap(Recording, (recording) => recording.start(label, sources));
+  const capture = (label: string, sources: readonly UndoSource[], context: UndoStepContext = {}) =>
+    Effect.flatMap(Recording, (recording) => recording.start(label, sources, context));
 
   const record = <A, E, R>(operation: Effect.Effect<A, E, R>) =>
     gate.withPermit(
       sql.withTransaction(
         Effect.gen(function* () {
           let pending: Effect.Success<ReturnType<typeof takeSnapshot>> | undefined;
-          const start = (label: string, sources: readonly UndoSource[]) =>
+          const start = (label: string, sources: readonly UndoSource[], context: UndoStepContext) =>
             Effect.gen(function* () {
               if (pending !== undefined) {
                 return yield* Effect.die(new Error("An operation can capture only one undo step."));
               }
-              pending = yield* takeSnapshot(sql, label, sources);
+              pending = yield* takeSnapshot(sql, label, sources, context);
             });
           const result = yield* operation.pipe(Effect.provideService(Recording, { start }));
           if (pending !== undefined) {
-            const { before, label, sources } = pending;
+            const { before, label, sources, context } = pending;
             const rows = changedRows(before, yield* snapshotRows(sql, sources));
             if (rows.length > 0) {
               yield* sql.afterCommit(
                 Effect.sync(() => {
-                  history.record({ label, rows });
+                  history.record({ label, rows, context });
                   revision++;
                 }),
               );
@@ -109,7 +116,7 @@ const make = Effect.gen(function* () {
             if (step === undefined) {
               return null;
             }
-            yield* replayRows(sql, step.rows, direction);
+            yield* replayRows(sql, step.rows, direction, step.context);
             yield* sql.afterCommit(
               Effect.sync(() => {
                 history.advance(direction);

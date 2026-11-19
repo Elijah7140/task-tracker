@@ -22,15 +22,9 @@ function moveAtEdge(
     tree.moveAt(itemId, parentItemId, index + Number(after), now);
     return;
   }
-  // Reordering open siblings preserves the persisted slots of finished siblings.
-  const finished = new Set(siblings.filter(({ id }) => isFinished(tree, id)).map(({ id }) => id));
-  const openIds = siblings.map(({ id }) => id).filter((id) => id !== itemId && !finished.has(id));
-  const reordered = insertRelative(openIds, itemId, targetId, after).values();
-  tree.reorder(
-    parentItemId,
-    siblings.map(({ id }) => (finished.has(id) ? id : reordered.next().value!)),
-    now,
-  );
+  // Like legacy MoveAt, insert into the full persisted sibling list, finished rows included.
+  const otherIds = siblings.map(({ id }) => id).filter((id) => id !== itemId);
+  tree.reorder(parentItemId, insertRelative(otherIds, itemId, targetId, after), now);
 }
 
 /** Move a subtree relative to a live target, using completion and hierarchy from the same tree. */

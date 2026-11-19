@@ -9,10 +9,14 @@ import {
   updateValues,
   type UndoRow,
   type UndoRowChange,
+  type UndoStepContext,
   type UndoTable,
 } from "./undo-rows.js";
+import { verifyReplayCompletion } from "./replay-completion.js";
+import { verifyReplayFieldValues } from "./replay-field-values.js";
 import { verifyReplayHierarchy } from "./replay-hierarchy.js";
 import { verifyReplayPriorities } from "./replay-priorities.js";
+import { verifyReplaySettings } from "./replay-settings.js";
 import { verifyReplayStatuses } from "./replay-statuses.js";
 
 /** The expected and desired versions of a row in the selected replay direction. */
@@ -110,12 +114,16 @@ const writeRow = (sql: SqlClient.SqlClient, { table, source, target }: ReplayRow
     WHERE ${keyCondition(sql, table, source)}`;
 };
 
-/** Verifies every source row before changing any data and leaves derived data to SQLite. */
+/**
+ * Verifies every source row before changing any data, then checks the written state against
+ * current rules inside the same transaction. Derived data is left to SQLite.
+ */
 export const replayRows = Effect.fnUntraced(
   function* (
     sql: SqlClient.SqlClient,
     changes: readonly UndoRowChange[],
     direction: UndoDirection,
+    context: UndoStepContext = {},
   ) {
     const rows: ReplayRow[] = changes.map(({ table, before, after }) => ({
       table,
@@ -126,6 +134,12 @@ export const replayRows = Effect.fnUntraced(
       yield* verifyRow(sql, row, direction);
     }
     yield* verifyReplayPriorities(sql, rows);
+    const turnedOn = yield* verifyReplaySettings(
+      sql,
+      rows,
+      context.autoCompletionEnabledProjects ?? [],
+      direction,
+    );
     const removed = rows.filter((row) => row.target === undefined);
     const removals = new Set(
       removed.map(({ table, source }) => `${table}:${rowKey(table, source!)}`),
@@ -140,6 +154,8 @@ export const replayRows = Effect.fnUntraced(
     }
     yield* verifyReplayHierarchy(sql, rows);
     yield* verifyReplayStatuses(sql, rows, direction);
+    yield* verifyReplayFieldValues(sql, rows, direction);
+    yield* verifyReplayCompletion(sql, rows, turnedOn);
   },
   (effect) => effect.pipe(Effect.provideService(SqlClient.SafeIntegers, true)),
 );

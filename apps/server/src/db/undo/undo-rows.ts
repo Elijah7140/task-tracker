@@ -36,6 +36,12 @@ export interface UndoRowChange {
   readonly after: UndoRow | undefined;
 }
 
+/** Facts about a step that its rows alone cannot express. */
+export interface UndoStepContext {
+  /** Active projects whose effective automatic completion the recorded change turned on. */
+  readonly autoCompletionEnabledProjects?: readonly string[];
+}
+
 export function hasUndoKey(table: string): table is UndoTable {
   return Object.hasOwn(keys, table);
 }

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "@effect/vitest";
+import { SettingsCatalogue } from "@task-tracker/core";
 import { Deferred, Effect, Fiber, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
@@ -10,14 +11,16 @@ import { FieldService } from "../../../src/services/field-service.js";
 import { FolderService } from "../../../src/services/folder-service.js";
 import { ItemService } from "../../../src/services/item-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
+import { SettingsService } from "../../../src/services/settings-service.js";
 import { UndoService } from "../../../src/services/undo-service.js";
-import { readItems, withSchema } from "./fixtures.js";
+import { readItems, setAutoComplete, withSchema } from "./fixtures.js";
 
 const services = Layer.mergeAll(
   ProjectService.layer("UTC"),
   FieldService.layer,
   FolderService.layer,
   ItemService.layer("UTC"),
+  SettingsService.layer,
 );
 const setup = Effect.gen(function* () {
   yield* TestClock.setTime(Temporal.Instant.from("2026-11-13T12:00:00Z").epochMilliseconds);
@@ -301,6 +304,200 @@ it.effect("Refuses to resurrect a removed choice and rolls back the other row wr
     expect(yield* readItems()).toEqual(before);
     expect(yield* items.loadFieldValues(item.id)).toEqual([]);
     expect(yield* undo.status()).toMatchObject({ undo: "Edit 'Renamed'", redo: null });
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Refuses to restore a cleared value that no longer matches its field's type", () =>
+  Effect.gen(function* () {
+    const { root, items, undo } = yield* setup;
+    const fields = yield* FieldService;
+    const notes = yield* fields.create("Notes", "Text", null);
+    const item = yield* root("Task");
+    yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: notes.id, textValue: "Value" }]);
+    yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: notes.id }]);
+    yield* fields.changeType(notes.id, "Number");
+    const before = yield* readItems();
+
+    const refusal = yield* Effect.flip(undo.apply("undo"));
+
+    expect(refusal.message).toBe(
+      "A custom field changed since. Applying this step would store a value it no longer accepts; can't undo.",
+    );
+    expect(yield* readItems()).toEqual(before);
+    expect(yield* items.loadFieldValues(item.id)).toEqual([]);
+    expect(yield* undo.status()).toMatchObject({ undo: "Edit 'Task'", redo: null });
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Refuses to restore a value whose field now belongs to another project", () =>
+  Effect.gen(function* () {
+    const { root, items, undo, sql, projects } = yield* setup;
+    const fields = yield* FieldService;
+    const other = yield* projects.create("Other");
+    const notes = yield* fields.create("Notes", "Text", null);
+    const item = yield* root("Task");
+    yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: notes.id, textValue: "Value" }]);
+    yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: notes.id }]);
+    yield* sql`UPDATE FieldDefinition SET ProjectId = ${other.id} WHERE Id = ${notes.id}`;
+
+    const refusal = yield* Effect.flip(undo.apply("undo"));
+
+    expect(refusal.message).toBe(
+      "A custom field changed since. Applying this step would store a value it no longer accepts; can't undo.",
+    );
+    expect(yield* items.loadFieldValues(item.id)).toEqual([]);
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Refuses to restore a choice that was moved to another field", () =>
+  Effect.gen(function* () {
+    const { root, items, undo, sql } = yield* setup;
+    const fields = yield* FieldService;
+    const stage = yield* fields.create("Stage", "Choice", null);
+    const other = yield* fields.create("Other", "Choice", null);
+    const ready = yield* fields.addChoice(stage.id, "Ready");
+    const item = yield* root("Task");
+    yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: stage.id, choiceId: ready.id }]);
+    yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: stage.id }]);
+    yield* sql`UPDATE FieldChoice SET FieldDefinitionId = ${other.id} WHERE Id = ${ready.id}`;
+
+    const refusal = yield* Effect.flip(undo.apply("undo"));
+
+    expect(refusal.message).toBe(
+      "A custom field changed since. Applying this step would store a value it no longer accepts; can't undo.",
+    );
+    expect(yield* items.loadFieldValues(item.id)).toEqual([]);
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+const onlyChildCompletedWithoutCascade = Effect.gen(function* () {
+  const world = yield* setup;
+  const settings = yield* SettingsService;
+  yield* settings.setGlobal(SettingsCatalogue.autoCompleteParents, false);
+  const parent = yield* world.root("Parent");
+  const child = yield* world.items.create(world.project.id, null, parent.id, "Child");
+  yield* world.items.setCompleted(world.project.id, null, child.id, true);
+  return { ...world, settings, parent, child };
+});
+
+const completion = Effect.fnUntraced(function* () {
+  const rows = yield* readItems();
+  return Object.fromEntries(rows.map((row) => [row.Title, row.CompletedAtUtc !== null]));
+});
+
+it.effect("Records enabling automatic completion with its reconciliation as one step", () =>
+  Effect.gen(function* () {
+    const { settings, undo } = yield* onlyChildCompletedWithoutCascade;
+    const preview = yield* settings.previewGlobalAutoComplete();
+    yield* settings.setGlobal(SettingsCatalogue.autoCompleteParents, true, preview);
+
+    const undone = yield* undo.apply("undo");
+    const afterSettingUndo = yield* completion();
+    const enabledAfterUndo = yield* settings.getGlobal(SettingsCatalogue.autoCompleteParents);
+    const childUndone = yield* undo.apply("undo");
+    const afterChildUndo = yield* completion();
+    yield* undo.apply("redo");
+    yield* undo.apply("redo");
+
+    expect(undone?.label).toBe("Edit global settings");
+    expect(afterSettingUndo).toEqual({ Parent: false, Child: true });
+    expect(enabledAfterUndo).toBe(false);
+    expect(childUndone?.label).toBe("Complete 'Child'");
+    expect(afterChildUndo).toEqual({ Parent: false, Child: false });
+    expect(yield* completion()).toEqual({ Parent: true, Child: true });
+    expect(yield* settings.getGlobal(SettingsCatalogue.autoCompleteParents)).toBe(true);
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Refuses an item step that would leave a completed parent with an open child", () =>
+  Effect.gen(function* () {
+    const { undo, sql, parent } = yield* onlyChildCompletedWithoutCascade;
+    yield* setAutoComplete(true);
+    yield* sql`UPDATE TodoItem SET CompletedAtUtc = '2026-11-13 12:00:00',
+      StatusId = (SELECT StatusId FROM TodoItem WHERE Title = 'Child') WHERE Id = ${parent.id}`;
+    const before = yield* readItems();
+
+    const refusal = yield* Effect.flip(undo.apply("undo"));
+
+    expect(refusal.message).toBe(
+      "Items changed since. Applying this step would leave parent completion out of date.",
+    );
+    expect(yield* readItems()).toEqual(before);
+    expect(yield* undo.status()).toMatchObject({ undo: "Complete 'Child'", redo: null });
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Refuses to redo reconciliation when the project now opts out", () =>
+  Effect.gen(function* () {
+    const { settings, undo, sql, project } = yield* onlyChildCompletedWithoutCascade;
+    const preview = yield* settings.previewGlobalAutoComplete();
+    yield* settings.setGlobal(SettingsCatalogue.autoCompleteParents, true, preview);
+    yield* undo.apply("undo");
+    yield* sql`INSERT INTO ProjectSetting (ProjectId, Key, Value)
+      VALUES (${project.id}, 'autoCompleteParents', 'false')`;
+    const before = yield* completion();
+
+    const refusal = yield* Effect.flip(undo.apply("redo"));
+
+    expect(refusal.message).toBe(
+      "Automatic completion changed for project 'Project' since this step.",
+    );
+    expect(yield* completion()).toEqual(before);
+    expect(yield* undo.status()).toMatchObject({ redo: "Edit global settings" });
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Saving unchanged global defaults writes nothing and keeps history", () =>
+  Effect.gen(function* () {
+    const { undo, sql } = yield* setup;
+    const settings = yield* SettingsService;
+
+    yield* settings.saveGlobal(true, 3n * 864_000_000_000n, 864_000_000_000n);
+
+    expect(yield* sql`SELECT * FROM GlobalSetting`).toEqual([]);
+    expect(yield* undo.status()).toMatchObject({ undo: "Create 'Project'", redo: null });
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Undoes and redoes a project override with its reconciliation", () =>
+  Effect.gen(function* () {
+    const { settings, undo, sql, project } = yield* onlyChildCompletedWithoutCascade;
+    const preview = yield* settings.previewProjectAutoComplete(project.id);
+    yield* settings.setProjectOverride(
+      project.id,
+      SettingsCatalogue.autoCompleteParents,
+      true,
+      preview,
+    );
+    const applied = yield* completion();
+
+    const undone = yield* undo.apply("undo");
+    const afterUndo = yield* completion();
+    const overridesAfterUndo = yield* sql`SELECT * FROM ProjectSetting`;
+    yield* undo.apply("redo");
+
+    expect(undone?.label).toBe("Edit project settings");
+    expect(applied).toEqual({ Parent: true, Child: true });
+    expect(afterUndo).toEqual({ Parent: false, Child: true });
+    expect(overridesAfterUndo).toEqual([]);
+    expect(yield* completion()).toEqual(applied);
+  }).pipe(Effect.provide(services), withSchema),
+);
+
+it.effect("Refuses to undo global thresholds that conflict with a newer project override", () =>
+  Effect.gen(function* () {
+    const { undo, sql, project } = yield* setup;
+    const settings = yield* SettingsService;
+    yield* settings.setGlobal(SettingsCatalogue.urgencyYellowThreshold, 5n * 864_000_000_000n);
+    yield* sql`INSERT INTO ProjectSetting (ProjectId, Key, Value)
+      VALUES (${project.id}, 'urgencyRedThreshold', 'P4D')`;
+
+    const refusal = yield* Effect.flip(undo.apply("undo"));
+
+    expect(refusal.message).toBe(
+      "Settings changed since. Applying this step would leave invalid urgency thresholds.",
+    );
+    expect((yield* undo.status()).undo).toBe("Edit global settings");
   }).pipe(Effect.provide(services), withSchema),
 );
 

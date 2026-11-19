@@ -553,7 +553,7 @@ describe("Item actions and reorder", () => {
     expect(store.areaSiblingTitles(projectId, null, first.item.id)).toEqual(["Sub B", "Sub A"]);
   });
 
-  it("Reorders open cards and sub-items via pointer drag while preserving finished slots", async () => {
+  it("Reorders cards and sub-items via pointer drag within the full sibling list", async () => {
     const { store, projectId } = await openRoot([
       {
         name: "Billing DB",
@@ -570,13 +570,13 @@ describe("Item actions and reorder", () => {
       targetPosition: besideCard("Gamma", 0.85),
     });
 
-    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Beta", "Done", "Gamma", "Alpha"]);
+    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Done", "Beta", "Gamma", "Alpha"]);
 
     await userEvent.dragAndDrop(cardHeader("Gamma"), card("Beta"), {
       targetPosition: besideCard("Beta", 0.15),
     });
 
-    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Gamma", "Done", "Beta", "Alpha"]);
+    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Done", "Gamma", "Beta", "Alpha"]);
 
     const childRow = row("Child 2").getByTestId("item-row").first();
     const { width, height } = childRow.element().getBoundingClientRect();

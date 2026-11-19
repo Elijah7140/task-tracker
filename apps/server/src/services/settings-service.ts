@@ -11,11 +11,13 @@ import {
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { projectRepository } from "../db/repositories/project-repository.js";
+import type { UndoSource } from "../db/undo/undo-rows.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
 import { checkRules } from "./check-rules.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
 import { operationTime } from "./operation-time.js";
 import { projectCompletionOperations } from "./project-completion-reconciler.js";
+import { UndoService } from "./undo-service.js";
 
 const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold, workspaceCardColumns } =
   SettingsCatalogue;
@@ -40,11 +42,57 @@ function formatNullableOverride<T>(definition: SettingDefinition<T>, value: T | 
   return value === null ? null : definition.formatOverride(value);
 }
 
+/** Reads the current effective global value, treating malformed text as unknown. */
+function storedGlobal<T>(current: ReadonlyMap<string, string>, definition: SettingDefinition<T>) {
+  const stored = current.get(definition.key);
+  if (stored === undefined) {
+    return definition.defaultValue;
+  }
+  try {
+    return definition.parse(stored);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Proposes a bulk-saved global value only when it changes the effective value, so saving
+ * untouched defaults writes nothing and leaves undo history intact.
+ */
+function proposeGlobal<T>(
+  proposed: Map<string, string>,
+  current: ReadonlyMap<string, string>,
+  definition: SettingDefinition<T>,
+  value: T,
+) {
+  if (storedGlobal(current, definition) !== value) {
+    proposed.set(definition.key, definition.format(value));
+  }
+}
+
+const globalSettingsLabel = "Edit global settings";
+const projectSettingsLabel = "Edit project settings";
+
 const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const projects = projectRepository(sql);
   const settings = settingsRepository(sql);
   const reconciliation = projectCompletionOperations(sql);
+  const undo = yield* UndoService;
+
+  /** Captures the settings rows and the items of every project the change reconciles. */
+  const captureSettings = (
+    label: string,
+    settingsSource: UndoSource,
+    enabledProjects: readonly string[],
+  ) =>
+    undo.capture(
+      label,
+      enabledProjects.length === 0
+        ? [settingsSource]
+        : [settingsSource, { table: "TodoItem", where: sql.in("ProjectId", enabledProjects) }],
+      { autoCompletionEnabledProjects: enabledProjects },
+    );
 
   const getGlobal = Effect.fnUntraced(function* <T>(definition: SettingDefinition<T>) {
     const global = yield* settings.global();
@@ -93,7 +141,7 @@ const make = Effect.gen(function* () {
         enabled.push(project.id);
       }
     }
-    return yield* planReconciliation(enabled);
+    return { enabled, changes: yield* planReconciliation(enabled) };
   });
 
   const planProject = Effect.fnUntraced(function* (
@@ -108,7 +156,8 @@ const make = Effect.gen(function* () {
       const previous = SettingsResolver.resolveValue(autoCompleteParents, global, current);
       return !previous.value && next.autoCompleteParents.value;
     });
-    return yield* planReconciliation(turnsOn ? [projectId] : []);
+    const enabled = turnsOn ? [projectId] : [];
+    return { enabled, changes: yield* planReconciliation(enabled) };
   });
 
   const previewAutoComplete = Effect.fnUntraced(function* (projectId: string | undefined) {
@@ -132,24 +181,25 @@ const make = Effect.gen(function* () {
   }, sql.withTransaction);
 
   const updateGlobal = Effect.fnUntraced(function* (
-    encode: () => ReadonlyMap<string, string>,
+    encode: (current: ReadonlyMap<string, string>) => ReadonlyMap<string, string>,
     approval: ReconciliationApproval | undefined,
   ) {
-    const updates = yield* checkRules(encode);
     const current = yield* settings.global();
+    const updates = yield* checkRules(() => encode(current));
     const proposed = new Map([...current, ...updates]);
-    const changes = yield* planGlobal(current, proposed);
+    const { enabled, changes } = yield* planGlobal(current, proposed);
     const preview = describeReconciliation(changes);
     if (needsReconciliationConfirmation(preview, approval)) {
       return { kind: "needs-confirmation" as const, preview };
     }
 
+    yield* captureSettings(globalSettingsLabel, { table: "GlobalSetting" }, enabled);
     for (const [Key, Value] of updates) {
       yield* settings.setGlobal({ Key, Value });
     }
     yield* Effect.forEach(changes, reconciliation.apply, { discard: true });
     return { kind: "applied" as const };
-  }, sql.withTransaction);
+  }, undo.record);
 
   const updateProject = Effect.fnUntraced(function* (
     projectId: string,
@@ -160,7 +210,7 @@ const make = Effect.gen(function* () {
     const updates = yield* checkRules(encode);
     const global = yield* settings.global();
     const current = yield* settings.project(project.id);
-    const changes = yield* planProject(
+    const { enabled, changes } = yield* planProject(
       project.id,
       global,
       current,
@@ -171,12 +221,17 @@ const make = Effect.gen(function* () {
       return { kind: "needs-confirmation" as const, preview };
     }
 
+    yield* captureSettings(
+      projectSettingsLabel,
+      { table: "ProjectSetting", where: sql`ProjectId = ${project.id}` },
+      enabled,
+    );
     for (const [Key, Value] of updates) {
       yield* settings.setProject({ ProjectId: project.id, Key, Value });
     }
     yield* Effect.forEach(changes, reconciliation.apply, { discard: true });
     return { kind: "applied" as const };
-  }, sql.withTransaction);
+  }, undo.record);
 
   return {
     /** Read a global value, falling back to its built-in default. */
@@ -192,7 +247,7 @@ const make = Effect.gen(function* () {
     /** Set a single global value, subject to project constraints and reconciliation. */
     setGlobal: <T>(definition: SettingDefinition<T>, value: T, approval?: ReconciliationApproval) =>
       updateGlobal(() => new Map([[definition.key, definition.format(value)]]), approval),
-    /** Save the global defaults together. */
+    /** Save the global defaults together, writing only values that change. */
     saveGlobal: (
       autoComplete: boolean,
       yellow: DurationTicks,
@@ -200,16 +255,15 @@ const make = Effect.gen(function* () {
       approval?: ReconciliationApproval,
       cardColumns?: number,
     ) =>
-      updateGlobal(() => {
-        const entries: Array<[string, string]> = [
-          [autoCompleteParents.key, autoCompleteParents.format(autoComplete)],
-          [urgencyYellowThreshold.key, urgencyYellowThreshold.format(yellow)],
-          [urgencyRedThreshold.key, urgencyRedThreshold.format(red)],
-        ];
+      updateGlobal((current) => {
+        const proposed = new Map<string, string>();
+        proposeGlobal(proposed, current, autoCompleteParents, autoComplete);
+        proposeGlobal(proposed, current, urgencyYellowThreshold, yellow);
+        proposeGlobal(proposed, current, urgencyRedThreshold, red);
         if (cardColumns !== undefined) {
-          entries.push([workspaceCardColumns.key, workspaceCardColumns.format(cardColumns)]);
+          proposeGlobal(proposed, current, workspaceCardColumns, cardColumns);
         }
-        return new Map(entries);
+        return proposed;
       }, approval),
     /** Override one setting on an active project. */
     setProjectOverride: <T>(

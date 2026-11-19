@@ -149,6 +149,36 @@ it.effect("Adds, numbers and lists priority labels independently of rank", () =>
   ),
 );
 
+it.effect("Accepts priority numbers up to the legacy Int32 maximum and refuses larger ones", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const high = builtInPriorityLevels[1];
+      const largest = 2_147_483_647;
+
+      const added = yield* client.AddPriorityLevel({ name: "", number: largest });
+      const tooLargeAdd = yield* Effect.flip(
+        client.AddPriorityLevel({ name: "Overflow", number: largest + 1 }),
+      );
+      yield* client.SetPriorityNumber({ id: high.id, number: largest - 1 });
+      const tooLargeSet = yield* Effect.flip(
+        client.SetPriorityNumber({ id: high.id, number: largest + 1 }),
+      );
+      const levels = yield* client.ListPriorityLevels();
+
+      expect(added).toMatchObject({ number: largest, label: "2147483647" });
+      for (const refusal of [tooLargeAdd, tooLargeSet]) {
+        expect(refusal).toMatchObject({
+          _tag: "RuleViolation",
+          message: "Priority number must be no greater than 2147483647.",
+        });
+      }
+      expect(levels.find(({ id }) => id === high.id)?.number).toBe(largest - 1);
+      expect(levels.some(({ name }) => name === "Overflow")).toBe(false);
+    }),
+  ),
+);
+
 it.effect("Manages workflow statuses and returns their rule failures as rule violations", () =>
   withRendererRpc(
     Effect.gen(function* () {

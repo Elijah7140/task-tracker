@@ -23,6 +23,20 @@ it.each([0, -1, 1.5])("Refuses an invalid priority number of %s", (number) => {
   expect(level.number).toBeNull();
 });
 
+it("Accepts the largest legacy Int32 priority number and refuses the next one", () => {
+  const level = createPriorityLevel("one", "High", []);
+
+  const largest = setPriorityNumber(level, 2_147_483_647, [level]);
+
+  expect(largest.number).toBe(2_147_483_647);
+  expect(() => setPriorityNumber(level, 2_147_483_648, [level])).toThrow(
+    "Priority number must be no greater than 2147483647.",
+  );
+  expect(() => createPriorityLevel("two", "", [], 2_147_483_648)).toThrow(
+    "Priority number must be no greater than 2147483647.",
+  );
+});
+
 it("Requires a name before clearing the number of a number-only level", () => {
   const level = createPriorityLevel("one", "", [], 3);
 

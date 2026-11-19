@@ -2,6 +2,7 @@ import { useAtomSet } from "@effect/atom-react";
 import type { GlobalSettings } from "@task-tracker/contracts";
 import { useCallback, useEffect, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
+import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import {
   invalidateSettingsKeysAtom,
@@ -151,7 +152,7 @@ function useSaveGlobalDefaults(form: GlobalForm) {
       form.setServerError(describeRpcFailure(outcome.cause));
     } else if (outcome.kind === "applied") {
       form.setSaved(next);
-      await invalidateKeys([SETTINGS_KEY, PROJECTS_KEY]);
+      await invalidateKeys([HISTORY_KEY, SETTINGS_KEY, PROJECTS_KEY]);
     }
   };
 

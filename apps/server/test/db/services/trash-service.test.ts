@@ -2,6 +2,7 @@ import { expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
+import { CalendarService } from "../../../src/services/calendar-service.js";
 import { FieldService } from "../../../src/services/field-service.js";
 import { FolderService } from "../../../src/services/folder-service.js";
 import { ItemService } from "../../../src/services/item-service.js";
@@ -16,6 +17,7 @@ const services = Layer.mergeAll(
   ItemService.layer("UTC"),
   FieldService.layer,
   TrashService.layer,
+  CalendarService.layer,
 );
 
 const deletedAtUtc = "2026-11-13T12:00:00Z";
@@ -25,6 +27,7 @@ const setup = Effect.gen(function* () {
   const folders = yield* FolderService;
   const items = yield* ItemService;
   const trash = yield* TrashService;
+  const calendar = yield* CalendarService;
   const fields = yield* FieldService;
   const undo = yield* UndoService;
   const sql = yield* SqlClient.SqlClient;
@@ -33,7 +36,7 @@ const setup = Effect.gen(function* () {
     items.create(project.id, folderId, parentId, title);
   const folder = (name: string, parentId: string | null = null) =>
     folders.create(project.id, parentId, name);
-  return { projects, folders, items, trash, fields, undo, sql, project, area, folder };
+  return { projects, folders, items, trash, calendar, fields, undo, sql, project, area, folder };
 });
 
 function test<A, E>(
@@ -488,4 +491,76 @@ test("Empty permanently removes deletions within scope and leaves live rows", (w
     expect(yield* readItems()).toMatchObject([{ Id: kept.id }]);
     expect(yield* sql.withTransaction(sql`SELECT Id FROM Project`)).toEqual([{ Id: project.id }]);
     expect(yield* sql.withTransaction(sql`SELECT Id FROM Folder`)).toEqual([]);
+  }));
+
+const unknownBatchId = "019A0000-0000-7000-8000-00000000BEEF";
+
+test("Restore and purge refuse an unknown batch and change nothing", (world) =>
+  Effect.gen(function* () {
+    const { items, trash, undo, project, area } = world;
+    const item = yield* area("Deleted");
+    yield* items.delete(project.id, null, item.id);
+    const rows = yield* readItems();
+    const listed = yield* trash.list(null);
+    const history = yield* undo.status();
+
+    const restore = yield* Effect.flip(trash.restore(unknownBatchId));
+    const purge = yield* Effect.flip(trash.purge(unknownBatchId));
+
+    for (const failure of [restore, purge]) {
+      expect(failure.message).toBe(
+        "That deletion no longer exists. It may already have been restored or deleted permanently.",
+      );
+    }
+    expect(yield* readItems()).toEqual(rows);
+    expect(yield* trash.list(null)).toEqual(listed);
+    expect(yield* undo.status()).toEqual(history);
+  }));
+
+test("A repeated restore is refused and records no second step", (world) =>
+  Effect.gen(function* () {
+    const { items, trash, undo, project, area } = world;
+    const item = yield* area("Deleted");
+    const batch = yield* items.delete(project.id, null, item.id);
+    yield* trash.restore(batch);
+    const rows = yield* readItems();
+    const history = yield* undo.status();
+
+    const repeated = yield* Effect.flip(trash.restore(batch.toLowerCase()));
+
+    expect(repeated.message).toContain("no longer exists");
+    expect(yield* readItems()).toEqual(rows);
+    expect(yield* trash.list(null)).toEqual([]);
+    expect(history.undo).toBe("Restore 'Deleted'");
+    expect(yield* undo.status()).toEqual(history);
+  }));
+
+test("Restored items reappear in the calendar with their sub-items", (world) =>
+  Effect.gen(function* () {
+    const { items, trash, calendar, project, area, folder } = world;
+    const deletedArea = yield* folder("Area");
+    const parent = yield* area("Parent", deletedArea.id);
+    const child = yield* area("Child", deletedArea.id, parent.id);
+    for (const [id, title, day] of [
+      [parent.id, "Parent", "2026-11-16"],
+      [child.id, "Child", "2026-11-17"],
+    ] as const) {
+      yield* items.edit(id, { ...edit(title), dueDate: Temporal.PlainDate.from(day) });
+    }
+    const week = {
+      projectId: project.id,
+      fromDate: Temporal.PlainDate.from("2026-11-16"),
+      toDateExclusive: Temporal.PlainDate.from("2026-11-23"),
+      includeCompleted: false,
+    };
+    const titles = () =>
+      Effect.map(calendar.load(week), (entries) => entries.map((entry) => entry.title).toSorted());
+    const batch = yield* world.folders.delete(project.id, deletedArea.id);
+    const whileDeleted = yield* titles();
+
+    yield* trash.restore(batch);
+
+    expect(whileDeleted).toEqual([]);
+    expect(yield* titles()).toEqual(["Child", "Parent"]);
+    expect((yield* calendar.load({ ...week, projectId: null })).length).toBe(2);
   }));

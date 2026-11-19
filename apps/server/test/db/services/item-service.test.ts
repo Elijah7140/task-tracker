@@ -1015,6 +1015,50 @@ it.effect(
     ),
 );
 
+const rankedTicket = Effect.gen(function* () {
+  const { root, items, lookups } = yield* setup;
+  const undo = yield* UndoService;
+  const sql = yield* SqlClient.SqlClient;
+  const item = yield* root("Task");
+  const ticket = { ...edit("Task"), ticketNumber: "T-1" };
+  yield* items.edit(item.id, ticket);
+  yield* sql.withTransaction(sql`UPDATE TodoItem SET TicketRank = 3 WHERE Id = ${item.id}`);
+  const level = yield* lookups.priorityLevels.add("", 7);
+  const readRank = Effect.map(readItems(), ([row]) => row?.TicketRank);
+  return { items, undo, item, ticket, level, readRank };
+});
+
+it.effect.each([
+  ["changes the priority", (level: string) => ({ priorityLevelId: level })],
+  ["removes the ticket number", () => ({ ticketNumber: "  " })],
+] as const)("An editor save that %s clears the ticket rank and undo restores it", ([, change]) =>
+  withServices(
+    Effect.gen(function* () {
+      const { items, undo, item, ticket, level, readRank } = yield* rankedTicket;
+
+      yield* items.edit(item.id, { ...ticket, ...change(level.id) });
+      const cleared = yield* readRank;
+      yield* undo.apply("undo");
+      const restored = yield* readRank;
+
+      expect(cleared).toBeNull();
+      expect(restored).toBe(3);
+    }),
+  ),
+);
+
+it.effect("An editor save that keeps the priority and ticket number keeps the rank", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { items, item, ticket, readRank } = yield* rankedTicket;
+
+      yield* items.edit(item.id, { ...ticket, title: "Renamed", ticketNumber: " T-2 " });
+
+      expect(yield* readRank).toBe(3);
+    }),
+  ),
+);
+
 it.effect("Setting the current priority or an archived one saves nothing", () =>
   withServices(
     Effect.gen(function* () {
