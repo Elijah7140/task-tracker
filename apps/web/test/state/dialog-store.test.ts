@@ -51,4 +51,24 @@ describe("createDialogStore", () => {
 
     expect(store.getState().queue).toEqual([]);
   });
+
+  it("Resolves an unsaved draft question with the chosen decision", async () => {
+    const store = createDialogStore();
+    const answer = store.getState().resolveDraft({ title: "Unsaved changes", message: "Save?" });
+    const request = store.getState().queue[0];
+
+    store.getState().settle(request?.id ?? -1, "discard");
+
+    await expect(answer).resolves.toBe("discard");
+  });
+
+  it("Resolves a dismissed draft question as cancel", async () => {
+    const store = createDialogStore();
+    const answer = store.getState().resolveDraft({ title: "Unsaved changes", message: "Save?" });
+    const request = store.getState().queue[0];
+
+    store.getState().settle(request?.id ?? -1, null);
+
+    await expect(answer).resolves.toBe("cancel");
+  });
 });

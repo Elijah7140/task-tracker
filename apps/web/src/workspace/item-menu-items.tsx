@@ -7,6 +7,7 @@ import {
   ListPlus,
   Pencil,
   RotateCcw,
+  SquarePen,
   Trash2,
 } from "lucide-react";
 import { MenuItem, MenuSeparator } from "../ui/menu.js";
@@ -26,6 +27,14 @@ export function ItemMenuItems({ node, canIndent, hasFolders, actions }: ItemMenu
   const completed = node.item.completedAtUtc !== null;
   return (
     <>
+      <MenuItem
+        icon={<SquarePen size={14} />}
+        onClick={() => actions.editItem(node)}
+        testId="item-menu-edit"
+      >
+        Edit…
+      </MenuItem>
+      <MenuSeparator />
       <MenuItem
         icon={completed ? <RotateCcw size={14} /> : <CircleCheck size={14} />}
         onClick={() => void actions.toggleComplete(node)}

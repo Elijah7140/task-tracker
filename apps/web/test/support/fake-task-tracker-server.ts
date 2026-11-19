@@ -1,5 +1,8 @@
 import {
+  type AreaSnapshot,
   type FolderProjection,
+  type FieldValueInput,
+  type ItemEdit,
   NotFound,
   RuleViolation,
   TaskTrackerRpcs,
@@ -16,7 +19,9 @@ import {
   recomputeAreaTree,
   type SeedItem,
 } from "./fake-area-items.js";
+import { customFieldHandlers, FakeCustomFields } from "./fake-custom-fields.js";
 import {
+  applyEditItem,
   applyCreateItem,
   applyDeleteItem,
   applySetItemCompleted,
@@ -26,6 +31,7 @@ import {
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
 
 type Summary = typeof ProjectSummary.Type;
+type Snapshot = typeof AreaSnapshot.Type;
 type Folder = typeof FolderProjection.Type;
 
 /** A folder seeded into a fake project. `parent` names an earlier seeded folder. */
@@ -79,6 +85,15 @@ export class FakeProjectStore {
   };
 
   readonly settingsAndLookups = new FakeSettingsAndLookups(this.nextId);
+
+  /** Custom-field definitions, choices and item values used by the item editor. */
+  readonly customFields = new FakeCustomFields(this.nextId);
+
+  /** Lookups appended to every area snapshot, such as an archived item type. */
+  readonly extraLookups: {
+    itemTypes: Array<Snapshot["itemTypes"][number]>;
+    priorityLevels: Array<Snapshot["priorityLevels"][number]>;
+  } = { itemTypes: [], priorityLevels: [] };
 
   /** Returns an increasing UTC ISO instant for deterministic newest-first ordering in tests. */
   nextTimestamp = () => {
@@ -236,6 +251,31 @@ export class FakeProjectStore {
     return (findParent(state.nodes)?.children ?? []).map((node) => node.item.title);
   }
 
+  /** Replaces fields of an active item as if edited externally, such as a description. */
+  patchItem(itemId: string, patch: Partial<FakeItemNode["item"]>) {
+    const patchNodes = (nodes: ReadonlyArray<FakeItemNode>): Array<FakeItemNode> =>
+      nodes.map((node) => ({
+        ...node,
+        item: node.item.id === itemId ? { ...node.item, ...patch } : node.item,
+        children: patchNodes(node.children),
+      }));
+    for (const state of this.areas.values()) {
+      state.nodes = patchNodes(state.nodes);
+    }
+  }
+
+  /** The project of an active item, for custom-field scope checks. */
+  itemProject = (itemId: string): Effect.Effect<string, NotFound> => {
+    const contains = (nodes: ReadonlyArray<FakeItemNode>): boolean =>
+      nodes.some((node) => node.item.id === itemId || contains(node.children));
+    for (const [key, state] of this.areas) {
+      if (contains(state.nodes)) {
+        return Effect.succeed(key.split(":")[0]!);
+      }
+    }
+    return Effect.fail(new NotFound({ entity: "Item", message: "Item is missing or deleted." }));
+  };
+
   /** Returns all active area states. */
   allAreas = () => [...this.areas.values()];
 
@@ -318,9 +358,19 @@ export class FakeProjectStore {
 
   area(projectId: string, folderId: string | null) {
     return this.requireArea(projectId, folderId).pipe(
-      Effect.map((state) =>
-        areaSnapshot(projectId, folderId, state.nodes, this.autoCompleteFor(projectId)),
-      ),
+      Effect.map((state) => {
+        const snapshot = areaSnapshot(
+          projectId,
+          folderId,
+          state.nodes,
+          this.autoCompleteFor(projectId),
+        );
+        return {
+          ...snapshot,
+          itemTypes: [...snapshot.itemTypes, ...this.extraLookups.itemTypes],
+          priorityLevels: [...snapshot.priorityLevels, ...this.extraLookups.priorityLevels],
+        };
+      }),
     );
   }
 
@@ -422,6 +472,28 @@ function folderHandlers(store: FakeProjectStore, record: (tag: string) => Effect
   };
 }
 
+/**
+ * EditItem with custom values. Built-in fields and every custom value are
+ * validated before anything changes, so a refused edit stores nothing.
+ */
+function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effect.Effect<unknown>) {
+  return ({
+    itemId,
+    fields,
+    customValues = [],
+  }: {
+    itemId: string;
+    fields: typeof ItemEdit.Type;
+    customValues?: ReadonlyArray<typeof FieldValueInput.Type>;
+  }) =>
+    record("EditItem").pipe(
+      Effect.andThen(store.itemProject(itemId)),
+      Effect.andThen((projectId) => store.customFields.planEdit(itemId, projectId, customValues)),
+      Effect.tap(() => applyEditItem(store, itemId, fields)),
+      Effect.map((commit) => commit()),
+    );
+}
+
 function handlers(store: FakeProjectStore) {
   const record = (tag: string) => Effect.sync(() => store.calls.push(tag));
   return TaskTrackerRpcs.toLayer({
@@ -469,21 +541,19 @@ function handlers(store: FakeProjectStore) {
       record("LoadArea").pipe(Effect.andThen(store.area(projectId, folderId))),
     ...itemHandlers(store, record),
     ...settingsAndLookupHandlers(store, record),
-    LoadItemFieldValues: notUsed,
-    ListFields: notUsed,
-    ListEffectiveFields: notUsed,
     CreateField: notUsed,
     RenameField: notUsed,
     ChangeFieldType: notUsed,
     ArchiveField: notUsed,
     RestoreField: notUsed,
     ReorderFields: notUsed,
-    ListFieldChoices: notUsed,
     AddFieldChoice: notUsed,
     RenameFieldChoice: notUsed,
     ArchiveFieldChoice: notUsed,
     RestoreFieldChoice: notUsed,
     ReorderFieldChoices: notUsed,
+    ...customFieldHandlers(store.customFields, record, store.itemProject),
+    EditItem: editItemHandler(store, record),
   });
 }
 

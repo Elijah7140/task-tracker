@@ -17,6 +17,8 @@ export interface SelectProps<Value extends string> {
   readonly disabled?: boolean | undefined;
   readonly testId?: string | undefined;
   readonly className?: string | undefined;
+  /** `sm` fits compact property rows. */
+  readonly size?: "md" | "sm" | undefined;
 }
 
 /** A single-selection dropdown built on Base UI with the shared raised surface tokens. */
@@ -28,6 +30,7 @@ export function Select<Value extends string>({
   disabled = false,
   testId,
   className,
+  size = "md",
 }: SelectProps<Value>) {
   const handleChange = (next: Value | null) => {
     if (next !== null) {
@@ -40,7 +43,8 @@ export function Select<Value extends string>({
         aria-label={ariaLabel}
         data-testid={testId}
         className={cx(
-          "inline-flex h-9 min-w-24 cursor-default items-center justify-between gap-2 rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg outline-none transition-colors hover:bg-hover focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus data-disabled:bg-hover data-disabled:text-fg-subtle data-disabled:opacity-70",
+          size === "md" ? "h-9 px-3 text-sm" : "h-8 px-2.5 text-[13px]",
+          "inline-flex min-w-24 cursor-default items-center justify-between gap-2 rounded-control border border-line-strong bg-canvas text-fg outline-none transition-colors hover:bg-hover focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus data-disabled:bg-hover data-disabled:text-fg-subtle data-disabled:opacity-70",
           className,
         )}
       >

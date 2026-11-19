@@ -1,0 +1,178 @@
+import { Field } from "@base-ui/react/field";
+import { Input } from "@base-ui/react/input";
+import type { AreaSnapshot, Item } from "@task-tracker/contracts";
+import type { Ref } from "react";
+import { fieldStyles } from "../ui/field-styles.js";
+import { Select } from "../ui/select.js";
+import { ClearableInput } from "./clearable-input.js";
+import { EditorField } from "./editor-field.js";
+import { EditorGroup } from "./editor-group.js";
+import { lookupOptions, NONE_VALUE } from "./editor-options.js";
+import type { BuiltInKey, BuiltInTexts } from "./item-draft.js";
+
+type Snapshot = typeof AreaSnapshot.Type;
+
+/** Props for {@link TitleFields} and {@link PropertyFields}. */
+export interface BuiltInFieldsProps {
+  readonly item: typeof Item.Type;
+  readonly texts: BuiltInTexts;
+  readonly itemTypes: Snapshot["itemTypes"];
+  readonly priorityLevels: Snapshot["priorityLevels"];
+  readonly titleRef: Ref<HTMLInputElement>;
+  readonly onChange: (key: BuiltInKey, value: string) => void;
+}
+
+type ChangeProps = Pick<BuiltInFieldsProps, "texts" | "onChange">;
+
+/** The item's title, edited in place as the panel's heading, and its description. */
+export function TitleFields({
+  texts,
+  onChange,
+  titleRef,
+}: ChangeProps & Pick<BuiltInFieldsProps, "titleRef">) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Field.Root className="flex flex-col">
+        <Field.Label className="sr-only">Title</Field.Label>
+        <Input
+          ref={titleRef}
+          value={texts.title}
+          onValueChange={(value: string) => onChange("title", value)}
+          placeholder="Untitled"
+          data-testid="item-editor-title"
+          autoComplete="off"
+          className="h-10 rounded-control border border-transparent bg-transparent px-2 -mx-2 text-xl font-semibold tracking-tight text-fg outline-none placeholder:text-fg-subtle hover:bg-hover focus-visible:border-accent focus-visible:bg-canvas focus-visible:ring-3 focus-visible:ring-focus"
+        />
+      </Field.Root>
+      <EditorField label="Description" layout="stacked">
+        <Field.Control
+          render={<textarea rows={7} />}
+          value={texts.description}
+          onValueChange={(value: string) => onChange("description", value)}
+          data-testid="item-editor-description"
+          className={fieldStyles.textarea}
+        />
+      </EditorField>
+    </div>
+  );
+}
+
+function LookupSelect({
+  label,
+  value,
+  options,
+  testId,
+  onValueChange,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly options: ReturnType<typeof lookupOptions>;
+  readonly testId: string;
+  readonly onValueChange: (value: string) => void;
+}) {
+  return (
+    <EditorField label={label}>
+      <Select
+        value={value === "" ? NONE_VALUE : value}
+        onValueChange={(next) => onValueChange(next === NONE_VALUE ? "" : next)}
+        options={options}
+        ariaLabel={label}
+        testId={testId}
+        size="sm"
+        className="w-full"
+      />
+    </EditorField>
+  );
+}
+
+function DetailsGroup({
+  item,
+  texts,
+  itemTypes,
+  priorityLevels,
+  onChange,
+}: Omit<BuiltInFieldsProps, "titleRef">) {
+  return (
+    <EditorGroup title="Details" testId="item-editor-details">
+      <div className="flex flex-col gap-1.5">
+        <LookupSelect
+          label="Type"
+          value={texts.itemTypeId}
+          options={lookupOptions(itemTypes, item.itemTypeId)}
+          testId="item-editor-type"
+          onValueChange={(value) => onChange("itemTypeId", value)}
+        />
+        <LookupSelect
+          label="Priority"
+          value={texts.priorityLevelId}
+          options={lookupOptions(priorityLevels, item.priorityLevelId)}
+          testId="item-editor-priority"
+          onValueChange={(value) => onChange("priorityLevelId", value)}
+        />
+        <EditorField label="Ticket number">
+          <Input
+            value={texts.ticketNumber}
+            onValueChange={(value: string) => onChange("ticketNumber", value)}
+            data-testid="item-editor-ticket"
+            autoComplete="off"
+            spellCheck={false}
+            className={fieldStyles.compactControl}
+          />
+        </EditorField>
+      </div>
+    </EditorGroup>
+  );
+}
+
+interface ScheduleInput {
+  readonly key: BuiltInKey;
+  readonly label: string;
+  readonly type: "date" | "time" | "datetime-local";
+  readonly testId: string;
+}
+
+const SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
+  { key: "dueDate", label: "Due date", type: "date", testId: "due-date" },
+  { key: "dueTime", label: "Due time", type: "time", testId: "due-time" },
+  {
+    key: "scheduledStart",
+    label: "Scheduled start",
+    type: "datetime-local",
+    testId: "scheduled-start",
+  },
+  { key: "scheduledEnd", label: "Scheduled end", type: "datetime-local", testId: "scheduled-end" },
+];
+
+function ScheduleGroup({ texts, onChange }: ChangeProps) {
+  return (
+    <EditorGroup title="Schedule" testId="item-editor-schedule">
+      <div className="flex flex-col gap-1.5">
+        {SCHEDULE_INPUTS.map((input) => (
+          <EditorField key={input.key} label={input.label}>
+            <ClearableInput
+              type={input.type}
+              value={texts[input.key]}
+              onValueChange={(value) => onChange(input.key, value)}
+              clearLabel={`Clear ${input.label.toLowerCase()}`}
+              testId={`item-editor-${input.testId}`}
+              clearTestId={`item-editor-clear-${input.testId}`}
+            />
+          </EditorField>
+        ))}
+      </div>
+    </EditorGroup>
+  );
+}
+
+/**
+ * The item's built-in metadata as compact property rows: Details (type,
+ * priority, ticket) and Schedule (due date and time, scheduled start and end).
+ */
+export function PropertyFields(props: Omit<BuiltInFieldsProps, "titleRef">) {
+  return (
+    <>
+      <DetailsGroup {...props} />
+      <ScheduleGroup texts={props.texts} onChange={props.onChange} />
+    </>
+  );
+}

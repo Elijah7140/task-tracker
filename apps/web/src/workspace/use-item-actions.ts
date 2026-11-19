@@ -10,6 +10,7 @@ import {
 } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
+import { openItemEditor } from "../state/item-editor-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { isEmptyLevel, itemAncestorIds, type ItemNode } from "./item-outline.js";
 import {
@@ -225,6 +226,12 @@ function useDeleteAndRestore(scope: ItemActionScope) {
   return { deleteItem, restoreBatch };
 }
 
+/** Selects an item and opens it in the floating editor (§8). */
+function openEditor(node: ItemNode) {
+  useWorkspaceStore.getState().selectItem(node.item.id);
+  openItemEditor(node.item.id);
+}
+
 /**
  * All item actions for an area (the legacy AreaItemsViewModel commands plus
  * Notion-style indent/outdent and moves). Each mutation invalidates area and
@@ -232,6 +239,7 @@ function useDeleteAndRestore(scope: ItemActionScope) {
  */
 export function useItemActions(scope: ItemActionScope) {
   return {
+    editItem: openEditor,
     ...useCreateItemActions(scope),
     renameItem: useRenameItem(scope),
     toggleComplete: useToggleComplete(scope),

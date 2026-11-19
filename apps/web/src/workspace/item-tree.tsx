@@ -261,6 +261,8 @@ function handleRowKey(
   }
   if (event.key === " ") {
     void actions.toggleComplete(node);
+  } else if (event.key === "Enter") {
+    actions.editItem(node);
   } else if (event.key === "F2") {
     void actions.renameItem(node);
   } else if (event.key === "Delete") {
@@ -330,7 +332,7 @@ function isFocusReady(nodes: ItemSiblings, request: ItemFocusRequest): boolean {
 /**
  * An area's items as an ARIA tree: open items first, quick-add at the end of
  * the open list, then a collapsed "Completed (n)" section, newest-completed
- * first. Selection follows focus. Supports WAI-ARIA tree keys, Space/F2/Delete,
+ * first. Selection follows focus. Supports WAI-ARIA tree keys, Enter (edit), Space/F2/Delete,
  * Alt+Up/Down reorder, Tab/Shift+Tab indent/outdent and pointer drag reorder.
  */
 export function ItemTree({
