@@ -67,5 +67,3 @@ Treat confirmation as a new request and revalidate before applying it.
 Start every subagent with full access (for example, `runtimeMode: "full-access"`
 in T3 `delegate_task`), including subagents on linked machines. The owner does
 not want to approve subagent permission requests.
-
-Do not commit. The project lead reviews and commits.
