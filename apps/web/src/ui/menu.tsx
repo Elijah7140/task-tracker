@@ -43,18 +43,27 @@ export interface MenuItemProps {
   readonly children: ReactNode;
   readonly icon?: ReactNode;
   readonly tone?: "default" | "danger" | undefined;
+  readonly disabled?: boolean | undefined;
   readonly onClick: () => void;
   readonly testId?: string | undefined;
 }
 
 /** A menu row with an optional leading icon. */
-export function MenuItem({ children, icon, tone = "default", onClick, testId }: MenuItemProps) {
+export function MenuItem({
+  children,
+  icon,
+  tone = "default",
+  disabled = false,
+  onClick,
+  testId,
+}: MenuItemProps) {
   return (
     <Menu.Item
+      disabled={disabled}
       onClick={onClick}
       data-testid={testId}
       className={cx(
-        "flex h-8 cursor-default items-center gap-2 rounded-[0.375rem] px-2 text-sm outline-none select-none data-highlighted:bg-hover",
+        "flex h-8 cursor-default items-center gap-2 rounded-[0.375rem] px-2 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-hover",
         tone === "danger" ? "text-danger" : "text-fg",
       )}
     >
@@ -62,4 +71,9 @@ export function MenuItem({ children, icon, tone = "default", onClick, testId }: 
       {children}
     </Menu.Item>
   );
+}
+
+/** A thin divider separating groups of menu actions. */
+export function MenuSeparator() {
+  return <Menu.Separator className="my-1 h-px bg-line" />;
 }

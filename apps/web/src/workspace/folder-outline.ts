@@ -1,4 +1,8 @@
 import type { FolderProjection } from "@task-tracker/contracts";
+import type { ChoiceOption } from "../state/dialog-store.js";
+
+/** Choice value representing the project root area in destination pickers. */
+export const ROOT_AREA_CHOICE = "root";
 
 /** An active folder as the workspace snapshot returns it. */
 export type Folder = typeof FolderProjection.Type;
@@ -67,4 +71,17 @@ export function isWithinFolder(
   ancestorId: string,
 ): boolean {
   return folderPath(folders, folderId).some((folder) => folder.id === ancestorId);
+}
+
+/** Builds indented area choices (project root plus every folder) for move dialogs. */
+export function areaChoiceOptions(
+  projectName: string,
+  folders: ReadonlyArray<Folder>,
+): ReadonlyArray<ChoiceOption> {
+  const nested = flattenFolderForest(buildFolderForest(folders)).map(({ folder, depth }) => ({
+    value: folder.id,
+    label: folder.name,
+    depth: depth + 1,
+  }));
+  return [{ value: ROOT_AREA_CHOICE, label: projectName }, ...nested];
 }

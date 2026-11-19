@@ -59,8 +59,10 @@ function WorkspaceArea({ workspace, folderId, timeZone }: WorkspaceAreaProps) {
       <AreaItems
         key={folderId ?? "root"}
         projectId={workspace.projectId}
+        projectName={workspace.name}
         folderId={folderId}
         areaName={areaName}
+        folders={workspace.folders}
         timeZone={timeZone}
       />
     </PageContainer>

@@ -8,12 +8,25 @@ import {
 import { Effect, Exit, Scope } from "effect";
 import { HttpEffect } from "effect/http";
 import { RpcSerialization, RpcServer } from "effect/rpc";
-import { areaSnapshot, FakeAreaBuilder, type SeedItem } from "./fake-area-items.js";
+import {
+  areaSnapshot,
+  FakeAreaBuilder,
+  type FakeItemNode,
+  type FakeUrgency,
+  recomputeAreaTree,
+  type SeedItem,
+} from "./fake-area-items.js";
+import {
+  applyCreateItem,
+  applyDeleteItem,
+  applySetItemCompleted,
+  type FakeAreaState,
+  itemHandlers,
+} from "./fake-item-operations.js";
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Folder = typeof FolderProjection.Type;
-type AreaItems = ReturnType<FakeAreaBuilder["build"]>;
 
 /** A folder seeded into a fake project. `parent` names an earlier seeded folder. */
 export interface SeedFolder {
@@ -27,6 +40,7 @@ export interface SeedProject {
   readonly name: string;
   readonly openCount?: number;
   readonly overdueCount?: number;
+  readonly autoCompleteParents?: boolean;
   readonly folders?: ReadonlyArray<SeedFolder>;
   readonly items?: ReadonlyArray<SeedItem>;
 }
@@ -49,8 +63,10 @@ export class FakeProjectStore {
   summaries: Array<Summary> = [];
   folders: Array<Folder> = [];
   readonly calls: Array<string> = [];
-  private readonly areas = new Map<string, AreaItems>();
+  private readonly areas = new Map<string, FakeAreaState>();
+  private readonly autoCompleteByProject = new Map<string, boolean>();
   private sequence = 0;
+  private timestampSequence = 0;
 
   constructor(seed: ReadonlyArray<SeedProject> = []) {
     seed.forEach((project) => this.add(project));
@@ -64,8 +80,30 @@ export class FakeProjectStore {
 
   readonly settingsAndLookups = new FakeSettingsAndLookups(this.nextId);
 
+  /** Returns an increasing UTC ISO instant for deterministic newest-first ordering in tests. */
+  nextTimestamp = () => {
+    const offset = this.timestampSequence;
+    this.timestampSequence += 1;
+    const totalSeconds = 60 + offset;
+    const hours = 12 + Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `2026-11-13T${pad(hours)}:${pad(minutes)}:${pad(seconds)}Z`;
+  };
+
+  /** Whether auto-complete parents is enabled for `projectId`. */
+  autoCompleteFor = (projectId: string) => this.autoCompleteByProject.get(projectId) ?? true;
+
   /** Adds a project as if another client had created it. */
-  add({ name, openCount = 0, overdueCount = 0, folders = [], items = [] }: SeedProject): Summary {
+  add({
+    name,
+    openCount = 0,
+    overdueCount = 0,
+    autoCompleteParents = true,
+    folders = [],
+    items = [],
+  }: SeedProject): Summary {
     const project = {
       id: this.nextId(),
       name,
@@ -76,6 +114,7 @@ export class FakeProjectStore {
     };
     const summary = { project, openCount, overdueCount };
     this.summaries.push(summary);
+    this.autoCompleteByProject.set(project.id, autoCompleteParents);
     this.setItems(project.id, null, items);
     for (const folder of folders) {
       const parent = folder.parent === undefined ? null : this.folderNamed(folder.parent).id;
@@ -105,9 +144,119 @@ export class FakeProjectStore {
 
   /** Replaces an area's items, as if they had changed elsewhere or with time. */
   setItems(projectId: string, folderId: string | null, items: ReadonlyArray<SeedItem>) {
-    const built = new FakeAreaBuilder(projectId, folderId, this.nextId).build(items);
-    this.areas.set(areaKey(projectId, folderId), built);
+    const baseUrgencies = new Map<string, FakeUrgency>();
+    const built = new FakeAreaBuilder(projectId, folderId, this.nextId, baseUrgencies).build(items);
+    this.areas.set(areaKey(projectId, folderId), {
+      nodes: built,
+      baseUrgencies,
+      deletedBatches: new Map(),
+    });
   }
+
+  /** Adds an active item to an area as if created externally. */
+  addItem(
+    projectId: string,
+    folderId: string | null,
+    seed: SeedItem,
+    parentItemId: string | null = null,
+  ): FakeItemNode {
+    const state = Effect.runSync(this.requireArea(projectId, folderId));
+    const created = Effect.runSync(
+      applyCreateItem(this, state, projectId, folderId, parentItemId, seed.title),
+    );
+    if (seed.urgency !== undefined) {
+      state.baseUrgencies.set(created.id, seed.urgency);
+      state.nodes = recomputeAreaTree(state.nodes, state.baseUrgencies);
+    }
+    return this.findItemByTitle(projectId, folderId, created.title)!;
+  }
+
+  /** Completes or reopens an item as if edited externally. */
+  completeItem(projectId: string, folderId: string | null, itemId: string, completed = true) {
+    const state = Effect.runSync(this.requireArea(projectId, folderId));
+    Effect.runSync(applySetItemCompleted(this, state, projectId, itemId, completed));
+  }
+
+  /** Deletes an item as if deleted externally. */
+  deleteItem(projectId: string, folderId: string | null, itemId: string): string {
+    const state = Effect.runSync(this.requireArea(projectId, folderId));
+    return Effect.runSync(applyDeleteItem(this, state, projectId, itemId));
+  }
+
+  /** Finds an active item node in an area by title. */
+  findItemByTitle(
+    projectId: string,
+    folderId: string | null,
+    title: string,
+  ): FakeItemNode | undefined {
+    const state = this.areas.get(areaKey(projectId, folderId));
+    if (state === undefined) {
+      return undefined;
+    }
+    const visit = (nodes: ReadonlyArray<FakeItemNode>): FakeItemNode | undefined => {
+      for (const node of nodes) {
+        if (node.item.title === title) {
+          return node;
+        }
+        const nested = visit(node.children);
+        if (nested !== undefined) {
+          return nested;
+        }
+      }
+      return undefined;
+    };
+    return visit(state.nodes);
+  }
+
+  /** Returns sibling titles in saved `sortOrder` (including finished siblings). */
+  areaSiblingTitles(
+    projectId: string,
+    folderId: string | null,
+    parentItemId: string | null = null,
+  ): ReadonlyArray<string> {
+    const state = this.areas.get(areaKey(projectId, folderId));
+    if (state === undefined) {
+      return [];
+    }
+    if (parentItemId === null) {
+      return state.nodes.map((node) => node.item.title);
+    }
+    const findParent = (nodes: ReadonlyArray<FakeItemNode>): FakeItemNode | undefined => {
+      for (const node of nodes) {
+        if (node.item.id === parentItemId) {
+          return node;
+        }
+        const nested = findParent(node.children);
+        if (nested !== undefined) {
+          return nested;
+        }
+      }
+      return undefined;
+    };
+    return (findParent(state.nodes)?.children ?? []).map((node) => node.item.title);
+  }
+
+  /** Returns all active area states. */
+  allAreas = () => [...this.areas.values()];
+
+  /** Requires an active project and folder area state. */
+  requireArea = (
+    projectId: string,
+    folderId: string | null,
+  ): Effect.Effect<FakeAreaState, RuleViolation> => {
+    const state = this.areas.get(areaKey(projectId, folderId));
+    const knownProject = this.summaries.some((summary) => summary.project.id === projectId);
+    const knownFolder =
+      folderId === null ||
+      this.folders.some((folder) => folder.id === folderId && folder.projectId === projectId);
+    return state === undefined || !knownProject || !knownFolder
+      ? Effect.fail(
+          new RuleViolation({
+            message: "Area folder is missing or belongs to another project.",
+          }),
+        )
+      : Effect.succeed(state);
+  };
 
   /** The seeded folder with this name. */
   folderNamed(name: string): Folder {
@@ -168,15 +317,11 @@ export class FakeProjectStore {
   }
 
   area(projectId: string, folderId: string | null) {
-    const items = this.areas.get(areaKey(projectId, folderId));
-    const known = this.summaries.some((summary) => summary.project.id === projectId);
-    return items === undefined || !known
-      ? Effect.fail(
-          new RuleViolation({
-            message: "Area folder is missing or belongs to another project.",
-          }),
-        )
-      : Effect.succeed(areaSnapshot(projectId, folderId, items));
+    return this.requireArea(projectId, folderId).pipe(
+      Effect.map((state) =>
+        areaSnapshot(projectId, folderId, state.nodes, this.autoCompleteFor(projectId)),
+      ),
+    );
   }
 
   find(projectId: string) {
@@ -322,16 +467,7 @@ function handlers(store: FakeProjectStore) {
     RestoreFolder: notUsed,
     LoadArea: ({ projectId, folderId }) =>
       record("LoadArea").pipe(Effect.andThen(store.area(projectId, folderId))),
-    CreateItem: notUsed,
-    EditItem: notUsed,
-    SetItemCompleted: notUsed,
-    IndentItem: notUsed,
-    OutdentItem: notUsed,
-    MoveItem: notUsed,
-    ReorderItems: notUsed,
-    MoveItemToArea: notUsed,
-    DeleteItem: notUsed,
-    RestoreItems: notUsed,
+    ...itemHandlers(store, record),
     ...settingsAndLookupHandlers(store, record),
     LoadItemFieldValues: notUsed,
     ListFields: notUsed,

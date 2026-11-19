@@ -1,8 +1,8 @@
 import type { AreaSnapshot } from "@task-tracker/contracts";
 
 type Snapshot = typeof AreaSnapshot.Type;
-type ItemNode = Snapshot["items"][number];
-type Urgency = ItemNode["ownUrgency"];
+export type FakeItemNode = Snapshot["items"][number];
+export type FakeUrgency = FakeItemNode["ownUrgency"];
 
 /** An item seeded into a fake area. Urgency and finished flags stand in for the server's rules. */
 export interface SeedItem {
@@ -14,9 +14,9 @@ export interface SeedItem {
   readonly dueTime?: string;
   readonly scheduledStart?: string;
   readonly completedAtUtc?: string;
-  readonly urgency?: Urgency;
+  readonly urgency?: FakeUrgency;
   /** Overrides the displayed urgency, for example one rolled up from a sub-item. */
-  readonly displayed?: { readonly value: Urgency; readonly sourceTitle: string };
+  readonly displayed?: { readonly value: FakeUrgency; readonly sourceTitle: string };
   readonly children?: ReadonlyArray<SeedItem>;
 }
 
@@ -55,18 +55,26 @@ export class FakeAreaBuilder {
     private readonly projectId: string,
     private readonly folderId: string | null,
     private readonly nextId: () => string,
+    private readonly baseUrgencies: Map<string, FakeUrgency> = new Map(),
   ) {}
 
-  build(seeds: ReadonlyArray<SeedItem>): Array<ItemNode> {
+  build(seeds: ReadonlyArray<SeedItem>): Array<FakeItemNode> {
     const nodes = seeds.map((seed, index) => this.node(seed, index, null));
     return nodes.map((node, index) => this.attribute(node, seeds[index]!, nodes));
   }
 
-  private node(seed: SeedItem, sortOrder: number, parentItemId: string | null): ItemNode {
+  /** Builds a single item node (and any seeded children) under `parentItemId`. */
+  buildNode(seed: SeedItem, sortOrder: number, parentItemId: string | null): FakeItemNode {
+    return this.node(seed, sortOrder, parentItemId);
+  }
+
+  private node(seed: SeedItem, sortOrder: number, parentItemId: string | null): FakeItemNode {
     const id = this.nextId();
+    const baseUrgency = seed.urgency ?? "None";
+    this.baseUrgencies.set(id, baseUrgency);
     const children = (seed.children ?? []).map((child, index) => this.node(child, index, id));
     const completedAtUtc = seed.completedAtUtc ?? null;
-    const ownUrgency = completedAtUtc === null ? (seed.urgency ?? "None") : "None";
+    const ownUrgency = completedAtUtc === null ? baseUrgency : "None";
     return {
       item: this.record(seed, id, parentItemId, sortOrder),
       ownUrgency,
@@ -101,7 +109,11 @@ export class FakeAreaBuilder {
     };
   }
 
-  private attribute(node: ItemNode, seed: SeedItem, roots: ReadonlyArray<ItemNode>): ItemNode {
+  private attribute(
+    node: FakeItemNode,
+    seed: SeedItem,
+    roots: ReadonlyArray<FakeItemNode>,
+  ): FakeItemNode {
     const children = node.children.map((child, index) =>
       this.attribute(child, seed.children![index]!, roots),
     );
@@ -120,7 +132,44 @@ export class FakeAreaBuilder {
   }
 }
 
-function findByTitle(nodes: ReadonlyArray<ItemNode>, title: string): ItemNode | undefined {
+const URGENCY_RANK: Record<FakeUrgency, number> = {
+  None: 0,
+  Approaching: 1,
+  Imminent: 2,
+  Overdue: 3,
+};
+
+/** Recomputes sibling sortOrder, own/displayed urgency, and finished flags for an area tree. */
+export function recomputeAreaTree(
+  nodes: ReadonlyArray<FakeItemNode>,
+  baseUrgencies: ReadonlyMap<string, FakeUrgency>,
+  parentItemId: string | null = null,
+): Array<FakeItemNode> {
+  return nodes.map((node, index) => {
+    const children = recomputeAreaTree(node.children, baseUrgencies, node.item.id);
+    const completed = node.item.completedAtUtc !== null;
+    const ownUrgency: FakeUrgency = completed
+      ? "None"
+      : (baseUrgencies.get(node.item.id) ?? "None");
+    let bestUrgency = ownUrgency;
+    let sourceDescendantId: string | null = null;
+    for (const child of children) {
+      if (URGENCY_RANK[child.displayedUrgency.value] > URGENCY_RANK[bestUrgency]) {
+        bestUrgency = child.displayedUrgency.value;
+        sourceDescendantId = child.displayedUrgency.sourceDescendantId ?? child.item.id;
+      }
+    }
+    return {
+      item: { ...node.item, parentItemId, sortOrder: index },
+      ownUrgency,
+      displayedUrgency: { value: bestUrgency, sourceDescendantId },
+      isFinished: completed && children.every((child) => child.isFinished),
+      children,
+    };
+  });
+}
+
+function findByTitle(nodes: ReadonlyArray<FakeItemNode>, title: string): FakeItemNode | undefined {
   for (const node of nodes) {
     const found = node.item.title === title ? node : findByTitle(node.children, title);
     if (found !== undefined) {
@@ -134,7 +183,17 @@ function findByTitle(nodes: ReadonlyArray<ItemNode>, title: string): ItemNode | 
 export function areaSnapshot(
   projectId: string,
   folderId: string | null,
-  items: ReadonlyArray<ItemNode>,
+  items: ReadonlyArray<FakeItemNode>,
+  autoCompleteParents = true,
 ): Snapshot {
-  return { projectId, folderId, items, ...FAKE_LOOKUPS, settings };
+  return {
+    projectId,
+    folderId,
+    items,
+    ...FAKE_LOOKUPS,
+    settings: {
+      ...settings,
+      autoCompleteParents: { value: autoCompleteParents, source: "Global" },
+    },
+  };
 }
