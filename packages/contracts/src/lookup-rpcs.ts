@@ -4,15 +4,20 @@ import { Guid } from "./guid.js";
 import { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
 
-const lookupRpcs = <Name extends string, Row extends Schema.Top>(
+const lookupRpcs = <
+  Name extends string,
+  Row extends Schema.Top,
+  Extra extends Schema.Struct.Fields,
+>(
   singular: Name,
   plural: `${Name}s`,
   row: Row,
+  extra: Extra,
 ) =>
   [
     Rpc.make(`List${plural}`, { success: Schema.Array(row), error: RpcOperationError }),
     Rpc.make(`Add${singular}`, {
-      payload: { name: Schema.String },
+      payload: { name: Schema.String, ...extra },
       success: row,
       error: RpcOperationError,
     }),
@@ -30,6 +35,12 @@ const lookupRpcs = <Name extends string, Row extends Schema.Top>(
 
 /** Manage item types and priority levels. Lists include archived rows in their order. */
 export const LookupRpcs = RpcGroup.make(
-  ...lookupRpcs("ItemType", "ItemTypes", ItemTypeProjection),
-  ...lookupRpcs("PriorityLevel", "PriorityLevels", PriorityLevelProjection),
+  ...lookupRpcs("ItemType", "ItemTypes", ItemTypeProjection, {}),
+  ...lookupRpcs("PriorityLevel", "PriorityLevels", PriorityLevelProjection, {
+    number: Schema.optionalKey(Schema.NullOr(Schema.Number)),
+  }),
+  Rpc.make("SetPriorityNumber", {
+    payload: { id: Guid, number: Schema.NullOr(Schema.Number) },
+    error: RpcOperationError,
+  }),
 );

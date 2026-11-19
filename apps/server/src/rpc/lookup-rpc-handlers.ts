@@ -1,6 +1,7 @@
 import { LookupRpcs } from "@task-tracker/contracts";
 import { Effect, Layer } from "effect";
 import { LookupService } from "../services/lookup-service.js";
+import { projectPriorityLevel } from "./priority-level-projection.js";
 import { mapOperationError } from "./map-operation-error.js";
 
 /** Bind item type and priority level management to the lookup service. */
@@ -14,8 +15,15 @@ export const lookupRpcHandlers = LookupRpcs.toLayer(
       ArchiveItemType: ({ id }) => itemTypes.archive(id).pipe(mapOperationError),
       RestoreItemType: ({ id }) => itemTypes.restore(id).pipe(mapOperationError),
       ReorderItemTypes: ({ ids }) => itemTypes.reorder(ids).pipe(mapOperationError),
-      ListPriorityLevels: () => priorityLevels.list().pipe(mapOperationError),
-      AddPriorityLevel: ({ name }) => priorityLevels.add(name).pipe(mapOperationError),
+      ListPriorityLevels: () =>
+        priorityLevels.list().pipe(
+          Effect.map((rows) => rows.map(projectPriorityLevel)),
+          mapOperationError,
+        ),
+      AddPriorityLevel: ({ name, number }) =>
+        priorityLevels.add(name, number).pipe(Effect.map(projectPriorityLevel), mapOperationError),
+      SetPriorityNumber: ({ id, number }) =>
+        priorityLevels.setNumber(id, number).pipe(mapOperationError),
       RenamePriorityLevel: ({ id, name }) =>
         priorityLevels.rename(id, name).pipe(mapOperationError),
       ArchivePriorityLevel: ({ id }) => priorityLevels.archive(id).pipe(mapOperationError),

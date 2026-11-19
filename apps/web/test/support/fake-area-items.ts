@@ -45,7 +45,11 @@ const lookup = (name: string, index: number, kind: number) => ({
 /** Seeded item types and priority levels, as the server returns them. */
 export const FAKE_LOOKUPS = {
   itemTypes: TYPES.map((name, index) => ({ ...lookup(name, index, 1), iconKey: null })),
-  priorityLevels: PRIORITIES.map((name, index) => lookup(name, index, 2)),
+  priorityLevels: PRIORITIES.map((name, index) => ({
+    ...lookup(name, index, 2),
+    number: null,
+    label: name,
+  })),
 };
 
 const settings = {

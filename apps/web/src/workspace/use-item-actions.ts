@@ -9,6 +9,7 @@ import {
   editItemAtom,
   restoreItemsAtom,
   setItemCompletedAtom,
+  setItemPriorityAtom,
 } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
@@ -135,6 +136,25 @@ function useRenameItem(scope: ItemActionScope) {
     const exit = await edit({ payload: { itemId: id, fields }, reactivityKeys: keys });
     if (await reportItemFailure(exit)) {
       scope.onFocusItem({ id, afterNodes: scope.items });
+    }
+  };
+}
+
+/** Sets only the item's priority from a row menu, then returns focus to the row. */
+function useSetPriority(scope: ItemActionScope) {
+  const setPriority = useAtomSet(setItemPriorityAtom, { mode: "promiseExit" });
+  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId)];
+
+  return async (node: ItemNode, priorityLevelId: string | null) => {
+    if (priorityLevelId === node.item.priorityLevelId) {
+      return;
+    }
+    const exit = await setPriority({
+      payload: { itemId: node.item.id, priorityLevelId },
+      reactivityKeys: keys,
+    });
+    if (await reportItemFailure(exit)) {
+      scope.onFocusItem({ id: node.item.id, afterNodes: scope.items });
     }
   };
 }
@@ -289,6 +309,7 @@ export function useItemActions(scope: ItemActionScope) {
     quickAdd,
     addSubItem: once("addSubItem", addSubItem),
     renameItem: once("renameItem", useRenameItem(scope)),
+    setPriority: once("setPriority", useSetPriority(scope)),
     toggleComplete: once("toggleComplete", useToggleComplete(scope)),
     deleteItem: once("deleteItem", deleteItem),
     restoreBatch,

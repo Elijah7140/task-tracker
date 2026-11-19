@@ -49,3 +49,6 @@ export const restorePriorityLevelAtom = TaskTrackerClient.mutation("RestorePrior
 
 /** Reorders all priority levels. */
 export const reorderPriorityLevelsAtom = TaskTrackerClient.mutation("ReorderPriorityLevels");
+
+/** Edits a priority's display number independently of its rank. */
+export const setPriorityNumberAtom = TaskTrackerClient.mutation("SetPriorityNumber");

@@ -12,6 +12,7 @@ import {
   type UndoTable,
 } from "./undo-rows.js";
 import { verifyReplayHierarchy } from "./replay-hierarchy.js";
+import { verifyReplayPriorities } from "./replay-priorities.js";
 
 /** The expected and desired versions of a row in the selected replay direction. */
 export interface ReplayRow {
@@ -20,8 +21,13 @@ export interface ReplayRow {
   readonly target: UndoRow | undefined;
 }
 
-const subject = (table: UndoTable) =>
-  table === "Project" ? "project" : table === "Folder" ? "folder" : "item";
+const subjects: Partial<Record<UndoTable, string>> = {
+  Project: "project",
+  Folder: "folder",
+  PriorityLevel: "priority level",
+};
+
+const subject = (table: UndoTable) => subjects[table] ?? "item";
 
 const verifyRow = Effect.fnUntraced(function* (
   sql: SqlClient.SqlClient,
@@ -115,6 +121,7 @@ export const replayRows = Effect.fnUntraced(
     for (const row of rows) {
       yield* verifyRow(sql, row, direction);
     }
+    yield* verifyReplayPriorities(sql, rows);
     const removed = rows.filter((row) => row.target === undefined);
     const removals = new Set(
       removed.map(({ table, source }) => `${table}:${rowKey(table, source!)}`),

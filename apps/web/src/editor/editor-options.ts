@@ -60,7 +60,7 @@ export function lookupOptions(
     { value: NONE_VALUE, label: "None" },
     ...offered(lookups, storedId).map((lookup) => ({
       value: lookup.id,
-      label: archivedLabel(lookup.name, lookup.isArchived),
+      label: archivedLabel("label" in lookup ? lookup.label : lookup.name, lookup.isArchived),
     })),
   ];
 }

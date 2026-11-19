@@ -29,3 +29,6 @@ export const deleteItemAtom = TaskTrackerClient.mutation("DeleteItem");
 
 /** Restores an item deletion batch in an area. */
 export const restoreItemsAtom = TaskTrackerClient.mutation("RestoreItems");
+
+/** Sets or clears only an item's priority, as the row menus do. */
+export const setItemPriorityAtom = TaskTrackerClient.mutation("SetItemPriority");

@@ -2,6 +2,7 @@ import { Input } from "@base-ui/react/input";
 import { type FormEvent, type RefObject, useRef, useState } from "react";
 import { UNSAVED_SETTINGS_UNDO_MESSAGE, useUndoBlocker } from "../shell/undo-blockers.js";
 import { Button } from "../ui/button.js";
+import { fieldStyles } from "../ui/field-styles.js";
 import { SectionCard } from "../ui/section-card.js";
 import { useListReorder } from "../ui/use-list-reorder.js";
 import { partitionLookups } from "./lookup-order.js";
@@ -55,16 +56,16 @@ function ArchivedRows({
         {archived.map((row) => (
           <li
             key={row.id}
-            aria-label={row.name}
+            aria-label={row.label ?? row.name}
             data-testid="lookup-archived-row"
             className="flex h-8 items-center justify-between gap-2 px-1.5 text-sm text-fg-subtle"
           >
-            <span className="truncate">{row.name}</span>
+            <span className="truncate">{row.label ?? row.name}</span>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              aria-label={`Restore ${row.name}`}
+              aria-label={`Restore ${row.label ?? row.name}`}
               onClick={() => onRestore(row)}
               data-testid="lookup-restore"
             >
@@ -80,18 +81,22 @@ function ArchivedRows({
 /** The new-name input. It clears only after the server accepts the name. */
 function AddLookupForm({
   singular,
+  isPriority,
   onAdd,
 }: {
   readonly singular: string;
-  readonly onAdd: (name: string) => Promise<boolean>;
+  readonly isPriority: boolean;
+  readonly onAdd: (name: string, number: string) => Promise<boolean>;
 }) {
   const [newName, setNewName] = useState("");
-  useUndoBlocker(newName.trim() !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
+  const [newNumber, setNewNumber] = useState("");
+  useUndoBlocker(newName.trim() !== "" || newNumber !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
 
   const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (await onAdd(newName)) {
+    if (await onAdd(newName, newNumber)) {
       setNewName("");
+      setNewNumber("");
     }
   };
 
@@ -107,6 +112,18 @@ function AddLookupForm({
         data-testid="lookup-new-name"
         className="h-9 min-w-0 flex-1 rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg outline-none placeholder:text-fg-subtle focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus"
       />
+      {isPriority ? (
+        <Input
+          value={newNumber}
+          onValueChange={setNewNumber}
+          placeholder="Number"
+          aria-label="New priority number"
+          autoComplete="off"
+          inputMode="numeric"
+          data-testid="priority-new-number"
+          className={`${fieldStyles.control} max-w-24`}
+        />
+      ) : null}
       <Button type="submit" data-testid="lookup-add">
         Add
       </Button>
@@ -164,6 +181,7 @@ export function LookupListCard({ kind, rows }: LookupListCardProps) {
             onMove={move}
             onRename={(target) => void actions.rename(target)}
             onArchive={(target) => void actions.archive(target)}
+            onSetNumber={actions.setNumber}
           />
         ))}
       </ul>
@@ -172,7 +190,11 @@ export function LookupListCard({ kind, rows }: LookupListCardProps) {
         listLabel={labels.listLabel}
         onRestore={(target) => void actions.restore(target)}
       />
-      <AddLookupForm singular={labels.singular} onAdd={actions.add} />
+      <AddLookupForm
+        singular={labels.singular}
+        isPriority={kind === "priorityLevels"}
+        onAdd={actions.add}
+      />
     </SectionCard>
   );
 }

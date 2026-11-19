@@ -297,6 +297,36 @@ export function applyEditItem(
   });
 }
 
+/** Sets only an item's priority, refusing a missing or archived level as the server does. */
+export function applySetItemPriority(
+  store: FakeItemStoreContext,
+  itemId: string,
+  priorityLevelId: string | null,
+  levels: ReadonlyArray<{ readonly id: string; readonly isArchived: boolean }>,
+): Effect.Effect<void, ItemError> {
+  return Effect.gen(function* () {
+    const area = store
+      .allAreas()
+      .find((candidate) => locateNode(candidate.nodes, itemId) !== undefined);
+    if (area === undefined) {
+      return yield* Effect.fail(missingItem());
+    }
+    if (
+      priorityLevelId !== null &&
+      !levels.some((level) => level.id === priorityLevelId.toUpperCase() && !level.isArchived)
+    ) {
+      return yield* Effect.fail(new RuleViolation({ message: "Priority is missing or archived." }));
+    }
+    const id = priorityLevelId?.toUpperCase() ?? null;
+    const now = store.nextTimestamp();
+    area.nodes = mapTree(area.nodes, (node) =>
+      node.item.id === itemId
+        ? { ...node, item: { ...node.item, priorityLevelId: id, updatedAtUtc: now } }
+        : node,
+    );
+  });
+}
+
 /** Completes or reopens an item, mirroring Core's confirmation, blocked, and roll-up rules. */
 export function applySetItemCompleted(
   store: FakeItemStoreContext,

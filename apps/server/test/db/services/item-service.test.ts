@@ -8,6 +8,7 @@ import { FolderService } from "../../../src/services/folder-service.js";
 import { ItemService } from "../../../src/services/item-service.js";
 import { LookupService } from "../../../src/services/lookup-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
+import { UndoService } from "../../../src/services/undo-service.js";
 import { readItems, setAutoComplete, withSchema } from "./fixtures.js";
 
 const now = Temporal.Instant.from("2026-11-13T12:00:00Z");
@@ -47,6 +48,7 @@ const withServices = <A, E>(
     | LookupService
     | ItemService
     | FieldService
+    | UndoService
     | SqlClient.SqlClient
   >,
 ) =>
@@ -977,6 +979,59 @@ it.effect("A failed SQL value write rolls back the title and all custom value ch
       expect(error.message).toContain("value write failed");
       expect(saved.items.open).toMatchObject([{ item: { title: "Original" } }]);
       expect(yield* items.loadFieldValues(item.id)).toEqual(originalValues);
+    }),
+  ),
+);
+
+it.effect(
+  "Setting a priority changes only the priority and clears the ticket rank in one step",
+  () =>
+    withServices(
+      Effect.gen(function* () {
+        const { root, items, lookups, snapshot } = yield* setup;
+        const undo = yield* UndoService;
+        const sql = yield* SqlClient.SqlClient;
+        const item = yield* root("Task");
+        yield* items.edit(item.id, { ...edit("Task"), description: "Notes", ticketNumber: "T-1" });
+        yield* sql.withTransaction(sql`UPDATE TodoItem SET TicketRank = 3 WHERE Id = ${item.id}`);
+        const level = yield* lookups.priorityLevels.add("", 7);
+        const [before] = yield* readItems();
+
+        yield* items.setPriority(item.id, level.id);
+        const [after] = yield* readItems();
+        const history = yield* undo.status();
+        yield* undo.apply("undo");
+        const undone = (yield* snapshot()).items.open[0]?.item;
+
+        expect(after).toEqual({
+          ...before,
+          PriorityLevelId: level.id,
+          TicketRank: null,
+          UpdatedAtUtc: after?.UpdatedAtUtc,
+        });
+        expect(history.undo).toBe("Set priority of 'Task'");
+        expect(undone?.priorityLevelId).toBeNull();
+      }),
+    ),
+);
+
+it.effect("Setting the current priority or an archived one saves nothing", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items, lookups } = yield* setup;
+      const undo = yield* UndoService;
+      const item = yield* root("Task");
+      const level = yield* lookups.priorityLevels.add("Later");
+      yield* lookups.priorityLevels.archive(level.id);
+      const before = yield* readItems();
+      const history = yield* undo.status();
+
+      yield* items.setPriority(item.id, null);
+      const refusal = yield* Effect.flip(items.setPriority(item.id, level.id));
+
+      expect(refusal.message).toBe("Priority is missing or archived.");
+      expect(yield* readItems()).toEqual(before);
+      expect(yield* undo.status()).toEqual(history);
     }),
   ),
 );

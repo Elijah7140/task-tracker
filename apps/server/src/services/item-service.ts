@@ -1,5 +1,6 @@
 import {
   editItem,
+  MetadataRuleError,
   planFieldValueEdits,
   type FieldValueInput,
   type ItemEdit,
@@ -87,6 +88,25 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     }
   }, undo.record);
 
+  const setPriority = Effect.fnUntraced(function* (id: string, priorityId: string | null) {
+    const item = yield* items.requireActive(id);
+    const priorityLevelId = yield* decodeNullableId(priorityId);
+    if (item.priorityLevelId === priorityLevelId) {
+      return;
+    }
+    if (priorityLevelId !== null) {
+      const levels = yield* lookups.priorityLevels.list();
+      if (!levels.some((level) => level.id === priorityLevelId && !level.isArchived)) {
+        return yield* Effect.fail(new MetadataRuleError("Priority is missing or archived."));
+      }
+    }
+    const now = yield* operationTime;
+    yield* undo.capture(undoLabel("Set priority of", item.title), [
+      { table: "TodoItem", where: sql`Id = ${item.id}` },
+    ]);
+    yield* items.updatePriority({ id: item.id, updatedAtUtc: now, priorityLevelId });
+  }, undo.record);
+
   const loadFieldValues = Effect.fnUntraced(function* (id: string) {
     const item = yield* items.requireActive(id);
     return yield* itemValues.list(item.id);
@@ -133,6 +153,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     ...structure,
     edit,
     setCompleted,
+    setPriority,
     loadArea,
     loadFieldValues,
   };

@@ -27,6 +27,10 @@ export const ItemRpcs = RpcGroup.make(
     },
     error: RpcOperationError,
   }),
+  Rpc.make("SetItemPriority", {
+    payload: { itemId: Guid, priorityLevelId: Schema.NullOr(Guid) },
+    error: RpcOperationError,
+  }),
   Rpc.make("SetItemCompleted", {
     payload: {
       ...areaItem,

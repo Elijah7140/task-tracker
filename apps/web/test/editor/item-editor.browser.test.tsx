@@ -218,6 +218,8 @@ describe("Item editor", () => {
             ...archived,
             id: OLD_RANK_ID,
             name: "Old rank",
+            number: null,
+            label: "Old rank",
           });
           const id = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
           store.patchItem(id, { itemTypeId: LEGACY_TYPE_ID, priorityLevelId: OLD_RANK_ID });

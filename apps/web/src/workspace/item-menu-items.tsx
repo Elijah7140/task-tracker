@@ -1,6 +1,7 @@
 import {
   CircleCheck,
   CornerDownRight,
+  Flag,
   FolderInput,
   IndentDecrease,
   IndentIncrease,
@@ -10,8 +11,10 @@ import {
   SquarePen,
   Trash2,
 } from "lucide-react";
+import type { PriorityLevelProjection } from "@task-tracker/contracts";
 import { MenuItem, MenuSeparator } from "../ui/menu.js";
 import type { ItemNode } from "./item-outline.js";
+import { RowLookupMenu } from "./row-lookup-menu.js";
 import type { ItemActions } from "./use-item-actions.js";
 
 /** Props for {@link ItemMenuItems}. */
@@ -19,11 +22,18 @@ export interface ItemMenuItemsProps {
   readonly node: ItemNode;
   readonly canIndent: boolean;
   readonly hasFolders: boolean;
+  readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
   readonly actions: ItemActions;
 }
 
 /** Item actions shared by an item row's overflow menu and context menu. */
-export function ItemMenuItems({ node, canIndent, hasFolders, actions }: ItemMenuItemsProps) {
+export function ItemMenuItems({
+  node,
+  canIndent,
+  hasFolders,
+  priorityLevels,
+  actions,
+}: ItemMenuItemsProps) {
   const completed = node.item.completedAtUtc !== null;
   return (
     <>
@@ -34,6 +44,14 @@ export function ItemMenuItems({ node, canIndent, hasFolders, actions }: ItemMenu
       >
         Edit…
       </MenuItem>
+      <RowLookupMenu
+        label="Set priority"
+        icon={<Flag size={14} />}
+        entries={priorityLevels}
+        currentId={node.item.priorityLevelId}
+        onSelect={(id) => void actions.setPriority(node, id)}
+        testId="item-menu-set-priority"
+      />
       <MenuSeparator />
       <MenuItem
         icon={completed ? <RotateCcw size={14} /> : <CircleCheck size={14} />}

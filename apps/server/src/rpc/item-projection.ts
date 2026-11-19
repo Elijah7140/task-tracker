@@ -9,6 +9,7 @@ import type {
   ItemNode,
   ItemSiblings,
 } from "../services/area-snapshot.js";
+import { projectPriorityLevel } from "./priority-level-projection.js";
 import { projectEffectiveSettings } from "./settings-projection.js";
 
 /** Parse the schema-validated floating strings for the domain without resolving a time zone. */
@@ -58,6 +59,7 @@ export function projectArea(snapshot: DomainAreaSnapshot): typeof AreaSnapshot.T
   return {
     ...snapshot,
     items: projectSiblings(snapshot.items),
+    priorityLevels: snapshot.priorityLevels.map(projectPriorityLevel),
     settings: projectEffectiveSettings(snapshot.settings),
   };
 }

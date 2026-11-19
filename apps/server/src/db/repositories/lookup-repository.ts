@@ -14,7 +14,13 @@ const lookupColumns = { ...editableColumns, colorKey: "ColorKey", isBuiltIn: "Is
 const itemType = Schema.Struct({ ...lookupFields, iconKey: Schema.NullOr(Schema.String) }).pipe(
   Schema.encodeKeys({ ...lookupColumns, iconKey: "IconKey" }),
 );
-const priorityLevel = Schema.Struct(lookupFields).pipe(Schema.encodeKeys(lookupColumns));
+const numberField = { number: Schema.NullOr(Schema.Int) };
+const priorityLevel = Schema.Struct({ ...lookupFields, ...numberField }).pipe(
+  Schema.encodeKeys({ ...lookupColumns, number: "Number" }),
+);
+const editablePriority = Schema.Struct({ ...editableFields, ...numberField }).pipe(
+  Schema.encodeKeys({ ...editableColumns, number: "Number" }),
+);
 const editable = Schema.Struct(editableFields).pipe(Schema.encodeKeys(editableColumns));
 
 /** Lookup persistence includes archived rows so they remain addressable and reserve their names. */
@@ -43,6 +49,13 @@ export function lookupRepository(sql: SqlClient.SqlClient) {
   }
   return {
     itemTypes: forTable("ItemType", itemType),
-    priorityLevels: forTable("PriorityLevel", priorityLevel),
+    priorityLevels: {
+      ...forTable("PriorityLevel", priorityLevel),
+      update: SqlSchema.void({
+        Request: editablePriority,
+        execute: ({ Id, ...values }) =>
+          sql`UPDATE PriorityLevel SET ${sql.update(values)} WHERE Id = ${Id}`,
+      }),
+    },
   };
 }

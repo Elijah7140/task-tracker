@@ -1,4 +1,5 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
+import type { PriorityLevelProjection } from "@task-tracker/contracts";
 import { Menu } from "@base-ui/react/menu";
 import {
   CalendarClock,
@@ -27,6 +28,8 @@ import type { ItemActions } from "./use-item-actions.js";
 export interface ItemRowLookups {
   readonly typeName: (typeId: string | null) => string | null;
   readonly priorityName: (priorityId: string | null) => string | null;
+  /** All priority levels, including archived ones, for the Set priority submenu. */
+  readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
   readonly itemTitle: (itemId: string) => string | undefined;
   readonly timeZone: string;
 }
@@ -258,11 +261,12 @@ function ItemOverflowMenu({
   menuOpen,
   canIndent,
   hasFolders,
+  lookups,
   actions,
   onMenuOpenChange,
 }: Pick<
   ItemRowProps,
-  "node" | "menuOpen" | "canIndent" | "hasFolders" | "actions" | "onMenuOpenChange"
+  "node" | "menuOpen" | "canIndent" | "hasFolders" | "lookups" | "actions" | "onMenuOpenChange"
 >) {
   return (
     <Menu.Root open={menuOpen} onOpenChange={onMenuOpenChange}>
@@ -280,6 +284,7 @@ function ItemOverflowMenu({
           node={node}
           canIndent={canIndent}
           hasFolders={hasFolders}
+          priorityLevels={lookups.priorityLevels}
           actions={actions}
         />
       </MenuContent>
@@ -357,6 +362,7 @@ export function ItemRow(props: ItemRowProps) {
           node={node}
           canIndent={canIndent}
           hasFolders={hasFolders}
+          priorityLevels={lookups.priorityLevels}
           actions={actions}
         />
       </ContextMenuContent>

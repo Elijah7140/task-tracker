@@ -18,4 +18,8 @@ export const ItemTypeProjection = Schema.Struct({
 });
 
 /** A priority level ranked by its position. Archived levels stay listed for existing items. */
-export const PriorityLevelProjection = Schema.Struct(lookupFields);
+export const PriorityLevelProjection = Schema.Struct({
+  ...lookupFields,
+  number: Schema.NullOr(Schema.Int),
+  label: Schema.String,
+});

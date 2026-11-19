@@ -3,7 +3,13 @@ import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
 import { Guid } from "../storage-codecs.js";
-import { ItemEditRow, ItemRow, itemRowColumns, ItemStructureRow } from "./item-row.js";
+import {
+  ItemEditRow,
+  ItemPriorityRow,
+  ItemRow,
+  itemRowColumns,
+  ItemStructureRow,
+} from "./item-row.js";
 
 const area = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
 
@@ -45,6 +51,12 @@ export function itemRepository(sql: SqlClient.SqlClient) {
       Request: ItemStructureRow,
       execute: ({ Id, ProjectId, ...values }) => sql`UPDATE TodoItem SET ${sql.update(values)}
         WHERE Id = ${Id} AND ProjectId = ${ProjectId}`,
+    }),
+    updatePriority: SqlSchema.void({
+      Request: ItemPriorityRow,
+      execute: ({ Id, ...values }) =>
+        sql`UPDATE TodoItem SET ${sql.update(values)}, TicketRank = NULL
+          WHERE Id = ${Id} AND ${activeRow(sql)}`,
     }),
     updateEdit: SqlSchema.void({
       Request: ItemEditRow,

@@ -48,8 +48,10 @@ export {
   renameLookup,
   reorderLookups,
   restoreLookup,
+  restorePriorityLevel,
+  setPriorityNumber,
 } from "./lookups/lookup.js";
-export type { PriorityLevel } from "./lookups/priority-level.js";
+export { priorityLabel, type PriorityLevel } from "./lookups/priority-level.js";
 export { MetadataRuleError } from "./metadata/metadata-rule-error.js";
 export { booleanCodec } from "./settings/boolean-codec.js";
 export { durationCodec } from "./settings/duration-codec.js";

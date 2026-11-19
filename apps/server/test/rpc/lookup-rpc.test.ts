@@ -44,7 +44,7 @@ it.effect("Lists the seeded lookups and persists added, renamed and reordered on
       expect(level).not.toHaveProperty("iconKey");
       expect(types[0]).toEqual({ ...type, name: "Research", sortOrder: 0 });
       expect(types.map(({ id }) => id)).toEqual([type.id, ...seededTypes.map(({ id }) => id)]);
-      expect(levels[0]).toEqual({ ...level, name: "Someday", sortOrder: 0 });
+      expect(levels[0]).toEqual({ ...level, name: "Someday", label: "Someday", sortOrder: 0 });
     }),
   ),
 );
@@ -116,6 +116,35 @@ it.effect("Returns lookup rule failures as rule violations and changes nothing",
       });
       expect(blank).toMatchObject({ _tag: "RuleViolation" });
       expect(after).toEqual(before);
+    }),
+  ),
+);
+
+it.effect("Adds, numbers and lists priority labels independently of rank", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const high = builtInPriorityLevels[1];
+
+      const seven = yield* client.AddPriorityLevel({ name: "", number: 7 });
+      yield* client.SetPriorityNumber({ id: high.id.toLowerCase(), number: 2 });
+      const numbered = yield* client.ListPriorityLevels();
+      const refused = yield* Effect.flip(client.SetPriorityNumber({ id: high.id, number: 7 }));
+      const invalid = yield* Effect.flip(client.AddPriorityLevel({ name: "Half", number: 1.5 }));
+      yield* client.SetPriorityNumber({ id: high.id, number: null });
+      const cleared = yield* client.ListPriorityLevels();
+
+      expect(seven).toMatchObject({ label: "7", name: "", number: 7, sortOrder: 4 });
+      expect(numbered[1]).toMatchObject({ label: "2 · High", number: 2, sortOrder: 1 });
+      expect(refused).toMatchObject({
+        _tag: "RuleViolation",
+        message: "Priority number 7 is already in use.",
+      });
+      expect(invalid).toMatchObject({
+        _tag: "RuleViolation",
+        message: "Priority number must be a whole number of at least 1.",
+      });
+      expect(cleared[1]).toMatchObject({ label: "High", number: null });
     }),
   ),
 );

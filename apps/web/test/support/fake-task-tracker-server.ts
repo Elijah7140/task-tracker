@@ -13,6 +13,7 @@ import { HttpEffect } from "effect/http";
 import { RpcSerialization, RpcServer } from "effect/rpc";
 import {
   areaSnapshot,
+  FAKE_LOOKUPS,
   FakeAreaBuilder,
   type FakeItemNode,
   type FakeUrgency,
@@ -27,6 +28,7 @@ import {
   applyCreateItem,
   applyDeleteItem,
   applySetItemCompleted,
+  applySetItemPriority,
   type FakeAreaState,
   itemHandlers,
 } from "./fake-item-operations.js";
@@ -321,16 +323,19 @@ export class FakeProjectStore {
       areas: this.areas,
       autoCompleteByProject: this.autoCompleteByProject,
       values: this.customFields.values,
+      priorityLevels: this.settingsAndLookups.priorityLevels,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
   restoreUndoState = (snapshot: ReturnType<FakeProjectStore["captureUndoState"]>) => {
-    const { summaries, folders, areas, autoCompleteByProject, values } = structuredClone(snapshot);
+    const { summaries, folders, areas, autoCompleteByProject, values, priorityLevels } =
+      structuredClone(snapshot);
     this.summaries = summaries;
     this.folders = folders;
     this.areas = areas;
     this.autoCompleteByProject = autoCompleteByProject;
     this.customFields.restoreValues(values);
+    this.settingsAndLookups.priorityLevels = priorityLevels;
   };
 
   /** Returns all active area states. */
@@ -549,6 +554,31 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
     );
 }
 
+/** Settings and lookup handlers whose priority list changes record history, as on the server. */
+function trackedPriorityHandlers(
+  store: FakeProjectStore,
+  track: ReturnType<typeof fakeHistory>["track"],
+) {
+  const lookups = settingsAndLookupHandlers(store, store.record);
+  const title = (id: string) =>
+    store.settingsAndLookups.priorityLevels.find((row) => row.id === id.toUpperCase())?.label;
+  return {
+    ...lookups,
+    AddPriorityLevel: (payload: Parameters<typeof lookups.AddPriorityLevel>[0]) =>
+      track(lookups.AddPriorityLevel(payload), (row) => `Add priority '${row.label}'`),
+    RenamePriorityLevel: (payload: Parameters<typeof lookups.RenamePriorityLevel>[0]) =>
+      track(lookups.RenamePriorityLevel(payload), () => `Rename priority '${title(payload.id)}'`),
+    ArchivePriorityLevel: (payload: Parameters<typeof lookups.ArchivePriorityLevel>[0]) =>
+      track(lookups.ArchivePriorityLevel(payload), () => `Archive priority '${title(payload.id)}'`),
+    RestorePriorityLevel: (payload: Parameters<typeof lookups.RestorePriorityLevel>[0]) =>
+      track(lookups.RestorePriorityLevel(payload), () => `Restore priority '${title(payload.id)}'`),
+    ReorderPriorityLevels: (payload: Parameters<typeof lookups.ReorderPriorityLevels>[0]) =>
+      track(lookups.ReorderPriorityLevels(payload), () => "Reorder priority levels"),
+    SetPriorityNumber: (payload: Parameters<typeof lookups.SetPriorityNumber>[0]) =>
+      track(lookups.SetPriorityNumber(payload), () => `Edit priority '${title(payload.id)}'`),
+  };
+}
+
 function handlers(store: FakeProjectStore) {
   const { record } = store;
   const history = fakeHistory(store);
@@ -641,10 +671,22 @@ function handlers(store: FakeProjectStore) {
           : null,
       );
     },
-    ...settingsAndLookupHandlers(store, record),
+    ...trackedPriorityHandlers(store, history.track),
     ...customFieldHandlers(store, record),
     EditItem: (payload) =>
       history.track(editItem(payload), () => `Edit '${payload.fields.title.trim()}'`),
+    SetItemPriority: ({ itemId, priorityLevelId }) =>
+      history.track(
+        record("SetItemPriority").pipe(
+          Effect.andThen(
+            applySetItemPriority(store, itemId, priorityLevelId, [
+              ...FAKE_LOOKUPS.priorityLevels,
+              ...store.extraLookups.priorityLevels,
+            ]),
+          ),
+        ),
+        () => `Set priority of '${itemTitle(itemId)}'`,
+      ),
   });
 }
 

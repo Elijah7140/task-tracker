@@ -401,3 +401,32 @@ it.effect.each(["malformed", "P999999999D"])(
       }),
     ),
 );
+
+it.effect("Sets and clears an item's priority as one undoable step with projected labels", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area, create } = yield* setup;
+      const item = yield* create("Task");
+      const seven = yield* client.AddPriorityLevel({ name: "", number: 7 });
+
+      yield* client.SetItemPriority({ itemId: item.id.toLowerCase(), priorityLevelId: seven.id });
+      const assigned = yield* client.LoadArea(area);
+      const history = yield* client.GetHistory();
+      yield* client.ApplyHistory({ direction: "undo" });
+      const undone = yield* client.LoadArea(area);
+      yield* client.ArchivePriorityLevel({ id: seven.id });
+      const refused = yield* Effect.flip(
+        client.SetItemPriority({ itemId: item.id, priorityLevelId: seven.id }),
+      );
+
+      expect(assigned.items.open[0]?.item).toEqual({ ...item, priorityLevelId: seven.id });
+      expect(assigned.priorityLevels).toContainEqual(seven);
+      expect(history.undo).toBe("Set priority of 'Task'");
+      expect(undone.items.open[0]?.item.priorityLevelId).toBeNull();
+      expect(refused).toMatchObject({
+        _tag: "RuleViolation",
+        message: "Priority is missing or archived.",
+      });
+    }),
+  ),
+);

@@ -10,6 +10,8 @@ import {
   renameLookup,
   reorderLookups,
   restoreLookup,
+  restorePriorityLevel,
+  setPriorityNumber,
 } from "../../src/index.js";
 
 it("allows archiving built-in priorities but protects built-in item types", () => {
@@ -62,7 +64,7 @@ it("reserves lookup names across active and archived rows, ignoring case", () =>
   const rows = [...builtInItemTypes, archiveLookup(custom)];
 
   expect(() => createItemType("second", " custom ", rows)).toThrow(
-    "The name 'custom' is already used by another item type.",
+    "The name 'custom' is used by an archived item type. Restore it instead.",
   );
   expect(() => renameLookup(custom, "Change", rows)).toThrow(
     "The name 'Change' is already used by another item type.",
@@ -108,4 +110,34 @@ it("rejects a reorder that omits, duplicates, or replaces a lookup", () => {
   expect(() => reorderLookups(builtInItemTypes, [change.id, "unknown", discussion.id])).toThrow(
     "exactly once",
   );
+});
+
+it("says to restore an archived lookup, or restore or rename it first when renaming", () => {
+  const [, high] = builtInPriorityLevels;
+  const rows = [...builtInPriorityLevels, archiveLookup(createPriorityLevel("later", "Later", []))];
+
+  const create = () => createPriorityLevel("new", "LATER", rows);
+  const rename = () => renameLookup(high, "later", rows);
+
+  expect(create).toThrow(
+    "The name 'LATER' is used by an archived priority level. Restore it instead.",
+  );
+  expect(rename).toThrow(
+    "The name 'later' is used by an archived priority level. Restore or rename that one first.",
+  );
+});
+
+it("keeps priority numbers unique among active levels and checks them on restore", () => {
+  const [critical, high] = builtInPriorityLevels;
+  const archived = archiveLookup(setPriorityNumber(critical, 7, builtInPriorityLevels));
+  const rows = [archived, high];
+
+  const reused = setPriorityNumber(high, 7, rows);
+  const restore = () => restorePriorityLevel(archived, [archived, reused]);
+  const duplicate = () => createPriorityLevel("new", "", [archived, reused], 7);
+
+  expect(reused.number).toBe(7);
+  expect(restore).toThrow("Priority number 7 is already in use.");
+  expect(duplicate).toThrow("Priority number 7 is already in use.");
+  expect(restorePriorityLevel(archived, rows)).toMatchObject({ isArchived: false, number: 7 });
 });

@@ -26,6 +26,8 @@ export const itemRpcHandlers = (timeZone: string) =>
             Effect.flatMap(({ edit, values }) => items.edit(itemId, edit, values)),
             mapOperationError,
           ),
+        SetItemPriority: ({ itemId, priorityLevelId }) =>
+          items.setPriority(itemId, priorityLevelId).pipe(mapOperationError),
         SetItemCompleted: ({ projectId, folderId, itemId, completed, confirmedOpenItemIds }) =>
           items
             .setCompleted(projectId, folderId, itemId, completed, confirmedOpenItemIds)

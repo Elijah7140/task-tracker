@@ -11,6 +11,7 @@ import {
   type SettingsSaveResult,
 } from "@task-tracker/contracts";
 import { Effect } from "effect";
+import { numberedPriorityHandlers, priorityLabel } from "./fake-priority-levels.js";
 
 type Global = typeof GlobalSettings.Type;
 type Overrides = typeof ProjectSettingOverrides.Type;
@@ -86,6 +87,8 @@ const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
   {
     id: "019A0000-0000-7000-8000-000000000101",
     name: "Critical",
+    number: null,
+    label: "Critical",
     colorKey: null,
     isBuiltIn: true,
     isArchived: false,
@@ -94,6 +97,8 @@ const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
   {
     id: "019A0000-0000-7000-8000-000000000102",
     name: "High",
+    number: null,
+    label: "High",
     colorKey: null,
     isBuiltIn: true,
     isArchived: false,
@@ -102,6 +107,8 @@ const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
   {
     id: "019A0000-0000-7000-8000-000000000103",
     name: "Medium",
+    number: null,
+    label: "Medium",
     colorKey: null,
     isBuiltIn: true,
     isArchived: false,
@@ -110,6 +117,8 @@ const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
   {
     id: "019A0000-0000-7000-8000-000000000104",
     name: "Low",
+    number: null,
+    label: "Low",
     colorKey: null,
     isBuiltIn: true,
     isArchived: false,
@@ -165,7 +174,11 @@ function needsConfirmation(preview: Preview, approval: Approval | undefined): bo
 function validateLookupName(
   name: string,
   kind: string,
-  existing: ReadonlyArray<{ readonly id: string; readonly name: string }>,
+  existing: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+    readonly isArchived: boolean;
+  }>,
   excludeId?: string,
 ): Effect.Effect<string, RuleViolation> {
   const trimmed = name.trim();
@@ -173,10 +186,19 @@ function validateLookupName(
     return Effect.fail(new RuleViolation({ message: "Name must be 1 to 300 characters." }));
   }
   const key = trimmed.toUpperCase();
-  const duplicate = existing.some(
+  const duplicate = existing.find(
     (row) => row.id !== excludeId && row.name.trim().toUpperCase() === key,
   );
-  if (duplicate) {
+  if (duplicate?.isArchived) {
+    const hint =
+      excludeId === undefined ? "Restore it instead." : "Restore or rename that one first.";
+    return Effect.fail(
+      new RuleViolation({
+        message: `The name '${trimmed}' is used by an archived ${kind}. ${hint}`,
+      }),
+    );
+  }
+  if (duplicate !== undefined) {
     return Effect.fail(
       new RuleViolation({ message: `The name '${trimmed}' is already used by another ${kind}.` }),
     );
@@ -313,10 +335,16 @@ export class FakeSettingsAndLookups {
   }
 
   /** Seeds a custom priority level before or during a test. */
-  addPriorityLevelSeed(name: string, options?: { readonly isArchived?: boolean }): PriorityLevel {
+  addPriorityLevelSeed(
+    name: string,
+    options?: { readonly isArchived?: boolean; readonly number?: number },
+  ): PriorityLevel {
+    const number = options?.number ?? null;
     const row: PriorityLevel = {
       id: this.nextId(),
       name,
+      number,
+      label: priorityLabel(name, number),
       colorKey: null,
       isBuiltIn: false,
       isArchived: options?.isArchived ?? false,
@@ -645,12 +673,26 @@ export function settingsAndLookupHandlers(
     (name, sortOrder) => ({
       id: store.nextId(),
       name,
+      number: null,
+      label: name,
       colorKey: null,
       isBuiltIn: false,
       isArchived: false,
       sortOrder,
     }),
     false,
+    record,
+  );
+  const numbered = numberedPriorityHandlers(
+    {
+      rows: () => data.priorityLevels,
+      setRows: (next) => {
+        data.priorityLevels = next;
+      },
+      nextId: store.nextId,
+      validateName: (name, excludeId) =>
+        validateLookupName(name, "priority level", data.priorityLevels, excludeId),
+    },
     record,
   );
   return {
@@ -662,10 +704,8 @@ export function settingsAndLookupHandlers(
     RestoreItemType: types.restore,
     ReorderItemTypes: types.reorder,
     ListPriorityLevels: levels.list,
-    AddPriorityLevel: levels.add,
-    RenamePriorityLevel: levels.rename,
     ArchivePriorityLevel: levels.archive,
-    RestorePriorityLevel: levels.restore,
     ReorderPriorityLevels: levels.reorder,
+    ...numbered,
   };
 }

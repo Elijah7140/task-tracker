@@ -1,5 +1,5 @@
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
-import { nameKey, normalizeName } from "../metadata/names.js";
+import { nameKey, normalizeName, trimMetadataText } from "../metadata/names.js";
 import { orderRows } from "../metadata/order-rows.js";
 import type { ItemType } from "./item-type.js";
 import type { LookupEntity } from "./lookup-entity.js";
@@ -23,9 +23,70 @@ export function createPriorityLevel(
   id: string,
   name: string,
   rows: readonly PriorityLevel[],
+  number: number | null = null,
 ): PriorityLevel {
-  const row: PriorityLevel = newLookup(id, rows.length);
+  const row = { ...newLookup(id, rows.length), name, number };
+  validatePriorityNumber(row, rows);
   return renameLookup(row, name, rows);
+}
+
+function validatePriorityNumber(row: PriorityLevel, rows: readonly PriorityLevel[]) {
+  if (row.number === null) {
+    return;
+  }
+  if (!Number.isSafeInteger(row.number) || row.number < 1) {
+    throw new MetadataRuleError("Priority number must be a whole number of at least 1.");
+  }
+  if (
+    !row.isArchived &&
+    rows.some((other) => other.id !== row.id && !other.isArchived && other.number === row.number)
+  ) {
+    throw new MetadataRuleError(`Priority number ${row.number} is already in use.`);
+  }
+}
+
+/** Edits the display number without changing rank. */
+export function setPriorityNumber(
+  row: PriorityLevel,
+  number: number | null,
+  rows: readonly PriorityLevel[],
+): PriorityLevel {
+  const updated = { ...row, number };
+  validatePriorityNumber(updated, rows);
+  if (number === null) {
+    normalizeName(updated.name, "Name", false);
+  }
+  return updated;
+}
+
+/** Restores a priority only if its number is still available. */
+export function restorePriorityLevel(
+  row: PriorityLevel,
+  rows: readonly PriorityLevel[],
+): PriorityLevel {
+  const restored = restoreLookup(row);
+  validatePriorityNumber(restored, rows);
+  return restored;
+}
+
+function assertUniqueName(row: Lookup, name: string, rows: readonly Lookup[]) {
+  const isItemType = "iconKey" in row;
+  const key = nameKey(name);
+  const duplicate = rows.find(
+    (other) =>
+      "iconKey" in other === isItemType && other.id !== row.id && nameKey(other.name) === key,
+  );
+  if (duplicate === undefined) {
+    return;
+  }
+  const kind = isItemType ? "item type" : "priority level";
+  if (duplicate.isArchived) {
+    const hint = rows.some((other) => other.id === row.id)
+      ? "Restore or rename that one first."
+      : "Restore it instead.";
+    throw new MetadataRuleError(`The name '${name}' is used by an archived ${kind}. ${hint}`);
+  }
+  throw new MetadataRuleError(`The name '${name}' is already used by another ${kind}.`);
 }
 
 /** Renames a lookup after checking all names of its kind, including archived names. */
@@ -34,18 +95,11 @@ export function renameLookup<Row extends Lookup>(
   name: string,
   rows: readonly Lookup[],
 ): LookupChange<Row, "name"> {
-  const normalized = normalizeName(name, "Name", false);
-  const key = nameKey(normalized);
-  const isItemType = "iconKey" in row;
-  if (
-    rows.some(
-      (other) =>
-        "iconKey" in other === isItemType && other.id !== row.id && nameKey(other.name) === key,
-    )
-  ) {
-    const kind = isItemType ? "item type" : "priority level";
-    throw new MetadataRuleError(`The name '${normalized}' is already used by another ${kind}.`);
+  if ("number" in row && row.number !== null && trimMetadataText(name) === "") {
+    return { ...row, name: "" };
   }
+  const normalized = normalizeName(name, "Name", false);
+  assertUniqueName(row, normalized, rows);
   return { ...row, name: normalized };
 }
 

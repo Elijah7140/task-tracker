@@ -271,6 +271,8 @@ describe("LookupListCard", () => {
     it("Matches the reviewed lookup list baseline", async () => {
       await openLookups({
         configure: (appStore) => {
+          appStore.settingsAndLookups.addPriorityLevelSeed("", { number: 7 });
+          appStore.settingsAndLookups.addPriorityLevelSeed("Hotfix", { number: 2 });
           appStore.settingsAndLookups.addPriorityLevelSeed("Deferred", { isArchived: true });
         },
       });
@@ -279,5 +281,171 @@ describe("LookupListCard", () => {
 
       await expect.element(priorityLevelsCard()).toMatchScreenshot(`lookup-list-${theme}`);
     });
+  });
+});
+
+describe("Priority numbers", () => {
+  const numberInput = (name: string) =>
+    rowIn(priorityLevelsCard(), name).getByTestId("priority-number");
+  const alert = () => page.getByRole("alertdialog", { name: "Lookup validation" });
+
+  async function saveNumber(name: string, number: string) {
+    await numberInput(name).fill(number);
+    await userEvent.keyboard("{Enter}");
+  }
+
+  it("Saves numbers 1, 7 and 2 on ranks 1 to 3 without changing the order", async () => {
+    const { store } = await openLookups();
+
+    await saveNumber("Critical", "1");
+    await expect.element(rowIn(priorityLevelsCard(), "1 · Critical")).toBeVisible();
+    await saveNumber("High", "7");
+    await expect.element(rowIn(priorityLevelsCard(), "7 · High")).toBeVisible();
+    await saveNumber("Medium", "2");
+
+    await expect.element(rowIn(priorityLevelsCard(), "2 · Medium")).toBeVisible();
+    await expect
+      .element(activeRows(priorityLevelsCard()).first())
+      .toHaveAccessibleName("1 · Critical");
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual([
+      "Critical",
+      "High",
+      "Medium",
+      "Low",
+    ]);
+    expect(store.settingsAndLookups.priorityLevels.map(({ number }) => number)).toEqual([
+      1,
+      7,
+      2,
+      null,
+    ]);
+  });
+
+  it("Adds a number-only level and clears a numbered level's name through rename", async () => {
+    const { store } = await openLookups();
+    const card = priorityLevelsCard();
+
+    await card.getByTestId("priority-new-number").fill("9");
+    await card.getByTestId("lookup-add").click();
+    await expect.element(rowIn(card, "9")).toBeVisible();
+    await card.getByTestId("lookup-new-name").fill("Hotfix");
+    await card.getByTestId("priority-new-number").fill("8");
+    await userEvent.keyboard("{Enter}");
+    await rowIn(card, "8 · Hotfix").getByTestId("lookup-rename").click();
+    await page.getByRole("textbox", { name: "Name" }).fill("");
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(rowIn(card, "8")).toBeVisible();
+    await expect.element(card.getByTestId("lookup-new-name")).toHaveValue("");
+    await expect.element(card.getByTestId("priority-new-number")).toHaveValue("");
+    expect(store.settingsAndLookups.priorityLevels.slice(-2)).toMatchObject([
+      { name: "", number: 9, label: "9" },
+      { name: "", number: 8, label: "8" },
+    ]);
+  });
+
+  it("Shows invalid and duplicate number messages and keeps the draft", async () => {
+    await openLookups({
+      configure: (store) => {
+        store.settingsAndLookups.addPriorityLevelSeed("Hotfix", { number: 7 });
+      },
+    });
+
+    await saveNumber("High", "1.5");
+    await expect
+      .element(alert())
+      .toHaveAccessibleDescription(
+        "Enter a whole priority number of at least 1, or leave it blank.",
+      );
+    await alert().getByRole("button", { name: "OK" }).click();
+    await numberInput("High").fill("7");
+    await rowIn(priorityLevelsCard(), "High").getByTestId("priority-save-number").click();
+
+    await expect
+      .element(alert())
+      .toHaveAccessibleDescription("Priority number 7 is already in use.");
+    await alert().getByRole("button", { name: "OK" }).click();
+    await expect.element(numberInput("High")).toHaveValue("7");
+  });
+
+  it("Says to restore an archived priority when adding or renaming to its name", async () => {
+    await openLookups({
+      configure: (store) => {
+        store.settingsAndLookups.addPriorityLevelSeed("Retired", { isArchived: true });
+      },
+    });
+    const card = priorityLevelsCard();
+
+    await card.getByTestId("lookup-new-name").fill("retired");
+    await card.getByTestId("lookup-add").click();
+    await expect
+      .element(alert())
+      .toHaveAccessibleDescription(
+        "The name 'retired' is used by an archived priority level. Restore it instead.",
+      );
+    await alert().getByRole("button", { name: "OK" }).click();
+    await rowIn(card, "High").getByTestId("lookup-rename").click();
+    await page.getByRole("textbox", { name: "Name" }).fill("RETIRED");
+    await userEvent.keyboard("{Enter}");
+
+    await expect
+      .element(alert())
+      .toHaveAccessibleDescription(
+        "The name 'RETIRED' is used by an archived priority level. Restore or rename that one first.",
+      );
+    await expect.element(card.getByTestId("lookup-new-name")).toHaveValue("retired");
+  });
+
+  it("Discards a number draft with Escape without saving", async () => {
+    const { store } = await openLookups();
+
+    await numberInput("High").fill("5");
+    await userEvent.keyboard("{Escape}");
+
+    await expect.element(numberInput("High")).toHaveValue("");
+    await expect
+      .element(rowIn(priorityLevelsCard(), "High").getByTestId("priority-save-number"))
+      .toBeDisabled();
+    expect(store.calls).not.toContain("SetPriorityNumber");
+  });
+
+  it("Blocks application undo while an unsaved number remains after leaving the input", async () => {
+    const { store } = await openLookups();
+    await saveNumber("High", "7");
+    await expect.element(rowIn(priorityLevelsCard(), "7 · High")).toBeVisible();
+    await numberInput("7 · High").fill("42");
+    await userEvent.keyboard("{Tab}");
+
+    await userEvent.keyboard("{Control>}z{/Control}");
+
+    const message = page.getByRole("alertdialog", { name: "Undo and redo" });
+    await expect
+      .element(message)
+      .toHaveAccessibleDescription("Save or discard your settings before undoing or redoing.");
+    await message.getByRole("button", { name: "OK" }).click();
+    await expect.element(numberInput("7 · High")).toHaveValue("42");
+    expect(store.calls).not.toContain("ApplyHistory");
+  });
+});
+
+describe("Priority list history", () => {
+  it("Ctrl+Z restores a priority after archiving it in App Settings", async () => {
+    const { store } = await openLookups();
+    await rowIn(priorityLevelsCard(), "Low").getByTestId("lookup-archive").click();
+    await expect
+      .element(priorityLevelsCard().getByRole("listitem", { name: "Low", exact: true }))
+      .toHaveAttribute("data-testid", "lookup-archived-row");
+
+    await userEvent.keyboard("{Control>}z{/Control}");
+
+    await expect
+      .element(rowIn(priorityLevelsCard(), "Low"))
+      .toHaveAttribute("data-testid", "lookup-row");
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual([
+      "Critical",
+      "High",
+      "Medium",
+      "Low",
+    ]);
   });
 });

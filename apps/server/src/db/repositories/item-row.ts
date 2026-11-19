@@ -60,3 +60,10 @@ export const ItemEditRow = Schema.Struct({
   updatedAtUtc: UtcTimestamp,
   ...editFields,
 }).pipe(Schema.encodeKeys(columns));
+
+/** Columns written by a direct priority assignment. */
+export const ItemPriorityRow = Schema.Struct({
+  id: Guid,
+  updatedAtUtc: UtcTimestamp,
+  priorityLevelId: editFields.priorityLevelId,
+}).pipe(Schema.encodeKeys(columns));

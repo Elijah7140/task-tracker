@@ -23,6 +23,8 @@ const lookup = (id: string, name: string, sortOrder: number, isArchived = false)
   isBuiltIn: false,
   isArchived,
   sortOrder,
+  number: null,
+  label: name,
 });
 
 describe("BOOLEAN_OPTIONS", () => {
@@ -76,5 +78,16 @@ describe("lookupOptions", () => {
     const options = lookupOptions(lookups, "L").map((option) => option.label);
 
     expect(options).toEqual(["None", "Legacy (archived)"]);
+  });
+
+  it("Shows a priority's number label rather than its bare name", () => {
+    const levels = [
+      { ...lookup("N", "", 0), number: 7, label: "7" },
+      { ...lookup("H", "Hotfix", 1), number: 2, label: "2 · Hotfix" },
+    ];
+
+    const options = lookupOptions(levels, null).map((option) => option.label);
+
+    expect(options).toEqual(["None", "7", "2 · Hotfix"]);
   });
 });

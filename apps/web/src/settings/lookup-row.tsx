@@ -5,6 +5,7 @@ import { cx } from "../ui/class-names.js";
 import { Tooltip } from "../ui/tooltip.js";
 import type { DropEdge } from "../ui/use-pointer-reorder.js";
 import { ItemTypeIcon } from "../workspace/item-type-icon.js";
+import { PriorityNumberForm } from "./priority-number-form.js";
 import type { LookupItem, LookupKind } from "./use-lookup-actions.js";
 
 /** Props for {@link LookupRow}. */
@@ -21,6 +22,7 @@ export interface LookupRowProps {
   readonly onMove: (id: string, direction: -1 | 1, restoreFocus: boolean) => void;
   readonly onRename: (row: LookupItem) => void;
   readonly onArchive: (row: LookupItem) => void;
+  readonly onSetNumber: (id: string, text: string) => Promise<boolean>;
 }
 
 /**
@@ -39,7 +41,9 @@ export function LookupRow({
   onMove,
   onRename,
   onArchive,
+  onSetNumber,
 }: LookupRowProps) {
+  const label = row.label ?? row.name;
   const isItemType = kind === "itemTypes";
   const canArchive = !(isItemType && row.isBuiltIn);
   const archiveTooltip = canArchive ? "Archive" : "Built-in types can't be archived";
@@ -59,7 +63,7 @@ export function LookupRow({
 
   return (
     <li
-      aria-label={row.name}
+      aria-label={label}
       tabIndex={0}
       data-testid="lookup-row"
       data-lookup-row-id={row.id}
@@ -75,7 +79,7 @@ export function LookupRow({
         <button
           type="button"
           tabIndex={-1}
-          aria-label={`Drag to reorder ${row.name}`}
+          aria-label={`Drag to reorder ${label}`}
           data-testid="lookup-drag-handle"
           onPointerDown={(event) => onDragStart(row.id, event)}
           className="grid size-6 shrink-0 cursor-grab touch-none place-items-center rounded-[0.25rem] text-fg-subtle hover:bg-hover hover:text-fg active:cursor-grabbing"
@@ -83,10 +87,17 @@ export function LookupRow({
           <GripVertical size={14} aria-hidden="true" />
         </button>
         {isItemType ? <ItemTypeIcon name={row.name} /> : null}
-        <span className="truncate text-sm text-fg">{row.name}</span>
+        <span className="truncate text-sm text-fg">{label}</span>
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
+        {kind === "priorityLevels" ? (
+          <PriorityNumberForm
+            label={label}
+            savedNumber={row.number ?? null}
+            onSave={(text) => onSetNumber(row.id, text)}
+          />
+        ) : null}
         <Tooltip content="Move up">
           <Button
             type="button"
@@ -94,7 +105,7 @@ export function LookupRow({
             size="icon"
             disabled={isFirst || moveBusy}
             focusableWhenDisabled={!isFirst}
-            aria-label={`Move ${row.name} up`}
+            aria-label={`Move ${label} up`}
             onClick={() => onMove(row.id, -1, false)}
             data-testid="lookup-move-up"
           >
@@ -108,7 +119,7 @@ export function LookupRow({
             size="icon"
             disabled={isLast || moveBusy}
             focusableWhenDisabled={!isLast}
-            aria-label={`Move ${row.name} down`}
+            aria-label={`Move ${label} down`}
             onClick={() => onMove(row.id, 1, false)}
             data-testid="lookup-move-down"
           >
@@ -120,7 +131,7 @@ export function LookupRow({
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={`Rename ${row.name}`}
+            aria-label={`Rename ${label}`}
             onClick={() => onRename(row)}
             data-testid="lookup-rename"
           >
@@ -134,7 +145,7 @@ export function LookupRow({
             size="icon"
             disabled={!canArchive}
             focusableWhenDisabled
-            aria-label={`Archive ${row.name}`}
+            aria-label={`Archive ${label}`}
             onClick={() => {
               if (canArchive) {
                 onArchive(row);
