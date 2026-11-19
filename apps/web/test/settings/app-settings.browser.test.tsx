@@ -228,6 +228,44 @@ describe("AppSettingsPage", () => {
     });
   });
 
+  it("Saves nothing when confirmed global auto-complete enable fails threshold validation on the server", async () => {
+    const { store } = await openAppSettings({
+      projects: [{ name: "Billing DB" }],
+      configure: (appStore) => {
+        appStore.settingsAndLookups.setGlobalSettings({ autoCompleteParents: false });
+        const projectId = appStore.summaries[0]!.project.id;
+        appStore.settingsAndLookups.setProjectOverrides(projectId, {
+          urgencyYellowThreshold: daysTicks(2),
+        });
+        appStore.settingsAndLookups.setDisagreements(projectId, {
+          parentIdsToReopen: ["0190A1B2-0000-7000-8000-000000000930"],
+        });
+      },
+    });
+
+    await autoCompleteBox().click();
+    await yellowAmount().fill("4");
+    await redAmount().fill("72");
+    await saveButton().click();
+
+    const dialog = page.getByRole("alertdialog", { name: "Turn on auto-complete" });
+    await expect.element(dialog).toBeVisible();
+    await page.getByTestId("confirm-dialog-confirm").click();
+
+    await expect
+      .element(page.getByTestId("global-settings-error"))
+      .toHaveTextContent(
+        "Project 'Billing DB' overrides the yellow threshold to 2 days, so the red threshold can't exceed it.",
+      );
+    await expect.element(saveButton()).toBeEnabled();
+    expect(store.settingsAndLookups.globalSettings).toEqual({
+      autoCompleteParents: false,
+      urgencyYellowThreshold: daysTicks(3),
+      urgencyRedThreshold: hoursTicks(24),
+    });
+    expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
+  });
+
   it("Navigates cleanly when unmodified and asks before discarding unsaved edits", async () => {
     const { store, history } = await openAppSettings();
 

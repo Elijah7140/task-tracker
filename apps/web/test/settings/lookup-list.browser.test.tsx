@@ -267,6 +267,64 @@ describe("LookupListCard", () => {
       .not.toBeInTheDocument();
   });
 
+  it("Shows restore guidance when adding or renaming to an archived lookup name", async () => {
+    const { store } = await openLookups({
+      configure: (appStore) => {
+        appStore.settingsAndLookups.addItemTypeSeed("Review", { isArchived: true });
+        appStore.settingsAndLookups.addPriorityLevelSeed("Later", { isArchived: true });
+      },
+    });
+    const alert = page.getByRole("alertdialog", { name: "Lookup validation" });
+    const typeInput = itemTypesCard().getByTestId("lookup-new-name");
+
+    await typeInput.fill("review");
+    await itemTypesCard().getByTestId("lookup-add").click();
+
+    await expect
+      .element(alert)
+      .toHaveAccessibleDescription(
+        "The name 'review' is used by an archived item type. Restore it instead.",
+      );
+    await page.getByTestId("message-dialog-ok").click();
+    await expect.element(typeInput).toHaveValue("review");
+    expect(store.settingsAndLookups.itemTypeNames()).toEqual(["Change", "Error", "Discussion"]);
+
+    await rowIn(priorityLevelsCard(), "Low").getByTestId("lookup-rename").click();
+    await userEvent.keyboard("LATER{Enter}");
+
+    await expect
+      .element(alert)
+      .toHaveAccessibleDescription(
+        "The name 'LATER' is used by an archived priority level. Restore or rename that one first.",
+      );
+    await page.getByTestId("message-dialog-ok").click();
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual([
+      "Critical",
+      "High",
+      "Medium",
+      "Low",
+    ]);
+  });
+
+  it("Reorders active priority levels cleanly when archived levels come first or between them", async () => {
+    const { store } = await openLookups();
+
+    await rowIn(priorityLevelsCard(), "High").getByTestId("lookup-archive").click();
+    await rowIn(priorityLevelsCard(), "Critical").getByTestId("lookup-move-down").click();
+
+    await expect.element(activeRows(priorityLevelsCard()).nth(0)).toHaveAccessibleName("Medium");
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual(["Medium", "Critical", "Low"]);
+
+    await rowIn(priorityLevelsCard(), "Medium").getByTestId("lookup-archive").click();
+    await rowIn(priorityLevelsCard(), "Low").getByTestId("lookup-move-up").click();
+
+    await expect.element(activeRows(priorityLevelsCard()).nth(0)).toHaveAccessibleName("Low");
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual(["Low", "Critical"]);
+    await expect
+      .element(page.getByRole("alertdialog", { name: "Lookup validation" }))
+      .not.toBeInTheDocument();
+  });
+
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed lookup list baseline", async () => {
       await openLookups({
