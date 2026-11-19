@@ -141,3 +141,20 @@ export {
 } from "./search/syntax/item-query-parser.js";
 export { formatItemQuery } from "./search/syntax/item-query-formatter.js";
 export { QUERY_KEYWORDS } from "./search/syntax/query-clause-binder.js";
+export {
+  createSavedSearch,
+  renameSavedSearch,
+  SAVED_SEARCH_QUERY_MAX_LENGTH,
+  savedSearchName,
+  updateSavedSearch,
+  type SavedSearch,
+  type SavedSearchDefinition,
+} from "./saved-searches/saved-search.js";
+export {
+  arrangeSavedSearches,
+  duplicateSavedSearchMessage,
+  ensureSavedSearchNameFree,
+  findSavedSearchByName,
+  nextSavedSearchSortOrder,
+  repeatedSavedSearchName,
+} from "./saved-searches/saved-search-list.js";

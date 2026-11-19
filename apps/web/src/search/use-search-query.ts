@@ -4,6 +4,7 @@ import type {
   ItemQuery,
   ParsedSearchQuery,
   QueryParseError,
+  SavedSearchDefinition,
   SearchableField,
   SearchScope,
 } from "@task-tracker/contracts";
@@ -39,7 +40,15 @@ export interface SearchQueryOptions {
   /** The fields offered in `scope`, or null while they load. */
   readonly fields: ReadonlyArray<Field> | null;
   readonly rows: Rows;
+  /** Whether completed items start included, as a saved search may ask. */
+  readonly initialIncludeCompleted?: boolean;
 }
+
+/** A stored query loaded into the page: the query to run, or why it can't run. */
+export type LoadedQuery =
+  | { readonly kind: "run"; readonly query: Query }
+  | { readonly kind: "stale"; readonly reason: string }
+  | { readonly kind: "dropped" };
 
 function filtersOf(evaluations: ReadonlyArray<FilterRowEvaluation>) {
   return evaluations.flatMap((evaluation) =>
@@ -59,6 +68,9 @@ function useCanonicalText(scope: Scope, text: string | null, filters: ReadonlyAr
   }
   return last.current;
 }
+
+/** Box text that matches the rows as they are, so it is not a pending edit. */
+const textShown = (text: string, forKey: string): TypedText => ({ text, forKey, dirty: false });
 
 /** Tracks whether the component is mounted, so late results are dropped. */
 function useMounted() {
@@ -92,9 +104,14 @@ function rebuildRows(rows: Rows, fields: ReadonlyArray<Field>, parsed: Parsed) {
  * typed; on error every message shows under the box and nothing runs. Changing the
  * complete rows rewrites the box in canonical form.
  */
-export function useSearchQuery({ scope, fields, rows }: SearchQueryOptions) {
+export function useSearchQuery({
+  scope,
+  fields,
+  rows,
+  initialIncludeCompleted = false,
+}: SearchQueryOptions) {
   const [freeText, setFreeText] = useState<string | null>(null);
-  const [includeCompleted, setIncludeCompleted] = useState(false);
+  const [includeCompleted, setIncludeCompleted] = useState(initialIncludeCompleted);
   const [typed, setTyped] = useState<TypedText | null>(null);
   const [errors, setErrors] = useState<ReadonlyArray<typeof QueryParseError.Type>>([]);
   const [failure, setFailure] = useState<string | null>(null);
@@ -109,18 +126,25 @@ export function useSearchQuery({ scope, fields, rows }: SearchQueryOptions) {
 
   const type = (text: string) => setTyped({ text, forKey: key, dirty: true });
 
-  const apply = (submitted: string, parsed: Parsed): Query => {
+  /** Rebuilds the rows from `parsed` and shows the text `shown` picks for the box. */
+  const apply = (
+    parsed: Parsed,
+    shown: (current: TypedText | null, forKey: string) => TypedText,
+  ): Query => {
     rebuildRows(rows, fields ?? [], parsed);
     setFreeText(parsed.text);
     setIncludeCompleted((current) => current || parsed.impliesIncludeCompleted);
     setErrors([]);
     const forKey = queryKey(parsed.text, parsed.filters);
-    setTyped((current) => {
-      const text = current?.text ?? submitted;
-      return { text, forKey, dirty: text !== submitted };
-    });
+    setTyped((current) => shown(current, forKey));
     const implied = includeCompleted || parsed.impliesIncludeCompleted;
     return { scope, text: parsed.text, filters: parsed.filters, includeCompleted: implied };
+  };
+
+  /** Keeps text typed while the parse ran; it stays dirty until searched. */
+  const keepTyped = (submitted: string) => (current: TypedText | null, forKey: string) => {
+    const text = current?.text ?? submitted;
+    return { text, forKey, dirty: text !== submitted };
   };
 
   const parseTyped = async (submitted: string): Promise<Query | null> => {
@@ -137,7 +161,7 @@ export function useSearchQuery({ scope, fields, rows }: SearchQueryOptions) {
       setErrors(exit.value.errors);
       return null;
     }
-    return apply(submitted, exit.value);
+    return apply(exit.value, keepTyped(submitted));
   };
 
   /**
@@ -153,6 +177,56 @@ export function useSearchQuery({ scope, fields, rows }: SearchQueryOptions) {
     return { scope, text: freeText, filters, includeCompleted };
   };
 
+  /**
+   * Loads a saved search's stored text: on success the rows are rebuilt and the box
+   * shows the query with current labels; otherwise the box shows the stored text and
+   * the result says why it can't run (§7.7).
+   */
+  const load = async (stored: string): Promise<LoadedQuery> => {
+    const run = ++version.current;
+    const exit = await parse({ payload: { scope, text: stored } });
+    if (!mounted.current || run !== version.current) {
+      return { kind: "dropped" };
+    }
+    const stale = (reason: string): LoadedQuery => {
+      setTyped({ text: stored, forKey: key, dirty: true });
+      return { kind: "stale", reason };
+    };
+    if (Exit.isFailure(exit)) {
+      return stale(describeRpcFailure(exit.cause));
+    }
+    const parsed = exit.value;
+    if (parsed.kind === "invalid") {
+      return stale(parsed.errors.map((error) => error.message).join(" "));
+    }
+    const display = parsed.displayText;
+    return { kind: "run", query: apply(parsed, (_, forKey) => textShown(display, forKey)) };
+  };
+
+  /**
+   * The search as it would be saved: the box text in stable form, with the scope and
+   * include-completed switch. Null after showing why it can't be saved (§7.7).
+   */
+  const definition = async (): Promise<typeof SavedSearchDefinition.Type | null> => {
+    setFailure(null);
+    const text = showingTyped ? typed.text : canonical;
+    const exit = await parse({ payload: { scope, text } });
+    if (!mounted.current) {
+      return null;
+    }
+    if (Exit.isFailure(exit)) {
+      setFailure(describeRpcFailure(exit.cause));
+      return null;
+    }
+    if (exit.value.kind === "invalid") {
+      setTyped({ text, forKey: key, dirty: true });
+      setErrors(exit.value.errors);
+      return null;
+    }
+    const implied = includeCompleted || exit.value.impliesIncludeCompleted;
+    return { queryText: exit.value.stableText, scope, includeCompleted: implied };
+  };
+
   return {
     text: showingTyped ? typed.text : canonical,
     type,
@@ -162,5 +236,7 @@ export function useSearchQuery({ scope, fields, rows }: SearchQueryOptions) {
     includeCompleted,
     setIncludeCompleted,
     submit,
+    load,
+    definition,
   };
 }

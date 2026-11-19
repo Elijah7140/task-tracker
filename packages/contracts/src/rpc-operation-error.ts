@@ -7,7 +7,15 @@ export class RuleViolation extends Schema.TaggedError<RuleViolation>()("RuleViol
 
 /** The requested entity is missing or deleted in the operation's scope. */
 export class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
-  entity: Schema.Literals(["Project", "Folder", "Item", "DeletionBatch", "Field", "Choice"]),
+  entity: Schema.Literals([
+    "Project",
+    "Folder",
+    "Item",
+    "DeletionBatch",
+    "Field",
+    "Choice",
+    "SavedSearch",
+  ]),
   message: Schema.String,
 }) {}
 

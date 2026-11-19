@@ -85,4 +85,61 @@ describe("useReturnPageStore", () => {
 
     expect(state().covering).toBe("trash");
   });
+
+  describe("openSavedSearch", () => {
+    const saved = (name: string) => ({
+      id: `0190A1B2-0000-7000-8000-00000000010${name.length}`,
+      name,
+      queryText: "type:error",
+      scope: { kind: "allProjects" as const },
+      includeCompleted: false,
+    });
+
+    it("Covers with Search, the saved search and its scope origin", () => {
+      state().openSavedSearch(saved("Errors"), PROJECT, FOLDER);
+
+      expect(state()).toMatchObject({
+        covering: "search",
+        originProjectId: PROJECT,
+        originFolderId: FOLDER,
+        searchRequest: { savedSearch: saved("Errors"), version: 1 },
+      });
+    });
+
+    it("Replaces an open Search page and keeps the return page's out-of-date flag", () => {
+      state().cover("search", PROJECT);
+      state().markStale();
+
+      state().openSavedSearch(saved("Errors"), OTHER, null);
+      state().openSavedSearch(saved("Mine"), null, null);
+
+      expect(state()).toMatchObject({
+        covering: "search",
+        originProjectId: null,
+        stale: true,
+        searchRequest: { savedSearch: saved("Mine"), version: 2 },
+      });
+    });
+
+    it("Forgets the saved search when Search closes or another page covers", () => {
+      state().openSavedSearch(saved("Errors"), null, null);
+      state().cover("calendar", null);
+      const switched = state().searchRequest;
+      state().openSavedSearch(saved("Errors"), null, null);
+
+      state().uncover();
+
+      expect(switched).toBeNull();
+      expect(state().searchRequest).toBeNull();
+    });
+
+    it("Ignores a saved search while a change is running", () => {
+      state().cover("search", PROJECT);
+      state().setBusy(true);
+
+      state().openSavedSearch(saved("Errors"), OTHER, null);
+
+      expect(state()).toMatchObject({ originProjectId: PROJECT, searchRequest: null });
+    });
+  });
 });

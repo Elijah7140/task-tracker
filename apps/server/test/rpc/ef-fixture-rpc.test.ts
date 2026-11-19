@@ -961,3 +961,30 @@ it.effect("Opens legacy-final.db links, saves a new list and keeps the stored li
     }),
   ),
 );
+
+it.effect("Opens legacy-final.db saved searches, renames one and keeps its definition", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Temporal.Instant.from(writeStartedAtUtc).epochMilliseconds);
+      const { path } = yield* copyEfFixture("legacy-final");
+      const storedId = "019A0000-0000-7000-8000-000000000FFA";
+
+      const initial = yield* openFixtureRpc(path, (client) =>
+        Effect.gen(function* () {
+          const listed = yield* client.ListSavedSearches();
+          yield* client.RenameSavedSearch({ savedSearchId: storedId, name: "Sample done" });
+          return listed;
+        }),
+      );
+      const reopened = yield* openFixtureRpc(path, (client) => client.ListSavedSearches());
+
+      const definition = {
+        queryText: "completed:completed",
+        scope: { kind: "project", projectId },
+        includeCompleted: true,
+      };
+      expect(initial).toEqual([{ id: storedId, name: "Completed in sample", ...definition }]);
+      expect(reopened).toEqual([{ id: storedId, name: "Sample done", ...definition }]);
+    }),
+  ),
+);

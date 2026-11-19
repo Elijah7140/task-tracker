@@ -10,6 +10,7 @@ import { PageHeader } from "../ui/page-header.js";
 import { EmptyHome } from "./empty-home.js";
 import { ProjectGrid } from "./project-grid.js";
 import { ProjectGridSkeleton } from "./project-grid-skeleton.js";
+import { SavedSearchesSection } from "./saved-searches-section.js";
 import { useProjectActions } from "./use-project-actions.js";
 
 function HomeContent() {
@@ -39,7 +40,7 @@ function HomeContent() {
   });
 }
 
-/** The home screen: project cards with open and overdue counts, and New project. */
+/** The home screen: project cards with open and overdue counts, New project and saved searches. */
 export function HomePage() {
   const { createProject } = useProjectActions();
   return (
@@ -59,6 +60,7 @@ export function HomePage() {
         }
       />
       <HomeContent />
+      <SavedSearchesSection />
     </PageContainer>
   );
 }
