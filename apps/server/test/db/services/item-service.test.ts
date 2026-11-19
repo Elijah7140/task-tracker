@@ -1,7 +1,9 @@
 import { expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { MetadataRuleError } from "@task-tracker/core";
+import { Deferred, Effect, Fiber } from "effect";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
+import { FieldService } from "../../../src/services/field-service.js";
 import { FolderService } from "../../../src/services/folder-service.js";
 import { ItemService } from "../../../src/services/item-service.js";
 import { LookupService } from "../../../src/services/lookup-service.js";
@@ -40,7 +42,12 @@ const withServices = <A, E>(
   test: Effect.Effect<
     A,
     E,
-    ProjectService | FolderService | LookupService | ItemService | SqlClient.SqlClient
+    | ProjectService
+    | FolderService
+    | LookupService
+    | ItemService
+    | FieldService
+    | SqlClient.SqlClient
   >,
 ) =>
   test.pipe(
@@ -48,6 +55,7 @@ const withServices = <A, E>(
     Effect.provide(FolderService.layer),
     Effect.provide(LookupService.layer),
     Effect.provide(ItemService.layer("UTC")),
+    Effect.provide(FieldService.layer),
     withSchema,
   );
 
@@ -611,6 +619,277 @@ it.effect("Passing another item as edit fields updates only the requested item",
         { item: { id: target.id, title: "Copied" } },
         { item: { id: template.id, title: "Template" } },
       ]);
+    }),
+  ),
+);
+
+it.effect("An invalid custom value leaves the built-in edit unsaved", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items, snapshot } = yield* setup;
+      const fields = yield* FieldService;
+      const number = yield* fields.create("Number", "Number", null);
+      const item = yield* root("Original");
+
+      const error = yield* Effect.flip(
+        items.edit(item.id, edit("Changed"), [{ fieldDefinitionId: number.id, numberValue: NaN }]),
+      );
+      const saved = yield* snapshot();
+      const values = yield* items.loadFieldValues(item.id);
+
+      expect(error.message).toContain("finite");
+      expect(saved.items).toMatchObject([{ item: { title: "Original" } }]);
+      expect(values).toEqual([]);
+    }),
+  ),
+);
+
+it.effect("An unchanged archived choice keeps its value through an item edit", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items, snapshot } = yield* setup;
+      const fields = yield* FieldService;
+      const field = yield* fields.create("Status", "Choice", null);
+      const choice = yield* fields.addChoice(field.id, "Ready");
+      const item = yield* root("Original");
+      yield* items.edit(item.id, edit("Original"), [
+        { fieldDefinitionId: field.id, choiceId: choice.id },
+      ]);
+      yield* fields.archiveChoice(field.id, choice.id);
+
+      yield* items.edit(item.id, edit("Changed"), [
+        { fieldDefinitionId: field.id.toLowerCase(), choiceId: choice.id.toLowerCase() },
+      ]);
+      const values = yield* items.loadFieldValues(item.id.toLowerCase());
+      const saved = yield* snapshot();
+
+      expect(values).toMatchObject([{ choiceId: choice.id }]);
+      expect(saved.items).toMatchObject([{ item: { title: "Changed" } }]);
+    }),
+  ),
+);
+
+it.effect("A project field cannot be written on another project's item", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { id, projects, root, items } = yield* setup;
+      const fields = yield* FieldService;
+      const other = yield* projects.create("Other");
+      const field = yield* fields.create("Local", "Text", other.id);
+      const item = yield* root("Item");
+
+      const error = yield* Effect.flip(
+        items.edit(item.id, edit("Item"), [{ fieldDefinitionId: field.id, textValue: "value" }]),
+      );
+
+      expect(error.message).toContain("does not belong");
+      expect(yield* items.loadFieldValues(item.id)).toEqual([]);
+      expect(yield* fields.listEffective(id)).toEqual([]);
+    }),
+  ),
+);
+
+it.effect("Soft-deleting an item retains its stored custom value", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { id, root, items } = yield* setup;
+      const fields = yield* FieldService;
+      const sql = yield* SqlClient.SqlClient;
+      const field = yield* fields.create("Field", "Text", null);
+      const item = yield* root("Item");
+      yield* items.edit(item.id, edit("Item"), [
+        { fieldDefinitionId: field.id, textValue: "value" },
+      ]);
+
+      yield* items.delete(id, null, item.id);
+      const lookupError = yield* Effect.flip(items.loadFieldValues(item.id));
+      const stored = yield* sql.withTransaction(
+        sql`SELECT TextValue FROM ItemFieldValue WHERE ItemId = ${item.id}`.values,
+      );
+
+      expect(lookupError.message).toContain("missing or deleted");
+      expect(stored).toEqual([["value"]]);
+    }),
+  ),
+);
+
+it.effect("A partial edit keeps omitted archived fields and clears blank and null values", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items } = yield* setup;
+      const fields = yield* FieldService;
+      const archived = yield* fields.create("Archived", "Text", null);
+      const blank = yield* fields.create("Blank", "Text", null);
+      const cleared = yield* fields.create("Cleared", "Number", null);
+      const item = yield* root("Item");
+      yield* items.edit(item.id, edit("Item"), [
+        { fieldDefinitionId: archived.id, textValue: "keep" },
+        { fieldDefinitionId: blank.id, textValue: " trim " },
+        { fieldDefinitionId: cleared.id, numberValue: 42 },
+      ]);
+      yield* fields.archive(archived.id);
+
+      yield* items.edit(item.id, edit("Changed"), [
+        { fieldDefinitionId: blank.id, textValue: " " },
+        { fieldDefinitionId: cleared.id, numberValue: null },
+      ]);
+      const values = yield* items.loadFieldValues(item.id);
+
+      expect(values).toMatchObject([{ fieldDefinitionId: archived.id, textValue: "keep" }]);
+    }),
+  ),
+);
+
+it.effect("Every custom field data type saves and reloads", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items } = yield* setup;
+      const fields = yield* FieldService;
+      const text = yield* fields.create("Text", "Text", null);
+      const number = yield* fields.create("Number", "Number", null);
+      const date = yield* fields.create("Date", "Date", null);
+      const boolean = yield* fields.create("Boolean", "Boolean", null);
+      const choiceField = yield* fields.create("Choice", "Choice", null);
+      const choice = yield* fields.addChoice(choiceField.id, "Ready");
+      const item = yield* root("Item");
+
+      yield* items.edit(item.id, edit("Item"), [
+        { fieldDefinitionId: text.id, textValue: " trimmed " },
+        { fieldDefinitionId: number.id, numberValue: 1.5 },
+        { fieldDefinitionId: date.id, dateValue: Temporal.PlainDate.from("2026-11-13") },
+        { fieldDefinitionId: boolean.id, boolValue: false },
+        { fieldDefinitionId: choiceField.id, choiceId: choice.id },
+      ]);
+      const values = yield* items.loadFieldValues(item.id);
+      const byField = new Map(values.map((value) => [value.fieldDefinitionId, value]));
+
+      expect(values).toHaveLength(5);
+      expect(byField.get(text.id)?.textValue).toBe("trimmed");
+      expect(byField.get(number.id)?.numberValue).toBe(1.5);
+      expect(byField.get(date.id)?.dateValue?.toString()).toBe("2026-11-13");
+      expect(byField.get(boolean.id)?.boolValue).toBe(false);
+      expect(byField.get(choiceField.id)?.choiceId).toBe(choice.id);
+    }),
+  ),
+);
+
+it.effect("Restore preserves custom values and deleted items still lock a field's type", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { id, root, items } = yield* setup;
+      const fields = yield* FieldService;
+      const field = yield* fields.create("Field", "Text", null);
+      const item = yield* root("Item");
+      yield* items.edit(item.id, edit("Item"), [
+        { fieldDefinitionId: field.id, textValue: "value" },
+      ]);
+      const batch = yield* items.delete(id, null, item.id);
+
+      const error = yield* Effect.flip(fields.changeType(field.id, "Date"));
+      yield* items.restore(id, null, batch);
+      const values = yield* items.loadFieldValues(item.id);
+
+      expect(error.message).toContain("cannot change type");
+      expect(values).toMatchObject([{ fieldDefinitionId: field.id, textValue: "value" }]);
+      expect(yield* fields.listAll(null)).toEqual([field]);
+    }),
+  ),
+);
+
+it.effect("A rejected custom edit does not leak into the next successful operation", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items, snapshot } = yield* setup;
+      const fields = yield* FieldService;
+      const text = yield* fields.create("Text", "Text", null);
+      const number = yield* fields.create("Number", "Number", null);
+      const original = yield* root("Original");
+
+      const error = yield* Effect.flip(
+        items.edit(original.id, edit("Failed"), [
+          { fieldDefinitionId: text.id, textValue: "valid" },
+          { fieldDefinitionId: number.id, numberValue: NaN },
+        ]),
+      );
+      yield* root("Later");
+      const saved = yield* snapshot();
+
+      expect(error).toBeInstanceOf(MetadataRuleError);
+      expect(saved.items).toMatchObject([
+        { item: { title: "Original" } },
+        { item: { title: "Later" } },
+      ]);
+      expect(yield* items.loadFieldValues(original.id)).toEqual([]);
+    }),
+  ),
+);
+
+it.effect("An item value edit waits and validates against a concurrent definition change", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items, snapshot } = yield* setup;
+      const fields = yield* FieldService;
+      const sql = yield* SqlClient.SqlClient;
+      const field = yield* fields.create("Field", "Text", null);
+      const item = yield* root("Original");
+      const release = yield* Deferred.make<void>();
+      const holder = yield* sql
+        .withTransaction(Deferred.await(release))
+        .pipe(Effect.forkChild({ startImmediately: true }));
+
+      const definition = yield* fields
+        .changeType(field.id, "Number")
+        .pipe(Effect.forkChild({ startImmediately: true }));
+      const value = yield* items
+        .edit(item.id, edit("Changed"), [{ fieldDefinitionId: field.id, textValue: "stale" }])
+        .pipe(Effect.flip, Effect.forkChild({ startImmediately: true }));
+      expect(definition.pollUnsafe()).toBeUndefined();
+      expect(value.pollUnsafe()).toBeUndefined();
+      yield* Deferred.succeed(release, undefined);
+      yield* Fiber.join(holder);
+      yield* Fiber.join(definition);
+      const error = yield* Fiber.join(value);
+      const saved = yield* snapshot();
+
+      expect(error.message).toContain("matching the field type");
+      expect(saved.items).toMatchObject([{ item: { title: "Original" } }]);
+      expect(yield* fields.listAll(null)).toEqual([{ ...field, dataType: "Number" }]);
+      expect(yield* items.loadFieldValues(item.id)).toEqual([]);
+    }),
+  ),
+);
+
+it.effect("A failed SQL value write rolls back the title and all custom value changes", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, items, snapshot } = yield* setup;
+      const fields = yield* FieldService;
+      const sql = yield* SqlClient.SqlClient;
+      const replaced = yield* fields.create("Replaced", "Text", null);
+      const cleared = yield* fields.create("Cleared", "Number", null);
+      const rejected = yield* fields.create("Rejected", "Text", null);
+      const item = yield* root("Original");
+      yield* items.edit(item.id, edit("Original"), [
+        { fieldDefinitionId: replaced.id, textValue: "old" },
+        { fieldDefinitionId: cleared.id, numberValue: 0 },
+      ]);
+      const originalValues = yield* items.loadFieldValues(item.id);
+      yield* sql`CREATE TRIGGER reject_field_value BEFORE INSERT ON ItemFieldValue
+        WHEN NEW.TextValue = 'reject'
+        BEGIN SELECT RAISE(ABORT, 'value write failed'); END`;
+
+      const error = yield* Effect.flip(
+        items.edit(item.id, edit("Changed"), [
+          { fieldDefinitionId: cleared.id, numberValue: null },
+          { fieldDefinitionId: replaced.id, textValue: "new" },
+          { fieldDefinitionId: rejected.id, textValue: "reject" },
+        ]),
+      );
+      const saved = yield* snapshot();
+
+      expect(error.message).toContain("value write failed");
+      expect(saved.items).toMatchObject([{ item: { title: "Original" } }]);
+      expect(yield* items.loadFieldValues(item.id)).toEqual(originalValues);
     }),
   ),
 );
