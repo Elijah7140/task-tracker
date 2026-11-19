@@ -1,0 +1,36 @@
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  type RouterHistory,
+} from "@tanstack/react-router";
+import { HomePage } from "../home/home-page.js";
+import { AppShell } from "../shell/app-shell.js";
+import { ProjectPage } from "../workspace/project-page.js";
+import { NotFoundPage } from "./not-found-page.js";
+
+const rootRoute = createRootRoute({ component: AppShell, notFoundComponent: NotFoundPage });
+
+const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
+
+const projectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/$projectId",
+  component: ProjectPage,
+});
+
+const routeTree = rootRoute.addChildren([homeRoute, projectRoute]);
+
+/**
+ * Creates the app router. The desktop build uses hash history because it
+ * loads the renderer from a file. Tests use memory history.
+ */
+export function createAppRouter(history: RouterHistory) {
+  return createRouter({ routeTree, history, scrollRestoration: true });
+}
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: ReturnType<typeof createAppRouter>;
+  }
+}
