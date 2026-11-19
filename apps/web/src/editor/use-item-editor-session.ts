@@ -4,8 +4,10 @@ import { useRef } from "react";
 import { areaKey } from "../rpc/area-queries.js";
 import { itemFieldValuesKey } from "../rpc/field-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
+import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { editItemAtom } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
+import { useUndoBlocker } from "../shell/undo-blockers.js";
 import { dialogStore, resolveDraft } from "../state/dialog-store.js";
 import { useItemEditorStore } from "../state/item-editor-store.js";
 import type { ItemNode } from "../workspace/item-outline.js";
@@ -25,6 +27,7 @@ export interface ItemEditorSessionScope {
  * draft, and only one guard runs at a time.
  */
 export function useItemEditorSession(scope: ItemEditorSessionScope) {
+  useUndoBlocker(scope.status.dirty, "Save or discard your item edits before undoing or redoing.");
   const edit = useAtomSet(editItemAtom, { mode: "promiseExit" });
   const latest = useRef(scope);
   latest.current = scope;
@@ -40,6 +43,7 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
     const exit = await edit({
       payload: { itemId: node.item.id, fields: status.fields, customValues: status.customValues },
       reactivityKeys: [
+        HISTORY_KEY,
         areaKey(projectId, folderId),
         PROJECTS_KEY,
         itemFieldValuesKey(node.item.id),

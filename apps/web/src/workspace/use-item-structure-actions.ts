@@ -3,6 +3,7 @@ import type { Exit } from "effect";
 import { reportFailure } from "../dialogs/report-failure.js";
 import { areaKey } from "../rpc/area-queries.js";
 import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
+import { HISTORY_KEY } from "../rpc/history-queries.js";
 import {
   indentItemAtom,
   moveItemAtom,
@@ -77,7 +78,7 @@ function useIndentAndOutdent(scope: ItemStructureScope) {
   const outdent = useAtomSet(outdentItemAtom, { mode: "promiseExit" });
   const move = useAtomSet(moveItemAtom, { mode: "promiseExit" });
   const key = areaKey(scope.projectId, scope.folderId);
-  const structureKeys = [key, PROJECTS_KEY];
+  const structureKeys = [key, PROJECTS_KEY, HISTORY_KEY];
 
   const indentItem = async (node: ItemNode) => {
     const targetParent = precedingOpenSibling(scope.items, node);
@@ -155,7 +156,7 @@ function useMoveItems(scope: ItemStructureScope) {
         itemId: node.item.id,
         parentItemId,
       },
-      reactivityKeys: [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY],
+      reactivityKeys: [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY],
     });
     if (await reportItemFailure(exit)) {
       if (parentItemId !== null) {
@@ -190,6 +191,7 @@ function useMoveItems(scope: ItemStructureScope) {
         itemId: node.item.id,
       },
       reactivityKeys: [
+        HISTORY_KEY,
         areaKey(scope.projectId, scope.folderId),
         areaKey(scope.projectId, targetFolderId),
       ],
@@ -218,7 +220,7 @@ function useReorderItems(scope: ItemStructureScope) {
     }
     const exit = await reorder({
       payload: { projectId: scope.projectId, folderId: scope.folderId, parentItemId, itemIds },
-      reactivityKeys: [key],
+      reactivityKeys: [key, HISTORY_KEY],
     });
     const saved = await reportItemFailure(exit);
     if (saved) {

@@ -5,6 +5,7 @@ import type { Exit } from "effect";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
 import { reportFailure } from "../dialogs/report-failure.js";
 import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
+import { HISTORY_KEY } from "../rpc/history-queries.js";
 import {
   createProjectAtom,
   deleteProjectAtom,
@@ -16,7 +17,7 @@ import { confirm, prompt } from "../state/dialog-store.js";
 /** The project fields the home and sidebar actions need. */
 export type ProjectRef = Pick<typeof ProjectProjection.Type, "id" | "name">;
 
-const reactivityKeys = [PROJECTS_KEY];
+const reactivityKeys = [PROJECTS_KEY, HISTORY_KEY];
 
 /** Shows a failed project action and reports whether it succeeded. */
 const reportProjectFailure = (exit: Exit.Exit<unknown, RpcFailure>) =>

@@ -136,6 +136,11 @@ export class FakeCustomFields {
     return this.itemValues.rows;
   }
 
+  /** Restores recorded item values while retaining the fake request log. */
+  restoreValues(rows: readonly Stored[]) {
+    this.itemValues.rows = [...rows];
+  }
+
   /** The `customValues` of each EditItem request, in order. */
   get edits(): ReadonlyArray<ReadonlyArray<Input>> {
     return this.itemValues.edits;

@@ -407,7 +407,7 @@ handlers. Exercise them through RPC against real SQLite. Each group passes
 
 - **Goal** — Provide session history for existing project, folder and item writes, with a shared way for later operations to record steps.
 - **Inputs** — `src/TaskTracker.Core/Undo/`, `src/TaskTracker.Infrastructure/Persistence/Undo*.cs`, `src/TaskTracker.Presentation/ViewModels/UndoCoordinator.cs`, and `tests/TaskTracker.Infrastructure.Tests/Persistence/Undo{Recording,Refusal}Tests.cs`.
-- **Outputs** — Server undo/redo RPC, a 50-step history, atomic replay with stale-row refusal, and commit-time recording. Add action labels, Edit commands, outcome messages and keyboard shortcuts. Preserve native text editing and the dirty-editor/settings guard. Document how each later package records its writes.
+- **Outputs** — Server undo/redo RPC, a 50-step history, atomic replay with stale-row refusal, and commit-time recording. Add action labels, Edit commands, outcome messages and keyboard shortcuts. Preserve native text editing and the dirty-editor/settings guard. See [recording undoable writes](UNDO.md) for later packages.
 - **Acceptance** — SQLite and RPC tests cover cascades, failed and interrupted writes, stale and purged rows, concurrency, redo invalidation and restart. Browser input covers shortcuts, dirty drafts, focus and disabled actions.
 - **Dependencies** — WP25.
 

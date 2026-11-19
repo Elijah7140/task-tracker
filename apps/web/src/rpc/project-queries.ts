@@ -1,4 +1,5 @@
 import type { Guid } from "@task-tracker/contracts";
+import { HISTORY_REPLAY_KEY } from "./history-queries.js";
 import { TaskTrackerClient } from "./task-tracker-client.js";
 
 /** Reactivity key shared by every query that shows project names or counts. */
@@ -9,7 +10,7 @@ export const projectKey = (projectId: typeof Guid.Type) => `project:${projectId}
 
 /** Home summaries with open and overdue counts, refreshed after project mutations. */
 export const projectSummariesAtom = TaskTrackerClient.query("ListProjects", undefined, {
-  reactivityKeys: [PROJECTS_KEY],
+  reactivityKeys: [HISTORY_REPLAY_KEY, PROJECTS_KEY],
 });
 
 /** The navigation snapshot of one project, refreshed after project mutations. */
@@ -17,7 +18,7 @@ export const projectWorkspaceAtom = (projectId: typeof Guid.Type) =>
   TaskTrackerClient.query(
     "LoadWorkspace",
     { projectId },
-    { reactivityKeys: [PROJECTS_KEY, projectKey(projectId)] },
+    { reactivityKeys: [HISTORY_REPLAY_KEY, PROJECTS_KEY, projectKey(projectId)] },
   );
 
 /** Creates a project. */

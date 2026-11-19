@@ -20,6 +20,7 @@ import {
   type SeedItem,
 } from "./fake-area-items.js";
 import { customFieldHandlers } from "./fake-custom-field-handlers.js";
+import { fakeHistory } from "./fake-history-handlers.js";
 import { FakeCustomFields } from "./fake-custom-fields.js";
 import {
   applyEditItem,
@@ -79,8 +80,12 @@ export class FakeProjectStore {
   folders: Array<Folder> = [];
   readonly calls: Array<string> = [];
   private readonly holds = new Map<string, Promise<void>>();
-  private readonly areas = new Map<string, FakeAreaState>();
-  private readonly autoCompleteByProject = new Map<string, boolean>();
+  /** Simulates a replay refused because data changed after recording. */
+  historyRefusal: string | null = null;
+  /** Simulates an unexpected failure from history replay. */
+  historyFailure = false;
+  private areas = new Map<string, FakeAreaState>();
+  private autoCompleteByProject = new Map<string, boolean>();
   private sequence = 0;
   private timestampSequence = 0;
 
@@ -308,6 +313,26 @@ export class FakeProjectStore {
     return Effect.fail(new NotFound({ entity: "Item", message: "Item is missing or deleted." }));
   };
 
+  /** Captures the fake data affected by project, folder and item history. */
+  captureUndoState = () =>
+    structuredClone({
+      summaries: this.summaries,
+      folders: this.folders,
+      areas: this.areas,
+      autoCompleteByProject: this.autoCompleteByProject,
+      values: this.customFields.values,
+    });
+
+  /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
+  restoreUndoState = (snapshot: ReturnType<FakeProjectStore["captureUndoState"]>) => {
+    const { summaries, folders, areas, autoCompleteByProject, values } = structuredClone(snapshot);
+    this.summaries = summaries;
+    this.folders = folders;
+    this.areas = areas;
+    this.autoCompleteByProject = autoCompleteByProject;
+    this.customFields.restoreValues(values);
+  };
+
   /** Returns all active area states. */
   allAreas = () => [...this.areas.values()];
 
@@ -526,33 +551,60 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
 
 function handlers(store: FakeProjectStore) {
   const { record } = store;
+  const history = fakeHistory(store);
+  const item = itemHandlers(store, record);
+  const editItem = editItemHandler(store, record);
+  const folder = folderHandlers(store, record);
+  const itemTitle = (id: string): string | undefined => {
+    const find = (nodes: ReadonlyArray<FakeItemNode>): string | undefined => {
+      for (const node of nodes) {
+        const title = node.item.id === id ? node.item.title : find(node.children);
+        if (title !== undefined) {
+          return title;
+        }
+      }
+    };
+    return find(store.allAreas().flatMap((area) => area.nodes));
+  };
   return TaskTrackerRpcs.toLayer({
+    ...history.handlers,
     GetServerInfo: () => Effect.succeed({ timeZone: "UTC" }),
     ListProjects: () => record("ListProjects").pipe(Effect.map(() => [...store.summaries])),
     CreateProject: ({ name }) =>
-      record("CreateProject").pipe(
-        Effect.andThen(validName(name)),
-        Effect.map((trimmed) => store.add({ name: trimmed }).project),
+      history.track(
+        record("CreateProject").pipe(
+          Effect.andThen(validName(name)),
+          Effect.map((trimmed) => store.add({ name: trimmed }).project),
+        ),
+        (project) => `Create '${project.name}'`,
       ),
     RenameProject: ({ projectId, name }) =>
-      record("RenameProject").pipe(
-        Effect.andThen(Effect.all([store.find(projectId), validName(name)])),
-        Effect.map(([summary, trimmed]) => {
-          store.summaries = store.summaries.map((candidate) =>
-            candidate === summary
-              ? { ...summary, project: { ...summary.project, name: trimmed } }
-              : candidate,
-          );
-        }),
+      history.track(
+        record("RenameProject").pipe(
+          Effect.andThen(Effect.all([store.find(projectId), validName(name)])),
+          Effect.map(([summary, trimmed]) => {
+            store.summaries = store.summaries.map((candidate) =>
+              candidate === summary
+                ? { ...summary, project: { ...summary.project, name: trimmed } }
+                : candidate,
+            );
+          }),
+        ),
+        () => `Rename '${name.trim()}'`,
       ),
-    DeleteProject: ({ projectId }) =>
-      record("DeleteProject").pipe(
-        Effect.andThen(store.find(projectId)),
-        Effect.map(() => {
-          store.remove(projectId);
-          return guid(9999);
-        }),
-      ),
+    DeleteProject: ({ projectId }) => {
+      const name = store.summaries.find(({ project }) => project.id === projectId)?.project.name;
+      return history.track(
+        record("DeleteProject").pipe(
+          Effect.andThen(store.find(projectId)),
+          Effect.map(() => {
+            store.remove(projectId);
+            return guid(9999);
+          }),
+        ),
+        () => `Delete '${name}'`,
+      );
+    },
     LoadWorkspace: ({ projectId }) =>
       record("LoadWorkspace").pipe(
         Effect.andThen(store.find(projectId)),
@@ -562,17 +614,37 @@ function handlers(store: FakeProjectStore) {
           folders: store.folders.filter((folder) => folder.projectId === projectId),
         })),
       ),
-    ...folderHandlers(store, record),
+    ...folder,
+    CreateFolder: (payload) =>
+      history.track(folder.CreateFolder(payload), ({ name }) => `Create '${name}'`),
+    RenameFolder: (payload) =>
+      history.track(folder.RenameFolder(payload), () => `Rename '${payload.name.trim()}'`),
     ReorderProjects: notUsed,
     ReorderFolders: notUsed,
     RestoreProject: notUsed,
     RestoreFolder: notUsed,
     LoadArea: ({ projectId, folderId }) =>
       record("LoadArea").pipe(Effect.andThen(store.area(projectId, folderId))),
-    ...itemHandlers(store, record),
+    ...item,
+    CreateItem: (payload) =>
+      history.track(item.CreateItem(payload), ({ title }) => `Create '${title}'`),
+    ReorderItems: (payload) => history.track(item.ReorderItems(payload), () => "Reorder items"),
+    DeleteItem: (payload) => {
+      const title = itemTitle(payload.itemId);
+      return history.track(item.DeleteItem(payload), () => `Delete '${title}'`);
+    },
+    SetItemCompleted: (payload) => {
+      const title = itemTitle(payload.itemId);
+      return history.track(item.SetItemCompleted(payload), (result) =>
+        result.kind === "applied" && result.changes.length > 0
+          ? `${payload.completed ? "Complete" : "Reopen"} '${title}'`
+          : null,
+      );
+    },
     ...settingsAndLookupHandlers(store, record),
     ...customFieldHandlers(store, record),
-    EditItem: editItemHandler(store, record),
+    EditItem: (payload) =>
+      history.track(editItem(payload), () => `Edit '${payload.fields.title.trim()}'`),
   });
 }
 

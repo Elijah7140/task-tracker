@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { CircleCheck, House, Plus, Settings } from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
 import { Button } from "../ui/button.js";
@@ -6,13 +7,14 @@ import { SidebarLink } from "./sidebar-link.js";
 import { SidebarProjectList } from "./sidebar-project-list.js";
 import { ThemeSwitcher } from "./theme-switcher.js";
 
-function SidebarBrand() {
+function SidebarBrand({ editMenu }: { readonly editMenu?: ReactNode }) {
   return (
     <div data-testid="sidebar-brand" className="flex h-12 items-center gap-2 px-4">
       <span className="grid size-6 place-items-center rounded-control bg-accent text-on-accent">
         <CircleCheck size={15} strokeWidth={2.5} aria-hidden="true" />
       </span>
       <span className="font-semibold tracking-tight">Task Tracker</span>
+      {editMenu}
     </div>
   );
 }
@@ -60,14 +62,14 @@ function SettingsLink() {
  * project link. Later screens add sections (settings) between the project list
  * and the footer.
  */
-export function Sidebar() {
+export function Sidebar({ editMenu }: { readonly editMenu?: ReactNode }) {
   return (
     <nav
       aria-label="Main"
       data-testid="sidebar"
       className="flex w-60 shrink-0 flex-col border-r border-line bg-sidebar"
     >
-      <SidebarBrand />
+      <SidebarBrand editMenu={editMenu} />
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pb-3">
         <SidebarLink
           target={{ to: "/" }}

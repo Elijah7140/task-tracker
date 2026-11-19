@@ -1,3 +1,4 @@
+import { HISTORY_REPLAY_KEY } from "./history-queries.js";
 import { TaskTrackerClient } from "./task-tracker-client.js";
 
 /** Reactivity key shared by every query that displays item types or priority levels. */
@@ -11,12 +12,12 @@ export const PRIORITY_LEVELS_KEY = "lookups:priority-levels";
 
 /** All item types (active and archived) in server sort order. */
 export const itemTypesAtom = TaskTrackerClient.query("ListItemTypes", undefined, {
-  reactivityKeys: [ITEM_TYPES_KEY, LOOKUPS_KEY],
+  reactivityKeys: [HISTORY_REPLAY_KEY, ITEM_TYPES_KEY, LOOKUPS_KEY],
 });
 
 /** All priority levels (active and archived) in server sort order. */
 export const priorityLevelsAtom = TaskTrackerClient.query("ListPriorityLevels", undefined, {
-  reactivityKeys: [PRIORITY_LEVELS_KEY, LOOKUPS_KEY],
+  reactivityKeys: [HISTORY_REPLAY_KEY, PRIORITY_LEVELS_KEY, LOOKUPS_KEY],
 });
 
 /** Adds a custom item type. */

@@ -19,6 +19,7 @@ import { checkRules } from "./check-rules.js";
 import { itemCompletionOperations } from "./item-completion-operations.js";
 import { itemStructureOperations } from "./item-structure-operations.js";
 import { operationTime } from "./operation-time.js";
+import { UndoService, undoLabel } from "./undo-service.js";
 
 const decodeId = Schema.decodeEffect(Guid);
 const decodeOptionalIds = Schema.decodeEffect(Schema.UndefinedOr(Schema.Array(Guid)));
@@ -32,6 +33,7 @@ const normalizeFieldIds = Effect.fnUntraced(function* (input: FieldValueInput) {
 
 const make = Effect.fnUntraced(function* (timeZone: string) {
   const sql = yield* SqlClient.SqlClient;
+  const undo = yield* UndoService;
   const items = itemRepository(sql);
   const fields = fieldRepository(sql);
   const itemValues = itemFieldValueRepository(sql);
@@ -39,7 +41,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   const settings = settingsRepository(sql);
 
   const completion = itemCompletionOperations(sql);
-  const { loadAreaTree, ...structure } = itemStructureOperations(sql, completion);
+  const { loadAreaTree, ...structure } = itemStructureOperations(sql, completion, undo);
 
   const planCustomEdit = Effect.fnUntraced(function* (
     item: TodoItem,
@@ -72,6 +74,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     // The connection lease serializes this snapshot and write with definition mutations.
     const custom =
       customValues.length === 0 ? undefined : yield* planCustomEdit(item, customValues);
+    yield* undo.capture(undoLabel("Edit", edited.title), [
+      { table: "TodoItem", where: sql`Id = ${item.id}` },
+      { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
+    ]);
     yield* items.updateEdit(edited);
     if (custom) {
       for (const fieldDefinitionId of custom.removals) {
@@ -79,7 +85,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
       }
       yield* Effect.forEach(custom.upserts, itemValues.upsert, { discard: true });
     }
-  }, sql.withTransaction);
+  }, undo.record);
 
   const loadFieldValues = Effect.fnUntraced(function* (id: string) {
     const item = yield* items.requireActive(id);
@@ -97,8 +103,15 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     const approval = yield* decodeOptionalIds(confirmedOpenItemIds);
     // Read the tree and settings again even when the caller is confirming a preview.
     const tree = yield* loadAreaTree(projectId, folderId);
+    const item = yield* checkRules(() => tree.get(key));
+    yield* undo.capture(undoLabel(completed ? "Complete" : "Reopen", item.title), [
+      {
+        table: "TodoItem",
+        where: sql`ProjectId = ${tree.projectId} AND FolderId IS ${tree.folderId}`,
+      },
+    ]);
     return yield* completion.setCompleted(tree, key, completed, approval);
-  }, sql.withTransaction);
+  }, undo.record);
 
   const loadArea = Effect.fnUntraced(function* (projectId: string, folderId: string | null) {
     const tree = yield* loadAreaTree(projectId, folderId);

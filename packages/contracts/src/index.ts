@@ -40,3 +40,4 @@ export {
 } from "./field-projection.js";
 export { FieldValueInput, ItemFieldValue } from "./field-value.js";
 export { FieldRpcs } from "./field-rpcs.js";
+export { HistoryRpcs, HistoryStatus } from "./history-rpcs.js";

@@ -7,6 +7,7 @@ import { makeRpcClient } from "../../../web/src/rpc-client.js";
 import { LoopbackRpc, loopbackRpcLayer } from "../../src/rpc/loopback-rpc.js";
 import { FolderService } from "../../src/services/folder-service.js";
 import { ProjectService } from "../../src/services/project-service.js";
+import type { UndoService } from "../../src/services/undo-service.js";
 import { withSchema } from "../db/store.js";
 
 const timeZone = "America/New_York";
@@ -32,7 +33,7 @@ const setup = Effect.gen(function* () {
 });
 
 const withItemRpc = <A, E>(
-  test: Effect.Effect<A, E, SqlClient.SqlClient | Scope.Scope | LoopbackRpc>,
+  test: Effect.Effect<A, E, SqlClient.SqlClient | Scope.Scope | LoopbackRpc | UndoService>,
 ) =>
   withSchema(
     Effect.scoped(

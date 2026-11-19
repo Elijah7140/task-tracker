@@ -4,6 +4,7 @@ import type { Exit } from "effect";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
 import { reportFailure } from "../dialogs/report-failure.js";
 import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
+import { HISTORY_KEY } from "../rpc/history-queries.js";
 import {
   createFolderAtom,
   deleteFolderAtom,
@@ -52,7 +53,9 @@ function useCreateFolder({ projectId }: FolderActionScope) {
       setFolderExpanded(parentFolderId, true);
     }
     const payload = { projectId, parentFolderId, name };
-    await reportFolderFailure(await create({ payload, reactivityKeys: [projectKey(projectId)] }));
+    await reportFolderFailure(
+      await create({ payload, reactivityKeys: [HISTORY_KEY, projectKey(projectId)] }),
+    );
   };
 }
 
@@ -68,7 +71,9 @@ function useRenameFolder({ projectId }: FolderActionScope) {
     });
     if (name !== null) {
       const payload = { projectId, folderId: folder.id, name };
-      await reportFolderFailure(await rename({ payload, reactivityKeys: [projectKey(projectId)] }));
+      await reportFolderFailure(
+        await rename({ payload, reactivityKeys: [HISTORY_KEY, projectKey(projectId)] }),
+      );
     }
   };
 }
@@ -102,7 +107,7 @@ function useMoveFolder(scope: FolderActionScope) {
       parentFolderId: choice === ROOT_CHOICE ? null : choice,
     };
     await reportFolderFailure(
-      await move({ payload, reactivityKeys: [projectKey(scope.projectId)] }),
+      await move({ payload, reactivityKeys: [HISTORY_KEY, projectKey(scope.projectId)] }),
     );
   };
 }
@@ -125,7 +130,7 @@ function useDeleteFolder({ projectId, folders }: FolderActionScope) {
       currentFolderId !== null && isWithinFolder(folders, currentFolderId, folder.id);
     const payload = { projectId, folderId: folder.id };
     const deleted = await reportFolderFailure(
-      await remove({ payload, reactivityKeys: [PROJECTS_KEY] }),
+      await remove({ payload, reactivityKeys: [PROJECTS_KEY, HISTORY_KEY] }),
     );
     if (deleted && leavesArea) {
       await navigate(areaTarget(projectId, folder.parentFolderId));

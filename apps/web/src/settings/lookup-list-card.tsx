@@ -1,5 +1,6 @@
 import { Input } from "@base-ui/react/input";
 import { type FormEvent, type RefObject, useRef, useState } from "react";
+import { UNSAVED_SETTINGS_UNDO_MESSAGE, useUndoBlocker } from "../shell/undo-blockers.js";
 import { Button } from "../ui/button.js";
 import { SectionCard } from "../ui/section-card.js";
 import { useListReorder } from "../ui/use-list-reorder.js";
@@ -85,6 +86,7 @@ function AddLookupForm({
   readonly onAdd: (name: string) => Promise<boolean>;
 }) {
   const [newName, setNewName] = useState("");
+  useUndoBlocker(newName.trim() !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
 
   const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
