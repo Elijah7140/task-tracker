@@ -16,5 +16,7 @@ export function createTestClock() {
     clock,
     advance: (duration: Parameters<typeof clock.adjust>[0]) =>
       Effect.runPromise(clock.adjust(duration)),
+    /** Moves the clock to an ISO instant, running any timers due by then. */
+    setTime: (instant: string) => Effect.runPromise(clock.setTime(Date.parse(instant))),
   };
 }

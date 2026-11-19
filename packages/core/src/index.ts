@@ -110,6 +110,17 @@ export { SettingsCatalogue } from "./settings/settings-catalogue.js";
 export * as SettingsResolver from "./settings/settings-resolver.js";
 export type { DurationTicks } from "./time/duration-ticks.js";
 export * as FloatingTime from "./time/floating-time.js";
+export { currentLocalDay, localDayWindow, type LocalDayWindow } from "./today/local-day.js";
+export type { TodayItem } from "./today/today-item.js";
+export {
+  buildTodayTree,
+  type CompareNames,
+  type TodayArea,
+  type TodayProject,
+  type TodayRow,
+  type TodayRowState,
+  type TodayTree,
+} from "./today/today-tree.js";
 export type { DisplayedUrgency, Urgency } from "./urgency/displayed-urgency.js";
 export {
   calculateDisplayedNodeUrgency,

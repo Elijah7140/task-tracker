@@ -14,6 +14,7 @@ const COVERING_PAGE_SHORTCUTS: Readonly<Record<CoveringPage, Shortcut>> = {
   calendar: { key: "c", ctrl: true, shift: true },
   trash: { key: "t", ctrl: true, shift: true },
   search: { key: "f", ctrl: true },
+  today: { key: "d", ctrl: true, shift: true },
 };
 
 const coveringPageShortcut = (event: KeyboardEvent) => findShortcut(event, COVERING_PAGE_SHORTCUTS);
@@ -53,9 +54,9 @@ function useCoveringPageKeys(open: (page: CoveringPage) => void, goBack: () => v
 }
 
 /**
- * Handles keyboard shortcuts and Back for Search, Calendar and Trash. Returning
+ * Handles keyboard shortcuts and Back for Search, Calendar, Trash and Today. Returning
  * waits for the covering page to finish any changes, including a running
- * push back (§7.14), and asks the return page’s
+ * push back or Today reopen (§7.14), and asks the return page’s
  * unsaved-changes guard if it needs a refresh, then puts focus back where it
  * was. Only the user's navigation closes a covering page: a redirect of the
  * page behind it, such as after undoing a folder's creation, happens underneath.

@@ -45,6 +45,7 @@ import { FakeCalendar, calendarHandlers } from "./fake-calendar-handlers.js";
 import { FakeSearch, searchHandlers } from "./fake-search-handlers.js";
 import { searchQueryHandlers } from "./fake-search-query.js";
 import { FakeSavedSearches, savedSearchHandlers } from "./fake-saved-search-handlers.js";
+import { FakeToday, todayHandlers } from "./fake-today-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -153,6 +154,9 @@ export class FakeProjectStore {
 
   /** Scoped search overrides and link fixtures. */
   readonly search = new FakeSearch();
+
+  /** The local day and failure state behind the Today view. */
+  readonly today = new FakeToday();
 
   /** Saved searches listed on Home and the Search page. */
   readonly savedSearches = new FakeSavedSearches(this.nextId);
@@ -839,6 +843,7 @@ function handlers(store: FakeProjectStore) {
     ...searchHandlers(store),
     ...searchQueryHandlers(store),
     ...savedSearchHandlers(store, history.track),
+    ...todayHandlers(store),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const before = store.recurrence.titleOf(payload.itemId);
