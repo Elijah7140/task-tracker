@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createInterface, type Interface } from "node:readline";
 import { RpcConnection } from "@task-tracker/contracts";
 import { type Duration, Effect, Option, Schema } from "effect";
@@ -27,13 +28,41 @@ const diagnosticLength = 4000;
 
 const decodeConnection = Schema.decodeUnknownSync(RpcConnection);
 
+// Chromium can have both ends of a new renderer IPC socket open during spawn.
+// Close inherited descriptors in the child before exec so the server cannot keep
+// that socket alive after the renderer exits. Exec preserves the PID and stdio.
+const closeInheritedDescriptors = `
+for path in /proc/self/fd/*; do
+  descriptor=\${path##*/}
+  if (( descriptor > 2 )); then
+    exec {descriptor}>&-
+  fi
+done
+exec "$@"
+`;
+
+const BASH = "/bin/bash";
+
+/**
+ * The command that starts the server. On Linux it runs through bash so inherited
+ * descriptors are closed first; without bash it starts the server directly.
+ */
+function serverCommand(entry: string) {
+  if (process.platform === "linux" && existsSync(BASH)) {
+    const args = ["-p", "-c", closeInheritedDescriptors, "task-tracker-server", process.execPath];
+    return { executable: BASH, args: [...args, entry] };
+  }
+  return { executable: process.execPath, args: [entry] };
+}
+
 /** Starts the built server under Electron's Node runtime and reads its private readiness line. */
 export function launchServer(
   entry: string,
   rendererOrigin: string,
   timeouts: ServerTimeouts = defaultTimeouts,
 ): ServerProcess {
-  const child = spawn(process.execPath, [entry], {
+  const { executable, args } = serverCommand(entry);
+  const child = spawn(executable, args, {
     env: serverEnvironment(rendererOrigin),
     windowsHide: true,
   });
