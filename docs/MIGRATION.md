@@ -1,14 +1,12 @@
 # Stack migration
 
-**Status: complete.** [Revision 6](PLAN.md) defines the product and the current
-architecture. The TypeScript release carries forward Phases 0–3 behavior,
-including custom fields, with the React design in §8. Search, Calendar and Tickets
-follow the roadmap.
+**Status:** WP1–WP24 complete. [The project plan](PLAN.md) defines the product and
+architecture. WP25 onward ports the additional features frozen at `legacy-final`.
 
 The work packages below record the migration plan and its acceptance gates.
-Legacy paths and commands refer to the pre-cutover tree at `0a84e9d`. Legacy
-source paths are relative to `src/`, and unqualified filenames refer to files in
-the legacy projects.
+WP1–WP24 legacy paths and commands refer to the pre-cutover tree at `0a84e9d`.
+WP25 onward cites `legacy-final` paths from that tree’s root unless a different
+revision is named. Browse a path with `git show legacy-final:<path>`.
 
 The migration used C# tests as behavior specifications. Each package called for
 porting the relevant tests before implementation, retaining UI intent and
@@ -30,6 +28,26 @@ can proceed independently. After WP11, WP12–WP14 can run in parallel. After WP
 workspace, settings and desktop work can overlap. Use the dependencies below for handoff and keep concurrent changes
 to shared registration and test configuration additive. WP23 joins the tracks
 before WP24.
+
+### Legacy feature port
+
+Start application work with WP25. WP41 can run alongside it. After WP26 establishes
+transaction history, use these parallel tracks as the stated dependencies land:
+
+| Track | Packages |
+| --- | --- |
+| Lookups and settings | WP27 and WP28 in parallel, then WP52 after WP28 |
+| Search and saved searches | WP29 → WP30 → WP31 |
+| Workspace and Trash | WP34 and WP35 in parallel. WP46 follows WP34 and the lookups |
+| Calendar and work views | WP32 → WP33. WP43 follows WP33 and WP38, then WP44 and WP45 can run in parallel |
+| Editor and reminders | WP36 can start after WP25. WP37 joins search with the editor, then WP38 → WP39 → WP40 |
+| Desktop and release | WP41 in parallel with schema work. WP42 follows WP40 and WP41. WP47 joins native tray and item surfaces |
+| Transfer and shell | WP48 → WP49, then WP50 joins the routes and menus |
+| Sign-off | WP51 audits integrated undo, then WP53 joins the audit and cleanup |
+
+Coordinate overlapping edits to lookup settings, the item editor, navigation and
+RPC registration. Add contracts and registrations in small changes as each package
+lands. Each UI package owns its input tests and reviewed baselines (§11.1).
 
 ## WP1 — Workspace and checks
 
@@ -359,3 +377,254 @@ handlers. Exercise them through RPC against real SQLite. Each group passes
   Run `pnpm run package:desktop` and `pnpm run test:desktop` on both platforms.
   On headless Linux, run desktop smoke under Xvfb.
 - **Dependencies** — WP23.
+
+## WP25 — Schema and legacy database adoption
+
+- **Goal** — Open databases from the final .NET release in place and give fresh TypeScript installations the equivalent SQLite schema.
+- **Inputs** — `src/TaskTracker.Infrastructure/Persistence/{Migrations,Configurations,DatabaseInitializer.cs,TaskTrackerDbContext.cs}`,
+  `tests/TaskTracker.Infrastructure.Tests/Persistence/{TaskTrackerDbContextTests,DatabaseInitializerTests,StatusMigrationTests,TicketRankMigrationTests}.cs`,
+  `tests/TaskTracker.Infrastructure.Tests/{SavedSearches/SavedSearchMigrationTests,Reminders/ReminderMigrationTests,Persistence/RecurrenceMigrationTests}.cs`,
+  and [the retained final EF fixture and its provenance](../apps/server/test/fixtures/ef/README.md).
+  The diff from `fef4e03` to `legacy-final` contains 16 migration-directory changes: eight migrations, seven generated designers and one updated model snapshot.
+  No new checked-in database fixture files were present at the tag.
+
+  | EF migration ID | Schema or data change |
+  | --- | --- |
+  | `20261114120000_AddItemSearch` | Stable item-to-rowid mapping, FTS5, maintenance triggers, backfill and reserved field keys |
+  | `20261115054310_AddSavedSearches` | Saved-search scopes and query text, reserved syntax keywords |
+  | `20261115121847_AddItemLinks` | Link table and cascading ownership, search key and scoped query rewrites |
+  | `20261117211849_AddRecurrence` | Rule and series fields, recurrence search key and scoped rewrites |
+  | `20261117220848_AddReminders` | Reminder choice, delivery and snooze fields, reminder search key and scoped rewrites |
+  | `20261118033043_IndexTodayCompletions` | Completion timestamp index |
+  | `20261118045951_AddStatusesAndPriorityNumbers` | Status seeds, completion and reopen constraints, numbered priorities, saved-query conversion |
+  | `20261118072606_AddTicketRank` | Independent ticket ordering |
+
+- **Outputs** — Effect migrations for fresh files and supported intermediate schemas. Match each validated EF history prefix to its Effect equivalents and apply only pending migrations. Preserve the EF history, data, lookup IDs, FTS mapping and triggers, saved-query meanings, and storage codecs. Keep online backup, retention and atomic adoption from §5.2. Use disposable copies of the generated `legacy-final.db` in integration tests. Share schema and codecs with the remaining packages.
+- **Acceptance** — Node and Electron SQLite suites compare fresh and adopted schemas, test the final fixture and earlier EF and Effect versions, and verify FTS trigger and status constraint behavior. Check migration rewrites, writes through a fresh connection, WAL-aware backup and recovery, idempotent reopen and failure rollback. Recheck fixture integrity and hash after testing.
+- **Dependencies** — WP24.
+
+## WP26 — Undo and redo transaction history
+
+- **Goal** — Provide session history for existing project, folder and item writes, with a shared way for later operations to record steps.
+- **Inputs** — `src/TaskTracker.Core/Undo/`, `src/TaskTracker.Infrastructure/Persistence/Undo*.cs`, `src/TaskTracker.Presentation/ViewModels/UndoCoordinator.cs`, and `tests/TaskTracker.Infrastructure.Tests/Persistence/Undo{Recording,Refusal}Tests.cs`.
+- **Outputs** — Server undo/redo RPC, a 50-step history, atomic replay with stale-row refusal, and commit-time recording. Add action labels, Edit commands, outcome messages and keyboard shortcuts. Preserve native text editing and the dirty-editor/settings guard. Document how each later package records its writes.
+- **Acceptance** — SQLite and RPC tests cover cascades, failed and interrupted writes, stale and purged rows, concurrency, redo invalidation and restart. Browser input covers shortcuts, dirty drafts, focus and disabled actions.
+- **Dependencies** — WP25.
+
+## WP27 — Workflow statuses
+
+- **Goal** — Add editable statuses and synchronize them with item completion.
+- **Inputs** — `src/TaskTracker.Core/Lookups/{StatusLevel,LookupService.Statuses}.cs`, `src/TaskTracker.Core/Items/{StatusChange,ItemService.Lookups}.cs`, and `tests/TaskTracker.Infrastructure.Tests/Persistence/ItemStatusTests.cs`.
+- **Outputs** — Open and Done lookup management, §6.1 completion and reopen behavior, editor selection, reusable row menu and status chip. Preserve the previous open status and the last active Done status. Record changes in undo history.
+- **Acceptance** — Core, real SQLite and RPC cover completion cascades, refusals, archive and reopen. Browser input and baselines cover settings, editor and checked menus. Later screen packages use the shared status action.
+- **Dependencies** — WP26.
+
+## WP28 — Numbered priority levels
+
+- **Goal** — Add editable priority numbers independent of rank.
+- **Inputs** — `src/TaskTracker.Core/Lookups/{PriorityLevel,LookupService}.cs`, `src/TaskTracker.Presentation/ViewModels/LookupListViewModel.cs`, and `tests/TaskTracker.Core.Tests/Lookups/PriorityLevelTests.cs`.
+- **Outputs** — Number-only and named levels, settings number edits, display labels and shared Set priority menu. Reserve archived lookup names and keep archive-specific errors. Record list and item changes in history.
+- **Acceptance** — Real SQLite and browser tests cover rank 1, 7, 2, number uniqueness, archived names and accessible submenu checkmarks. Review settings and row menu baselines.
+- **Dependencies** — WP26.
+
+## WP29 — Scoped search and filter builder
+
+- **Goal** — Search active items across all projects, one project or an area.
+- **Inputs** — `src/TaskTracker.Core/Search/`, `src/TaskTracker.Infrastructure/Persistence/{SearchSqlBuilder,SqlItemSearch,SqliteTextFunctions}.cs`, `src/TaskTracker.App.Desktop/Views/SearchView.axaml`, and `tests/TaskTracker.Infrastructure.Tests/Persistence/SqlItemSearchTests.cs`.
+- **Outputs** — Typed field registry, bounded parameterized SQLite and FTS5 query, typed RPC and search page. Include custom fields, status, completion and priority rank, plus the link field. Support result activation, scope changes, Back/Escape and draft guards.
+- **Acceptance** — Real SQLite covers prefix terms, Unicode equality, operator/missing-value rules, sorting, limits and scope. Browser input covers Ctrl+F, filters, open, pending navigation and error states. Review search baselines.
+- **Dependencies** — WP27, WP28.
+
+## WP30 — Text query syntax
+
+- **Goal** — Add the query box and bind its syntax to the typed search model.
+- **Inputs** — `src/TaskTracker.Core/Search/Syntax/`, `src/TaskTracker.Presentation/ViewModels/SearchViewModel.QueryText.cs`, and `tests/TaskTracker.Core.Tests/Search/Syntax/`.
+- **Outputs** — Scanner, binder, formatter, stable references and syntax help. Handle quotes, operators, presence tests, relative dates with Clock and zone, numbers and priorities, and errors with locations. Keep the filter builder synchronized and provide the parser extensions used by recurrence and reminders.
+- **Acceptance** — Port parser and formatting examples, including culture and round-trip cases, and prove invalid input does not issue a new search. Simulate keyboard input and review query/help/error baselines.
+- **Dependencies** — WP29.
+
+## WP31 — Saved searches
+
+- **Goal** — Save and rerun scoped search definitions.
+- **Inputs** — `src/TaskTracker.Core/SavedSearches/`, `src/TaskTracker.Presentation/ViewModels/SearchViewModel.SavedSearches.cs`, and `tests/TaskTracker.Infrastructure.Tests/SavedSearches/`.
+- **Outputs** — Persist stable query text and scope. Provide save/overwrite, open, rename, reorder and delete, and the Home list. Preserve behavior for stale fields and deleted scopes, and record mutations in undo history.
+- **Acceptance** — Real SQLite and browser input cover overwrite, stale choices, reopen, order and keyboard access. Review Home and saved-search baselines.
+- **Dependencies** — WP30.
+
+## WP32 — Calendar month and week
+
+- **Goal** — Show deadlines and scheduled blocks with navigation to their items.
+- **Inputs** — `src/TaskTracker.Core/Calendar/`, `src/TaskTracker.App.Desktop/Views/CalendarView.axaml`, and `tests/TaskTracker.App.Desktop.Tests/Views/CalendarViewTests.cs`, including the fixes in `565c0f9`.
+- **Outputs** — Scoped calendar query and RPC, month overflow, week all-day and timed layout, filters, period controls, contextual urgency and guarded entry activation.
+- **Acceptance** — Database tests cover scope and range boundaries. Browser tests and baselines cover both views, narrow layouts, touching and overlapping entries, midnight, short blocks, keyboard navigation and Back/Escape.
+- **Dependencies** — WP27, WP28.
+
+## WP33 — Calendar rescheduling
+
+- **Goal** — Reschedule via pointer and keyboard with the same server rules.
+- **Inputs** — `src/TaskTracker.Core/Calendar/CalendarRescheduleService.cs`, `src/TaskTracker.App.Desktop/Views/CalendarDragController.cs`, and `tests/TaskTracker.App.Desktop.Tests/Views/CalendarDragTests.cs`.
+- **Outputs** — Month and week drop targets, time snapping, ghost feedback, queued key moves, focus recovery and undo. Preserve block duration and validate the latest entry when applying a move.
+- **Acceptance** — SQLite and browser tests cover range and stale-write rules, no-op and cancelled drops, day and time-grid moves, focus and held keys. Review drag baselines.
+- **Dependencies** — WP32.
+
+## WP34 — Workspace item drag and drop
+
+- **Goal** — Move tree items with a consistent pointer and keyboard model.
+- **Inputs** — `src/TaskTracker.App.Desktop/Views/ItemDragController.cs`, `src/TaskTracker.Core/Items/ItemService.cs`, and `tests/TaskTracker.App.Desktop.Tests/Views/ItemDragControllerTests.cs`.
+- **Outputs** — Before/after, reparent, promote and folder drops with indicators. Reconcile both ancestor chains from the final tree in one transaction. Provide keyboard equivalents, preserve selection and drafts, and record one undo step.
+- **Acceptance** — SQLite and browser tests cover cycles, completed rows, two-chain reconciliation, moved subtrees, cancellation and newer edits during save. Review drop feedback baselines.
+- **Dependencies** — WP26.
+
+## WP35 — Trash and restore
+
+- **Goal** — Manage deleted batches and safely restore or permanently delete them.
+- **Inputs** — `src/TaskTracker.Core/Trash/`, `src/TaskTracker.App.Desktop/Views/TrashView.axaml`, and `tests/TaskTracker.Infrastructure.Tests/Trash/TrashServiceTests.cs`.
+- **Outputs** — Scoped Trash listing, restore, permanent delete, empty, blocked restore/purge rules, confirmation and refresh. Undo restores, using §7.8 rules for purged rows.
+- **Acceptance** — SQLite covers nested batches, completion reconciliation, ownership cascades and rollback. Browser input covers Ctrl+Shift+T, default Cancel, busy states, empty and inline failures. Review Trash baselines.
+- **Dependencies** — WP26.
+
+## WP36 — Markdown description preview
+
+- **Goal** — Render stored descriptions with the bounded preview in §7.10.
+- **Inputs** — `src/TaskTracker.Presentation/Markdown/`, `src/TaskTracker.App.Desktop/Views/MarkdownControlBuilder.cs`, and `tests/TaskTracker.App.Desktop.Tests/Views/MarkdownEditorViewTests.cs`.
+- **Outputs** — Edit and Preview tabs, readable code blocks and read-only task lists. Render unsupported or raw HTML as text and never load embedded images. Use a validated Electron link launcher for http, https and mailto.
+- **Acceptance** — Tests cover limits, link policy, unsupported markup and dirty state. Review preview snapshots and simulate tab and link activation.
+- **Dependencies** — WP25.
+
+## WP37 — Item links
+
+- **Goal** — Store ordered web or mail links with an item.
+- **Inputs** — `src/TaskTracker.Core/Items/{ItemLink,ItemLinkEditor,LinkPolicy}.cs`, `src/TaskTracker.App.Desktop/Views/ItemLinksView.axaml`, and `tests/TaskTracker.Infrastructure.Tests/Persistence/ItemLinkTests.cs`.
+- **Outputs** — Link draft controls and a transactional item save with stable link IDs, reorder, validation, open and undo. Integrate the built-in link filter. Preserve links on soft delete and remove through the permanent-delete cascade.
+- **Acceptance** — SQLite and browser tests cover draft rollback, invalid URLs, keyboard edits, search and undo. Review links baseline.
+- **Dependencies** — WP26, WP29, WP36.
+
+## WP38 — Recurring items
+
+- **Goal** — Generate the next occurrence through normal completion and repeat commands.
+- **Inputs** — `src/TaskTracker.Core/Items/Recurrence/`, `src/TaskTracker.Core/Completion/RecurringCompletion.cs`, `src/TaskTracker.App.Desktop/Views/ItemRecurrenceView.axaml`, and `tests/TaskTracker.Infrastructure.Tests/Persistence/ItemRecurrenceTests.cs`.
+- **Outputs** — Recurrence rules, Repeat editor, Skip and Stop, repeat badges and `has:repeats`. Copy links and values from the final draft, apply status reopen semantics, and create the successor and completion in one undoable transaction. Preserve the series receipt preventing duplicates.
+- **Acceptance** — Core and SQLite cover all frequencies, stop conditions, date rules, copy, cascade, reopen and repeated commands. Browser input and reviewed baselines cover Repeat, status messages and badges.
+- **Dependencies** — WP30, WP37.
+
+## WP39 — Reminder rules and in-app panel
+
+- **Goal** — Schedule, deliver, snooze and act on reminders through the app.
+- **Inputs** — `src/TaskTracker.Core/Reminders/`, `src/TaskTracker.Presentation/Reminders/ReminderScheduler.cs`, `src/TaskTracker.App.Desktop/Views/RemindersView.axaml`, and `tests/TaskTracker.Infrastructure.Tests/Reminders/`.
+- **Outputs** — Global and project defaults, item override, bounded Clock-driven delivery and rearming, grouped recent and silent old handling, panel and pending count, snooze undo and `has:reminder`. Keep automatic delivery bookkeeping outside history.
+- **Acceptance** — Controlled-clock and SQLite tests cover DST, resume, edits, snooze and delivery failure. Browser input covers panel actions, Escape priority, settings and editor. Review baselines and run reminder smoke.
+- **Dependencies** — WP38.
+
+## WP40 — Native notifications and tray lifecycle
+
+- **Goal** — Deliver native notifications and keep the desktop reachable while reminders run.
+- **Inputs** — `src/TaskTracker.App.Desktop/{Reminders,SingleInstance}/`, and `tests/TaskTracker.App.Desktop.Tests/{Reminders,SingleInstance}/`.
+- **Outputs** — Native notification adapter, activation routing, platform failure backoff, hide/minimize/quit behavior, scoped single-instance activation and resume/clock-change triggers. Reuse the checklist assets.
+- **Acceptance** — Desktop tests cover same-path launch races, distinct paths, tray-unavailable fallback, hidden-window activation and cleanup. Verify notifications and tray behavior on Windows and Linux.
+- **Dependencies** — WP39.
+
+## WP41 — Installers and release publishing
+
+- **Goal** — Publish the Electron application for the legacy release platforms.
+- **Inputs** — `docs/PLAN.md` §7.13, `README.md`, `.github/workflows/{build,release}.yml`, and `scripts/{pack.ps1,pack.sh,publish-release.sh,verify-package-id.ps1}`.
+- **Outputs** — Extend electron-builder for Windows x64 per-user NSIS, Linux x64 AppImage and macOS arm64. Tag-driven draft release and verified artifacts, safe retries and prereleases, shared app icon and install instructions. Keep CI on self-hosted runners as configured.
+- **Acceptance** — Package and run smoke on supported targets. Verify release assembly before publication and confirm install/uninstall/reinstall leaves database and backups intact.
+- **Dependencies** — WP24. This track can start alongside WP25.
+
+## WP42 — Updates, About and start with system
+
+- **Goal** — Bring installed-build controls to App Settings.
+- **Inputs** — `src/TaskTracker.App.Desktop/Installation/`, `src/TaskTracker.Presentation/Installation/`, and `tests/TaskTracker.Presentation.Tests/ViewModels/AppUpdateViewModelTests.cs`.
+- **Outputs** — Version, manual update check/download/restart, configurable update feed, pending state and draft guard. Add Windows and Linux startup registration and uninstall behavior per §7.13.
+- **Acceptance** — Fakes cover missing feed, update errors, pending and uninstalled state, and idempotent startup writes. Review settings baselines and verify an installed Windows update and startup registration.
+- **Dependencies** — WP40, WP41.
+
+## WP43 — Push back one day
+
+- **Goal** — Provide one local calendar-day reschedule action across item surfaces.
+- **Inputs** — `src/TaskTracker.Core/Items/PushBackOneDay.cs`, `tests/TaskTracker.Core.Tests/Items/PushBackOneDayTests.cs`, and `docs/PLAN.md` §7.14.
+- **Outputs** — Reusable action and Ctrl+Shift+P. Shift due and scheduled values together per §7.14, preserving calendar duration and refreshing urgency and reminders. Record one undo step.
+- **Acceptance** — Test boundary dates, timed and undated rows, repeats and rollback. Browser input covers menus, shortcut, draft guard and refresh in workspace, Search and Calendar. Later views reuse the action.
+- **Dependencies** — WP33, WP38.
+
+## WP44 — Today view
+
+- **Goal** — Show items completed today that are still complete.
+- **Inputs** — `src/TaskTracker.Core/Today/`, `src/TaskTracker.Infrastructure/Persistence/EfTodayRepository.cs`, `src/TaskTracker.App.Desktop/Views/TodayView.axaml`, and `tests/TaskTracker.Infrastructure.Tests/Today/TodayServiceTests.cs`.
+- **Outputs** — Zone-aware day and scope RPC, project/area grouping and ancestor context, collapse state, rollover and row actions. Restore the originating page on Back.
+- **Acceptance** — SQL and Clock tests cover DST, reopened rows, context and midnight. Review Today baselines and simulate Ctrl+Shift+D, expansion, menus and open.
+- **Dependencies** — WP27, WP28, WP43.
+
+## WP45 — Tickets view
+
+- **Goal** — Show open items with a ticket number in their manually maintained priority order.
+- **Inputs** — `src/TaskTracker.Core/Tickets/`, `src/TaskTracker.App.Desktop/Views/{TicketsView.axaml,TicketDragController.cs}`, and `tests/TaskTracker.Infrastructure.Tests/Tickets/TicketServiceTests.cs`.
+- **Outputs** — Optional project filter, no-priority first, independent ranks, drag and keyboard step, edge auto-scroll, row commands and undo. Preserve tree order and rank across filtered moves and between priority sections.
+- **Acceptance** — SQLite and browser tests cover initial and archived levels, non-monotonic labels, filtered rank writes, undo refusal, repeated moves and deterministic auto-scroll. Capture reviewed Tickets baselines.
+- **Dependencies** — WP43.
+
+## WP46 — Priority-grouped workspace card grid
+
+- **Goal** — Present top-level items as cards while keeping the nested item tree accessible.
+- **Inputs** — `src/TaskTracker.App.Desktop/Views/{CardGridPanel.cs,ItemCardView.axaml}`, `src/TaskTracker.Presentation/ViewModels/{CardDropMapper,PriorityGroupBuilder}.cs`, and `tests/TaskTracker.Infrastructure.Tests/Persistence/ItemPriorityGroupMoveTests.cs`.
+- **Outputs** — Configurable card columns, equal height per row, priority sections and completed cards. Preserve nested row actions. Cross-section drag and Alt+arrows update priority and tree order together with undo. Keep the floating editor.
+- **Acceptance** — Test reading order, empty and archived headers, sub-item promotion and undo. Simulate card/header drops and keyboard moves. Review 1080p and 1440p layouts.
+- **Dependencies** — WP27, WP28, WP34.
+
+## WP47 — Current item and tray card
+
+- **Goal** — Pin one item and surface it from a tray click.
+- **Inputs** — `src/TaskTracker.Core/CurrentItem/`, `src/TaskTracker.App.Desktop/Tray/`, and `tests/TaskTracker.App.Desktop.Tests/Tray/`.
+- **Outputs** — Global `currentItemId`, row choices and a card star, editor marker, surviving selection through trash restore, and a native tray popup. Include details, open-in-app, empty state, dismissal, screen clamping, and menu fallback.
+- **Acceptance** — Test the persisted selection, deleting and restoring it, pinning from each surface, popup positioning and activation. Review tray/card baselines and verify shared checklist art.
+- **Dependencies** — WP35, WP40, WP44, WP45, WP46.
+
+## WP48 — JSON import and export
+
+- **Goal** — Exchange complete active task data with version 1 legacy JSON.
+- **Inputs** — `src/TaskTracker.Core/Transfer/{DataTransferService.cs,Json}`, `src/TaskTracker.Infrastructure/Persistence/SqliteDatabaseBackup.cs`, and `tests/TaskTracker.Infrastructure.Tests/Transfer/Json*Tests.cs`.
+- **Outputs** — Full and project export, validation with paths, remapping including saved queries and lookup references, typed RPC and Electron file selection. Back up before a confirmed import, revalidate and commit once. Preserve recurrence, link, reminder and status semantics. Apply ticket rank assignment on import per §7.16.
+- **Acceptance** — Round-trip frozen legacy examples on real SQLite, including collision, backup, concurrency and rollback cases. Simulate file selection, cancellation and confirmation with isolated paths.
+- **Dependencies** — WP31, WP39, WP45.
+
+## WP49 — CSV import and export
+
+- **Goal** — Exchange spreadsheet rows and export the full result of the last search.
+- **Inputs** — `src/TaskTracker.Core/Transfer/Csv/`, `src/TaskTracker.App.Desktop/Views/ImportPreviewView.axaml`, `tests/TaskTracker.Infrastructure.Tests/Transfer/Csv*Tests.cs`, and `tests/TaskTracker.Presentation.Tests/ViewModels/SearchResultsExportTests.cs`.
+- **Outputs** — Project export and validated target-area import with preview, row errors, formula safety and backup. Support fixed and custom columns, priority reference, links and status. Export search results beyond the UI display cap. Reuse the file picker and transfer progress flow.
+- **Acceptance** — SQLite and browser tests cover legacy column formats, quoted cells, Unicode, collisions, invalid rows, rollback, and success after confirmation. Review preview/menu baselines.
+- **Dependencies** — WP48.
+
+## WP50 — Title bar and menu navigation
+
+- **Goal** — Integrate the final shell navigation at the frozen tag.
+- **Inputs** — `src/TaskTracker.App.Desktop/Views/MainWindow.axaml`, `src/TaskTracker.Presentation/ViewModels/MainWindowViewModel.cs`, `tests/TaskTracker.App.Desktop.Tests/MainWindowTests.cs`, and commits `499999b`, `f8fb2ed`, `9b63b7f`, `0c8c24e`.
+- **Outputs** — Single window title, drag region and native caption spacing, plus File, Edit, Project and View menus. Centralize return-page behavior, context-dependent commands and draft guards. Preserve notification and search/calendar/trash navigation.
+- **Acceptance** — Simulate menu keyboard navigation and all return contexts. Check Windows caption controls and scaling for overlap, menu availability and selection, and review changed full-shell baselines.
+- **Dependencies** — WP31, WP35, WP39, WP44, WP45, WP46, WP49.
+
+## WP51 — Undo coverage audit
+
+- **Goal** — Match the write coverage and refusal rules in §7.8 across the finished features.
+- **Inputs** — `src/TaskTracker.Infrastructure/Persistence/{EfUndoableChange,UndoDependencyGuard,UndoHierarchyGuard,UndoLookupGuard,UndoSettingsGuard}.cs`,
+  `tests/TaskTracker.Infrastructure.Tests/Persistence/*UndoTests.cs`, and commits `38f144f` and `2097319`.
+- **Outputs** — Map each write operation to a history step or documented exclusion. Close settings, lookups, choices, saved searches, restore and feature replay gaps, including guards for overwritten data, new dependents and effective settings.
+- **Acceptance** — Verify persisted before/after states, refusal atomicity and correct menu, refresh and draft handling on every integrated surface.
+- **Dependencies** — WP42, WP47, WP50.
+
+## WP52 — Settings and editor interaction cleanup
+
+- **Goal** — Port the final field type, time picker and settings fixes.
+- **Inputs** — `src/TaskTracker.App.Desktop/Views/{CommitOnChoiceComboBox,TimePickerPlaceholder}.cs`,
+  `tests/TaskTracker.App.Desktop.Tests/Views/{FieldManagerViewTests,TimePickerPlaceholderTests}.cs`, and commits `a7beb1f` and `554616e`.
+- **Outputs** — Browse field types without saving until commit. Handle Escape, pointer blur, wheel, keyboard and teardown as specified by the legacy tests. Use empty time placeholders in both 12-hour and 24-hour modes. Cover archived-name messages, override/reset isolation, discarded settings edits and failed reconciliation with invalid thresholds.
+- **Acceptance** — Real browser input reproduces the legacy cleanup cases. Real SQLite confirms an invalid settings write after reconciliation approval persists nothing. Review changed settings and editor baselines.
+- **Dependencies** — WP28.
+
+## WP53 — Final feature and data parity
+
+- **Goal** — Verify the integrated TypeScript port against the final legacy release.
+- **Inputs** — `tests/TaskTracker.App.Desktop.SmokeTests/SmokeTests.cs`, `tests/TaskTracker.App.Desktop.Tests/Snapshots/`, `docs/PLAN.md`, and the [parity checklist](PARITY.md).
+- **Outputs** — Update parity rows with evidence. Review Windows and Linux light/dark baselines and core interactions. Run packaged workflows including a disposable copy of the latest EF fixture, feature state after relaunch, native behavior, and backup recovery.
+- **Acceptance** — Warning-free build and static gate, workspace tests, embedded SQLite, packaging and smoke pass on Windows and Linux. Verify macOS release packaging and record owner sign-off.
+- **Dependencies** — WP51, WP52.

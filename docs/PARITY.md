@@ -1,6 +1,6 @@
-# WP23 UI parity evidence for WP24
+# TypeScript parity evidence
 
-This checklist maps the legacy desktop behavior to TypeScript tests. The references
+WP23 maps the pre-cutover desktop behavior to TypeScript tests. The references
 are test titles as declared in source. Browser tests use Chromium and simulated
 input. Desktop smoke uses the packaged Electron executable and isolated databases.
 
@@ -110,3 +110,41 @@ Workflow numbers follow the declaration order in
 | Owner demo sign-off | Approved by the owner on 2026-11-19 against `158a00f`: demo, baselines, feature parity, data continuity and the accepted UI deviations above. WP24 may proceed. |
 | WP24 cutover | Complete. Linux acceptance passed with the TypeScript-only build, including 801 workspace tests, 124 SQLite tests under Electron, and 20 packaged smoke tests under Xvfb. Both EF fixture files were retained. Windows verification for the cutover tree is covered by CI. |
 | WP24 Windows acceptance | 2026-11-19 on Windows 11 x64 at `0c2fc631b5635f77a8a62475d7839a8a6735b5e0`. Frozen install, Chromium install, build, warning-free static check and NSIS packaging passed without invoking .NET. All 801 workspace tests passed, including Windows screenshot baselines. Both packaged smoke runs passed all 19 Windows-applicable tests, including the Phase 3 EF fixture, with one Linux-only skip per run. |
+
+
+## Additional behavior at `legacy-final`
+
+The [migration plan](MIGRATION.md#legacy-feature-port) assigns the remaining
+parity work. Add TypeScript evidence as each package lands.
+
+| Legacy behavior | Work package | Status |
+| --- | --- | --- |
+| Fresh schema, adoption of the final and intermediate EF schemas, pre-adoption backup and recovery | WP25 | TODO |
+| Session undo and redo, labels, shortcuts, replay guards and draft protection | WP26 | TODO |
+| Editable statuses linked to completion, reopen and checked row menus | WP27 | TODO |
+| Numbered priority labels independent of rank, with archived-name reservation | WP28 | TODO |
+| Scoped FTS5 search, field filters and result activation | WP29 | TODO |
+| Text query syntax, stable choices, relative dates and parse errors | WP30 | TODO |
+| Saved search creation, editing, reopening and Home list | WP31 | TODO |
+| Month/week calendar, filters, overflow and item navigation | WP32 | TODO |
+| Calendar drag and keyboard rescheduling | WP33 | TODO |
+| Item drag, reorder, reparent and folder drop with keyboard equivalents | WP34 | TODO |
+| Trash scopes, restore, permanent delete and empty | WP35 | TODO |
+| Bounded Markdown description preview and external link policy | WP36 | TODO |
+| Item link CRUD, search and draft persistence | WP37 | TODO |
+| Recurring items, successor creation, skip and stop | WP38 | TODO |
+| In-app reminders, settings, snooze, dismissal and missed delivery | WP39 | TODO |
+| Native notifications, tray lifecycle and per-database instance activation | WP40 | TODO |
+| Cross-platform installers, tagged release and data preservation | WP41 | TODO |
+| About version, installed updates and start with the system | WP42 | TODO |
+| Push back one day via context menu or shortcut | WP43 | TODO |
+| Today view with completed branches and local-day rollover | WP44 | TODO |
+| Tickets view, filtering, drag order and cross-priority moves | WP45 | TODO |
+| Priority-grouped workspace grid and card movement | WP46 | TODO |
+| Checklist tray icon, current item and tray card | WP47 | TODO |
+| Full and project JSON import/export with backup | WP48 | TODO |
+| CSV project transfer and full search-results export | WP49 | TODO |
+| Title bar, File/Edit/Project/View menus and return-page navigation | WP50 | TODO |
+| Undo audit for settings, lookups, fields, new views and excluded writes | WP51 | TODO |
+| Custom field type commit, empty time placeholders and settings cleanup | WP52 | TODO |
+| Final fixture smoke, reviewed baselines and owner sign-off | WP53 | TODO |
