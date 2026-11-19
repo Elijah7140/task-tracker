@@ -498,22 +498,16 @@ function isFinishedNode(node: FakeItemNode): boolean {
   return node.item.completedAtUtc !== null && node.children.every(isFinishedNode);
 }
 
-/** Reorders open siblings around the target while finished siblings keep their slots. */
-function openSiblingOrder(
+/** Inserts the item beside the target in the full sibling list, finished siblings included. */
+function dropSiblingOrder(
   siblings: ReadonlyArray<FakeItemNode>,
   itemId: string,
   targetId: string,
   after: boolean,
 ): ReadonlyArray<string> {
-  const finished = new Set(siblings.filter(isFinishedNode).map((node) => node.item.id));
-  const open = siblings
-    .map((node) => node.item.id)
-    .filter((id) => id !== itemId && !finished.has(id));
-  open.splice(open.indexOf(targetId) + Number(after), 0, itemId);
-  const reordered = open.values();
-  return siblings.map((node) =>
-    finished.has(node.item.id) ? node.item.id : reordered.next().value!,
-  );
+  const others = siblings.map((node) => node.item.id).filter((id) => id !== itemId);
+  others.splice(others.indexOf(targetId) + Number(after), 0, itemId);
+  return others;
 }
 
 /** Mirrors Core `dropItem`: before, after or into a target validated against the current tree. */
@@ -547,7 +541,7 @@ function applyDropItem(
     return applyReorderItems(
       area,
       parentId,
-      openSiblingOrder(target.siblings, itemId, targetId, after),
+      dropSiblingOrder(target.siblings, itemId, targetId, after),
     );
   }
   return moveWithinArea(store, area, projectId, itemId, parentId, target.index + Number(after));

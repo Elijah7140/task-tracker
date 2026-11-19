@@ -59,7 +59,7 @@ it("appends an item into a row as its last sub-item", () => {
   ]);
 });
 
-it("reorders open siblings around a finished sibling that keeps its slot", () => {
+it("reorders a same-parent drop within the full sibling list, including finished rows", () => {
   const tree = new ItemTree(projectId, null, [
     item("alpha"),
     item("done", { sortOrder: 1, completedAtUtc: earlier }),
@@ -70,10 +70,28 @@ it("reorders open siblings around a finished sibling that keeps its slot", () =>
   dropItem(tree, "alpha", "gamma", "after", now);
 
   expect(order(tree, null)).toEqual([
-    ["beta", 0],
-    ["done", 1],
+    ["done", 0],
+    ["beta", 1],
     ["gamma", 2],
     ["alpha", 3],
+  ]);
+});
+
+it("inserts a same-parent drop before its target in the full sibling list", () => {
+  const tree = new ItemTree(projectId, null, [
+    item("alpha"),
+    item("beta", { sortOrder: 1 }),
+    item("done", { sortOrder: 2, completedAtUtc: earlier }),
+    item("gamma", { sortOrder: 3 }),
+  ]);
+
+  dropItem(tree, "gamma", "beta", "before", now);
+
+  expect(order(tree, null)).toEqual([
+    ["alpha", 0],
+    ["gamma", 1],
+    ["beta", 2],
+    ["done", 3],
   ]);
 });
 

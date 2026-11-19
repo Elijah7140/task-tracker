@@ -3,6 +3,9 @@
 WP26 records project, folder and item writes, including the existing direct
 restores, hierarchy and completion cascades, sibling ordering and item custom
 values. Each server session gets one `UndoService` with a 50-step history.
+Settings saves record their rows with any reconciled items as one step. The step
+context names the projects whose automatic completion it turned on, and replay
+requires that transition and checks parent completion against current settings.
 
 1. Use `undo.record` as the public operation's transaction wrapper. Complete
    validation inside it. For operations with a confirmation preview, capture in
@@ -38,3 +41,5 @@ The hard-delete guard checks foreign keys into removed rows, including cascades.
 The derived FTS mapping and index follow their SQLite triggers. If a later
 migration adds a user-data table, add its primary key to `undo-rows.ts` before
 recording it, and extend replay validation for any rules SQLite cannot enforce.
+Replay already checks custom values against the current field type, scope and
+choice, and parent chains of replayed items where automatic completion is on.

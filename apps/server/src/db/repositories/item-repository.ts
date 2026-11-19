@@ -66,8 +66,14 @@ export function itemRepository(sql: SqlClient.SqlClient) {
     }),
     updateEdit: SqlSchema.void({
       Request: ItemEditRow,
+      // SET expressions read the previous row, so a changed priority or a removed ticket
+      // number clears the ticket order in the same write, as legacy TodoItem did.
       execute: ({ Id, ...values }) =>
-        sql`UPDATE TodoItem SET ${sql.update(values)} WHERE Id = ${Id} AND ${activeRow(sql)}`,
+        sql`UPDATE TodoItem SET ${sql.update(values)},
+          TicketRank = CASE
+            WHEN PriorityLevelId IS NOT ${values.PriorityLevelId} OR ${values.TicketNumber} IS NULL
+            THEN NULL ELSE TicketRank END
+          WHERE Id = ${Id} AND ${activeRow(sql)}`,
     }),
   };
 }

@@ -120,8 +120,9 @@ This dry run checks that every installer, archive, blockmap and update
 metadata file matches its native build checksum. Pushing a valid `v*` tag
 starts the [release workflow](.github/workflows/release.yml). It packages and
 smoke-tests before uploading the verified files to one draft and checking the
-uploaded digests. A retry replaces a leftover draft and leaves a published
-release intact. Prereleases use `beta*.yml` and GitHub's prerelease flag.
+uploaded digests. A retry resumes a leftover draft, skipping files already
+uploaded with a matching name and checksum. It refuses a draft holding other
+files and never deletes a release. A published release is left intact. Prereleases use `beta*.yml` and GitHub's prerelease flag.
 Stable releases use `latest*.yml`. See [CI setup](docs/CI.md) for runner selection.
 
 For the Windows installer acceptance check, use a disposable standard user.

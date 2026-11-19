@@ -548,7 +548,7 @@ describe("Item actions and reorder", () => {
     expect(store.areaSiblingTitles(projectId, null, first.item.id)).toEqual(["Sub B", "Sub A"]);
   });
 
-  it("Reorders open siblings downward and upward via pointer drag while preserving finished slots", async () => {
+  it("Reorders siblings downward and upward via pointer drag within the full sibling list", async () => {
     const { store, projectId } = await openRoot([
       {
         name: "Billing DB",
@@ -567,7 +567,7 @@ describe("Item actions and reorder", () => {
       { targetPosition: { x: 180, y: 30 } },
     );
 
-    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Beta", "Done", "Gamma", "Alpha"]);
+    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Done", "Beta", "Gamma", "Alpha"]);
 
     await userEvent.dragAndDrop(
       row("Gamma").getByTestId("item-drag-handle").first(),
@@ -575,7 +575,7 @@ describe("Item actions and reorder", () => {
       { targetPosition: { x: 180, y: 5 } },
     );
 
-    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Gamma", "Done", "Beta", "Alpha"]);
+    expect(store.areaSiblingTitles(projectId, null)).toEqual(["Done", "Gamma", "Beta", "Alpha"]);
 
     await row("Alpha").getByTestId("item-toggle").first().click();
     await userEvent.dragAndDrop(
