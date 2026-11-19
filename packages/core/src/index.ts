@@ -50,3 +50,20 @@ export {
 } from "./lookups/lookup.js";
 export type { PriorityLevel } from "./lookups/priority-level.js";
 export { MetadataRuleError } from "./metadata/metadata-rule-error.js";
+export { booleanCodec } from "./settings/boolean-codec.js";
+export { durationCodec } from "./settings/duration-codec.js";
+export type { EffectiveSettings, EffectiveValue } from "./settings/effective-settings.js";
+export type { SettingCodec } from "./settings/setting-codec.js";
+export { SettingDefinition } from "./settings/setting-definition.js";
+export { SettingsCatalogue } from "./settings/settings-catalogue.js";
+export * as SettingsResolver from "./settings/settings-resolver.js";
+export type { DurationTicks } from "./time/duration-ticks.js";
+export * as FloatingTime from "./time/floating-time.js";
+export type { DisplayedUrgency, Urgency } from "./urgency/displayed-urgency.js";
+export {
+  calculateDisplayedNodeUrgency,
+  calculateDisplayedUrgency,
+  calculateUrgency,
+  type UrgencyNode,
+} from "./urgency/urgency-calculator.js";
+export { UrgencyThresholds } from "./urgency/urgency-thresholds.js";
