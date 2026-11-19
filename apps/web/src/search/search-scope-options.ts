@@ -64,3 +64,18 @@ export function toSearchScope(
   }
   return { kind: "allProjects" };
 }
+
+/**
+ * The scope option that shows `scope`, such as a saved search's. An area without a
+ * folder is the project root.
+ */
+export function searchScopeKind(scope: typeof SearchScope.Type): SearchScopeKind {
+  switch (scope.kind) {
+    case "allProjects":
+      return "all";
+    case "project":
+      return "project";
+    case "area":
+      return scope.folderId === null ? "root" : "folder";
+  }
+}

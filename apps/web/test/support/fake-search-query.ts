@@ -1,10 +1,11 @@
-import type {
-  FieldFilter,
-  FilterValue,
-  QueryParseError,
-  SearchableField,
-  SearchChoice,
-  SearchScope,
+import {
+  type FieldFilter,
+  type FilterValue,
+  type QueryParseError,
+  RuleViolation,
+  type SearchableField,
+  type SearchChoice,
+  type SearchScope,
 } from "@task-tracker/contracts";
 import { Effect } from "effect";
 import { listChoices, listFields, type SearchStore } from "./fake-search-handlers.js";
@@ -86,6 +87,10 @@ function readDate(text: string): Value | string {
 }
 
 function readChoice(field: Field, text: string, choices: ReadonlyArray<Choice>): Choice | string {
+  if (text.startsWith("#")) {
+    const byId = choices.find((choice) => `#${choice.id}` === text.toUpperCase());
+    return byId ?? `That ${field.displayName} choice no longer exists.`;
+  }
   const found = choices.find((choice) => choice.label.toLowerCase() === text.toLowerCase());
   const labels = choices.map((choice) => choice.label).join(", ");
   return found ?? `'${text}' is not a ${field.displayName} choice. Choose one of: ${labels}.`;
@@ -225,13 +230,13 @@ export function fakeParseQuery(store: SearchStore, scope: Scope, text: string) {
     (field) =>
       field.dataType === "Choice" && filters.some((filter) => filter.fieldKey === field.key),
   );
-  const display = fakeFormatQuery(store, scope, words.join(" ") || null, filters);
+  const freeText = words.join(" ") || null;
   return {
     kind: "parsed" as const,
-    text: words.length === 0 ? null : words.join(" "),
+    text: freeText,
     filters,
-    stableText: display,
-    displayText: display,
+    stableText: fakeFormatQuery(store, scope, freeText, filters, { stable: true }),
+    displayText: fakeFormatQuery(store, scope, freeText, filters),
     impliesIncludeCompleted: filters.some(
       (filter) =>
         filter.fieldKey === "completed" && filter.value?.kind === "boolean" && filter.value.value,
@@ -243,9 +248,11 @@ export function fakeParseQuery(store: SearchStore, scope: Scope, text: string) {
   };
 }
 
-function formatValue(value: Value, choices: ReadonlyArray<Choice>): string {
+function formatValue(value: Value, choices: ReadonlyArray<Choice>, stable: boolean): string {
   const label = (id: string) =>
-    quoteIfNeeded(choices.find((choice) => choice.id === id)?.label ?? `#${id}`);
+    stable
+      ? `#${id}`
+      : quoteIfNeeded(choices.find((choice) => choice.id === id)?.label ?? `#${id}`);
   switch (value.kind) {
     case "text":
       return quoteIfNeeded(value.value);
@@ -274,12 +281,16 @@ const OPERATOR_SYMBOLS: Record<Operator, string> = {
   isNotEmpty: ":",
 };
 
-/** A stand-in for the server's canonical query formatter. */
+/**
+ * A stand-in for the server's canonical query formatter. The stable form writes
+ * choices as `#id`, as saved searches store them.
+ */
 export function fakeFormatQuery(
   store: SearchStore,
   scope: Scope,
   text: string | null,
   filters: ReadonlyArray<Filter>,
+  { stable = false }: { readonly stable?: boolean } = {},
 ): string {
   const fields = listFields(store, scope);
   const clauses = filters.map(({ fieldKey, operator, value }) => {
@@ -291,7 +302,7 @@ export function fakeFormatQuery(
     }
     const field = fields.find((candidate) => candidate.key === fieldKey);
     const choices = field?.dataType === "Choice" ? listChoices(store, field) : [];
-    return `${fieldKey}${OPERATOR_SYMBOLS[operator]}${formatValue(value, choices)}`;
+    return `${fieldKey}${OPERATOR_SYMBOLS[operator]}${formatValue(value, choices, stable)}`;
   });
   const words = (text ?? "")
     .split(/\s+/)
@@ -304,7 +315,16 @@ export function fakeFormatQuery(
 export function searchQueryHandlers(store: SearchStore) {
   return {
     ParseSearchQuery: ({ scope, text }: { readonly scope: Scope; readonly text: string }) =>
-      store.record("ParseSearchQuery").pipe(Effect.as(fakeParseQuery(store, scope, text))),
+      store
+        .record("ParseSearchQuery")
+        .pipe(
+          Effect.andThen(() =>
+            scope.kind === "allProjects" ||
+            store.summaries.some(({ project }) => project.id === scope.projectId)
+              ? Effect.succeed(fakeParseQuery(store, scope, text))
+              : Effect.fail(new RuleViolation({ message: "Search project does not exist." })),
+          ),
+        ),
     FormatSearchQuery: ({
       scope,
       text,

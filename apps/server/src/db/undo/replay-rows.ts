@@ -16,6 +16,7 @@ import { verifyReplayCompletion } from "./replay-completion.js";
 import { verifyReplayFieldValues } from "./replay-field-values.js";
 import { verifyReplayHierarchy } from "./replay-hierarchy.js";
 import { verifyReplayPriorities } from "./replay-priorities.js";
+import { verifyReplaySavedSearches } from "./replay-saved-searches.js";
 import { verifyReplaySettings } from "./replay-settings.js";
 import { verifyReplayStatuses } from "./replay-statuses.js";
 
@@ -31,6 +32,7 @@ const subjects: Partial<Record<UndoTable, string>> = {
   Folder: "folder",
   PriorityLevel: "priority level",
   StatusLevel: "status",
+  SavedSearch: "saved search",
 };
 
 const subject = (table: UndoTable) => subjects[table] ?? "item";
@@ -156,6 +158,7 @@ export const replayRows = Effect.fnUntraced(
     yield* verifyReplayStatuses(sql, rows, direction);
     yield* verifyReplayFieldValues(sql, rows, direction);
     yield* verifyReplayCompletion(sql, rows, turnedOn);
+    yield* verifyReplaySavedSearches(sql, rows, direction);
   },
   (effect) => effect.pipe(Effect.provideService(SqlClient.SafeIntegers, true)),
 );

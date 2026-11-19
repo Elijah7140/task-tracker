@@ -262,6 +262,24 @@ it("Searches text with Enter and shows each result's ticket, location, priority 
   await expect.element(page.getByText("No items match")).toBeVisible();
 });
 
+it("Sends one search request for each new or repeated search", async () => {
+  const { store } = await openApp();
+  await ctrlF();
+  const searches = () => store.calls.filter((call) => call === "SearchItems").length;
+
+  await searchInput().fill("audit");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(result("Audit Q4")).toBeVisible();
+  await searchInput().fill("platform");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(result("Platform migration")).toBeVisible();
+  await searchButton().click();
+  await expect.poll(searches).toBe(3);
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(searches()).toBe(3);
+});
+
 it("Opens a result in its current folder with its parent expanded, after asking about a draft", async () => {
   const { store } = await openApp();
   await openProject("Billing");

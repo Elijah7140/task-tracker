@@ -17,15 +17,19 @@ export interface SearchResultsProps {
   readonly onOpen: (itemId: string) => void;
 }
 
-/** Runs the same query again when the user repeats a search, but not on first render. */
-function useRepeatRun(run: number, refresh: () => void) {
-  const shown = useRef(run);
+/**
+ * Runs the same query again when the user repeats a search, but not on first render.
+ * A new query loads through its own atom, so a new run of it needs no refresh.
+ */
+function useRepeatRun(atom: unknown, run: number, refresh: () => void) {
+  const shown = useRef({ atom, run });
   useEffect(() => {
-    if (shown.current !== run) {
-      shown.current = run;
+    const repeated = shown.current.atom === atom && shown.current.run !== run;
+    shown.current = { atom, run };
+    if (repeated) {
       refresh();
     }
-  }, [run, refresh]);
+  }, [atom, run, refresh]);
 }
 
 /** Keeps the last page on screen while a newer search is still running. */
@@ -45,7 +49,7 @@ export function SearchResults({ query, run, onOpen }: SearchResultsProps) {
   const atom = searchResultsAtom(query);
   const result = useAtomValue(atom);
   const refresh = useAtomRefresh(atom);
-  useRepeatRun(run, refresh);
+  useRepeatRun(atom, run, refresh);
   const page = useLastPage(result);
   const busy = result.waiting || AsyncResult.isInitial(result);
   return (

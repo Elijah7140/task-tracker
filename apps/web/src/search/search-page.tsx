@@ -1,11 +1,17 @@
 import { useAtomValue } from "@effect/atom-react";
-import type { ItemQuery, SearchableField, SearchScope } from "@task-tracker/contracts";
+import type {
+  ItemQuery,
+  SavedSearchProjection,
+  SearchableField,
+  SearchScope,
+} from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { ArrowLeft, Plus, Search } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { searchFieldsAtom } from "../rpc/search-queries.js";
 import type { ReturnGuard } from "../shell/return-guards.js";
+import { useReturnPageStore } from "../state/return-page-store.js";
 import { Button } from "../ui/button.js";
 import { Checkbox } from "../ui/checkbox.js";
 import { fieldStyles } from "../ui/field-styles.js";
@@ -14,11 +20,14 @@ import { PageHeader } from "../ui/page-header.js";
 import { Select } from "../ui/select.js";
 import { QUERY_ERRORS_ID, QueryErrors } from "./query-errors.js";
 import { QuerySyntaxHelp } from "./query-syntax-help.js";
+import { SavedSearchActions, SavedSearchChips } from "./saved-search-bar.js";
 import { SearchError } from "./search-error.js";
 import { SearchFilterRow } from "./search-filter-row.js";
 import { SearchResults } from "./search-results.js";
 import { currentField, useFilterRows } from "./use-filter-rows.js";
 import { useOpenSearchResult } from "./use-open-search-result.js";
+import { useSavedSearchLoad } from "./use-saved-search-load.js";
+import { useSearchPageSavedSearches } from "./use-search-page-saved-searches.js";
 import { useSearchQuery } from "./use-search-query.js";
 import { useSearchScope } from "./use-search-scope.js";
 
@@ -157,21 +166,41 @@ function QueryBox({ query, canSearch }: QueryBoxProps) {
   );
 }
 
-/**
- * Scoped search with the query box and filter builder (§7.2, §7.7). It covers the page
- * it was opened from, which stays mounted with its drafts, and Back or Escape returns
- * there. The box and the rows describe one query: Enter parses typed text into rows,
- * and nothing runs while the text has errors or a row is incomplete or invalid.
- */
-export function SearchPage({ onBack, runGuards }: SearchPageProps) {
-  const scope = useSearchScope();
+interface SearchContentProps extends SearchPageProps {
+  readonly savedSearch: typeof SavedSearchProjection.Type | null;
+}
+
+/** Inline problems: an unavailable field list, a refused parse, a stale saved search. */
+function PageErrors({ errors }: { readonly errors: ReadonlyArray<string | null> }) {
+  return errors.map((message, index) =>
+    message === null ? null : <SearchError key={index} message={message} />,
+  );
+}
+
+function SearchContent({ onBack, runGuards, savedSearch }: SearchContentProps) {
+  const scope = useSearchScope(savedSearch?.scope);
   const { fields, error: fieldsError } = useScopeFields(scope.scope);
   const rows = useFilterRows(fields);
-  const query = useSearchQuery({ scope: scope.scope, fields, rows });
+  const query = useSearchQuery({
+    scope: scope.scope,
+    fields,
+    rows,
+    initialIncludeCompleted: savedSearch?.includeCompleted ?? false,
+  });
   const opening = useOpenSearchResult(runGuards);
+  const saved = useSearchPageSavedSearches(savedSearch?.id ?? null, query.definition);
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
+  const run = (next: Query) =>
+    setSubmitted((previous) => ({ query: next, run: (previous?.run ?? 0) + 1 }));
+  const loaded = useSavedSearchLoad({
+    savedSearch,
+    ready: fields !== null || fieldsError !== null,
+    load: query.load,
+    onRun: run,
+  });
   const rowsComplete = rows.evaluations.every((row) => row.kind === "complete");
   const canSearch = fields !== null && (query.dirty || rowsComplete);
+  const quiet = loaded.loading || loaded.stale !== null;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -179,15 +208,33 @@ export function SearchPage({ onBack, runGuards }: SearchPageProps) {
       return;
     }
     opening.clearError();
+    loaded.clearStale();
     const next = await query.submit();
     if (next !== null) {
-      setSubmitted((previous) => ({ query: next, run: (previous?.run ?? 0) + 1 }));
+      run(next);
     }
   };
 
   return (
     <PageContainer>
-      <PageHeader title="Search" eyebrow={<BackButton onBack={onBack} />} />
+      <PageHeader
+        title="Search"
+        eyebrow={<BackButton onBack={onBack} />}
+        actions={
+          <SavedSearchActions
+            selected={saved.selected}
+            saveRef={saved.saveRef}
+            onSave={() => void saved.save()}
+            onRename={() => void saved.rename()}
+            onDelete={() => void saved.remove()}
+          />
+        }
+      />
+      <SavedSearchChips
+        searches={saved.searches}
+        selectedId={saved.selected?.id ?? null}
+        onOpen={(id) => void saved.open(id)}
+      />
       <form
         role="search"
         aria-label="Search items"
@@ -209,9 +256,9 @@ export function SearchPage({ onBack, runGuards }: SearchPageProps) {
         <FilterSection rows={rows} fields={fields ?? []} scope={scope.scope} />
       </form>
       <div className="mt-6 flex flex-col gap-4">
-        {fieldsError === null ? null : <SearchError message={fieldsError} />}
-        {query.failure === null ? null : <SearchError message={query.failure} />}
-        {opening.error === null ? null : <SearchError message={opening.error} />}
+        <PageErrors
+          errors={[loaded.stale, quiet ? null : fieldsError, query.failure, opening.error]}
+        />
         {submitted === null ? null : (
           <SearchResults
             query={submitted.query}
@@ -221,5 +268,23 @@ export function SearchPage({ onBack, runGuards }: SearchPageProps) {
         )}
       </div>
     </PageContainer>
+  );
+}
+
+/**
+ * Scoped search with the query box and filter builder (§7.2, §7.7). It covers the page
+ * it was opened from, which stays mounted with its drafts, and Back or Escape returns
+ * there. The box and the rows describe one query: Enter parses typed text into rows,
+ * and nothing runs while the text has errors or a row is incomplete or invalid.
+ * Opening a saved search shows a fresh page with its scope, query and rows, and runs it.
+ */
+export function SearchPage(props: SearchPageProps) {
+  const request = useReturnPageStore((state) => state.searchRequest);
+  return (
+    <SearchContent
+      key={request?.version ?? 0}
+      {...props}
+      savedSearch={request?.savedSearch ?? null}
+    />
   );
 }
