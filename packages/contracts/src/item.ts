@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { Guid } from "./guid.js";
 import { IsoDate, IsoFloatingDateTime, IsoTime, IsoUtcInstant } from "./iso-date-time.js";
 import { RecurrenceRule } from "./recurrence-rule.js";
+import { ReminderChoice } from "./reminder.js";
 
 // The EF-compatible SQLite storage retains a precision of 100 nanoseconds.
 const tickPrecision = Schema.makeFilter((value: string) => !/\.\d{7}\d*[1-9]/.test(value), {
@@ -43,6 +44,8 @@ export const Item = Schema.Struct({
   recurrence: Schema.optionalKey(Schema.NullOr(RecurrenceRule)),
   /** Shared by the occurrences of one series; absent or null without a rule. */
   recurrenceSeriesId: Schema.optionalKey(Schema.NullOr(Guid)),
+  /** The reminder choice (§7.12). The server always sends it; absent means Default. */
+  reminder: Schema.optionalKey(ReminderChoice),
   deletedAtUtc: Schema.NullOr(IsoUtcInstant),
   deletionBatchId: Schema.NullOr(Guid),
 });

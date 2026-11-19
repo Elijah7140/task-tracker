@@ -20,10 +20,14 @@ const withWorkspaceRpc = <Value, Error>(
   test: Effect.Effect<Value, Error, LoopbackRpc | Scope.Scope | SqlClient.SqlClient>,
 ) =>
   withSchema(
-    Effect.scoped(
-      test.pipe(
-        Effect.provide(server),
-        Effect.provideService(FetchHttpClient.Fetch, rendererFetch),
+    // Pin the clock before the reminder scheduler starts with the server.
+    Effect.andThen(
+      TestClock.setTime(Temporal.Instant.from("2026-11-13T12:00:00Z").epochMilliseconds),
+      Effect.scoped(
+        test.pipe(
+          Effect.provide(server),
+          Effect.provideService(FetchHttpClient.Fetch, rendererFetch),
+        ),
       ),
     ),
   );

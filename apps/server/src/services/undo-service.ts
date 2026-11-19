@@ -1,5 +1,5 @@
 import { MetadataRuleError, UndoHistory, type UndoDirection } from "@task-tracker/core";
-import { Context, Effect, Layer, Semaphore } from "effect";
+import { Context, Effect, Layer, PubSub, Semaphore } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { replayRows } from "../db/undo/replay-rows.js";
 import {
@@ -64,6 +64,9 @@ const make = Effect.gen(function* () {
   const gate = yield* Semaphore.make(1);
   const history = new UndoHistory<Step>();
   let revision = 0;
+  /** Signals each committed recorded operation or replay, such as for a reminder check. */
+  const commits = yield* PubSub.unbounded<void>();
+  const announceCommit = sql.afterCommit(PubSub.publish(commits, undefined));
 
   const status = () =>
     gate.withPermit(
@@ -90,6 +93,7 @@ const make = Effect.gen(function* () {
               pending = yield* takeSnapshot(sql, label, sources, context);
             });
           const result = yield* operation.pipe(Effect.provideService(Recording, { start }));
+          yield* announceCommit;
           if (pending !== undefined) {
             const { before, label, sources, context } = pending;
             const rows = changedRows(before, yield* snapshotRows(sql, sources));
@@ -117,6 +121,7 @@ const make = Effect.gen(function* () {
               return null;
             }
             yield* replayRows(sql, step.rows, direction, step.context);
+            yield* announceCommit;
             yield* sql.afterCommit(
               Effect.sync(() => {
                 history.advance(direction);
@@ -132,7 +137,7 @@ const make = Effect.gen(function* () {
         ),
     );
 
-  return { status, capture, record, apply };
+  return { status, capture, record, apply, commits };
 });
 
 /** Shares commit-time recording and replay across all services in one server session. */

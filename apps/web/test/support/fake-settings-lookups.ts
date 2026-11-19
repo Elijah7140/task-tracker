@@ -231,6 +231,29 @@ function reorderRows<Row extends { readonly id: string; readonly sortOrder: numb
   return Effect.succeed(ordered);
 }
 
+/** The reminder defaults of a fresh database (§7.12). */
+export const DEFAULT_REMINDERS: NonNullable<Global["reminders"]> = {
+  remindersEnabled: true,
+  defaultReminderOffset: "36000000000",
+  dateOnlyReminderTime: "09:00:00",
+};
+
+/** Reminder settings with sources, as the server resolves them. */
+function effectiveReminders(
+  global: NonNullable<Global["reminders"]>,
+  overrides: Overrides["reminders"],
+): NonNullable<Project["reminders"]> {
+  const pick = <Value>(globalValue: Value, override: Value | null | undefined) =>
+    override == null
+      ? { value: globalValue, source: "Global" as const }
+      : { value: override, source: "Project" as const };
+  return {
+    remindersEnabled: pick(global.remindersEnabled, overrides?.remindersEnabled),
+    defaultReminderOffset: pick(global.defaultReminderOffset, overrides?.defaultReminderOffset),
+    dateOnlyReminderTime: pick(global.dateOnlyReminderTime, overrides?.dateOnlyReminderTime),
+  };
+}
+
 /**
  * In-memory settings, auto-complete disagreement and lookup store behind the
  * fake RPC server. Mirrors server validation, effective overrides, conflict
@@ -242,6 +265,7 @@ export class FakeSettingsAndLookups {
     urgencyYellowThreshold: DEFAULT_YELLOW,
     urgencyRedThreshold: DEFAULT_RED,
     workspaceCardColumns: 4,
+    reminders: DEFAULT_REMINDERS,
   };
   itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
@@ -277,6 +301,9 @@ export class FakeSettingsAndLookups {
         overrides.urgencyRedThreshold !== undefined
           ? overrides.urgencyRedThreshold
           : current.urgencyRedThreshold,
+      ...((overrides.reminders ?? current.reminders) === undefined
+        ? {}
+        : { reminders: overrides.reminders ?? current.reminders! }),
     });
   }
 
@@ -305,6 +332,7 @@ export class FakeSettingsAndLookups {
   ): Project {
     const stored = override ?? this.projectOverrides.get(projectId.toUpperCase());
     return {
+      reminders: effectiveReminders(global.reminders ?? DEFAULT_REMINDERS, stored?.reminders),
       projectId: projectId.toUpperCase(),
       autoCompleteParents:
         stored?.autoCompleteParents != null
@@ -443,7 +471,8 @@ export class FakeSettingsAndLookups {
     if (needsConfirmation(preview, approval)) {
       return Effect.succeed({ kind: "needs-confirmation", preview });
     }
-    this.globalSettings = { ...next };
+    const reminders = next.reminders ?? this.globalSettings.reminders;
+    this.globalSettings = { ...next, ...(reminders === undefined ? {} : { reminders }) };
     this.applyReconciliation(enabledProjects);
     return Effect.succeed({ kind: "applied" });
   }
@@ -467,7 +496,11 @@ export class FakeSettingsAndLookups {
         if (needsConfirmation(preview, approval)) {
           return Effect.succeed({ kind: "needs-confirmation", preview });
         }
-        this.projectOverrides.set(project.id, { ...overrides });
+        const reminders = overrides.reminders ?? this.projectOverrides.get(project.id)?.reminders;
+        this.projectOverrides.set(project.id, {
+          ...overrides,
+          ...(reminders === undefined ? {} : { reminders }),
+        });
         this.applyReconciliation(affected);
         return Effect.succeed({ kind: "applied" });
       }),

@@ -25,11 +25,20 @@ export const itemRpcHandlers = (timeZone: string) =>
           items
             .create(projectId, folderId, parentItemId, title)
             .pipe(Effect.map(projectItem), mapOperationError),
-        EditItem: ({ itemId, fields, customValues, links, recurrence, confirmedOpenItemIds }) =>
+        EditItem: ({
+          itemId,
+          fields,
+          customValues,
+          links,
+          recurrence,
+          reminder,
+          confirmedOpenItemIds,
+        }) =>
           Effect.sync(() => ({
             edit: {
               ...parseItemEdit(fields),
               ...(recurrence === undefined ? {} : { recurrence: parseRecurrence(recurrence) }),
+              ...(reminder === undefined ? {} : { reminder }),
             },
             values: customValues?.map(parseFieldValueInput),
           })).pipe(

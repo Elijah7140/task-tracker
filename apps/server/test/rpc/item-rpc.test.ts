@@ -36,10 +36,14 @@ const withItemRpc = <A, E>(
   test: Effect.Effect<A, E, SqlClient.SqlClient | Scope.Scope | LoopbackRpc | UndoService>,
 ) =>
   withSchema(
-    Effect.scoped(
-      test.pipe(
-        Effect.provide(loopbackRpcLayer({ rendererOrigin, timeZone })),
-        Effect.provideService(FetchHttpClient.Fetch, rendererFetch),
+    // Pin the clock before the reminder scheduler starts with the server.
+    Effect.andThen(
+      TestClock.setTime(Temporal.Instant.from(createdAtUtc).epochMilliseconds),
+      Effect.scoped(
+        test.pipe(
+          Effect.provide(loopbackRpcLayer({ rendererOrigin, timeZone })),
+          Effect.provideService(FetchHttpClient.Fetch, rendererFetch),
+        ),
       ),
     ),
   );

@@ -7,6 +7,7 @@ import { Guid } from "./guid.js";
 import { Item, ItemEdit } from "./item.js";
 import { ItemLink, ItemLinkInput } from "./item-link.js";
 import { RecurrenceRule } from "./recurrence-rule.js";
+import { ReminderChoice } from "./reminder.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
 
 const area = { projectId: Guid, folderId: Schema.NullOr(Guid) };
@@ -31,6 +32,8 @@ export const ItemRpcs = RpcGroup.make(
       links: Schema.optionalKey(Schema.Array(ItemLinkInput)),
       /** Replaces the repeat rule when present; null stops repeating, omitted keeps it (§7.11). */
       recurrence: Schema.optionalKey(Schema.NullOr(RecurrenceRule)),
+      /** Replaces the reminder choice when present; omitted keeps it (§7.12). */
+      reminder: Schema.optionalKey(ReminderChoice),
       confirmedOpenItemIds: approval,
     },
     success: CompletionResult,

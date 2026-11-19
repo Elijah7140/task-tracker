@@ -4,6 +4,7 @@ import type {
   ItemEdit,
   ItemLinkInput,
   RecurrenceRule,
+  ReminderChoice,
 } from "@task-tracker/contracts";
 import {
   currentDraft,
@@ -25,6 +26,7 @@ import {
   linkDraftStatus,
   type StoredLink,
 } from "./link-draft.js";
+import { isReminderChanged } from "./reminder-draft.js";
 import { type RepeatDraft, repeatDate, repeatDraftStatus } from "./repeat-draft.js";
 
 /** Everything the editor holds for one item, typed and stored. */
@@ -40,6 +42,8 @@ export interface EditorDraftInput {
   readonly storedLinks?: ReadonlyArray<StoredLink> | null;
   /** The Repeat section's draft; absent or null means untouched. */
   readonly repeat?: RepeatDraft | null;
+  /** The Reminder choice; absent or null means untouched. */
+  readonly reminder?: typeof ReminderChoice.Type | null;
 }
 
 /** Whether the draft can be saved and what saving it sends. */
@@ -60,6 +64,8 @@ export interface EditorDraftStatus {
   readonly repeatError: string | null;
   /** The shown repeat rule in plain English. */
   readonly repeatSummary: string | null;
+  /** The replacement reminder choice; undefined keeps the stored one (§7.12). */
+  readonly reminder: typeof ReminderChoice.Type | undefined;
 }
 
 /** Shown when a save is attempted while a custom value cannot be parsed. */
@@ -87,12 +93,15 @@ export function editorDraftStatus(input: EditorDraftInput): EditorDraftStatus {
   const links = linkDraftStatus(input.storedLinks ?? null, input.links ?? EMPTY_LINK_DRAFT);
   const date = repeatDate(draftTexts(input.item, input.builtIn));
   const repeat = repeatDraftStatus(input.item, input.repeat ?? null, date);
+  const reminderDraft = input.reminder ?? null;
+  const reminderChanged = isReminderChanged(input.item, reminderDraft);
   return {
     dirty:
       isBuiltInDraftChanged(input.item, input.builtIn) ||
       changed.length > 0 ||
       links.dirty ||
-      repeat.changed,
+      repeat.changed ||
+      reminderChanged,
     valid: changed.every(({ draft }) => draftError(draft) === null),
     fields: itemEdit(input.item, input.builtIn),
     customValues: changed.map(({ field, draft }) => draftInput(field.definition, draft)),
@@ -101,5 +110,6 @@ export function editorDraftStatus(input: EditorDraftInput): EditorDraftStatus {
     recurrence: repeat.recurrence,
     repeatError: repeat.error,
     repeatSummary: repeat.summary,
+    reminder: reminderChanged && reminderDraft !== null ? reminderDraft : undefined,
   };
 }

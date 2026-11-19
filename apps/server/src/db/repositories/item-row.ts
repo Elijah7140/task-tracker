@@ -8,6 +8,12 @@ import {
   recurrenceColumnNames,
   writeRecurrence,
 } from "./recurrence-columns.js";
+import {
+  readReminderChoice,
+  reminderColumnFields,
+  reminderColumnNames,
+  writeReminderChoice,
+} from "./reminder-columns.js";
 import { trackedColumns, trackedFields } from "./row-fields.js";
 
 const structureFields = {
@@ -49,6 +55,7 @@ const columns = {
 export const itemRowColumns = Statement.csv([
   ...Object.values(columns),
   ...Object.values(recurrenceColumnNames),
+  ...Object.values(reminderColumnNames),
 ]);
 
 const FlatItemRow = Schema.Struct({
@@ -59,7 +66,8 @@ const FlatItemRow = Schema.Struct({
   reopenStatusId: Schema.NullOr(Guid),
   completedAtUtc: Schema.NullOr(UtcTimestamp),
   ...recurrenceColumnFields,
-}).pipe(Schema.encodeKeys({ ...columns, ...recurrenceColumnNames }));
+  ...reminderColumnFields,
+}).pipe(Schema.encodeKeys({ ...columns, ...recurrenceColumnNames, ...reminderColumnNames }));
 
 type FlatItem = (typeof FlatItemRow)["Type"];
 
@@ -74,19 +82,21 @@ function nestRecurrence(row: FlatItem): TodoItem {
     recurrenceEndKind: _endKind,
     recurrenceEndDate: _endDate,
     recurrenceRemaining: _remaining,
+    reminderMode: _mode,
+    reminderOffsetMinutes: _offset,
     ...item
   } = row;
-  return { ...item, ...readRecurrence(row) };
+  return { ...item, ...readRecurrence(row), reminder: readReminderChoice(row) };
 }
 
 function flattenRecurrence(item: TodoItem): FlatItem {
-  const { recurrence: _rule, ...rest } = item;
-  return { ...rest, ...writeRecurrence(item) };
+  const { recurrence: _rule, reminder, ...rest } = item;
+  return { ...rest, ...writeRecurrence(item), ...writeReminderChoice(reminder) };
 }
 
 /**
  * TodoItem row with legacy column names, floating and UTC time codecs, and the
- * recurrence columns joined into one rule (§7.11).
+ * recurrence columns joined into one rule (§7.11) and the reminder choice (§7.12).
  */
 export const ItemRow = FlatItemRow.pipe(
   Schema.decodeTo(
@@ -141,3 +151,9 @@ export const ItemDatesRow = Schema.Struct({
   scheduledStart: editFields.scheduledStart,
   scheduledEnd: editFields.scheduledEnd,
 }).pipe(Schema.encodeKeys(columns));
+
+/** The reminder choice an editor save writes (§7.12). */
+export const ItemReminderRow = Schema.Struct({
+  id: Guid,
+  ...reminderColumnFields,
+}).pipe(Schema.encodeKeys({ id: "Id", ...reminderColumnNames }));

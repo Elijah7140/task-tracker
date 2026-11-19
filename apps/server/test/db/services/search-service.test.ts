@@ -792,6 +792,7 @@ it.effect("Lists built-in, global and scoped project fields in registry order", 
         "completed",
         "link",
         "repeats",
+        "reminder",
       ];
       expect(projectKeys).toEqual([...builtIns, "global", "local"]);
       expect(allKeys).toEqual([...builtIns, "global", "local", "other"]);

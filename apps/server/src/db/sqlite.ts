@@ -6,6 +6,7 @@ import { Effect, Layer, Semaphore, Stream } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import { SqlClient, SqlError, Statement } from "effect/sql";
 import type { SqlConnection } from "effect/sql";
+import { reminderTicks } from "./reminder-ticks-function.js";
 
 function sqliteEffect<A>(operation: string, run: () => A) {
   return Effect.try({
@@ -90,6 +91,7 @@ const makeClient = Effect.fnUntraced(function* (path: string) {
     database.function("tt_fold", { deterministic: true }, (value) =>
       typeof value === "string" ? foldSearchText(value) : null,
     );
+    database.function("tt_reminder_ticks", { deterministic: true }, reminderTicks);
   });
 
   const access = SqlClient.makeSqliteAcquirers({

@@ -1,6 +1,7 @@
 import {
   describeReconciliation,
   needsReconciliationConfirmation,
+  resolveReminderSettings,
   SettingsCatalogue,
   SettingsResolver,
   validateThresholds,
@@ -19,8 +20,29 @@ import { operationTime } from "./operation-time.js";
 import { projectCompletionOperations } from "./project-completion-reconciler.js";
 import { UndoService } from "./undo-service.js";
 
-const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold, workspaceCardColumns } =
-  SettingsCatalogue;
+const {
+  autoCompleteParents,
+  urgencyYellowThreshold,
+  urgencyRedThreshold,
+  workspaceCardColumns,
+  remindersEnabled,
+  defaultReminderOffset,
+  dateOnlyReminderTime,
+} = SettingsCatalogue;
+
+/** Reminder defaults saved with the global settings form (§7.12). */
+export interface ReminderDefaultsInput {
+  readonly enabled: boolean;
+  readonly offset: DurationTicks;
+  readonly dateOnlyTime: Temporal.PlainTime;
+}
+
+/** Reminder overrides saved with a project's settings. Null inherits the global value. */
+export interface ReminderOverridesInput {
+  readonly enabled: boolean | null;
+  readonly offset: DurationTicks | null;
+  readonly dateOnlyTime: Temporal.PlainTime | null;
+}
 const noOverrides: ReadonlyMap<string, string> = new Map();
 
 function applyOverrides(
@@ -65,9 +87,22 @@ function proposeGlobal<T>(
   definition: SettingDefinition<T>,
   value: T,
 ) {
-  if (storedGlobal(current, definition) !== value) {
-    proposed.set(definition.key, definition.format(value));
+  const stored = storedGlobal(current, definition);
+  const text = definition.format(value);
+  if (stored === undefined || definition.format(stored) !== text) {
+    proposed.set(definition.key, text);
   }
+}
+
+function reminderOverrideEntries(reminders: ReminderOverridesInput): [string, string | null][] {
+  return [
+    [remindersEnabled.key, formatNullableOverride(remindersEnabled, reminders.enabled)],
+    [defaultReminderOffset.key, formatNullableOverride(defaultReminderOffset, reminders.offset)],
+    [
+      dateOnlyReminderTime.key,
+      formatNullableOverride(dateOnlyReminderTime, reminders.dateOnlyTime),
+    ],
+  ];
 }
 
 const globalSettingsLabel = "Edit global settings";
@@ -109,6 +144,22 @@ const make = Effect.gen(function* () {
   const getEffective = Effect.fnUntraced(function* (projectId: string) {
     const project = yield* projects.requireActive(projectId);
     return yield* readEffectiveSettings(settings, project.id);
+  }, sql.withTransaction);
+
+  /** Global values and reminder defaults from one snapshot. */
+  const loadGlobal = Effect.fnUntraced(function* () {
+    const global = yield* settings.global();
+    const resolved = yield* checkRules(() => SettingsResolver.resolve(global, noOverrides));
+    return { settings: resolved, reminders: resolveReminderSettings(global, noOverrides) };
+  }, sql.withTransaction);
+
+  /** An active project's effective values and reminder settings from one snapshot. */
+  const loadProject = Effect.fnUntraced(function* (projectId: string) {
+    const project = yield* projects.requireActive(projectId);
+    const global = yield* settings.global();
+    const overrides = yield* settings.project(project.id);
+    const resolved = yield* checkRules(() => SettingsResolver.resolve(global, overrides));
+    return { settings: resolved, reminders: resolveReminderSettings(global, overrides) };
   }, sql.withTransaction);
 
   const planReconciliation = Effect.fnUntraced(function* (projectIds: readonly string[]) {
@@ -240,6 +291,8 @@ const make = Effect.gen(function* () {
     getGlobalSettings,
     /** Read an active project's effective settings and their sources from one snapshot. */
     getEffective,
+    loadGlobal,
+    loadProject,
     /** Preview enabling automatic completion for active projects that inherit the global value. */
     previewGlobalAutoComplete: () => previewAutoComplete(undefined),
     /** Preview enabling automatic completion for one active project. */
@@ -254,6 +307,7 @@ const make = Effect.gen(function* () {
       red: DurationTicks,
       approval?: ReconciliationApproval,
       cardColumns?: number,
+      reminders?: ReminderDefaultsInput,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -262,6 +316,11 @@ const make = Effect.gen(function* () {
         proposeGlobal(proposed, current, urgencyRedThreshold, red);
         if (cardColumns !== undefined) {
           proposeGlobal(proposed, current, workspaceCardColumns, cardColumns);
+        }
+        if (reminders !== undefined) {
+          proposeGlobal(proposed, current, remindersEnabled, reminders.enabled);
+          proposeGlobal(proposed, current, defaultReminderOffset, reminders.offset);
+          proposeGlobal(proposed, current, dateOnlyReminderTime, reminders.dateOnlyTime);
         }
         return proposed;
       }, approval),
@@ -290,6 +349,7 @@ const make = Effect.gen(function* () {
       yellow: DurationTicks | null,
       red: DurationTicks | null,
       approval?: ReconciliationApproval,
+      reminders?: ReminderOverridesInput,
     ) =>
       updateProject(
         projectId,
@@ -298,6 +358,7 @@ const make = Effect.gen(function* () {
             [autoCompleteParents.key, formatNullableOverride(autoCompleteParents, autoComplete)],
             [urgencyYellowThreshold.key, formatNullableOverride(urgencyYellowThreshold, yellow)],
             [urgencyRedThreshold.key, formatNullableOverride(urgencyRedThreshold, red)],
+            ...(reminders === undefined ? [] : reminderOverrideEntries(reminders)),
           ]),
         approval,
       ),

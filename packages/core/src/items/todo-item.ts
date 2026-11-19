@@ -1,5 +1,6 @@
 import type { DeletionFields } from "../hierarchy/deletion-fields.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
+import { DEFAULT_REMINDER, type ReminderChoice } from "../reminders/reminder-choice.js";
 import type { RecurrenceRule } from "./recurrence/recurrence-rule.js";
 
 /** A task or sub-item in a single project area. */
@@ -26,6 +27,8 @@ export interface TodoItem extends DeletionFields {
   readonly recurrenceSeriesId: string | null;
   /** True once completing this occurrence created its successor, so it never creates another. */
   readonly recurrenceSuccessorCreated: boolean;
+  /** When the item reminds before its due moment (§7.12). */
+  readonly reminder: ReminderChoice;
   readonly sortOrder: number;
   readonly createdAtUtc: Temporal.Instant;
   readonly updatedAtUtc: Temporal.Instant;
@@ -69,6 +72,7 @@ export function createItem(
     recurrence: null,
     recurrenceSeriesId: null,
     recurrenceSuccessorCreated: false,
+    reminder: DEFAULT_REMINDER,
     sortOrder: 0,
     createdAtUtc: now,
     updatedAtUtc: now,

@@ -208,7 +208,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   });
 
   /**
-   * Saves the editor's built-in fields, optional repeat rule, changed custom values,
+   * Saves the editor's built-in fields, optional repeat rule and reminder choice, changed custom values,
    * optional status and, when `links` is present, the item's whole link list as one
    * undo step. A Done status completes after the other writes, so a next occurrence
    * copies the final links and values (§7.15).
@@ -248,6 +248,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     );
     yield* items.updateEdit(edited);
     yield* items.saveRecurrence(edited);
+    yield* items.saveReminder(edited);
     if (custom) {
       yield* writeCustomValues(item.id, custom);
     }

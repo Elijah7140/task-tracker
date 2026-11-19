@@ -23,6 +23,15 @@ import {
   resolveDurationFieldTicks,
   validateThresholdTicks,
 } from "./duration-input.js";
+import { ReminderDefaultsFields } from "./reminder-defaults-fields.js";
+import {
+  REMINDER_TIME_ERROR,
+  reminderDefaultsFrom,
+  reminderDefaultsOf,
+  reminderDraftFrom,
+  type ReminderDefaultsDraft,
+  sameReminderDefaults,
+} from "./reminder-settings-draft.js";
 import { ThresholdInput } from "./threshold-input.js";
 import { useExternalReset } from "./use-external-reset.js";
 
@@ -51,6 +60,7 @@ interface GlobalDraft {
   readonly yellow: DurationFieldDraft;
   readonly red: DurationFieldDraft;
   readonly cardColumns: number;
+  readonly reminders: ReminderDefaultsDraft;
 }
 
 function sameGlobal(left: Global, right: Global) {
@@ -58,7 +68,8 @@ function sameGlobal(left: Global, right: Global) {
     left.autoCompleteParents === right.autoCompleteParents &&
     left.urgencyYellowThreshold === right.urgencyYellowThreshold &&
     left.urgencyRedThreshold === right.urgencyRedThreshold &&
-    left.workspaceCardColumns === right.workspaceCardColumns
+    left.workspaceCardColumns === right.workspaceCardColumns &&
+    sameReminderDefaults(reminderDefaultsOf(left), reminderDefaultsOf(right))
   );
 }
 
@@ -68,6 +79,7 @@ function draftFrom(settings: Global): GlobalDraft {
     yellow: createDurationDraft(settings.urgencyYellowThreshold, "days"),
     red: createDurationDraft(settings.urgencyRedThreshold, "hours"),
     cardColumns: settings.workspaceCardColumns,
+    reminders: reminderDraftFrom(reminderDefaultsOf(settings)),
   };
 }
 
@@ -89,12 +101,17 @@ function useGlobalDraft(initial: Global) {
   };
   const yellowTicks = resolveDurationFieldTicks(draft.yellow);
   const redTicks = resolveDurationFieldTicks(draft.red);
+  const reminders = reminderDefaultsFrom(draft.reminders);
   const isDirty =
     draft.autoComplete !== saved.autoCompleteParents ||
     yellowTicks !== saved.urgencyYellowThreshold ||
     redTicks !== saved.urgencyRedThreshold ||
-    draft.cardColumns !== saved.workspaceCardColumns;
-  const validationError = validateThresholdTicks(yellowTicks, redTicks);
+    draft.cardColumns !== saved.workspaceCardColumns ||
+    reminders === null ||
+    !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
+  const validationError =
+    validateThresholdTicks(yellowTicks, redTicks) ??
+    (reminders === null ? REMINDER_TIME_ERROR : null);
   return {
     saved,
     setSaved,
@@ -104,6 +121,7 @@ function useGlobalDraft(initial: Global) {
     setServerError,
     yellowTicks,
     redTicks,
+    reminders,
     isDirty,
     validationError,
   };
@@ -113,7 +131,7 @@ type GlobalForm = ReturnType<typeof useGlobalDraft>;
 
 /** The settings the draft would save, or null while a threshold is invalid. */
 function nextGlobal(form: GlobalForm): Global | null {
-  if (form.yellowTicks === null || form.redTicks === null) {
+  if (form.yellowTicks === null || form.redTicks === null || form.reminders === null) {
     return null;
   }
   return {
@@ -121,6 +139,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     urgencyYellowThreshold: form.yellowTicks,
     urgencyRedThreshold: form.redTicks,
     workspaceCardColumns: form.draft.cardColumns,
+    reminders: form.reminders,
   };
 }
 
@@ -239,7 +258,7 @@ function GlobalThresholdRows({ form }: { readonly form: GlobalForm }) {
 }
 
 /**
- * Edits global auto-complete and urgency defaults. Thresholds save together
+ * Edits global auto-complete, urgency and reminder defaults. They save together
  * and prompt when enabling auto-complete changes parent completion states.
  */
 export function GlobalDefaultsCard({ initial, onDirtyChange }: GlobalDefaultsCardProps) {
@@ -262,6 +281,10 @@ export function GlobalDefaultsCard({ initial, onDirtyChange }: GlobalDefaultsCar
           Automatically complete parents when all sub-items are complete
         </Checkbox>
         <GlobalThresholdRows form={form} />
+        <ReminderDefaultsFields
+          draft={form.draft.reminders}
+          onChange={(change) => form.edit({ reminders: { ...form.draft.reminders, ...change } })}
+        />
         {error === null ? null : (
           <p role="alert" data-testid="global-settings-error" className="text-[13px] text-danger">
             {error}

@@ -37,6 +37,12 @@ describe("searchOperatorsFor", () => {
     expect(operators).toEqual(["equals", "notEquals", "contains", "isEmpty", "isNotEmpty"]);
   });
 
+  it("Offers only presence tests for the built-in reminder field", () => {
+    const operators = searchOperatorsFor(field("reminder", "Boolean"));
+
+    expect(operators).toEqual(["isNotEmpty", "isEmpty"]);
+  });
+
   it("Offers contains and emptiness only for the built-in link field", () => {
     const operators = searchOperatorsFor(field("link", "Text"));
 

@@ -61,6 +61,7 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       customValues: status.customValues,
       ...(status.links === undefined ? {} : { links: status.links }),
       ...(status.recurrence === undefined ? {} : { recurrence: status.recurrence }),
+      ...(status.reminder === undefined ? {} : { reminder: status.reminder }),
     };
     const exit = await requestCompletion((approval) =>
       edit({

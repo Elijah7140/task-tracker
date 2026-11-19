@@ -8,11 +8,13 @@ import {
   ItemEditRow,
   ItemPriorityRow,
   ItemRecurrenceRow,
+  ItemReminderRow,
   ItemRow,
   itemRowColumns,
   ItemStructureRow,
 } from "./item-row.js";
 import { writeRecurrence } from "./recurrence-columns.js";
+import { writeReminderChoice } from "./reminder-columns.js";
 
 const area = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
 
@@ -32,6 +34,12 @@ export function itemRepository(sql: SqlClient.SqlClient) {
         WHERE ProjectId = ${projectId} AND FolderId IS ${folderId}
         ${includeDeleted ? sql` ` : sql`AND ${activeRow(sql)}`} ORDER BY rowid`,
     });
+
+  const writeReminderRow = SqlSchema.void({
+    Request: ItemReminderRow,
+    execute: ({ Id, ...values }) =>
+      sql`UPDATE TodoItem SET ${sql.update(values)} WHERE Id = ${Id} AND ${activeRow(sql)}`,
+  });
 
   const writeRecurrenceRow = SqlSchema.void({
     Request: ItemRecurrenceRow,
@@ -85,6 +93,9 @@ export function itemRepository(sql: SqlClient.SqlClient) {
         updatedAtUtc: item.updatedAtUtc,
         ...writeRecurrence(item),
       }),
+    /** Writes the item's reminder choice, leaving delivery and snooze state alone (§7.12). */
+    saveReminder: (item: TodoItem) =>
+      writeReminderRow({ id: item.id, ...writeReminderChoice(item.reminder) }),
     /** Remembers that completing this occurrence created its successor (§7.11). */
     markSuccessorCreated: SqlSchema.void({
       Request: Schema.Struct({ id: Guid, now: UtcTimestamp }),
