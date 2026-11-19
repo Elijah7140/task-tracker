@@ -2,7 +2,8 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 
 // DDL emitted by the EF 20261114032356_AddCustomFields migration.
-const schema = [
+/** Schema objects created by this migration. */
+export const customFieldSchema = [
   `CREATE TABLE "FieldDefinition" (
     "Id" TEXT NOT NULL CONSTRAINT "PK_FieldDefinition" PRIMARY KEY,
     "Key" TEXT NOT NULL,
@@ -47,5 +48,5 @@ const schema = [
 /** Adds the three custom-field tables without changing the initial schema. */
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
-  yield* Effect.forEach(schema, (statement) => sql.unsafe(statement), { discard: true });
+  yield* Effect.forEach(customFieldSchema, (statement) => sql.unsafe(statement), { discard: true });
 });

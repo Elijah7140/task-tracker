@@ -2,7 +2,8 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 
 // DDL emitted by the EF 20261113163313_InitialCreate migration.
-const schema = [
+/** Schema objects created by this migration. */
+export const initialSchema = [
   `CREATE TABLE "GlobalSetting" (
     "Key" TEXT NOT NULL CONSTRAINT "PK_GlobalSetting" PRIMARY KEY,
     "Value" TEXT NOT NULL
@@ -114,7 +115,7 @@ const lookupDefaults = { ColorKey: null, IsArchived: 0, IsBuiltIn: 1 };
 /** Creates and seeds the seven tables in the legacy initial schema. */
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
-  yield* Effect.forEach(schema, (statement) => sql.unsafe(statement), { discard: true });
+  yield* Effect.forEach(initialSchema, (statement) => sql.unsafe(statement), { discard: true });
   for (const row of itemTypes) {
     yield* sql`INSERT INTO ItemType ${sql.insert({ ...row, ...lookupDefaults, IconKey: null })}`;
   }
