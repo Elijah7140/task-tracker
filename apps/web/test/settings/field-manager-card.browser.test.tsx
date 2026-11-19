@@ -61,6 +61,17 @@ async function addField(name: string, submit: "enter" | "button") {
   }
 }
 
+function seedGlobalBaselineFields(store: FakeProjectStore) {
+  store.customFields.addFieldSeed("Effort", "Number");
+  store.customFields.addFieldSeed("Review date", "Date");
+  store.customFields.addFieldSeed("Legacy code", "Text", { isArchived: true });
+  const status = store.customFields.addFieldSeed("Status", "Choice");
+  store.customFields.addChoiceSeed(status.id, "Ready");
+  store.customFields.addChoiceSeed(status.id, "Blocked");
+  store.customFields.addChoiceSeed(status.id, "Retired", { isArchived: true });
+  store.customFields.addFieldSeed("Approved", "Boolean");
+}
+
 describe("FieldManagerCard", () => {
   describe("in App Settings", () => {
     it("Adds a field of each type with Enter and the Add button, keeping the chosen type", async () => {
@@ -639,23 +650,25 @@ describe("FieldManagerCard", () => {
 
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed global field manager baseline", async () => {
-      await openAppSettings((appStore) => {
-        appStore.customFields.addFieldSeed("Effort", "Number");
-        appStore.customFields.addFieldSeed("Review date", "Date");
-        appStore.customFields.addFieldSeed("Legacy code", "Text", { isArchived: true });
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
-        appStore.customFields.addChoiceSeed(status.id, "Ready");
-        appStore.customFields.addChoiceSeed(status.id, "Blocked");
-        appStore.customFields.addChoiceSeed(status.id, "Retired", { isArchived: true });
-        appStore.customFields.addFieldSeed("Approved", "Boolean");
-      });
-      await showArchived().click();
+      await openAppSettings(seedGlobalBaselineFields);
       await choicesToggle("Status").click();
-      await expect.element(choiceRow("Status", "Retired")).toBeVisible();
+      await expect.element(choiceRow("Status", "Blocked")).toBeVisible();
 
       await settleTheme(theme);
 
       await expect.element(manager()).toMatchScreenshot(`field-manager-global-${theme}`);
+    });
+
+    it("Matches the reviewed archived field manager baseline", async () => {
+      await openAppSettings(seedGlobalBaselineFields);
+      await showArchived().click();
+      await choicesToggle("Status").click();
+      await expect.element(choiceRow("Status", "Retired")).toBeVisible();
+      await expect.element(fieldRow("Legacy code")).toBeVisible();
+
+      await settleTheme(theme);
+
+      await expect.element(manager()).toMatchScreenshot(`field-manager-archived-${theme}`);
     });
 
     it("Matches the reviewed project field manager baseline", async () => {
