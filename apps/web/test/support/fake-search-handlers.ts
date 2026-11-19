@@ -85,7 +85,8 @@ export class FakeSearch {
   readonly queries: Array<Query> = [];
 }
 
-interface SearchStore {
+/** The fake store state that search reads. */
+export interface SearchStore {
   readonly summaries: ReadonlyArray<Summary>;
   readonly folders: ReadonlyArray<Folder>;
   readonly allAreas: () => ReadonlyArray<FakeAreaState>;
@@ -101,7 +102,8 @@ function allItems(store: SearchStore): Array<Item> {
   return store.allAreas().flatMap((area) => visit(area.nodes));
 }
 
-function listFields(store: SearchStore, scope: Scope): ReadonlyArray<Field> {
+/** The server's search fields in `scope`, in registry order. */
+export function listFields(store: SearchStore, scope: Scope): ReadonlyArray<Field> {
   const projectId = scope.kind === "allProjects" ? null : scope.projectId;
   const projectOrder = new Map(
     store.summaries.map(({ project }) => [project.id, project.sortOrder]),
@@ -136,7 +138,8 @@ function toChoice(
   return { id, label, sortOrder, name: null, number: null, ...extra };
 }
 
-function listChoices(store: SearchStore, field: Field): ReadonlyArray<Choice> {
+/** The active choices of a choice field in display order. */
+export function listChoices(store: SearchStore, field: Field): ReadonlyArray<Choice> {
   const { itemTypes, priorityLevels } = FAKE_LOOKUPS;
   const active = <Row extends { readonly isArchived: boolean; readonly sortOrder: number }>(
     rows: ReadonlyArray<Row>,

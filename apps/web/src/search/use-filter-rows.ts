@@ -44,6 +44,17 @@ export function useFilterRows(fields: ReadonlyArray<Field> | null) {
   const remove = useCallback((rowId: string) => {
     setRows((current) => current.filter((row) => row.id !== rowId));
   }, []);
+  /** Replaces every row with ones `build` makes from fresh IDs, as applying query text does. */
+  const replace = useCallback(
+    (build: (nextRowId: () => string) => ReadonlyArray<FilterRowDraft>) => {
+      const nextRowId = () => {
+        nextId.current += 1;
+        return `filter-${nextId.current}`;
+      };
+      setRows(build(nextRowId));
+    },
+    [],
+  );
 
   const offered =
     fields === null ? rows : rows.filter((row) => row.field === null || currentField(row, fields));
@@ -51,5 +62,5 @@ export function useFilterRows(fields: ReadonlyArray<Field> | null) {
     setRows(offered);
   }
   const evaluations = offered.map((row) => evaluateFilterRow(row, currentField(row, fields ?? [])));
-  return { rows: offered, evaluations, add, chooseField, change, remove };
+  return { rows: offered, evaluations, add, chooseField, change, remove, replace };
 }

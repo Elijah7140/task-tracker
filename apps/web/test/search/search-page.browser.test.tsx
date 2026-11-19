@@ -18,6 +18,18 @@ const results = () => page.getByTestId("search-result-row");
 const result = (title: string) => results().filter({ hasText: title });
 const item = (title: string) => page.getByRole("treeitem", { name: title, exact: true });
 const searchError = () => page.getByTestId("search-error");
+const queryErrors = () => page.getByTestId("search-query-error");
+const helpButton = () => page.getByRole("button", { name: "Query syntax help" });
+const helpPanel = () => page.getByRole("dialog", { name: "Query syntax" });
+const rowField = (index = 0) => filterRow(index).getByRole("combobox", { name: "Filter field" });
+
+/** Replaces the query box text by typing, as a user would, and presses Enter. */
+async function enterQuery(text: string) {
+  await searchInput().click();
+  await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
+  await userEvent.keyboard(text.replaceAll("{", "{{").replaceAll("[", "[["));
+  await userEvent.keyboard("{Enter}");
+}
 
 const PROJECTS: ReadonlyArray<SeedProject> = [
   {
@@ -356,6 +368,154 @@ it("Refreshes shown results when undo changes an item behind Search", async () =
   await userEvent.keyboard("{Enter}");
   await expect.element(result("Root invoice")).toBeVisible();
 });
+
+it("Parses typed syntax with Enter into filter rows, searches them and keeps the text", async () => {
+  const { store } = await openApp();
+  await openProject("Billing");
+  await ctrlF();
+  await addFilter().click();
+
+  await enterQuery("invoice priority>=high");
+
+  await expect.element(searchInput()).toHaveValue("invoice priority>=high");
+  await expect.element(page.getByRole("group", { name: "Filter" })).toHaveLength(1);
+  await expect.element(rowField()).toHaveTextContent("Priority");
+  await expect
+    .element(filterRow().getByRole("combobox", { name: "Filter operator" }))
+    .toHaveTextContent("between");
+  await expect
+    .element(filterRow().getByRole("combobox", { name: "Priority from" }))
+    .toHaveTextContent("Critical");
+  await expect
+    .element(filterRow().getByRole("combobox", { name: "Priority to" }))
+    .toHaveTextContent("High");
+  expect(await titlesShown()).toEqual(["Root invoice"]);
+  expect(store.search.queries.at(-1)).toMatchObject({
+    text: "invoice",
+    filters: [{ fieldKey: "priority", operator: "between" }],
+    includeCompleted: false,
+  });
+  await enterQuery("is:done");
+  await expect.element(page.getByRole("checkbox", { name: "Include completed" })).toBeChecked();
+  await expect.element(result("Paid invoice")).toBeVisible();
+  await expect.element(rowField()).toHaveTextContent("Completed");
+});
+
+it("Lists every query error under the box, naming each token, and runs nothing", async () => {
+  const { store } = await openApp();
+  await ctrlF();
+  await enterQuery("audit");
+  await expect.element(result("Audit Q4")).toBeVisible();
+  const searches = () => store.calls.filter((call) => call === "SearchItems");
+
+  await enterQuery("ok tpye:error estimate:x");
+
+  await expect.element(queryErrors()).toHaveLength(2);
+  await expect
+    .element(queryErrors().first())
+    .toHaveTextContent(`Unknown field 'tpye'. Did you mean 'type'? (at "tpye:error", character 4)`);
+  await expect
+    .element(queryErrors().nth(1))
+    .toHaveTextContent(
+      `'x' is not a number. Write decimals with a dot, like 2.5. (at "estimate:x", character 15)`,
+    );
+  await expect.element(searchInput()).toHaveAttribute("aria-invalid", "true");
+  await expect.element(searchInput()).toHaveValue("ok tpye:error estimate:x");
+  await expect.element(result("Audit Q4")).toBeVisible();
+  expect(searches()).toHaveLength(1);
+  await searchButton().click();
+  expect(searches()).toHaveLength(1);
+  await enterQuery("ok type:error");
+  await expect.element(page.getByTestId("search-query-errors")).not.toBeInTheDocument();
+  await expect.element(page.getByText("No items match")).toBeVisible();
+  expect(store.search.queries.at(-1)?.text).toBe("ok");
+});
+
+it("Rewrites the box in canonical form as complete rows change and drops incomplete rows on Enter", async () => {
+  await openApp();
+  await ctrlF();
+
+  await addRow("Title", "contains");
+  await filterRow(0).getByRole("textbox", { name: "Title value" }).fill("dead lock");
+  await expect.element(searchInput()).toHaveValue('title~"dead lock"');
+  await addRow("Priority");
+  await choose(filterRow(1).getByRole("combobox", { name: "Priority value" }), "High");
+  await expect.element(searchInput()).toHaveValue('title~"dead lock" priority:High');
+  await addFilter().click();
+  await expect.element(searchInput()).toHaveValue('title~"dead lock" priority:High');
+  await filterRow(0).getByRole("button", { name: "Remove filter" }).click();
+  await expect.element(searchInput()).toHaveValue("priority:High");
+
+  await enterQuery("priority:low");
+
+  await expect.element(page.getByRole("group", { name: "Filter" })).toHaveLength(1);
+  await expect
+    .element(filterRow().getByRole("combobox", { name: "Priority value" }))
+    .toHaveTextContent("Low");
+  expect(await titlesShown()).toEqual(["Audit receipts"]);
+});
+
+it("Applies only the newest submission when an older parse finishes late", async () => {
+  const { store } = await openApp();
+  await ctrlF();
+  const release = store.hold("ParseSearchQuery");
+
+  await enterQuery("priority:low");
+  await expect
+    .poll(() => store.calls.filter((call) => call === "ParseSearchQuery"))
+    .toHaveLength(1);
+  store.stopHolding("ParseSearchQuery");
+  await enterQuery("priority:medium");
+  await expect.element(rowField()).toHaveTextContent("Priority");
+  release();
+
+  await expect
+    .element(filterRow().getByRole("combobox", { name: "Priority value" }))
+    .toHaveTextContent("Medium");
+  await expect.element(searchInput()).toHaveValue("priority:medium");
+  expect(await titlesShown()).toEqual(["Audit Q4"]);
+});
+
+it("Opens the syntax help from the keyboard and Escape closes it without leaving Search", async () => {
+  await openApp();
+  await ctrlF();
+  await expect.element(searchInput()).toHaveFocus();
+
+  await userEvent.keyboard("{Tab}");
+  await expect.element(helpButton()).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+
+  await expect.element(helpPanel()).toBeVisible();
+  await expect.element(helpPanel()).toMatchTextContent("priority>=high");
+  await expect.element(helpPanel()).toMatchTextContent("Quote values that contain spaces");
+  await userEvent.keyboard("{Escape}");
+  await expect.element(helpPanel()).not.toBeInTheDocument();
+  await expect.element(heading()).toBeVisible();
+  await expect.element(helpButton()).toHaveFocus();
+});
+
+it.each(THEMES)(
+  "Renders a parsed query, its errors and the syntax help in %s mode",
+  async (theme) => {
+    await openApp();
+    await openProject("Billing");
+    await ctrlF();
+    await enterQuery("audit priority>=medium due:2026-11-01..2026-11-30");
+    await expect.element(result("Audit Q4")).toBeVisible();
+    await settleTheme(theme);
+    await expect(page.getByTestId("app-shell")).toMatchScreenshot(`search-query-${theme}`);
+
+    await enterQuery('audit tpye:error due:soon "unclosed');
+    await expect.element(queryErrors()).toHaveLength(3);
+    await settleTheme(theme);
+    await expect(page.getByTestId("app-shell")).toMatchScreenshot(`search-query-error-${theme}`);
+
+    await helpButton().click();
+    await expect.element(helpPanel()).toBeVisible();
+    await settleTheme(theme);
+    await expect(page.getByTestId("app-shell")).toMatchScreenshot(`search-help-${theme}`);
+  },
+);
 
 it.each(THEMES)("Renders the Search results and filters in %s mode", async (theme) => {
   await openApp();

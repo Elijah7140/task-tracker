@@ -123,3 +123,15 @@ export {
   type ItemSearchResults,
 } from "./search/item-query.js";
 export { validateItemQuery, type QueryValidationContext } from "./search/item-query-validator.js";
+export {
+  describeQueryParseError,
+  type QueryParseError,
+} from "./search/syntax/query-parse-error.js";
+export type { QueryParseResult } from "./search/syntax/query-parse-result.js";
+export {
+  parseItemQuery,
+  queryClauseKeys,
+  type QuerySyntaxContext,
+} from "./search/syntax/item-query-parser.js";
+export { formatItemQuery } from "./search/syntax/item-query-formatter.js";
+export { QUERY_KEYWORDS } from "./search/syntax/query-clause-binder.js";

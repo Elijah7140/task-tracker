@@ -67,3 +67,5 @@ export {
   SearchScope,
 } from "./search.js";
 export { SearchRpcs } from "./search-rpcs.js";
+export { ParsedSearchQuery, QueryParseError, SearchQueryChoices } from "./search-query.js";
+export { SearchQueryRpcs } from "./search-query-rpcs.js";

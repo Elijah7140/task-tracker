@@ -10,6 +10,7 @@ import { HistoryRpcs } from "./history-rpcs.js";
 import { TrashRpcs } from "./trash-rpcs.js";
 import { CalendarRpcs } from "./calendar-rpcs.js";
 import { SearchRpcs } from "./search-rpcs.js";
+import { SearchQueryRpcs } from "./search-query-rpcs.js";
 
 const ianaTimeZone = Schema.String.check(
   Schema.makeFilter((zone) => /^[a-z]/i.test(zone) && Option.isSome(DateTime.zoneMakeNamed(zone)), {
@@ -33,4 +34,5 @@ export const TaskTrackerRpcs = RpcGroup.make(
   TrashRpcs,
   CalendarRpcs,
   SearchRpcs,
+  SearchQueryRpcs,
 );

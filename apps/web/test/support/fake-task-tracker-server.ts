@@ -38,6 +38,7 @@ import { applySetItemStatus, FakeStatuses, statusHandlers } from "./fake-statuse
 import { FakeTrash, trashHandlers } from "./fake-trash-handlers.js";
 import { FakeCalendar, calendarHandlers } from "./fake-calendar-handlers.js";
 import { FakeSearch, searchHandlers } from "./fake-search-handlers.js";
+import { searchQueryHandlers } from "./fake-search-query.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -760,6 +761,7 @@ function handlers(store: FakeProjectStore) {
     ...trashHandlers(store, history.track),
     ...calendarHandlers(store),
     ...searchHandlers(store),
+    ...searchQueryHandlers(store),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const verb = payload.fields.statusId === undefined ? "Edit" : "Set status of";
