@@ -31,10 +31,10 @@ const desktopTest = test.extend<{ desktop: DesktopFixture }>({
   },
 });
 
-function launch(desktop: DesktopFixture) {
+function launch(desktop: DesktopFixture, args: readonly string[] = []) {
   return _electron.launch({
     executablePath: executable,
-    args: [`--user-data-dir=${desktop.profile}`],
+    args: [`--user-data-dir=${desktop.profile}`, ...args],
     env: { ...process.env, TASKTRACKER_DB_PATH: desktop.database },
     chromiumSandbox: true,
     timeout: 10_000,
@@ -177,7 +177,12 @@ desktopTest(
 desktopTest(
   "Offers to reload the window after the renderer process is gone",
   async ({ desktop }) => {
-    const application = await launch(desktop);
+    // Windows VMs with the Basic Display Adapter can stall renderer exit detection
+    // on the GPU path. Exercise the crash and reload with software rendering.
+    const application = await launch(
+      desktop,
+      process.platform === "win32" ? ["--disable-gpu"] : [],
+    );
     try {
       const page = await application.firstWindow({ timeout: 10_000 });
       await page.getByTestId("empty-home-create").waitFor();
