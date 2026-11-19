@@ -145,3 +145,63 @@
     outline-offset: 2px;
   }
 }
+
+@layer components {
+  .markdown-preview {
+    :is(p, pre, blockquote, ul, ol, hr, h1, h2, h3, h4, h5, h6) + * {
+      @apply mt-2;
+    }
+
+    :is(h1, h2, h3, h4, h5, h6) {
+      @apply font-semibold;
+    }
+
+    h1 {
+      @apply text-xl;
+    }
+
+    h2 {
+      @apply text-lg;
+    }
+
+    h3 {
+      @apply text-base;
+    }
+
+    ul {
+      @apply list-disc ps-5;
+    }
+
+    ol {
+      @apply list-decimal ps-5;
+    }
+
+    li + li {
+      @apply mt-1;
+    }
+
+    blockquote {
+      @apply border-s-2 border-line-strong ps-3 text-fg-muted;
+    }
+
+    hr {
+      @apply border-line-strong;
+    }
+
+    code {
+      @apply rounded-control bg-sidebar px-1 font-mono;
+    }
+
+    pre {
+      @apply rounded-control bg-sidebar p-3 whitespace-pre-wrap wrap-anywhere;
+    }
+
+    pre code {
+      @apply p-0;
+    }
+
+    button {
+      @apply max-w-full whitespace-normal wrap-anywhere align-baseline;
+    }
+  }
+}

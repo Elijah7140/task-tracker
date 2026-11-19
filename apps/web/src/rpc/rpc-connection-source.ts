@@ -3,6 +3,7 @@ import { Option, Schema } from "effect";
 
 interface DesktopBridge {
   getRpcConnection(): Promise<unknown>;
+  openExternalLink(address: string): Promise<boolean>;
 }
 
 declare global {
@@ -14,6 +15,8 @@ declare global {
 const decodeConnection = Schema.decodeUnknownOption(RpcConnection);
 
 /** Validates the current launch's connection details from the isolated preload. */
-export async function readRpcConnection(bridge: DesktopBridge | undefined) {
+export async function readRpcConnection(
+  bridge: Pick<DesktopBridge, "getRpcConnection"> | undefined,
+) {
   return Option.getOrUndefined(decodeConnection(await bridge?.getRpcConnection()));
 }

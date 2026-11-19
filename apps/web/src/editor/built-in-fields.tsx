@@ -5,6 +5,7 @@ import type { Ref } from "react";
 import { fieldStyles } from "../ui/field-styles.js";
 import { Select } from "../ui/select.js";
 import { ClearableInput } from "./clearable-input.js";
+import { DescriptionField } from "./description-field.js";
 import { EditorField } from "./editor-field.js";
 import { EditorGroup } from "./editor-group.js";
 import { lookupOptions, NONE_VALUE } from "./editor-options.js";
@@ -44,15 +45,10 @@ export function TitleFields({
           className="h-10 rounded-control border border-transparent bg-transparent px-2 -mx-2 text-xl font-semibold tracking-tight text-fg outline-none placeholder:text-fg-subtle hover:bg-hover focus-visible:border-accent focus-visible:bg-canvas focus-visible:ring-3 focus-visible:ring-focus"
         />
       </Field.Root>
-      <EditorField label="Description" layout="stacked">
-        <Field.Control
-          render={<textarea rows={7} />}
-          value={texts.description}
-          onValueChange={(value: string) => onChange("description", value)}
-          data-testid="item-editor-description"
-          className={fieldStyles.textarea}
-        />
-      </EditorField>
+      <DescriptionField
+        value={texts.description}
+        onChange={(value) => onChange("description", value)}
+      />
     </div>
   );
 }

@@ -4,4 +4,6 @@ import electron = require("electron");
 electron.contextBridge.exposeInMainWorld("taskTrackerDesktop", {
   getRpcConnection: (): Promise<unknown> =>
     electron.ipcRenderer.invoke("task-tracker:get-rpc-connection"),
+  openExternalLink: (address: string): Promise<boolean> =>
+    electron.ipcRenderer.invoke("task-tracker:open-external-link", address),
 });
