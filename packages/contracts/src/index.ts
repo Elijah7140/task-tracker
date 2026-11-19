@@ -33,3 +33,10 @@ export {
   SettingsSaveResult,
 } from "./settings-save-result.js";
 export { SettingsRpcs } from "./settings-rpcs.js";
+export {
+  FieldChoiceProjection,
+  FieldDataType,
+  FieldDefinitionProjection,
+} from "./field-projection.js";
+export { FieldValueInput, ItemFieldValue } from "./field-value.js";
+export { FieldRpcs } from "./field-rpcs.js";

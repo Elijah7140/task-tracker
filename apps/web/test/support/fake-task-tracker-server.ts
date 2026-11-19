@@ -347,6 +347,21 @@ function handlers(store: FakeProjectStore) {
     ArchivePriorityLevel: notUsed,
     RestorePriorityLevel: notUsed,
     ReorderPriorityLevels: notUsed,
+    LoadItemFieldValues: notUsed,
+    ListFields: notUsed,
+    ListEffectiveFields: notUsed,
+    CreateField: notUsed,
+    RenameField: notUsed,
+    ChangeFieldType: notUsed,
+    ArchiveField: notUsed,
+    RestoreField: notUsed,
+    ReorderFields: notUsed,
+    ListFieldChoices: notUsed,
+    AddFieldChoice: notUsed,
+    RenameFieldChoice: notUsed,
+    ArchiveFieldChoice: notUsed,
+    RestoreFieldChoice: notUsed,
+    ReorderFieldChoices: notUsed,
   });
 }
 

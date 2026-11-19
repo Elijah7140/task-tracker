@@ -2,6 +2,7 @@ import { ItemRpcs } from "@task-tracker/contracts";
 import { Effect, Layer } from "effect";
 import { ItemService } from "../services/item-service.js";
 import { parseItemEdit, projectArea, projectCompletion, projectItem } from "./item-projection.js";
+import { parseFieldValueInput, projectItemFieldValue } from "./field-value-projection.js";
 
 import { mapOperationError } from "./map-operation-error.js";
 
@@ -17,9 +18,12 @@ export const itemRpcHandlers = (timeZone: string) =>
           items
             .create(projectId, folderId, parentItemId, title)
             .pipe(Effect.map(projectItem), mapOperationError),
-        EditItem: ({ itemId, fields }) =>
-          Effect.sync(() => parseItemEdit(fields)).pipe(
-            Effect.flatMap((edit) => items.edit(itemId, edit)),
+        EditItem: ({ itemId, fields, customValues }) =>
+          Effect.sync(() => ({
+            edit: parseItemEdit(fields),
+            values: customValues?.map(parseFieldValueInput),
+          })).pipe(
+            Effect.flatMap(({ edit, values }) => items.edit(itemId, edit, values)),
             mapOperationError,
           ),
         SetItemCompleted: ({ projectId, folderId, itemId, completed, confirmedOpenItemIds }) =>
@@ -42,6 +46,11 @@ export const itemRpcHandlers = (timeZone: string) =>
           items.delete(projectId, folderId, itemId).pipe(mapOperationError),
         RestoreItems: ({ projectId, folderId, batchId }) =>
           items.restore(projectId, folderId, batchId).pipe(mapOperationError),
+        LoadItemFieldValues: ({ itemId }) =>
+          items.loadFieldValues(itemId).pipe(
+            Effect.map((values) => values.map(projectItemFieldValue)),
+            mapOperationError,
+          ),
       });
     }),
   ).pipe(Layer.provide(ItemService.layer(timeZone)));
