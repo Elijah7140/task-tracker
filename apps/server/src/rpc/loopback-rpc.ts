@@ -8,6 +8,7 @@ import { NetAddress } from "effect/net";
 import { RpcSerialization, RpcServer } from "effect/rpc";
 import { guardRpcRequest } from "./guard-rpc-request.js";
 import { projectWorkspaceHandlers } from "./project-workspace-handlers.js";
+import { itemRpcHandlers } from "./item-rpc-handlers.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
 export class LoopbackRpc extends Context.Service<LoopbackRpc, RpcConnection>()(
@@ -38,6 +39,7 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         Effect.provide(TaskTrackerRpcs.toLayerHandler("GetServerInfo", () => Effect.succeed(info))),
         Effect.provide(projectWorkspaceHandlers(options.timeZone)),
         Effect.provide(RpcSerialization.layerJson),
+        Effect.provide(itemRpcHandlers(options.timeZone)),
       );
       const host = `${RPC_HOST}:${connection.port}`;
       yield* server.serve(
