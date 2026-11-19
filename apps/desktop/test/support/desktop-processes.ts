@@ -15,9 +15,12 @@ export function serverChildren(parent: number) {
           ],
           { encoding: "utf8" },
         ).split("\n")
-      : execFileSync("ps", ["-o", "pid=,args=", "--ppid", String(parent)], { encoding: "utf8" })
+      : execFileSync("ps", ["-axww", "-o", "pid=,ppid=,command="], { encoding: "utf8" })
           .split("\n")
-          .filter((line) => line.includes("server.mjs"));
+          .filter((line) => {
+            const [, parentPid] = line.trim().split(/\s+/, 2);
+            return Number(parentPid) === parent && line.includes("server.mjs");
+          });
   return lines
     .map((line) => Number.parseInt(line.trim(), 10))
     .filter((pid) => Number.isInteger(pid));
