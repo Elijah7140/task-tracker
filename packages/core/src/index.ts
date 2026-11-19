@@ -95,6 +95,38 @@ export { MetadataRuleError } from "./metadata/metadata-rule-error.js";
 export { booleanCodec } from "./settings/boolean-codec.js";
 export { durationCodec } from "./settings/duration-codec.js";
 export { wholeNumberCodec } from "./settings/whole-number-codec.js";
+export { localTimeCodec } from "./settings/local-time-codec.js";
+export { reminderOffsetCodec } from "./settings/reminder-offset-codec.js";
+export {
+  DEFAULT_REMINDER,
+  REMINDER_OFFSET_MINUTES,
+  sameReminderChoice,
+  validateReminderChoice,
+  type ReminderChoice,
+} from "./reminders/reminder-choice.js";
+export {
+  parseOrDefault,
+  resolveReminderSettings,
+  type ReminderSettings,
+} from "./reminders/reminder-settings.js";
+export {
+  isReminderDue,
+  itemReminderBase,
+  itemReminderInstant,
+  reminderBaseInstant,
+  storedReminderBase,
+  type ReminderItem,
+  type StoredReminderInputs,
+  type ReminderSnoozeState,
+} from "./reminders/reminder-timing.js";
+export { REMINDER_SNOOZES, snoozeUntil, type ReminderSnooze } from "./reminders/reminder-snooze.js";
+export {
+  recentReminderCutoff,
+  reminderNotification,
+  type ReminderNotice,
+  type ReminderSummary,
+} from "./reminders/reminder-notification.js";
+export { largestReminderOffset, reminderDueHorizon } from "./reminders/reminder-horizon.js";
 export type { EffectiveSettings, EffectiveValue } from "./settings/effective-settings.js";
 export type { SettingCodec } from "./settings/setting-codec.js";
 export { SettingDefinition } from "./settings/setting-definition.js";

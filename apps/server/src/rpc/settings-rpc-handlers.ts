@@ -5,8 +5,12 @@ import { mapOperationError } from "./map-operation-error.js";
 import {
   parseGlobalSettings,
   parseProjectOverrides,
+  parseReminderDefaults,
+  parseReminderOverrides,
   projectGlobalSettings,
   projectOverridableSettings,
+  projectReminderDefaults,
+  projectReminderSettings,
 } from "./settings-projection.js";
 
 /** Bind settings reads, reconciliation previews and confirmed saves to the settings service. */
@@ -15,10 +19,20 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
     const settings = yield* SettingsService;
     return SettingsRpcs.of({
       LoadGlobalSettings: () =>
-        settings.getGlobalSettings().pipe(Effect.map(projectGlobalSettings), mapOperationError),
+        settings.loadGlobal().pipe(
+          Effect.map(({ settings: values, reminders }) => ({
+            ...projectGlobalSettings(values),
+            reminders: projectReminderDefaults(reminders),
+          })),
+          mapOperationError,
+        ),
       LoadProjectSettings: ({ projectId }) =>
-        settings.getEffective(projectId).pipe(
-          Effect.map((effective) => ({ projectId, ...projectOverridableSettings(effective) })),
+        settings.loadProject(projectId).pipe(
+          Effect.map(({ settings: effective, reminders }) => ({
+            projectId,
+            ...projectOverridableSettings(effective),
+            reminders: projectReminderSettings(reminders),
+          })),
           mapOperationError,
         ),
       PreviewGlobalAutoComplete: () => settings.previewGlobalAutoComplete().pipe(mapOperationError),
@@ -30,11 +44,17 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
             ...parseGlobalSettings(values),
             approval,
             values.workspaceCardColumns,
+            parseReminderDefaults(values.reminders),
           ),
         ).pipe(mapOperationError),
       SaveProjectSettings: ({ projectId, overrides, approval }) =>
         Effect.suspend(() =>
-          settings.saveProject(projectId, ...parseProjectOverrides(overrides), approval),
+          settings.saveProject(
+            projectId,
+            ...parseProjectOverrides(overrides),
+            approval,
+            parseReminderOverrides(overrides.reminders),
+          ),
         ).pipe(mapOperationError),
     });
   }),

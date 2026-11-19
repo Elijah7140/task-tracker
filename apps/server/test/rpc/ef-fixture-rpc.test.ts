@@ -92,6 +92,20 @@ function openFixtureRpc<Value, Error>(
   );
 }
 
+/** The fixtures store no reminder settings, so the defaults apply (§7.12). */
+const DEFAULT_REMINDERS = {
+  remindersEnabled: true,
+  defaultReminderOffset: "36000000000",
+  dateOnlyReminderTime: "09:00:00",
+};
+
+/** {@link DEFAULT_REMINDERS} as a project inherits them. */
+const INHERITED_REMINDERS = {
+  remindersEnabled: { value: true, source: "Global" },
+  defaultReminderOffset: { value: "36000000000", source: "Global" },
+  dateOnlyReminderTime: { value: "09:00:00", source: "Global" },
+};
+
 function assertSharedFixtureState(
   globalSettings: unknown,
   projectSettings: unknown,
@@ -104,12 +118,14 @@ function assertSharedFixtureState(
     urgencyYellowThreshold: ticks.oneDay,
     urgencyRedThreshold: ticks.threeHours,
     workspaceCardColumns: 4,
+    reminders: DEFAULT_REMINDERS,
   });
   expect(projectSettings).toEqual({
     projectId,
     autoCompleteParents: { value: true, source: "Global" },
     urgencyYellowThreshold: { value: ticks.oneDay, source: "Global" },
     urgencyRedThreshold: { value: ticks.halfSecond, source: "Project" },
+    reminders: INHERITED_REMINDERS,
   });
   expect(workspace).toEqual({
     projectId,
@@ -383,12 +399,14 @@ it.effect(
               urgencyYellowThreshold: ticks.oneDay,
               urgencyRedThreshold: ticks.threeHours,
               workspaceCardColumns: 4,
+              reminders: DEFAULT_REMINDERS,
             });
             expect(projectSettings).toEqual({
               projectId,
               autoCompleteParents: { value: true, source: "Global" },
               urgencyYellowThreshold: { value: ticks.twoDays, source: "Project" },
               urgencyRedThreshold: { value: ticks.halfSecond, source: "Project" },
+              reminders: INHERITED_REMINDERS,
             });
             expect(workspace.folders.map(({ id }) => id)).toEqual([
               folderId,
@@ -719,6 +737,7 @@ it.effect(
                 urgencyYellowThreshold: ticks.twoDays,
                 urgencyRedThreshold: ticks.sixHours,
                 workspaceCardColumns: 4,
+                reminders: DEFAULT_REMINDERS,
               },
             });
 
@@ -748,12 +767,14 @@ it.effect(
               urgencyYellowThreshold: ticks.twoDays,
               urgencyRedThreshold: ticks.sixHours,
               workspaceCardColumns: 4,
+              reminders: DEFAULT_REMINDERS,
             });
             expect(projectSettings).toEqual({
               projectId,
               autoCompleteParents: { value: true, source: "Global" },
               urgencyYellowThreshold: { value: ticks.twoDays, source: "Global" },
               urgencyRedThreshold: { value: ticks.halfSecond, source: "Project" },
+              reminders: INHERITED_REMINDERS,
             });
             expect(workspace.folders.map(({ id }) => id)).toEqual([
               folderId,

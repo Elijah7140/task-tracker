@@ -75,3 +75,13 @@ export { ParsedSearchQuery, QueryParseError, SearchQueryChoices } from "./search
 export { SearchQueryRpcs } from "./search-query-rpcs.js";
 export { SavedSearchDefinition, SavedSearchProjection } from "./saved-search.js";
 export { SavedSearchRpcs } from "./saved-search-rpcs.js";
+export {
+  EffectiveReminderSettings,
+  ReminderChoice,
+  ReminderDefaults,
+  ReminderEntry,
+  ReminderOverrides,
+  ReminderPanel,
+  ReminderSnooze,
+} from "./reminder.js";
+export { ReminderRpcs } from "./reminder-rpcs.js";

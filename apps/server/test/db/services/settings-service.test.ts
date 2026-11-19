@@ -6,6 +6,7 @@ import { FolderService } from "../../../src/services/folder-service.js";
 import { ItemService } from "../../../src/services/item-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
 import { SettingsService } from "../../../src/services/settings-service.js";
+import { UndoService } from "../../../src/services/undo-service.js";
 import { withSchema } from "./fixtures.js";
 
 const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold } = SettingsCatalogue;
@@ -505,4 +506,97 @@ it.effect("Effective settings and project previews identify a deleted project", 
     expect(read).toMatchObject({ entity: "Project" });
     expect(preview).toMatchObject({ entity: "Project" });
   }).pipe(withServices, withSchema),
+);
+
+const minute = 600_000_000n;
+const { remindersEnabled, defaultReminderOffset, dateOnlyReminderTime } = SettingsCatalogue;
+
+it.effect("Saving reminder defaults writes only changed values in one undo step", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const undo = yield* UndoService;
+    const nine = Temporal.PlainTime.from("09:00");
+    yield* settings.saveGlobal(true, 3n * day, day, undefined, undefined, {
+      enabled: true,
+      offset: hour,
+      dateOnlyTime: nine,
+    });
+    expect(yield* globalRows).toEqual([]);
+
+    yield* settings.saveGlobal(true, 3n * day, day, undefined, undefined, {
+      enabled: false,
+      offset: 15n * minute,
+      dateOnlyTime: Temporal.PlainTime.from("10:00"),
+    });
+
+    expect(yield* globalRows).toEqual([
+      { Key: "dateOnlyReminderTime", Value: "10:00:00" },
+      { Key: "defaultReminderOffset", Value: "PT15M" },
+      { Key: "remindersEnabled", Value: "false" },
+    ]);
+    expect((yield* undo.status()).undo).toBe("Edit global settings");
+    yield* undo.apply("undo");
+    expect(yield* globalRows).toEqual([]);
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("Saving other settings preserves an unlisted offset and a time with seconds", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const time = Temporal.PlainTime.from("09:00:17");
+    yield* settings.setGlobal(defaultReminderOffset, 45n * minute);
+    yield* settings.setGlobal(dateOnlyReminderTime, time);
+    const loaded = yield* settings.loadGlobal();
+
+    yield* settings.saveGlobal(false, 3n * day, day, undefined, undefined, {
+      enabled: loaded.reminders.remindersEnabled.value,
+      offset: loaded.reminders.defaultReminderOffset.value,
+      dateOnlyTime: loaded.reminders.dateOnlyReminderTime.value,
+    });
+
+    expect(yield* settings.getGlobal(defaultReminderOffset)).toBe(45n * minute);
+    expect((yield* settings.getGlobal(dateOnlyReminderTime)).toString()).toBe("09:00:17");
+  }).pipe(withServices, withSchema),
+);
+
+it.effect(
+  "Project reminder overrides save, report their source and reset to the global value",
+  () =>
+    Effect.gen(function* () {
+      const settings = yield* SettingsService;
+      const project = yield* (yield* ProjectService).create("Billing");
+      yield* settings.setGlobal(defaultReminderOffset, 45n * minute);
+      const overrides = {
+        enabled: null,
+        offset: 2n * day,
+        dateOnlyTime: Temporal.PlainTime.from("10:00"),
+      };
+
+      yield* settings.saveProject(project.id, null, null, null, undefined, overrides);
+      const overridden = yield* settings.loadProject(project.id);
+      yield* settings.saveProject(project.id, null, null, null, undefined, {
+        enabled: null,
+        offset: null,
+        dateOnlyTime: null,
+      });
+      const inherited = yield* settings.loadProject(project.id);
+
+      expect(overridden.reminders.defaultReminderOffset).toEqual({
+        value: 2n * day,
+        source: "Project",
+      });
+      expect(overridden.reminders.dateOnlyReminderTime.source).toBe("Project");
+      expect(overridden.reminders.remindersEnabled).toEqual({ value: true, source: "Global" });
+      expect(inherited.reminders.defaultReminderOffset).toEqual({
+        value: 45n * minute,
+        source: "Global",
+      });
+      expect(inherited.reminders.dateOnlyReminderTime.value.toString()).toBe("09:00:00");
+      const refused = yield* Effect.flip(
+        settings
+          .setGlobal(remindersEnabled, true)
+          .pipe(Effect.andThen(settings.setGlobal(defaultReminderOffset, -minute))),
+      );
+      expect(refused.message).toBe("Reminder offsets must be nonnegative.");
+    }).pipe(withServices, withSchema),
 );

@@ -12,6 +12,9 @@ export function searchOperatorsFor(field: SearchableField): ReadonlyArray<Filter
   if (isBuiltInSearchField(field) && field.key === "link") {
     return ["contains", "isEmpty", "isNotEmpty"];
   }
+  if (isBuiltInSearchField(field) && field.key === "reminder") {
+    return ["isNotEmpty", "isEmpty"];
+  }
 
   const operators: Array<FilterOperator> = ["equals", "notEquals"];
   if (field.dataType === "Text") {

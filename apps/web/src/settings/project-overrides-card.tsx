@@ -26,6 +26,17 @@ import {
   validateThresholdTicks,
 } from "./duration-input.js";
 import { ProjectOverrideRow } from "./project-override-row.js";
+import { REMINDER_TIME_ERROR } from "./reminder-settings-draft.js";
+import {
+  reminderOverrideDraftFrom,
+  type ReminderOverrideDraft,
+  type ReminderOverrideKey,
+  ReminderOverrideRows,
+  reminderOverridesFrom,
+  sameReminderOverrides,
+  savedReminderOverrides,
+  toggleReminderOverride,
+} from "./reminder-override-rows.js";
 import { ThresholdInput } from "./threshold-input.js";
 import { useExternalReset } from "./use-external-reset.js";
 
@@ -50,6 +61,7 @@ interface OverrideDraft {
   readonly yellow: DurationFieldDraft;
   readonly overrideRed: boolean;
   readonly red: DurationFieldDraft;
+  readonly reminders: ReminderOverrideDraft;
 }
 
 function toSavedOverrides(settings: Effective): Overrides {
@@ -59,14 +71,25 @@ function toSavedOverrides(settings: Effective): Overrides {
     autoCompleteParents: projectValue(settings.autoCompleteParents),
     urgencyYellowThreshold: projectValue(settings.urgencyYellowThreshold),
     urgencyRedThreshold: projectValue(settings.urgencyRedThreshold),
+    reminders: savedReminderOverrides(settings),
   };
 }
+
+const NO_REMINDER_OVERRIDES = {
+  remindersEnabled: null,
+  defaultReminderOffset: null,
+  dateOnlyReminderTime: null,
+} as const;
 
 function sameOverrides(left: Overrides, right: Overrides) {
   return (
     left.autoCompleteParents === right.autoCompleteParents &&
     left.urgencyYellowThreshold === right.urgencyYellowThreshold &&
-    left.urgencyRedThreshold === right.urgencyRedThreshold
+    left.urgencyRedThreshold === right.urgencyRedThreshold &&
+    sameReminderOverrides(
+      left.reminders ?? NO_REMINDER_OVERRIDES,
+      right.reminders ?? NO_REMINDER_OVERRIDES,
+    )
   );
 }
 
@@ -78,6 +101,7 @@ function draftFrom(settings: Effective): OverrideDraft {
     yellow: createDurationDraft(settings.urgencyYellowThreshold.value, "days"),
     overrideRed: settings.urgencyRedThreshold.source === "Project",
     red: createDurationDraft(settings.urgencyRedThreshold.value, "hours"),
+    reminders: reminderOverrideDraftFrom(settings),
   };
 }
 
@@ -137,8 +161,30 @@ function useOverrideDraft(initial: Effective, globalDefaults: Global) {
     setDraft((current) => toggledDraft(current, setting, checked, globalDefaults));
     setServerError(null);
   };
+  const editReminders = (change: Partial<ReminderOverrideDraft>) => {
+    setDraft((current) => ({ ...current, reminders: { ...current.reminders, ...change } }));
+    setServerError(null);
+  };
+  const toggleReminder = (key: ReminderOverrideKey, checked: boolean) => {
+    setDraft((current) => ({
+      ...current,
+      reminders: toggleReminderOverride(current.reminders, key, checked, globalDefaults),
+    }));
+    setServerError(null);
+  };
   const derived = deriveOverrideState(draft, saved, globalDefaults);
-  return { saved, setSaved, draft, edit, toggle, serverError, setServerError, ...derived };
+  return {
+    saved,
+    setSaved,
+    draft,
+    edit,
+    toggle,
+    editReminders,
+    toggleReminder,
+    serverError,
+    setServerError,
+    ...derived,
+  };
 }
 
 /** Ticks, dirtiness, validation and the overrides the draft would save. */
@@ -149,19 +195,24 @@ function deriveOverrideState(draft: OverrideDraft, saved: Overrides, globalDefau
     ? yellowTicks
     : globalDefaults.urgencyYellowThreshold;
   const effectiveRed = draft.overrideRed ? redTicks : globalDefaults.urgencyRedThreshold;
+  const reminders = reminderOverridesFrom(draft.reminders);
   const isDirty =
     overrideChanged(draft.overrideAuto, draft.autoValue, saved.autoCompleteParents) ||
     overrideChanged(draft.overrideYellow, yellowTicks, saved.urgencyYellowThreshold) ||
-    overrideChanged(draft.overrideRed, redTicks, saved.urgencyRedThreshold);
+    overrideChanged(draft.overrideRed, redTicks, saved.urgencyRedThreshold) ||
+    reminders === null ||
+    !sameReminderOverrides(reminders, saved.reminders ?? NO_REMINDER_OVERRIDES);
   const overrides: Overrides = {
     autoCompleteParents: draft.overrideAuto ? draft.autoValue : null,
     urgencyYellowThreshold: draft.overrideYellow ? yellowTicks : null,
     urgencyRedThreshold: draft.overrideRed ? redTicks : null,
+    reminders: reminders ?? NO_REMINDER_OVERRIDES,
   };
+  const thresholdError = validateThresholdTicks(effectiveYellow, effectiveRed);
   return {
     isDirty,
     overrides,
-    validationError: validateThresholdTicks(effectiveYellow, effectiveRed),
+    validationError: thresholdError ?? (reminders === null ? REMINDER_TIME_ERROR : null),
   };
 }
 
@@ -320,6 +371,11 @@ export function ProjectOverridesCard({
         <AutoCompleteOverrideRow form={form} />
         <ThresholdOverrideRow form={form} setting="yellow" />
         <ThresholdOverrideRow form={form} setting="red" />
+        <ReminderOverrideRows
+          draft={form.draft.reminders}
+          onChange={form.editReminders}
+          onToggle={form.toggleReminder}
+        />
       </div>
       {error === null ? null : (
         <p role="alert" data-testid="project-settings-error" className="text-[13px] text-danger">

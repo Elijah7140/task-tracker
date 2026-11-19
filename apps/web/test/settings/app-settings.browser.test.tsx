@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { DEFAULT_REMINDERS } from "../support/fake-settings-lookups.js";
 import { trashBatch } from "../support/fake-trash-handlers.js";
 import { renderApp } from "../support/render-app.js";
 import { matchShellAtBothSizes, THEMES } from "../support/screenshots.js";
@@ -72,6 +73,7 @@ describe("AppSettingsPage", () => {
       urgencyYellowThreshold: daysTicks(4),
       urgencyRedThreshold: hoursTicks(30),
       workspaceCardColumns: 4,
+      reminders: DEFAULT_REMINDERS,
     });
   });
 
@@ -245,6 +247,7 @@ describe("AppSettingsPage", () => {
       urgencyYellowThreshold: daysTicks(3),
       urgencyRedThreshold: hoursTicks(24),
       workspaceCardColumns: 4,
+      reminders: DEFAULT_REMINDERS,
     });
   });
 
@@ -286,6 +289,7 @@ describe("AppSettingsPage", () => {
       urgencyYellowThreshold: daysTicks(3),
       urgencyRedThreshold: hoursTicks(24),
       workspaceCardColumns: 4,
+      reminders: DEFAULT_REMINDERS,
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });

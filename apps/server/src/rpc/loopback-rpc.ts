@@ -25,6 +25,7 @@ import { calendarRpcHandlers } from "./calendar-rpc-handlers.js";
 import { searchRpcHandlers } from "./search-rpc-handlers.js";
 import { searchQueryRpcHandlers } from "./search-query-rpc-handlers.js";
 import { savedSearchRpcHandlers } from "./saved-search-rpc-handlers.js";
+import { reminderRpcHandlers } from "./reminder-rpc-handlers.js";
 import { UndoService } from "../services/undo-service.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
@@ -52,6 +53,10 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         port: server.address.port,
         credential: randomBytes(32).toString("base64url"),
       };
+      // Session services live as long as the listener: the history and the reminder scheduler.
+      const session = yield* Layer.build(
+        reminderRpcHandlers(options.timeZone).pipe(Layer.provideMerge(UndoService.layer)),
+      );
       const rpc = yield* RpcServer.toHttpEffect(TaskTrackerRpcs).pipe(
         Effect.provide(
           TaskTrackerRpcs.toLayerHandler("GetServerInfo", () =>
@@ -70,7 +75,7 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         Effect.provide(searchRpcHandlers),
         Effect.provide(searchQueryRpcHandlers(options.timeZone)),
         Effect.provide(savedSearchRpcHandlers),
-        Effect.provide(UndoService.layer),
+        Effect.provide(session),
       );
       const host = `${RPC_HOST}:${connection.port}`;
       yield* server.serve(

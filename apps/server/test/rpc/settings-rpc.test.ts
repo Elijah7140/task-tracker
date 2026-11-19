@@ -44,6 +44,20 @@ const setupDisagreement = Effect.gen(function* () {
   return { client, project, area, parent, createParentWithOpenChild };
 });
 
+/** The reminder defaults of a database that stores none (§7.12). */
+const DEFAULT_REMINDERS = {
+  remindersEnabled: true,
+  defaultReminderOffset: "36000000000",
+  dateOnlyReminderTime: "09:00:00",
+};
+
+/** {@link DEFAULT_REMINDERS} as a project inherits them. */
+const INHERITED_REMINDERS = {
+  remindersEnabled: { value: true, source: "Global" },
+  defaultReminderOffset: { value: "36000000000", source: "Global" },
+  dateOnlyReminderTime: { value: "09:00:00", source: "Global" },
+};
+
 it.effect("Reads and saves global defaults as exact tick strings stored in XmlConvert text", () =>
   withRendererRpc(
     Effect.gen(function* () {
@@ -64,9 +78,10 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         urgencyYellowThreshold: "2592000000000",
         urgencyRedThreshold: "864000000000",
         workspaceCardColumns: 4,
+        reminders: DEFAULT_REMINDERS,
       });
       expect(result).toEqual({ kind: "applied" });
-      expect(saved).toEqual(settings);
+      expect(saved).toEqual({ ...settings, reminders: DEFAULT_REMINDERS });
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },
         { Key: "urgencyRedThreshold", Value: "P1DT6H" },
@@ -102,12 +117,14 @@ it.effect("Overrides project settings with their source and resets one to the gl
         autoCompleteParents: { value: true, source: "Global" },
         urgencyYellowThreshold: { value: days(3), source: "Global" },
         urgencyRedThreshold: { value: days(1), source: "Global" },
+        reminders: INHERITED_REMINDERS,
       });
       expect(overridden).toEqual({
         projectId: project.id,
         autoCompleteParents: { value: false, source: "Project" },
         urgencyYellowThreshold: { value: days(6), source: "Project" },
         urgencyRedThreshold: { value: hours(12), source: "Project" },
+        reminders: INHERITED_REMINDERS,
       });
       expect(reset.urgencyYellowThreshold).toEqual({ value: days(3), source: "Global" });
       expect(reset.urgencyRedThreshold).toEqual({ value: hours(12), source: "Project" });

@@ -7,6 +7,7 @@ import {
   type SearchableField,
 } from "@task-tracker/core";
 import type { SQLInputValue } from "node:sqlite";
+import { REMINDER_ELIGIBLE_SQL } from "./reminder-sql.js";
 
 /** Adds a bound parameter and returns its placeholder. */
 export type BindParameter = (value: SQLInputValue) => string;
@@ -62,6 +63,8 @@ function builtInFilter(filter: FieldFilter, bind: BindParameter): string {
       return linkFilter(filter, bind);
     case "repeats":
       return repeatsFilter(filter);
+    case "reminder":
+      return reminderFilter(filter);
     default:
       throw new Error(`Unknown built-in search field '${filter.fieldKey}'.`);
   }
@@ -181,6 +184,17 @@ function repeatsFilter(filter: FieldFilter): string {
     presenceFilter("t.RecurrenceFrequency", filter) ??
     booleanPresenceFilter("t.RecurrenceFrequency", filter)
   );
+}
+
+/** `has:reminder` matches open items whose effective reminder is not None (§7.12). */
+function reminderFilter(filter: FieldFilter): string {
+  if (filter.operator === "isNotEmpty") {
+    return `(${REMINDER_ELIGIBLE_SQL})`;
+  }
+  if (filter.operator === "isEmpty") {
+    return `NOT (${REMINDER_ELIGIBLE_SQL})`;
+  }
+  throw new Error("The reminder field only supports presence tests.");
 }
 
 /** Matches items with a link whose address or title contains the text, case-insensitively. */

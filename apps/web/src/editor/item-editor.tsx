@@ -17,6 +17,7 @@ import { CustomFieldsSection } from "./custom-fields-section.js";
 import { editorDraftStatus } from "./editor-draft.js";
 import { draftTexts } from "./item-draft.js";
 import { LinksSection } from "./links-section.js";
+import { ReminderSection } from "./reminder-section.js";
 import { RepeatSection } from "./repeat-section.js";
 import { SubItemsSection } from "./sub-items-section.js";
 import { useEditorFields } from "./use-editor-fields.js";
@@ -142,6 +143,7 @@ function EditorContent({
     links: store.links,
     storedLinks: links.status === "ready" ? links.links : null,
     repeat: store.repeat,
+    reminder: store.reminder,
   });
   const session = useItemEditorSession({
     projectId: snapshot.projectId,
@@ -196,6 +198,12 @@ function EditorContent({
             onStop={() =>
               void session.guarded(async () => void (await repeat.stopRepeating(node.item)))
             }
+          />
+          <ReminderSection
+            item={node.item}
+            draft={store.reminder}
+            hasDueDate={texts.dueDate.trim() !== ""}
+            onChange={store.setReminder}
           />
           <CustomFieldsSection state={fields} drafts={store.custom} onChange={store.setCustom} />
         </aside>

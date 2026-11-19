@@ -51,6 +51,7 @@ export function projectItem(item: TodoItem): typeof Item.Type {
   const { recurrenceSuccessorCreated: _successorCreated, ...fields } = item;
   return {
     ...fields,
+    reminder: item.reminder,
     recurrence: projectRecurrence(item.recurrence),
     dueDate: item.dueDate?.toString() ?? null,
     dueTime: item.dueTime?.toString() ?? null,

@@ -25,6 +25,7 @@ export function item(id: string, overrides: Partial<TodoItem> = {}): TodoItem {
     recurrence: null,
     recurrenceSeriesId: null,
     recurrenceSuccessorCreated: false,
+    reminder: { kind: "default" },
     sortOrder: 0,
     createdAtUtc: earlier,
     updatedAtUtc: earlier,

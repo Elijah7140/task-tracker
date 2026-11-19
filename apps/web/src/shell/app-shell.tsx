@@ -4,6 +4,7 @@ import { SearchPage } from "../search/search-page.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
 import { CalendarPage } from "../calendar/calendar-page.js";
 import { TrashPage } from "../trash/trash-page.js";
+import { ReminderBell } from "../reminders/reminder-bell.js";
 import { EditMenu } from "./edit-menu.js";
 import { ReturnGuards, useReturnGuardRegistry } from "./return-guards.js";
 import { UndoBlockers } from "./undo-blockers.js";
@@ -56,7 +57,14 @@ export function AppShell() {
     <UndoBlockers.Provider value={register}>
       <ReturnGuards.Provider value={returnGuards}>
         <div data-testid="app-shell" className="flex h-dvh bg-canvas text-fg">
-          <Sidebar editMenu={<EditMenu {...history} />} />
+          <Sidebar
+            editMenu={
+              <>
+                <EditMenu {...history} />
+                <ReminderBell runGuards={returnGuards.run} />
+              </>
+            }
+          />
           <main className="min-w-0 flex-1 overflow-y-auto outline-none">
             <div className={covering === null ? "contents" : "hidden"}>
               <Outlet />

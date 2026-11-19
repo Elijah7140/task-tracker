@@ -7,6 +7,7 @@ import {
   type ItemLinkInput,
   NotFound,
   type RecurrenceRule,
+  type ReminderChoice,
   RuleViolation,
   TaskTrackerRpcs,
   type ProjectSummary,
@@ -45,6 +46,7 @@ import { FakeCalendar, calendarHandlers } from "./fake-calendar-handlers.js";
 import { FakeSearch, searchHandlers } from "./fake-search-handlers.js";
 import { searchQueryHandlers } from "./fake-search-query.js";
 import { FakeSavedSearches, savedSearchHandlers } from "./fake-saved-search-handlers.js";
+import { FakeReminders, reminderHandlers } from "./fake-reminder-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -98,6 +100,8 @@ export class FakeProjectStore {
   historyRefusal: string | null = null;
   /** Simulates an unexpected failure from history replay. */
   historyFailure = false;
+  /** Blocks the next completion with this reason, as the server's status rules can. */
+  completionBlockedReason: string | null = null;
   private areas = new Map<string, FakeAreaState>();
   private autoCompleteByProject = new Map<string, boolean>();
   private sequence = 0;
@@ -165,6 +169,9 @@ export class FakeProjectStore {
 
   /** Repeat rules, Skip, Stop and next occurrences (§7.11). */
   readonly recurrence = new FakeRecurrence(this);
+
+  /** The session's reminders panel, which tests fill as the scheduler would (§7.12). */
+  readonly reminders = new FakeReminders();
 
   /** Lookups appended to every area snapshot, such as an archived item type. */
   readonly extraLookups: {
@@ -366,6 +373,7 @@ export class FakeProjectStore {
       trash: this.trash.batches,
       links: this.itemLinks.state,
       savedSearches: this.savedSearches.rows,
+      reminders: this.reminders.rows,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
@@ -381,6 +389,7 @@ export class FakeProjectStore {
       trash,
       links,
       savedSearches,
+      reminders,
     } = structuredClone(snapshot);
     this.statuses.rows = statuses;
     this.summaries = summaries;
@@ -392,6 +401,9 @@ export class FakeProjectStore {
     this.trash.batches = trash;
     this.itemLinks.restore(links);
     this.savedSearches.rows = savedSearches;
+    if (reminders.length !== this.reminders.rows.length) {
+      this.reminders.publish(reminders);
+    }
   };
 
   /** Returns all active area states. */
@@ -608,6 +620,7 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
     customValues = [],
     links,
     recurrence,
+    reminder,
     confirmedOpenItemIds,
   }: {
     itemId: string;
@@ -615,6 +628,7 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
     customValues?: ReadonlyArray<typeof FieldValueInput.Type>;
     links?: ReadonlyArray<typeof ItemLinkInput.Type>;
     recurrence?: typeof RecurrenceRule.Type | null;
+    reminder?: typeof ReminderChoice.Type;
     confirmedOpenItemIds?: ReadonlyArray<string>;
   }) => {
     const before = store.captureUndoState();
@@ -626,11 +640,14 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
           store.itemLinks.planEdit(itemId, links),
           store.recurrence.planEdit(itemId, fields, recurrence),
         ]).pipe(
-          Effect.map(([commitLinks, commitRule]) => () => {
-            commitValues();
-            commitLinks();
-            commitRule();
-          }),
+          Effect.andThen(([commitLinks, commitRule]) =>
+            Effect.map(planReminder(store, itemId, reminder), (commitReminder) => () => {
+              commitValues();
+              commitLinks();
+              commitRule();
+              commitReminder();
+            }),
+          ),
         ),
       ),
       Effect.flatMap((commit) =>
@@ -651,6 +668,26 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
       Effect.tapError(() => Effect.sync(() => store.restoreUndoState(before))),
     );
   };
+}
+
+const REMINDER_OFFSETS = [0, 5, 15, 30, 60, 120, 1440, 2880, 10080];
+
+/** Validates an editor's reminder choice like the server and returns its write (§7.12). */
+function planReminder(
+  store: FakeProjectStore,
+  itemId: string,
+  reminder: typeof ReminderChoice.Type | undefined,
+) {
+  if (reminder?.kind === "offset" && !REMINDER_OFFSETS.includes(reminder.minutes)) {
+    return Effect.fail(
+      new RuleViolation({ message: "Choose one of the listed reminder offsets." }),
+    );
+  }
+  return Effect.succeed(() => {
+    if (reminder !== undefined) {
+      store.patchItem(itemId, { reminder });
+    }
+  });
 }
 
 /** Settings and lookup handlers whose priority list changes record history, as on the server. */
@@ -770,6 +807,13 @@ function handlers(store: FakeProjectStore) {
     },
     SetItemCompleted: (payload) => {
       const title = itemTitle(payload.itemId);
+      const blocked = store.completionBlockedReason;
+      if (blocked !== null && payload.completed) {
+        store.completionBlockedReason = null;
+        return record("SetItemCompleted").pipe(
+          Effect.as({ kind: "blocked" as const, reason: blocked }),
+        );
+      }
       const completion = item
         .SetItemCompleted(payload)
         .pipe(Effect.map((result) => store.recurrence.afterCompletion(result)));
@@ -781,6 +825,7 @@ function handlers(store: FakeProjectStore) {
     },
     ...trackedPriorityHandlers(store, history.track),
     ...customFieldHandlers(store, record),
+    ...reminderHandlers(store, history.track),
     ...itemLinkHandlers(store, record),
     SetItemPriority: ({ itemId, priorityLevelId }) =>
       history.track(

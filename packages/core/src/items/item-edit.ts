@@ -1,4 +1,5 @@
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
+import { validateReminderChoice, type ReminderChoice } from "../reminders/reminder-choice.js";
 import { itemRecurrence } from "./recurrence/item-recurrence.js";
 import type { RecurrenceRule } from "./recurrence/recurrence-rule.js";
 import { itemTitle, type TodoItem } from "./todo-item.js";
@@ -19,6 +20,8 @@ export type ItemEdit = Pick<
   readonly statusId?: string | null;
   /** The replacement repeat rule; omitted keeps the stored rule, null stops repeating. */
   readonly recurrence?: RecurrenceRule | null;
+  /** The replacement reminder choice; omitted keeps the stored choice (§7.12). */
+  readonly reminder?: ReminderChoice;
 };
 
 const noSeriesId = (): string => {
@@ -51,6 +54,8 @@ export function editItem(
   }
   const rule = edit.recurrence === undefined ? item.recurrence : edit.recurrence;
   const recurrence = itemRecurrence(item, edit, rule, newSeriesId);
+  const reminder =
+    edit.reminder === undefined ? item.reminder : validateReminderChoice(edit.reminder);
 
   return {
     ...item,
@@ -64,6 +69,7 @@ export function editItem(
     scheduledStart,
     scheduledEnd,
     ...recurrence,
+    reminder,
     updatedAtUtc: now,
   };
 }

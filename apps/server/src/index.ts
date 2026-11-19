@@ -12,3 +12,6 @@ export { SettingsService } from "./services/settings-service.js";
 export { UndoService } from "./services/undo-service.js";
 export { SearchService } from "./services/search-service.js";
 export { SearchQueryService } from "./services/search-query-service.js";
+export { ReminderService } from "./services/reminder-service.js";
+export { ReminderScheduler } from "./services/reminder-scheduler.js";
+export { ReminderNotifier } from "./services/reminder-notifier.js";
