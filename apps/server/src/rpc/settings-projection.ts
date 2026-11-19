@@ -9,8 +9,8 @@ function parseNullableDuration(ticks: string | null): DurationTicks | null {
   return ticks === null ? null : BigInt(ticks);
 }
 
-/** Carry resolved settings with each value's source and durations as decimal tick counts. */
-export function projectEffectiveSettings(settings: EffectiveSettings) {
+/** Carry the settings a project can override, with sources and durations as decimal tick counts. */
+export function projectOverridableSettings(settings: EffectiveSettings) {
   return {
     autoCompleteParents: settings.autoCompleteParents,
     urgencyYellowThreshold: projectDuration(settings.urgencyYellowThreshold),
@@ -18,14 +18,23 @@ export function projectEffectiveSettings(settings: EffectiveSettings) {
   };
 }
 
+/** Carry every resolved setting an area shows, including the global-only card columns (§7.17). */
+export function projectEffectiveSettings(settings: EffectiveSettings) {
+  return {
+    ...projectOverridableSettings(settings),
+    workspaceCardColumns: settings.workspaceCardColumns,
+  };
+}
+
 /** Carry the global values without their sources, which are always global. */
 export function projectGlobalSettings(settings: EffectiveSettings): typeof GlobalSettings.Type {
-  const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold } =
+  const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold, workspaceCardColumns } =
     projectEffectiveSettings(settings);
   return {
     autoCompleteParents: autoCompleteParents.value,
     urgencyYellowThreshold: urgencyYellowThreshold.value,
     urgencyRedThreshold: urgencyRedThreshold.value,
+    workspaceCardColumns: workspaceCardColumns.value,
   };
 }
 

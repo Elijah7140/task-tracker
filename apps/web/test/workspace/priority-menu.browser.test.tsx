@@ -10,6 +10,9 @@ const RETIRED_ID = "019A0000-0000-7000-8000-000000002903";
 const row = () => page.getByRole("treeitem", { name: "Deploy", exact: true });
 const trigger = () => page.getByRole("menuitem", { name: "Set priority" });
 const choice = (name: string) => page.getByRole("menuitemradio", { name, exact: true });
+/** The Deploy card inside the card grid section for a priority (§7.17). */
+const inSection = (title: string) =>
+  page.getByRole("group", { name: title, exact: true }).getByRole("treeitem", { name: "Deploy" });
 
 const level = (
   id: string,
@@ -52,7 +55,7 @@ async function openWorkspace(priority?: "High", extra?: (store: FakeProjectStore
 }
 
 async function openWithMouse() {
-  await row().getByTestId("item-row").click({ button: "right" });
+  await row().getByTestId("item-title").first().click({ button: "right" });
   await trigger().click();
 }
 
@@ -68,7 +71,7 @@ it("Assigns a number-only priority by mouse and shows the current choice as chec
   await expect.element(choice("3 · Retired")).not.toBeInTheDocument();
   await choice("7").click();
 
-  await expect.element(row().getByTestId("item-priority")).toHaveTextContent("7");
+  await expect.element(inSection("7")).toBeVisible();
   expect(storedPriority(store, projectId)).toBe(SEVEN_ID);
   expect(store.calls.filter((call) => call === "SetItemPriority")).toHaveLength(1);
   await openWithMouse();
@@ -86,7 +89,7 @@ it("Opens the overflow submenu and clears the priority with the keyboard", async
   await expect.element(choice("None")).toHaveFocus();
   await userEvent.keyboard("{Enter}");
 
-  await expect.element(row().getByTestId("item-priority")).toHaveTextContent("");
+  await expect.element(inSection("No priority")).toBeVisible();
   expect(storedPriority(store, projectId)).toBeNull();
 });
 
@@ -95,7 +98,7 @@ it("Keeps an item's archived priority listed and checked", async () => {
     const id = store.findItemByTitle(store.summaries[0]!.project.id, null, "Deploy")?.item.id;
     store.patchItem(id ?? "", { priorityLevelId: RETIRED_ID });
   });
-  await expect.element(row().getByTestId("item-priority")).toHaveTextContent("3 · Retired");
+  await expect.element(inSection("3 · Retired")).toBeVisible();
 
   await openWithMouse();
 
@@ -108,10 +111,10 @@ it("Records the change in history so Edit undo restores the previous priority", 
 
   await openWithMouse();
   await choice("7").click();
-  await expect.element(row().getByTestId("item-priority")).toHaveTextContent("7");
+  await expect.element(inSection("7")).toBeVisible();
   await userEvent.keyboard("{Control>}z{/Control}");
 
-  await expect.element(row().getByTestId("item-priority")).toHaveTextContent("High");
+  await expect.element(inSection("High")).toBeVisible();
   expect(storedPriority(store, projectId)).toBe("019A0000-0000-7000-8000-000000002001");
 });
 

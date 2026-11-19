@@ -33,18 +33,31 @@ export interface GlobalDefaultsCardProps {
   readonly onDirtyChange: (dirty: boolean) => void;
 }
 
+const CARD_COLUMN_OPTIONS = [
+  { value: "1", label: "1" },
+  { value: "2", label: "2" },
+  { value: "3", label: "3" },
+  { value: "4", label: "4" },
+  { value: "5", label: "5" },
+  { value: "6", label: "6" },
+  { value: "7", label: "7" },
+  { value: "8", label: "8" },
+] as const;
+
 /** The editable form values. Thresholds keep their typed text and unit. */
 interface GlobalDraft {
   readonly autoComplete: boolean;
   readonly yellow: DurationFieldDraft;
   readonly red: DurationFieldDraft;
+  readonly cardColumns: number;
 }
 
 function sameGlobal(left: Global, right: Global) {
   return (
     left.autoCompleteParents === right.autoCompleteParents &&
     left.urgencyYellowThreshold === right.urgencyYellowThreshold &&
-    left.urgencyRedThreshold === right.urgencyRedThreshold
+    left.urgencyRedThreshold === right.urgencyRedThreshold &&
+    left.workspaceCardColumns === right.workspaceCardColumns
   );
 }
 
@@ -53,6 +66,7 @@ function draftFrom(settings: Global): GlobalDraft {
     autoComplete: settings.autoCompleteParents,
     yellow: createDurationDraft(settings.urgencyYellowThreshold, "days"),
     red: createDurationDraft(settings.urgencyRedThreshold, "hours"),
+    cardColumns: settings.workspaceCardColumns,
   };
 }
 
@@ -77,7 +91,8 @@ function useGlobalDraft(initial: Global) {
   const isDirty =
     draft.autoComplete !== saved.autoCompleteParents ||
     yellowTicks !== saved.urgencyYellowThreshold ||
-    redTicks !== saved.urgencyRedThreshold;
+    redTicks !== saved.urgencyRedThreshold ||
+    draft.cardColumns !== saved.workspaceCardColumns;
   const validationError = validateThresholdTicks(yellowTicks, redTicks);
   return {
     saved,
@@ -104,6 +119,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     autoCompleteParents: form.draft.autoComplete,
     urgencyYellowThreshold: form.yellowTicks,
     urgencyRedThreshold: form.redTicks,
+    workspaceCardColumns: form.draft.cardColumns,
   };
 }
 
@@ -206,6 +222,16 @@ function GlobalThresholdRows({ form }: { readonly form: GlobalForm }) {
         onChange={(red) => form.edit({ red })}
         amountTestId="global-red-amount"
         unitTestId="global-red-unit"
+      />
+      <span aria-hidden="true" className="text-sm text-fg">
+        Cards per row
+      </span>
+      <Select
+        value={String(form.draft.cardColumns)}
+        onValueChange={(value) => form.edit({ cardColumns: Number(value) })}
+        options={CARD_COLUMN_OPTIONS}
+        ariaLabel="Cards per row"
+        testId="global-card-columns"
       />
     </div>
   );

@@ -516,6 +516,45 @@ function openSiblingOrder(
   );
 }
 
+/** Mirrors `ItemService.moveToPriorityGroup`: a top-level `index` and a priority in one write (§7.17). */
+export function applyMoveItemToPriorityGroup(
+  store: FakeItemStoreContext,
+  area: FakeAreaState,
+  projectId: string,
+  itemId: string,
+  priorityLevelId: string | null,
+  index: number,
+  priorityLevels: ReadonlyArray<{ readonly id: string; readonly isArchived: boolean }>,
+): Effect.Effect<{ readonly title: string; readonly priorityChanged: boolean }, ItemError> {
+  const located = locateNode(area.nodes, itemId);
+  if (located === undefined) {
+    return Effect.fail(missingItem());
+  }
+  const priorityChanged = located.node.item.priorityLevelId !== priorityLevelId;
+  if (
+    priorityChanged &&
+    priorityLevelId !== null &&
+    !priorityLevels.some((level) => level.id === priorityLevelId && !level.isArchived)
+  ) {
+    return Effect.fail(new RuleViolation({ message: "Priority is missing or archived." }));
+  }
+  const remainingRoots = area.nodes.filter((node) => node.item.id !== itemId);
+  if (!Number.isInteger(index) || index < 0 || index > remainingRoots.length) {
+    return Effect.fail(new RuleViolation({ message: "Item position is outside its siblings." }));
+  }
+  const title = located.node.item.title;
+  return moveWithinArea(store, area, projectId, itemId, null, index).pipe(
+    Effect.map(() => {
+      if (priorityChanged) {
+        area.nodes = mapTree(area.nodes, (node) =>
+          node.item.id === itemId ? { ...node, item: { ...node.item, priorityLevelId } } : node,
+        );
+      }
+      return { title, priorityChanged };
+    }),
+  );
+}
+
 /** Mirrors Core `dropItem`: before, after or into a target validated against the current tree. */
 function applyDropItem(
   store: FakeItemStoreContext,

@@ -56,6 +56,7 @@ export { priorityLabel, type PriorityLevel } from "./lookups/priority-level.js";
 export { MetadataRuleError } from "./metadata/metadata-rule-error.js";
 export { booleanCodec } from "./settings/boolean-codec.js";
 export { durationCodec } from "./settings/duration-codec.js";
+export { wholeNumberCodec } from "./settings/whole-number-codec.js";
 export type { EffectiveSettings, EffectiveValue } from "./settings/effective-settings.js";
 export type { SettingCodec } from "./settings/setting-codec.js";
 export { SettingDefinition } from "./settings/setting-definition.js";

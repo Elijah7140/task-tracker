@@ -240,6 +240,7 @@ export class FakeSettingsAndLookups {
     autoCompleteParents: true,
     urgencyYellowThreshold: DEFAULT_YELLOW,
     urgencyRedThreshold: DEFAULT_RED,
+    workspaceCardColumns: 4,
   };
   itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));

@@ -74,11 +74,11 @@ describe("ItemTree", () => {
       .toHaveAttribute("data-completed", "true");
   });
 
-  it("Shows sub-items and an n completed section when a parent's chevron is clicked", async () => {
+  it("Shows a card's sub-items and a collapsed n completed section without expanding it", async () => {
     await openRoot();
 
-    await row(PARENT).getByTestId("item-toggle").first().click();
-
+    await expect.element(row(PARENT)).toHaveAttribute("aria-expanded", "true");
+    await expect.element(row(PARENT).getByTestId("item-toggle")).not.toBeInTheDocument();
     await expect.element(row("Check query plan before/after")).toHaveAttribute("aria-level", "2");
     const finished = row(PARENT).getByRole("treeitem", { name: "2 completed" });
     await expect.element(finished).toHaveAttribute("aria-expanded", "false");
@@ -89,7 +89,7 @@ describe("ItemTree", () => {
     await openRoot();
     await focusRow(PARENT);
 
-    await userEvent.keyboard("{ArrowRight}{ArrowDown}");
+    await userEvent.keyboard("{ArrowRight}");
     await expect.element(row("Check query plan before/after")).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}{ArrowRight}{ArrowDown}");
 
@@ -98,16 +98,22 @@ describe("ItemTree", () => {
     await expect.element(row(PARENT)).toHaveAttribute("aria-selected", "false");
   });
 
-  it("Returns to the parent and collapses it with Left", async () => {
+  it("Returns to the parent and collapses it with Left, but never collapses a card", async () => {
     await openRoot();
+    const finished = row(PARENT).getByRole("treeitem", { name: "2 completed" });
     await focusRow(PARENT);
-    await userEvent.keyboard("{ArrowRight}{ArrowDown}");
+    await userEvent.keyboard("{ArrowRight}{ArrowDown}{ArrowRight}{ArrowDown}");
+    await expect.element(row("Agree on index name")).toHaveFocus();
 
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+    await expect.element(finished).toHaveFocus();
+    await expect.element(finished).toHaveAttribute("aria-expanded", "false");
+    await expect.element(row("Agree on index name")).not.toBeInTheDocument();
     await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
 
     await expect.element(row(PARENT)).toHaveFocus();
-    await expect.element(row(PARENT)).toHaveAttribute("aria-expanded", "false");
-    await expect.element(row("Check query plan before/after")).not.toBeInTheDocument();
+    await expect.element(row(PARENT)).toHaveAttribute("aria-expanded", "true");
+    await expect.element(row("Check query plan before/after")).toBeVisible();
   });
 
   it("Jumps to the first and last rows with Home and End", async () => {
@@ -118,7 +124,7 @@ describe("ItemTree", () => {
     await expect.element(items().getByRole("treeitem", { name: "Completed (2)" })).toHaveFocus();
     await userEvent.keyboard("{Home}");
 
-    await expect.element(row(PARENT)).toHaveFocus();
+    await expect.element(row("Retire legacy billing views")).toHaveFocus();
   });
 
   it("Selects a row when it is clicked", async () => {
@@ -159,8 +165,9 @@ describe("ItemTree", () => {
 
   it("Keeps expansion when returning to an area in the same session", async () => {
     const { store, history } = await openRoot();
-    await row(PARENT).getByTestId("item-toggle").first().click();
-    await expect.element(row("Check query plan before/after")).toBeVisible();
+    const finished = row(PARENT).getByRole("treeitem", { name: "2 completed" });
+    await finished.getByTestId("completed-section-toggle").click();
+    await expect.element(row("Draft migration script")).toBeVisible();
 
     history.push(
       `/projects/${store.summaries[0]?.project.id}/folders/${store.folderNamed("dbo").id}`,
@@ -168,6 +175,6 @@ describe("ItemTree", () => {
     await expect.element(page.getByRole("heading", { level: 1, name: "dbo" })).toBeVisible();
     history.back();
 
-    await expect.element(row("Check query plan before/after")).toBeVisible();
+    await expect.element(row("Draft migration script")).toBeVisible();
   });
 });

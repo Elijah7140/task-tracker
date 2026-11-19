@@ -102,6 +102,7 @@ function assertSharedFixtureState(
     autoCompleteParents: true,
     urgencyYellowThreshold: ticks.oneDay,
     urgencyRedThreshold: ticks.threeHours,
+    workspaceCardColumns: 4,
   });
   expect(projectSettings).toEqual({
     projectId,
@@ -380,6 +381,7 @@ it.effect(
               autoCompleteParents: true,
               urgencyYellowThreshold: ticks.oneDay,
               urgencyRedThreshold: ticks.threeHours,
+              workspaceCardColumns: 4,
             });
             expect(projectSettings).toEqual({
               projectId,
@@ -715,6 +717,7 @@ it.effect(
                 autoCompleteParents: true,
                 urgencyYellowThreshold: ticks.twoDays,
                 urgencyRedThreshold: ticks.sixHours,
+                workspaceCardColumns: 4,
               },
             });
 
@@ -743,6 +746,7 @@ it.effect(
               autoCompleteParents: true,
               urgencyYellowThreshold: ticks.twoDays,
               urgencyRedThreshold: ticks.sixHours,
+              workspaceCardColumns: 4,
             });
             expect(projectSettings).toEqual({
               projectId,

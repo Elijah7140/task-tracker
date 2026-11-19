@@ -32,7 +32,7 @@ it("Disables both Edit actions and silently ignores undo when history is empty",
 
 it("Replays completion using Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z", async () => {
   await openWorkspace();
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard(" ");
   await expect.element(item("Completed (1)")).toBeVisible();
 
@@ -62,11 +62,11 @@ it("Keeps native text undo and ignores shortcuts while a prompt is open", async 
 
   await expect.element(quickAdd).toHaveValue("");
   expect(store.calls).not.toContain("ApplyHistory");
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard("{F2}");
   await expect.element(page.getByRole("dialog", { name: "Rename item" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Delete}");
   await expect.element(page.getByRole("alertdialog", { name: "Delete item" })).toBeVisible();
   await undo();
@@ -80,7 +80,7 @@ it("Preserves a dirty item editor after focus leaves its text fields", async () 
   await page.getByTestId("quick-add-input").click();
   await userEvent.keyboard("New task{Enter}");
   await expect.element(item("New task")).toBeVisible();
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Enter}");
   const title = page.getByTestId("item-editor-title");
   await title.fill("Draft report");
@@ -120,7 +120,7 @@ it("Blocks replay after leaving a pending lookup name in App Settings", async ()
 
 it("Preserves selection and focus through reorder replay and clears the outcome on navigation", async () => {
   await openWorkspace();
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
   await expect
     .poll(
@@ -141,7 +141,7 @@ it("Preserves selection and focus through reorder replay and clears the outcome 
     .toBeTruthy();
   await expect.element(item("Report")).toHaveFocus();
   await expect.element(item("Report")).toHaveAttribute("aria-selected", "true");
-  await expect.element(status()).toHaveTextContent("Undid: Reorder items");
+  await expect.element(status()).toHaveTextContent("Undid: Move 'Report'");
   await page.getByTestId("sidebar-home").click();
   await expect.element(status()).not.toBeInTheDocument();
 });
@@ -150,7 +150,7 @@ it.each(THEMES)(
   "Shows labelled Edit actions and the workspace outcome in %s mode",
   async (theme) => {
     await openWorkspace();
-    await item("Report").getByTestId("item-row").click();
+    await item("Report").getByTestId("item-title").first().click();
     await userEvent.keyboard(" ");
     await expect.element(item("Completed (1)")).toBeVisible();
     await settleTheme(theme);
@@ -177,7 +177,7 @@ it("Clears selection and restores focus when undo removes the selected item", as
   const quickAdd = page.getByTestId("quick-add-input");
   await quickAdd.click();
   await userEvent.keyboard("New task{Enter}");
-  await item("New task").getByTestId("item-row").click();
+  await item("New task").getByTestId("item-title").first().click();
 
   await undo();
 
@@ -188,7 +188,7 @@ it("Clears selection and restores focus when undo removes the selected item", as
 
 it("Undoes a keyboard deletion and clears the batch notice", async () => {
   await openWorkspace();
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Delete}");
   await page
     .getByRole("alertdialog", { name: "Delete item" })
@@ -227,7 +227,7 @@ it("Uses the same shortcuts on Home and reports stale data in a message dialog",
 
 it("Clears a replay outcome after a newly recorded action", async () => {
   await openWorkspace();
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard(" ");
   await expect.element(item("Completed (1)")).toBeVisible();
   await undo();
@@ -268,7 +268,7 @@ it("Restores a deleted project on Home and disables undo once its only action is
 
 it("Refuses redo while App Settings holds an unsaved default", async () => {
   const { store } = await openWorkspace();
-  await item("Report").getByTestId("item-row").click();
+  await item("Report").getByTestId("item-title").first().click();
   await userEvent.keyboard(" ");
   await expect.element(item("Completed (1)")).toBeVisible();
   await undo();
@@ -293,7 +293,7 @@ it("Shows stale-row refusals in the workspace and reports unexpected failures in
   const { store } = await openWorkspace();
   await page.getByTestId("quick-add-input").click();
   await userEvent.keyboard("New task{Enter}");
-  await item("New task").getByTestId("item-row").click();
+  await item("New task").getByTestId("item-title").first().click();
   store.historyRefusal = "This item changed since; can't undo.";
 
   await undo();

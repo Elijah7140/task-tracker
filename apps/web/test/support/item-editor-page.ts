@@ -97,9 +97,9 @@ export const itemRow = (title: string) =>
     .getByRole("tree", { name: "Items in Billing DB" })
     .getByRole("treeitem", { name: title, exact: true });
 
-/** Opens the editor for an item with the row's context menu, as in §8. */
+/** Opens the editor for an item with its card's or row's context menu, as in §8. */
 export async function openEditor(title = EDITOR_ITEM) {
-  await itemRow(title).getByTestId("item-row").first().click({ button: "right" });
+  await itemRow(title).getByTestId("item-title").first().click({ button: "right" });
   await page.getByRole("menuitem", { name: "Edit…", exact: true }).click();
   await expect.element(editor()).toBeVisible();
   await expect.element(editorTitle()).toHaveValue(title);

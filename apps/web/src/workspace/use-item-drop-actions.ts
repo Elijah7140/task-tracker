@@ -6,6 +6,7 @@ import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { dropItemAtom, moveItemAtom } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { findItemNode, type ItemNode } from "./item-outline.js";
+import { useSaveCardMove } from "./use-card-move.js";
 import type { ItemDrop } from "./use-item-drag.js";
 import { type MoveResult, useItemMoveRunner } from "./use-item-move-runner.js";
 import {
@@ -30,6 +31,7 @@ function rowDropParent(scope: ItemStructureScope, drop: Extract<ItemDrop, { kind
 function useDropPlans(scope: ItemStructureScope) {
   const dropOnRow = useAtomSet(dropItemAtom, { mode: "promiseExit" });
   const move = useAtomSet(moveItemAtom, { mode: "promiseExit" });
+  const saveCardMove = useSaveCardMove(scope.projectId, scope.folderId);
   const moveToArea = useMoveToArea(scope);
   const area = { projectId: scope.projectId, folderId: scope.folderId };
   const reactivityKeys = [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY, HISTORY_KEY];
@@ -45,6 +47,12 @@ function useDropPlans(scope: ItemStructureScope) {
           show: (result) => showMovedItem(scope, source, parentItemId, result),
         };
       }
+      case "card":
+      case "group":
+        return {
+          save: () => saveCardMove(source, drop.placement),
+          show: (result) => showMovedItem(scope, source, null, result),
+        };
       case "root-end":
         return {
           save: () => move({ payload: { ...area, itemId, parentItemId: null }, reactivityKeys }),

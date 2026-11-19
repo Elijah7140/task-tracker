@@ -19,7 +19,7 @@ import {
   type ItemFocusRequest,
   type ItemSiblings,
 } from "./item-outline.js";
-import type { ItemRowLookups } from "./item-row.js";
+import type { ItemRowLookups } from "./item-parts.js";
 import { ItemTree } from "./item-tree.js";
 import { ItemUndoBanner } from "./item-undo-banner.js";
 import { QuickAddRow } from "./quick-add-row.js";
@@ -198,6 +198,7 @@ function AreaContent({ area, actions, quickAdd, ...props }: AreaContentProps) {
           folderId={props.folderId}
           nodes={value.items}
           sectionKey={props.sectionKey}
+          cardColumns={value.settings.workspaceCardColumns.value}
           lookups={lookupsFor(value, props.timeZone)}
           actions={actions}
           hasFolders={props.hasFolders}
@@ -269,12 +270,14 @@ export function AreaItems(props: AreaItemsProps) {
   const leavingMissingFolder = useMissingFolderFallback(area, projectId);
   const loaded = AsyncResult.isSuccess(area);
   const items = loaded ? area.value.items : EMPTY_SIBLINGS;
+  const priorityLevels = loaded ? area.value.priorityLevels : [];
   const focus = useAreaFocus(items, loaded, focusQuickAddOnLoad);
   const [deletedBatch, setDeletedBatch] = useState<DeletedItemNotice | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const actions = useItemActions({
     ...props,
     items,
+    priorityLevels,
     onFocusItem: focus.onFocusItem,
     onDeleted: setDeletedBatch,
     onMoveError: setMoveError,

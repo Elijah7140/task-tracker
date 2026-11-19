@@ -5,8 +5,8 @@ import { mapOperationError } from "./map-operation-error.js";
 import {
   parseGlobalSettings,
   parseProjectOverrides,
-  projectEffectiveSettings,
   projectGlobalSettings,
+  projectOverridableSettings,
 } from "./settings-projection.js";
 
 /** Bind settings reads, reconciliation previews and confirmed saves to the settings service. */
@@ -18,16 +18,20 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
         settings.getGlobalSettings().pipe(Effect.map(projectGlobalSettings), mapOperationError),
       LoadProjectSettings: ({ projectId }) =>
         settings.getEffective(projectId).pipe(
-          Effect.map((effective) => ({ projectId, ...projectEffectiveSettings(effective) })),
+          Effect.map((effective) => ({ projectId, ...projectOverridableSettings(effective) })),
           mapOperationError,
         ),
       PreviewGlobalAutoComplete: () => settings.previewGlobalAutoComplete().pipe(mapOperationError),
       PreviewProjectAutoComplete: ({ projectId }) =>
         settings.previewProjectAutoComplete(projectId).pipe(mapOperationError),
       SaveGlobalSettings: ({ settings: values, approval }) =>
-        Effect.suspend(() => settings.saveGlobal(...parseGlobalSettings(values), approval)).pipe(
-          mapOperationError,
-        ),
+        Effect.suspend(() =>
+          settings.saveGlobal(
+            ...parseGlobalSettings(values),
+            approval,
+            values.workspaceCardColumns,
+          ),
+        ).pipe(mapOperationError),
       SaveProjectSettings: ({ projectId, overrides, approval }) =>
         Effect.suspend(() =>
           settings.saveProject(projectId, ...parseProjectOverrides(overrides), approval),

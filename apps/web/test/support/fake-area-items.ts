@@ -12,6 +12,8 @@ export type FakeUrgency = FakeItemNode["ownUrgency"];
 /** An item seeded into a fake area. Urgency and finished flags stand in for the server's rules. */
 export interface SeedItem {
   readonly title: string;
+  /** Plain description text, shown as a card preview (§7.17). */
+  readonly description?: string;
   readonly ticketNumber?: string;
   readonly type?: "Change" | "Error" | "Discussion" | "Review";
   readonly priority?: "Critical" | "High" | "Medium" | "Low";
@@ -100,6 +102,7 @@ const settings = {
   autoCompleteParents: { value: true, source: "Global" },
   urgencyYellowThreshold: { value: "2592000000000", source: "Global" },
   urgencyRedThreshold: { value: "864000000000", source: "Global" },
+  workspaceCardColumns: { value: 4, source: "Global" },
 } as const;
 
 /** Builds server item nodes for one area, giving each item an ID from `nextId`. */
@@ -144,7 +147,7 @@ export class FakeAreaBuilder {
       folderId: this.folderId,
       parentItemId,
       title: seed.title,
-      description: null,
+      description: seed.description ?? null,
       ticketNumber: seed.ticketNumber ?? null,
       itemTypeId: seed.type === undefined ? null : lookupId(1, TYPES.indexOf(seed.type)),
       priorityLevelId:

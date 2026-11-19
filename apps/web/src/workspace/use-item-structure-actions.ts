@@ -1,4 +1,5 @@
 import { useAtomSet } from "@effect/atom-react";
+import type { PriorityLevelProjection } from "@task-tracker/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import type { Exit } from "effect";
 import { reportFailure } from "../dialogs/report-failure.js";
@@ -18,6 +19,7 @@ import { carryItemEditor, useItemEditorStore } from "../state/item-editor-store.
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { useSerialReorder } from "../ui/use-serial-reorder.js";
 import { areaTarget } from "./area-route.js";
+import { stepCard } from "./card-drop-mapper.js";
 import { areaChoiceOptions, type Folder, ROOT_AREA_CHOICE } from "./folder-outline.js";
 import {
   departureFocusIds,
@@ -32,7 +34,9 @@ import {
   sameGroupSiblingIds,
   siblingNodesOf,
 } from "./item-outline.js";
+import { buildPriorityGroups } from "./priority-groups.js";
 import { swapWithVisibleNeighbor } from "./reorder-plan.js";
+import { useSaveCardMove } from "./use-card-move.js";
 import { type MoveResult, useItemMoveRunner } from "./use-item-move-runner.js";
 
 const TOP_LEVEL_CHOICE = "top-level";
@@ -45,6 +49,7 @@ export interface ItemStructureScope {
   readonly areaName: string;
   readonly folders: ReadonlyArray<Folder>;
   readonly items: ItemSiblings;
+  readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
   readonly onFocusItem: (request: ItemFocusRequest) => void;
   /** Shows or clears the inline failure of a pointer drop in this area. */
   readonly onMoveError: (message: string | null) => void;
@@ -290,22 +295,15 @@ function useMoveItems(scope: ItemStructureScope) {
 
 function useReorderItems(scope: ItemStructureScope) {
   const reorder = useAtomSet(reorderItemsAtom, { mode: "promiseExit" });
+  const saveCardMove = useSaveCardMove(scope.projectId, scope.folderId);
   const serial = useSerialReorder(scope.items);
   const key = areaKey(scope.projectId, scope.folderId);
 
-  const applyOrder = async (
+  const finishMove = async (
     nodes: ItemSiblings,
-    parentItemId: string | null,
     focusId: string,
-    itemIds: ReadonlyArray<string> | null,
+    exit: Exit.Exit<unknown, RpcFailure>,
   ): Promise<boolean> => {
-    if (itemIds === null) {
-      return false;
-    }
-    const exit = await reorder({
-      payload: { projectId: scope.projectId, folderId: scope.folderId, parentItemId, itemIds },
-      reactivityKeys: [key, HISTORY_KEY],
-    });
     const saved = await reportItemFailure(exit);
     if (saved) {
       useWorkspaceStore.getState().selectItem(focusId);
@@ -314,15 +312,38 @@ function useReorderItems(scope: ItemStructureScope) {
     return saved;
   };
 
-  /** Swaps an item with its neighbour among open or among finished siblings (legacy). */
-  const reorderByOffset = (node: ItemNode, offset: -1 | 1) =>
-    serial.run((nodes) => {
-      const parentItemId = node.item.parentItemId;
-      const allIds = persistedSiblingOrder(siblingNodesOf(nodes, parentItemId));
-      const groupIds = sameGroupSiblingIds(nodes, node);
-      const order = swapWithVisibleNeighbor(allIds, groupIds, node.item.id, offset);
-      return applyOrder(nodes, parentItemId, node.item.id, order);
+  /** Alt+↑/↓ on an open card moves it one place in reading order, across sections (§7.17). */
+  const stepOpenCard = async (nodes: ItemSiblings, node: ItemNode, offset: -1 | 1) => {
+    const groups = buildPriorityGroups(nodes.open, scope.priorityLevels);
+    const placement = stepCard(nodes, groups, node.item.id, offset);
+    if (placement === null) {
+      return false;
+    }
+    return finishMove(nodes, node.item.id, await saveCardMove(node, placement));
+  };
+
+  /** Alt+↑/↓ on a sub-item or a completed card swaps it with its visible sibling. */
+  const swapWithSibling = async (nodes: ItemSiblings, node: ItemNode, offset: -1 | 1) => {
+    const parentItemId = node.item.parentItemId;
+    const allIds = persistedSiblingOrder(siblingNodesOf(nodes, parentItemId));
+    const groupIds = sameGroupSiblingIds(nodes, node);
+    const itemIds = swapWithVisibleNeighbor(allIds, groupIds, node.item.id, offset);
+    if (itemIds === null) {
+      return false;
+    }
+    const exit = await reorder({
+      payload: { projectId: scope.projectId, folderId: scope.folderId, parentItemId, itemIds },
+      reactivityKeys: [key, HISTORY_KEY],
     });
+    return finishMove(nodes, node.item.id, exit);
+  };
+
+  const reorderByOffset = (node: ItemNode, offset: -1 | 1) =>
+    serial.run((nodes) =>
+      node.item.parentItemId === null && !node.isFinished
+        ? stepOpenCard(nodes, node, offset)
+        : swapWithSibling(nodes, node, offset),
+    );
 
   return { reorderByOffset };
 }

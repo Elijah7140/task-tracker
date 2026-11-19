@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { CardColumns } from "./card-columns.js";
 import { DurationTicks } from "./duration-ticks.js";
 import { Guid } from "./guid.js";
 
@@ -10,6 +11,7 @@ export const GlobalSettings = Schema.Struct({
   autoCompleteParents: Schema.Boolean,
   urgencyYellowThreshold: DurationTicks,
   urgencyRedThreshold: DurationTicks,
+  workspaceCardColumns: CardColumns,
 });
 
 /** Project overrides to save together. Null removes an override so the global value applies. */

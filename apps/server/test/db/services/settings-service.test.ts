@@ -258,6 +258,7 @@ it.effect("Saving project overrides persists all three together and null clears 
       autoCompleteParents: { value: false, source: "Project" },
       urgencyYellowThreshold: { value: 3n * day, source: "Global" },
       urgencyRedThreshold: { value: 12n * hour, source: "Project" },
+      workspaceCardColumns: { value: 4, source: "Global" },
     });
   }).pipe(withServices, withSchema),
 );
@@ -441,6 +442,7 @@ it.effect("Global settings read every stored value and default the rest in one s
       autoCompleteParents: { value: true, source: "Global" },
       urgencyYellowThreshold: { value: 3n * day, source: "Global" },
       urgencyRedThreshold: { value: 12n * hour, source: "Global" },
+      workspaceCardColumns: { value: 4, source: "Global" },
     });
   }).pipe(withServices, withSchema),
 );

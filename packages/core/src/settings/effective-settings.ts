@@ -11,4 +11,5 @@ export interface EffectiveSettings {
   readonly autoCompleteParents: EffectiveValue<boolean>;
   readonly urgencyYellowThreshold: EffectiveValue<DurationTicks>;
   readonly urgencyRedThreshold: EffectiveValue<DurationTicks>;
+  readonly workspaceCardColumns: EffectiveValue<number>;
 }

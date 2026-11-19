@@ -34,7 +34,7 @@ const openWorkspace = (status?: "Testing", configure?: (store: FakeProjectStore)
 const choice = (name: string) => page.getByRole("menuitemradio", { name, exact: true });
 
 async function openMenu() {
-  await itemRow(TASK).getByTestId("item-row").first().click({ button: "right" });
+  await itemRow(TASK).getByTestId("item-title").first().click({ button: "right" });
   await page.getByTestId("item-menu-set-status").click();
   await expect.element(choice("Testing")).toBeVisible();
 }
@@ -56,7 +56,7 @@ it("Lists an archived current status, checked, at its place in list order", asyn
   await openWorkspace("Testing", (store) =>
     store.statuses.replace(TESTING_ID, { isArchived: true }),
   );
-  await itemRow(TASK).getByTestId("item-row").first().click({ button: "right" });
+  await itemRow(TASK).getByTestId("item-title").first().click({ button: "right" });
   await page.getByTestId("item-menu-set-status").click();
 
   const archived = choice("Testing (archived)");
@@ -68,7 +68,7 @@ it("Lists an archived current status, checked, at its place in list order", asyn
 
 it("Selects a status from the keyboard submenu", async () => {
   await openWorkspace();
-  await itemRow(TASK).getByTestId("item-row").first().click();
+  await itemRow(TASK).getByTestId("item-title").first().click();
   await userEvent.keyboard("{Shift>}{F10}{/Shift}");
   await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}");
   await expect.element(page.getByTestId("item-menu-set-status")).toHaveFocus();

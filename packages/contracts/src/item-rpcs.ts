@@ -59,6 +59,14 @@ export const ItemRpcs = RpcGroup.make(
     },
     error: RpcOperationError,
   }),
+  Rpc.make("MoveItemToPriorityGroup", {
+    payload: {
+      ...areaItem,
+      priorityLevelId: Schema.NullOr(Guid),
+      index: Schema.Int,
+    },
+    error: RpcOperationError,
+  }),
   Rpc.make("ReorderItems", {
     payload: { ...area, parentItemId, itemIds: Schema.Array(Guid) },
     error: RpcOperationError,

@@ -60,3 +60,16 @@ it("checks threshold ordering and nonnegative red after resolving overrides", ()
   expect(SettingsResolver.hasValidThresholds(negativeSettings)).toBe(false);
   expect(SettingsResolver.hasValidThresholds(equalSettings)).toBe(true);
 });
+
+it("Card columns default to four and ignore project overrides", () => {
+  const key = SettingsCatalogue.workspaceCardColumns.key;
+  const project = new Map([[key, "2"]]);
+  const global = new Map([[key, "5"]]);
+
+  const defaults = SettingsResolver.resolve(empty, empty);
+  const resolved = SettingsResolver.resolve(global, project);
+
+  expect(defaults.workspaceCardColumns).toEqual({ value: 4, source: "Global" });
+  expect(resolved.workspaceCardColumns).toEqual({ value: 5, source: "Global" });
+  expect(SettingsCatalogue.workspaceCardColumns.projectOverridable).toBe(false);
+});

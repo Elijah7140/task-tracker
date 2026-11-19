@@ -17,7 +17,8 @@ import { readEffectiveSettings } from "./effective-settings-service.js";
 import { operationTime } from "./operation-time.js";
 import { projectCompletionOperations } from "./project-completion-reconciler.js";
 
-const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold } = SettingsCatalogue;
+const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold, workspaceCardColumns } =
+  SettingsCatalogue;
 const noOverrides: ReadonlyMap<string, string> = new Map();
 
 function applyOverrides(
@@ -191,22 +192,25 @@ const make = Effect.gen(function* () {
     /** Set a single global value, subject to project constraints and reconciliation. */
     setGlobal: <T>(definition: SettingDefinition<T>, value: T, approval?: ReconciliationApproval) =>
       updateGlobal(() => new Map([[definition.key, definition.format(value)]]), approval),
-    /** Save the three global defaults together. */
+    /** Save the global defaults together. */
     saveGlobal: (
       autoComplete: boolean,
       yellow: DurationTicks,
       red: DurationTicks,
       approval?: ReconciliationApproval,
+      cardColumns?: number,
     ) =>
-      updateGlobal(
-        () =>
-          new Map([
-            [autoCompleteParents.key, autoCompleteParents.format(autoComplete)],
-            [urgencyYellowThreshold.key, urgencyYellowThreshold.format(yellow)],
-            [urgencyRedThreshold.key, urgencyRedThreshold.format(red)],
-          ]),
-        approval,
-      ),
+      updateGlobal(() => {
+        const entries: Array<[string, string]> = [
+          [autoCompleteParents.key, autoCompleteParents.format(autoComplete)],
+          [urgencyYellowThreshold.key, urgencyYellowThreshold.format(yellow)],
+          [urgencyRedThreshold.key, urgencyRedThreshold.format(red)],
+        ];
+        if (cardColumns !== undefined) {
+          entries.push([workspaceCardColumns.key, workspaceCardColumns.format(cardColumns)]);
+        }
+        return new Map(entries);
+      }, approval),
     /** Override one setting on an active project. */
     setProjectOverride: <T>(
       projectId: string,

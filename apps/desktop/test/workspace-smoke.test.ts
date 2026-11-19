@@ -70,7 +70,6 @@ desktopTest(
     await withDesktop(desktop, async (page) => {
       await openProject(page);
       await expandCompleted(tree(page), "Completed (1)");
-      await parent(page).getByTestId("item-toggle").first().click();
       await expandCompleted(parent(page), "1 completed");
 
       expect(await isCompleted(parent(page))).toBe("true");

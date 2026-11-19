@@ -95,9 +95,9 @@ export function isCompleted(row: Locator) {
   return row.getByTestId("item-completion").first().getAttribute("data-completed");
 }
 
-/** Opens the item editor through the row's context menu. */
+/** Opens the item editor through the card's or row's context menu, opened on its title. */
 export async function openItemEditor(page: Page, row: Locator) {
-  await row.getByTestId("item-row").first().click({ button: "right" });
+  await row.getByTestId("item-title").first().click({ button: "right" });
   await page.getByTestId("item-menu-edit").click();
   const editor = page.getByTestId("item-editor");
   await editor.waitFor();

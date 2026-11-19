@@ -21,6 +21,9 @@ export const moveItemAtom = TaskTrackerClient.mutation("MoveItem");
 /** Places an item before, after or inside a target row, validated against the current tree. */
 export const dropItemAtom = TaskTrackerClient.mutation("DropItem");
 
+/** Moves an item to the top level at an index and assigns a priority in one undoable write (§7.17). */
+export const moveItemToPriorityGroupAtom = TaskTrackerClient.mutation("MoveItemToPriorityGroup");
+
 /** Sets the explicit sibling order under one parent in an area. */
 export const reorderItemsAtom = TaskTrackerClient.mutation("ReorderItems");
 

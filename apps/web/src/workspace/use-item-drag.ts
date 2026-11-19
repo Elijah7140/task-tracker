@@ -1,6 +1,7 @@
 import { type PointerEvent, type RefObject, useRef, useState } from "react";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { usePointerDrag } from "../ui/use-pointer-drag.js";
+import { type CardPlacement, mapCardDrop, mapCardDropToGroupEnd } from "./card-drop-mapper.js";
 import {
   findItemNode,
   itemAncestorIds,
@@ -8,18 +9,21 @@ import {
   type ItemSiblings,
   siblingNodesOf,
 } from "./item-outline.js";
+import type { PriorityGroup } from "./priority-groups.js";
 import { moveAmongVisible } from "./reorder-plan.js";
 
-/** Row drop positions along the tree's vertical axis. */
+/** Drop positions along the item's flow axis (vertical for rows, horizontal for cards). */
 export type ItemDropPosition = "before" | "after" | "into";
 
-/** Workspace drop intent resolved against a visible row, area or the end of the tree. */
+/** Workspace drop intent resolved against a row, card, priority header, area or root end. */
 export type ItemDrop =
   | { readonly kind: "row"; readonly id: string; readonly position: ItemDropPosition }
+  | { readonly kind: "card"; readonly placement: CardPlacement }
+  | { readonly kind: "group"; readonly placement: CardPlacement }
   | { readonly kind: "area"; readonly folderId: string | null }
   | { readonly kind: "root-end" };
 
-/** Current drag preview shown on item rows. */
+/** Current drag preview shown on item cards, rows and section headers. */
 export interface ActiveItemDrag {
   readonly sourceId: string;
   readonly target: ItemDrop | null;
@@ -32,17 +36,18 @@ interface ItemDragOptions {
   readonly folderId: string | null;
   /** The area snapshot the drop is validated against before it is sent. */
   readonly nodes: ItemSiblings;
+  /** The open priority sections in display order (§7.17). */
+  readonly groups: ReadonlyArray<PriorityGroup>;
   readonly onDrop: (source: ItemNode, target: ItemDrop) => void;
 }
 
-/** Row controls that keep their own click and never start a drag. */
+/** Row and card controls that keep their own click and never start a drag. */
 const NON_DRAG_CONTROLS =
-  "button:not([data-testid='item-drag-handle']), [data-testid='item-toggle']";
+  "button:not([data-testid='item-drag-handle']), [data-testid='item-toggle'], [data-testid='completed-section-toggle']";
 
 /**
- * Splits a row into thirds along the direction items flow: the top third
- * inserts before, the middle third makes a sub-item and the bottom third
- * inserts after (§7.5).
+ * Splits a target into thirds along its flow axis: first third inserts before,
+ * middle third makes a sub-item and final third inserts after (§7.5, §7.17).
  */
 function positionAcross(offset: number, length: number): ItemDropPosition {
   if (offset < length / 3) {
@@ -62,11 +67,7 @@ function isUnchangedOrder(
   return moveAmongVisible(open, open, source.item.id, targetId, position) === null;
 }
 
-/**
- * Resolves a row under the pointer. Self and descendant targets are rejected,
- * and so are insertion edges involving a finished row, which is ordered by
- * completion time rather than by drag (§6.2).
- */
+/** Resolves a nested sub-item row under the pointer along the vertical axis. */
 function rowTarget(nodes: ItemSiblings, source: ItemNode, row: HTMLElement, clientY: number) {
   const id = row.dataset["itemRowId"]!;
   const target = findItemNode(nodes, id);
@@ -85,6 +86,71 @@ function rowTarget(nodes: ItemSiblings, source: ItemNode, row: HTMLElement, clie
   return sameParent && isUnchangedOrder(nodes, source, id, position)
     ? null
     : ({ kind: "row", id, position } as const);
+}
+
+/**
+ * Whether a placement changes anything the user can see. An archived level cannot be assigned,
+ * and a card dropped back into its own place in its section is left alone.
+ */
+function isUsefulPlacement(
+  groups: ReadonlyArray<PriorityGroup>,
+  source: ItemNode,
+  placement: CardPlacement,
+) {
+  const group = groups.find((candidate) => candidate.priorityLevelId === placement.priorityLevelId);
+  if (group === undefined) {
+    return false;
+  }
+  const sameSection =
+    source.item.parentItemId === null && source.item.priorityLevelId === group.priorityLevelId;
+  if (!sameSection) {
+    return !group.isArchived;
+  }
+  const ids = group.cards.map((card) => card.item.id);
+  const { targetId, position } = placement;
+  return moveAmongVisible(ids, ids, source.item.id, targetId, position) !== null;
+}
+
+/**
+ * Resolves a top-level card under the pointer along its width (§7.17): the side thirds place
+ * the dragged item beside the card, in its section, and the middle third makes a sub-item.
+ */
+function cardTarget(
+  options: ItemDragOptions,
+  source: ItemNode,
+  card: HTMLElement,
+  clientX: number,
+): ItemDrop | null {
+  const { nodes, groups } = options;
+  const id = card.dataset["itemRowId"]!;
+  if (findItemNode(nodes, id) === undefined || id === source.item.id) {
+    return null;
+  }
+  const { left, width } = card.getBoundingClientRect();
+  const position = positionAcross(clientX - left, width);
+  if (position === "into") {
+    return { kind: "row", id, position };
+  }
+  const placement = mapCardDrop(nodes, groups, source.item.id, id, position);
+  return placement !== null && isUsefulPlacement(groups, source, placement)
+    ? { kind: "card", placement }
+    : null;
+}
+
+/** Resolves a priority section header under the pointer: the item joins the end of it (§7.17). */
+function groupHeaderTarget(
+  options: ItemDragOptions,
+  source: ItemNode,
+  header: HTMLElement,
+): ItemDrop | null {
+  const { nodes, groups } = options;
+  const key = header.dataset["priorityGroupId"] ?? "";
+  const group = groups.find((candidate) => (candidate.priorityLevelId ?? "") === key);
+  const placement =
+    group === undefined ? null : mapCardDropToGroupEnd(nodes, groups, source.item.id, group);
+  return placement !== null && isUsefulPlacement(groups, source, placement)
+    ? { kind: "group", placement }
+    : null;
 }
 
 /** A sidebar area under the pointer accepts top-level items from another area. */
@@ -116,7 +182,13 @@ function targetAt(options: ItemDragOptions, source: ItemNode, event: MouseEvent)
   const hit = document.elementFromPoint(event.clientX, event.clientY);
   const row = hit?.closest<HTMLElement>("[data-item-row-id]");
   if (row && tree.contains(row)) {
-    return rowTarget(options.nodes, source, row, event.clientY);
+    return row.dataset["itemCard"] === "true"
+      ? cardTarget(options, source, row, event.clientX)
+      : rowTarget(options.nodes, source, row, event.clientY);
+  }
+  const header = hit?.closest<HTMLElement>("[data-priority-group-id]");
+  if (header && tree.contains(header)) {
+    return groupHeaderTarget(options, source, header);
   }
   const area = hit?.closest<HTMLElement>("[data-item-drop-area]");
   if (area) {
@@ -127,12 +199,9 @@ function targetAt(options: ItemDragOptions, source: ItemNode, event: MouseEvent)
 }
 
 /**
- * Translates the shared pointer gesture into workspace drop intents (§7.5). A
- * left press on a row becomes a drag at 4 pixels; Escape or capture loss
+ * Translates the shared pointer gesture into workspace drop intents (§7.5, §7.17). A
+ * left press on a card or row becomes a drag at 4 pixels; Escape or capture loss
  * cancels it, and another button press leaves the original source active.
- * The latest snapshot validates each target, the
- * server validates the drop again, and the hovered sidebar area is published
- * for its highlight.
  */
 export function useItemDrag(options: ItemDragOptions) {
   const [dragState, setDragState] = useState<ActiveItemDrag | null>(null);
@@ -142,7 +211,11 @@ export function useItemDrag(options: ItemDragOptions) {
   const setItemDropArea = useWorkspaceStore((state) => state.setItemDropArea);
 
   const startDrag = (node: ItemNode, event: PointerEvent<HTMLElement>) => {
-    if ((event.target as Element).closest(NON_DRAG_CONTROLS)) {
+    const target = event.target as Element;
+    if (target.closest("[data-item-row-id]") !== event.currentTarget) {
+      return;
+    }
+    if (target.closest(NON_DRAG_CONTROLS)) {
       return;
     }
     const sourceId = node.item.id;

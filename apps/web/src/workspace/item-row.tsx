@@ -1,44 +1,32 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
-import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/contracts";
-import { Menu } from "@base-ui/react/menu";
-import {
-  CalendarClock,
-  CalendarDays,
-  ChevronRight,
-  Circle,
-  CircleCheck,
-  CornerDownRight,
-  Ellipsis,
-  GripVertical,
-} from "lucide-react";
+import { ChevronRight, GripVertical } from "lucide-react";
 import type { MouseEvent, PointerEvent } from "react";
-import { deadlineLabel, formatInstantDate } from "../format/item-dates.js";
 import { cx } from "../ui/class-names.js";
-import { ContextMenuContent, MenuContent } from "../ui/menu.js";
-import { Tooltip } from "../ui/tooltip.js";
+import { ContextMenuContent } from "../ui/menu.js";
 import { treeStyles } from "../ui/tree-styles.js";
 import { ItemMenuItems } from "./item-menu-items.js";
 import { isEmptyLevel, type ItemNode } from "./item-outline.js";
+import {
+  CompletionMark,
+  dateCell,
+  type ItemDate,
+  ItemDescription,
+  ItemOverflowMenu,
+  type ItemRowLookups,
+  statusName,
+  UrgencySource,
+  urgencySourceTitle,
+} from "./item-parts.js";
 import { ItemStatusChip } from "./item-status-chip.js";
 import { ItemTypeIcon } from "./item-type-icon.js";
 import { UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
 
-/** Names and zone an item row resolves its references with. */
-export interface ItemRowLookups {
-  readonly typeName: (typeId: string | null) => string | null;
-  readonly statuses: readonly (typeof StatusProjection.Type)[];
-  readonly priorityName: (priorityId: string | null) => string | null;
-  /** All priority levels, including archived ones, for the Set priority submenu. */
-  readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
-  readonly itemTitle: (itemId: string) => string | undefined;
-  readonly timeZone: string;
-}
-
 /** Props for {@link ItemRow}. */
 export interface ItemRowProps {
   readonly node: ItemNode;
+  /** Nesting depth below the card: 1 for the card's direct sub-items. */
   readonly depth: number;
   readonly expanded: boolean;
   readonly selected: boolean;
@@ -56,10 +44,6 @@ export interface ItemRowProps {
   /** A left-button press anywhere on the row that may become a drag (§7.5). */
   readonly onStartDrag: (event: PointerEvent<HTMLElement>) => void;
 }
-
-/** Shared column layout so detail columns align at every nesting level. */
-export const ITEM_ROW_COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_10.5rem_8rem_1.75rem] items-center gap-3";
 
 /** The grip shown on hover. The whole row starts a drag; the grip only signals it. */
 function DragHandle({ node }: { readonly node: ItemNode }) {
@@ -88,7 +72,7 @@ function DropFeedback({ position }: { readonly position: ItemDropPosition | null
         aria-hidden="true"
         data-testid="drop-indicator"
         data-placement="into"
-        className="pointer-events-none absolute top-1/2 right-10 -translate-y-1/2 rounded-full bg-accent px-2 py-0.5 text-[11px] leading-4 font-medium text-on-accent"
+        className="pointer-events-none absolute top-1/2 right-8 -translate-y-1/2 rounded-full bg-accent px-2 py-0.5 text-[11px] leading-4 font-medium text-on-accent"
       >
         Make sub-item
       </span>
@@ -131,111 +115,13 @@ function ExpandToggle({
   );
 }
 
-function CompletionMark({
-  title,
-  completed,
-  onToggle,
-}: {
-  readonly title: string;
-  readonly completed: boolean;
-  readonly onToggle: () => void;
-}) {
-  const Icon = completed ? CircleCheck : Circle;
-  return (
-    <button
-      type="button"
-      tabIndex={-1}
-      aria-label={completed ? `Reopen ${title}` : `Complete ${title}`}
-      data-testid="item-completion"
-      data-completed={completed}
-      onClick={(event) => {
-        event.stopPropagation();
-        onToggle();
-      }}
-      className={cx(
-        "grid size-5 shrink-0 cursor-default place-items-center rounded-full transition-colors hover:bg-pressed",
-        completed ? "text-accent" : "text-control-outline hover:text-fg-muted",
-      )}
-    >
-      <Icon size={16} strokeWidth={completed ? 2.25 : 1.75} aria-hidden="true" />
-    </button>
-  );
-}
-
-function dateCell(node: ItemNode, timeZone: string) {
-  if (node.isFinished && node.item.completedAtUtc !== null) {
-    return {
-      icon: CircleCheck,
-      text: `Done ${formatInstantDate(node.item.completedAtUtc, timeZone)}`,
-      spoken: null,
-    };
-  }
-  const deadline = deadlineLabel(node.item);
-  if (deadline === null) {
-    return null;
-  }
-  const due = deadline.kind === "due";
-  return {
-    icon: due ? CalendarDays : CalendarClock,
-    text: deadline.text,
-    spoken: `${due ? "Due" : "Scheduled"} ${deadline.text}`,
-  };
-}
-
-function UrgencySource({ title }: { readonly title: string }) {
-  const label = `From sub-item: ${title}`;
-  return (
-    <Tooltip content={label} testId="urgency-source-tooltip">
-      <span
-        role="img"
-        aria-label={label}
-        data-testid="urgency-source"
-        className="grid size-5 place-items-center rounded-full text-fg-subtle hover:bg-hover"
-      >
-        <CornerDownRight size={12} aria-hidden="true" />
-      </span>
-    </Tooltip>
-  );
-}
-
-/** The name of the item's stored status, including an archived one. */
-function statusName(node: ItemNode, lookups: ItemRowLookups): string | undefined {
-  return lookups.statuses.find((status) => status.id === node.item.statusId)?.name;
-}
-
-/** Speaks the status unless it only repeats the completion state, as the seeded Completed does. */
-function spokenStatus(state: string, name: string | undefined): string | null {
-  return name === undefined || name.toLowerCase() === state.toLowerCase() ? null : name;
-}
-
-function describe(
-  node: ItemNode,
-  lookups: ItemRowLookups,
-  spokenDate: string | null,
-  source: string | undefined,
-) {
-  const urgency = node.displayedUrgency.value;
-  const state = node.item.completedAtUtc === null ? "Open" : "Completed";
-  return [
-    state,
-    lookups.typeName(node.item.itemTypeId),
-    spokenStatus(state, statusName(node, lookups)),
-    node.item.ticketNumber,
-    lookups.priorityName(node.item.priorityLevelId),
-    spokenDate,
-    urgency === "None" ? null : urgency,
-    source === undefined ? null : `from sub-item ${source}`,
-  ]
-    .filter((part) => part !== null && part !== "")
-    .join(", ");
-}
-
 function ItemTitle({ node }: { readonly node: ItemNode }) {
   const completed = node.item.completedAtUtc !== null;
   return (
     <span
       id={`item-title-${node.item.id}`}
       data-testid="item-title"
+      title={node.item.title}
       className={cx(
         "min-w-0 truncate pl-0.5",
         node.displayedUrgency.value === "Overdue" && !completed && "font-semibold",
@@ -247,110 +133,97 @@ function ItemTitle({ node }: { readonly node: ItemNode }) {
   );
 }
 
-function DateCell({ date }: { readonly date: ReturnType<typeof dateCell> }) {
-  const Icon = date?.icon;
+const DETAIL_SEPARATOR = (
+  <span aria-hidden="true" className="text-fg-subtle">
+    ·
+  </span>
+);
+
+/**
+ * The second line of a sub-item row: ticket, priority and date, so the title keeps the
+ * card's width (§7.17). Nothing renders when the item has none of them.
+ */
+function RowDetails({
+  node,
+  lookups,
+  date,
+}: {
+  readonly node: ItemNode;
+  readonly lookups: ItemRowLookups;
+  readonly date: ItemDate;
+}) {
+  const priority = lookups.priorityName(node.item.priorityLevelId);
+  const DateIcon = date?.icon;
+  const parts = [
+    node.item.ticketNumber === null ? null : (
+      <span key="ticket" data-testid="item-ticket" className="tabular-nums">
+        {node.item.ticketNumber}
+      </span>
+    ),
+    priority === null ? null : (
+      <span key="priority" data-testid="item-priority">
+        {priority}
+      </span>
+    ),
+    date === null ? null : (
+      <span key="date" data-testid="item-date" className="inline-flex items-center gap-1">
+        {DateIcon === undefined ? null : (
+          <DateIcon size={12} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+        )}
+        {date.text}
+      </span>
+    ),
+  ].filter((part) => part !== null);
+  if (parts.length === 0) {
+    return null;
+  }
   return (
-    <span
-      data-testid="item-date"
-      className="flex min-w-0 items-center gap-1.5 text-[13px] text-fg-muted"
+    <div
+      data-testid="item-row-details"
+      className="flex min-w-0 flex-wrap items-center gap-x-1.5 pl-17 text-xs text-fg-muted"
     >
-      {Icon === undefined ? null : (
-        <Icon size={13} aria-hidden="true" className="shrink-0 text-fg-subtle" />
-      )}
-      <span className="truncate">{date?.text}</span>
-    </span>
+      {parts.flatMap((part, index) => (index === 0 ? [part] : [DETAIL_SEPARATOR, part]))}
+    </div>
   );
 }
 
-/** The title of the sub-item a rolled-up urgency comes from, if any. */
-function urgencySourceTitle(node: ItemNode, lookups: ItemRowLookups) {
-  const { value, sourceDescendantId } = node.displayedUrgency;
-  return value === "None" || sourceDescendantId === null
-    ? undefined
-    : lookups.itemTitle(sourceDescendantId);
-}
-
-function DetailCells({ node, lookups }: Pick<ItemRowProps, "node" | "lookups">) {
+function RowContent(props: ItemRowProps) {
+  const { node, expanded, lookups, actions, onExpandedChange } = props;
   const date = dateCell(node, lookups.timeZone);
   const source = urgencySourceTitle(node, lookups);
   return (
     <>
-      <span data-testid="item-ticket" className="truncate text-xs text-fg-muted tabular-nums">
-        {node.item.ticketNumber}
-      </span>
-      <span data-testid="item-priority" className="truncate text-[13px] text-fg-muted">
-        {lookups.priorityName(node.item.priorityLevelId)}
-      </span>
-      <DateCell date={date} />
-      <span className="flex items-center gap-1">
-        <UrgencyBadge urgency={node.displayedUrgency.value} />
-        {source === undefined ? null : <UrgencySource title={source} />}
-      </span>
-      <span id={`item-details-${node.item.id}`} className="sr-only">
-        {describe(node, lookups, date?.spoken ?? date?.text ?? null, source)}
-      </span>
+      <div className="flex min-w-0 items-center gap-1">
+        <DragHandle node={node} />
+        <ExpandToggle node={node} expanded={expanded} onExpandedChange={onExpandedChange} />
+        <CompletionMark
+          title={node.item.title}
+          completed={node.item.completedAtUtc !== null}
+          onToggle={() => void actions.toggleComplete(node)}
+        />
+        <ItemTypeIcon name={lookups.typeName(node.item.itemTypeId)} />
+        <ItemTitle node={node} />
+        <ItemStatusChip name={statusName(node, lookups)} />
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          <UrgencyBadge urgency={node.displayedUrgency.value} />
+          {source === undefined ? null : <UrgencySource title={source} />}
+          <ItemOverflowMenu {...props} />
+        </span>
+      </div>
+      <RowDetails node={node} lookups={lookups} date={date} />
+      <ItemDescription node={node} lookups={lookups} date={date} />
     </>
   );
 }
 
-function ItemOverflowMenu({
-  node,
-  menuOpen,
-  canIndent,
-  hasFolders,
-  lookups,
-  actions,
-  onMenuOpenChange,
-}: Pick<
-  ItemRowProps,
-  "node" | "menuOpen" | "canIndent" | "hasFolders" | "lookups" | "actions" | "onMenuOpenChange"
->) {
-  return (
-    <Menu.Root open={menuOpen} onOpenChange={onMenuOpenChange}>
-      <Menu.Trigger
-        tabIndex={-1}
-        aria-label={`Actions for ${node.item.title}`}
-        data-testid="item-menu"
-        onClick={(event) => event.stopPropagation()}
-        className="grid size-6 shrink-0 cursor-default place-items-center justify-self-end rounded-[0.3125rem] text-fg-subtle opacity-0 group-hover/row:opacity-100 hover:bg-pressed hover:text-fg data-popup-open:opacity-100"
-      >
-        <Ellipsis size={14} aria-hidden="true" />
-      </Menu.Trigger>
-      <MenuContent testId="item-menu-popup">
-        <ItemMenuItems
-          node={node}
-          canIndent={canIndent}
-          hasFolders={hasFolders}
-          priorityLevels={lookups.priorityLevels}
-          statuses={lookups.statuses}
-          actions={actions}
-        />
-      </MenuContent>
-    </Menu.Root>
-  );
-}
-
 /**
- * One item's row: drag handle, expand chevron, completion button, type, title,
- * ticket, priority, due or scheduled date, urgency with sub-item attribution,
- * and overflow/context actions.
+ * A sub-item row inside a workspace card (§7.17): drag handle, expand chevron, completion
+ * button, type, title, status chip, urgency with sub-item attribution and the actions menu,
+ * then a details line with the ticket, priority and date. Each nesting level indents it.
  */
 export function ItemRow(props: ItemRowProps) {
-  const {
-    node,
-    depth,
-    expanded,
-    selected,
-    canIndent,
-    hasFolders,
-    dragging,
-    dropIndicator,
-    lookups,
-    actions,
-    onSelect,
-    onExpandedChange,
-    onStartDrag,
-  } = props;
+  const { node, depth, selected, canIndent, hasFolders, dragging, dropIndicator } = props;
+  const { lookups, actions, onSelect, onStartDrag } = props;
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger
@@ -360,10 +233,14 @@ export function ItemRow(props: ItemRowProps) {
         data-dragging={dragging ? "true" : undefined}
         data-drop-into={dropIndicator === "into" ? "true" : undefined}
         onClick={onSelect}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          actions.editItem(node);
+        }}
         onPointerDown={onStartDrag}
+        style={{ paddingLeft: `${Math.max(0, depth - 1) * 0.875}rem` }}
         className={cx(
-          ITEM_ROW_COLUMNS,
-          "group/row relative h-9 cursor-default rounded-control pr-2 transition-colors",
+          "group/row relative flex min-h-7 min-w-0 cursor-default flex-col justify-center rounded-control py-0.5 pr-1 text-[13px] transition-colors",
           dropIndicator === "into"
             ? "bg-accent/15 ring-1 ring-accent/60 ring-inset"
             : selected
@@ -374,23 +251,7 @@ export function ItemRow(props: ItemRowProps) {
         )}
       >
         <DropFeedback position={dropIndicator} />
-        <div
-          className="flex min-w-0 items-center gap-1.5"
-          style={{ paddingLeft: `${0.25 + depth * 1.5}rem` }}
-        >
-          <DragHandle node={node} />
-          <ExpandToggle node={node} expanded={expanded} onExpandedChange={onExpandedChange} />
-          <CompletionMark
-            title={node.item.title}
-            completed={node.item.completedAtUtc !== null}
-            onToggle={() => void actions.toggleComplete(node)}
-          />
-          <ItemTypeIcon name={lookups.typeName(node.item.itemTypeId)} />
-          <ItemTitle node={node} />
-          <ItemStatusChip name={statusName(node, lookups)} />
-        </div>
-        <DetailCells node={node} lookups={lookups} />
-        <ItemOverflowMenu {...props} />
+        <RowContent {...props} />
       </ContextMenu.Trigger>
       <ContextMenuContent testId="item-context-menu">
         <ItemMenuItems

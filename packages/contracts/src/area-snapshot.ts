@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { CardColumns } from "./card-columns.js";
 import { DurationTicks } from "./duration-ticks.js";
 import { Guid } from "./guid.js";
 import { Item } from "./item.js";
@@ -49,5 +50,6 @@ export const AreaSnapshot = Schema.Struct({
     autoCompleteParents: effectiveValue(Schema.Boolean),
     urgencyYellowThreshold: effectiveValue(DurationTicks),
     urgencyRedThreshold: effectiveValue(DurationTicks),
+    workspaceCardColumns: effectiveValue(CardColumns),
   }),
 });

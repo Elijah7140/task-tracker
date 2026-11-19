@@ -27,6 +27,7 @@ export function resolve(
     autoCompleteParents: resolveValue(SettingsCatalogue.autoCompleteParents, global, project),
     urgencyYellowThreshold: resolveValue(SettingsCatalogue.urgencyYellowThreshold, global, project),
     urgencyRedThreshold: resolveValue(SettingsCatalogue.urgencyRedThreshold, global, project),
+    workspaceCardColumns: resolveValue(SettingsCatalogue.workspaceCardColumns, global, project),
   };
 }
 

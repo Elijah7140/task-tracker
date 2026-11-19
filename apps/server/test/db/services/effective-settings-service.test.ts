@@ -31,6 +31,7 @@ it.effect("Effective settings read legacy text, overrides and built-in defaults"
       autoCompleteParents: { value: false, source: "Global" },
       urgencyYellowThreshold: { value: 864_000_000_000n, source: "Global" },
       urgencyRedThreshold: { value: 5_000_000n, source: "Project" },
+      workspaceCardColumns: { value: 4, source: "Global" },
     });
     expect(inherited.urgencyRedThreshold).toEqual({ value: 108_000_000_000n, source: "Global" });
   }).pipe(
