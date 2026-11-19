@@ -3,7 +3,17 @@ import { useCallback, useEffect, useRef } from "react";
 import { dialogStore } from "../state/dialog-store.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
 import type { ReturnGuard } from "./return-guards.js";
+import { useOpenSearch } from "./use-open-search.js";
 import { useOpenTrash } from "./use-open-trash.js";
+
+function isSearchShortcut(event: KeyboardEvent) {
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    !event.shiftKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === "f"
+  );
+}
 
 function isTrashShortcut(event: KeyboardEvent) {
   return (
@@ -26,15 +36,20 @@ function insideOpenPopup(target: EventTarget | undefined) {
   return popup?.closest("[data-open]") != null;
 }
 
-function useCoveringPageKeys(openTrash: () => void, goBack: () => void) {
-  const latest = useRef({ openTrash, goBack });
-  latest.current = { openTrash, goBack };
+function useCoveringPageKeys(openSearch: () => void, openTrash: () => void, goBack: () => void) {
+  const latest = useRef({ openSearch, openTrash, goBack });
+  latest.current = { openSearch, openTrash, goBack };
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || dialogStore.getState().queue.length > 0) {
         return;
       }
-      if (isTrashShortcut(event)) {
+      if (isSearchShortcut(event)) {
+        event.preventDefault();
+        if (!event.repeat) {
+          latest.current.openSearch();
+        }
+      } else if (isTrashShortcut(event)) {
         event.preventDefault();
         if (!event.repeat) {
           latest.current.openTrash();
@@ -54,12 +69,13 @@ function useCoveringPageKeys(openTrash: () => void, goBack: () => void) {
 }
 
 /**
- * Opens and leaves covering pages such as Trash. Ctrl+Shift+T opens Trash.
- * Back and Escape return unless a change is running. When something changed
- * the page behind, its unsaved-changes guard is asked once and Cancel stays.
- * Navigating elsewhere leaves the covering page.
+ * Opens and leaves covering pages such as Search and Trash. Ctrl+F opens Search;
+ * Ctrl+Shift+T opens Trash. Back and Escape return unless a change is running.
+ * When something changed the page behind, its unsaved-changes guard is asked once
+ * and Cancel stays. Navigating elsewhere leaves the covering page.
  */
 export function useCoveringPage(runGuards: ReturnGuard) {
+  const openSearch = useOpenSearch();
   const openTrash = useOpenTrash();
   const href = useLocation({ select: (location) => location.href });
   const returning = useRef(false);
@@ -83,6 +99,6 @@ export function useCoveringPage(runGuards: ReturnGuard) {
     useReturnPageStore.getState().uncover();
   }, [href]);
 
-  useCoveringPageKeys(openTrash, () => void goBack());
-  return { openTrash, goBack };
+  useCoveringPageKeys(openSearch, openTrash, () => void goBack());
+  return { openSearch, openTrash, goBack };
 }

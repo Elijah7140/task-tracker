@@ -207,7 +207,7 @@ function AreaContent({ area, actions, quickAdd, ...props }: AreaContentProps) {
   });
 }
 
-/** Focuses a row that an item move followed into this area, once the area renders it. */
+/** Focuses a row that a move or search activation followed into this area, once rendered. */
 function useFollowedRowFocus(
   key: string,
   items: ItemSiblings,
@@ -224,9 +224,21 @@ function useFollowedRowFocus(
     }
     const store = useWorkspaceStore.getState();
     store.setPendingRowFocus(null);
-    if (node.isFinished) {
-      store.setCompletedExpanded(key, true);
+    let current: typeof node | undefined = node;
+    while (current !== undefined) {
+      if (current.item.parentItemId === null) {
+        if (current.isFinished) {
+          store.setCompletedExpanded(key, true);
+        }
+        break;
+      }
+      store.setItemExpanded(current.item.parentItemId, true);
+      if (current.isFinished) {
+        store.setCompletedExpanded(current.item.parentItemId, true);
+      }
+      current = findItemNode(items, current.item.parentItemId);
     }
+    store.selectItem(node.item.id);
     onFocusItem({ id: node.item.id });
   }, [pending, key, items, onFocusItem]);
 }

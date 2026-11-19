@@ -8,6 +8,7 @@ import { LookupRpcs } from "./lookup-rpcs.js";
 import { FieldRpcs } from "./field-rpcs.js";
 import { HistoryRpcs } from "./history-rpcs.js";
 import { TrashRpcs } from "./trash-rpcs.js";
+import { SearchRpcs } from "./search-rpcs.js";
 
 const ianaTimeZone = Schema.String.check(
   Schema.makeFilter((zone) => /^[a-z]/i.test(zone) && Option.isSome(DateTime.zoneMakeNamed(zone)), {
@@ -29,4 +30,5 @@ export const TaskTrackerRpcs = RpcGroup.make(
   FieldRpcs,
   HistoryRpcs,
   TrashRpcs,
+  SearchRpcs,
 );

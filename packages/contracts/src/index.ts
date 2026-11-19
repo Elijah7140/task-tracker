@@ -46,3 +46,16 @@ export { HistoryRpcs, HistoryStatus } from "./history-rpcs.js";
 export { StatusKind, StatusProjection } from "./status-projection.js";
 export { TrashBatch, TrashNodeKind } from "./trash-batch.js";
 export { TrashRpcs } from "./trash-rpcs.js";
+export {
+  FieldFilter,
+  FilterOperator,
+  FilterValue,
+  ItemQuery,
+  ItemSearchResult,
+  ItemSearchResults,
+  SearchableField,
+  SearchChoice,
+  SearchItemLocation,
+  SearchScope,
+} from "./search.js";
+export { SearchRpcs } from "./search-rpcs.js";

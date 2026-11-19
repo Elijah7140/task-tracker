@@ -1,10 +1,10 @@
 import { create } from "zustand";
 
 /** A screen shown over the routed page while keeping that page, and any draft, mounted. */
-export type CoveringPage = "trash";
+export type CoveringPage = "trash" | "search";
 
 /**
- * The single return page shared by Trash and later Search and Calendar (§7.4,
+ * The single return page shared by Trash, Search and later Calendar (§7.4,
  * §7.6). The routed page stays mounted behind the covering page. `stale`
  * records that a change may have altered the page behind, so returning asks
  * its unsaved-changes guard. `busy` holds Back and Escape while a change or
@@ -14,10 +14,19 @@ export interface ReturnPageState {
   readonly covering: CoveringPage | null;
   /** The workspace project the covering page was opened from, if any. */
   readonly originProjectId: string | null;
+  /** The workspace folder the covering page was opened from, if any. */
+  readonly originFolderId: string | null;
   readonly stale: boolean;
   readonly busy: boolean;
-  /** Shows a covering page. A page already covering keeps its origin. */
-  readonly cover: (page: CoveringPage, originProjectId: string | null) => void;
+  /**
+   * Shows a covering page. Switching between covering pages keeps the original return
+   * target and its out-of-date flag. Nothing changes while a change is running.
+   */
+  readonly cover: (
+    page: CoveringPage,
+    originProjectId: string | null,
+    originFolderId?: string | null,
+  ) => void;
   /** Hides the covering page and clears the out-of-date flag. */
   readonly uncover: () => void;
   readonly markStale: () => void;
@@ -28,6 +37,7 @@ export interface ReturnPageState {
 export const initialReturnPageState = {
   covering: null,
   originProjectId: null,
+  originFolderId: null,
   stale: false,
   busy: false,
 } as const;
@@ -35,10 +45,15 @@ export const initialReturnPageState = {
 /** The shell's covering page and its return-page flags. */
 export const useReturnPageStore = create<ReturnPageState>()((set) => ({
   ...initialReturnPageState,
-  cover: (page, originProjectId) =>
-    set((state) =>
-      state.covering === null ? { covering: page, originProjectId, busy: false } : state,
-    ),
+  cover: (page, originProjectId, originFolderId = null) =>
+    set((state) => {
+      if (state.busy || state.covering === page) {
+        return state;
+      }
+      return state.covering === null
+        ? { covering: page, originProjectId, originFolderId }
+        : { covering: page };
+    }),
   uncover: () => set(initialReturnPageState),
   markStale: () => set((state) => (state.covering === null ? state : { stale: true })),
   setBusy: (busy) => set({ busy }),

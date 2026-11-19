@@ -36,6 +36,7 @@ import {
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
 import { applySetItemStatus, FakeStatuses, statusHandlers } from "./fake-statuses.js";
 import { FakeTrash, trashHandlers } from "./fake-trash-handlers.js";
+import { FakeSearch, searchHandlers } from "./fake-search-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -138,6 +139,9 @@ export class FakeProjectStore {
 
   /** Deletion batches listed by Trash. */
   readonly trash = new FakeTrash();
+
+  /** Scoped search overrides and link fixtures. */
+  readonly search = new FakeSearch();
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
@@ -750,6 +754,7 @@ function handlers(store: FakeProjectStore) {
     ReorderStatuses: (payload) =>
       history.track(statuses.ReorderStatuses(payload), () => "Reorder statuses"),
     ...trashHandlers(store, history.track),
+    ...searchHandlers(store),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const verb = payload.fields.statusId === undefined ? "Edit" : "Set status of";

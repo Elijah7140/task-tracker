@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CircleCheck, House, Plus, Settings, Trash2 } from "lucide-react";
+import { CircleCheck, House, Plus, Search, Settings, Trash2 } from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
 import { Button } from "../ui/button.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
@@ -7,6 +7,7 @@ import { useCurrentArea } from "../workspace/area-route.js";
 import { SIDEBAR_ROW_CLASS, SidebarLink } from "./sidebar-link.js";
 import { SidebarProjectList } from "./sidebar-project-list.js";
 import { ThemeSwitcher } from "./theme-switcher.js";
+import { useOpenSearch } from "./use-open-search.js";
 import { useOpenTrash } from "./use-open-trash.js";
 
 function SidebarBrand({ editMenu }: { readonly editMenu?: ReactNode }) {
@@ -59,6 +60,26 @@ function SettingsLink() {
   );
 }
 
+/** Opens Search over the current page, keeping it as the return target. */
+function SearchEntry() {
+  const openSearch = useOpenSearch();
+  const shown = useReturnPageStore((state) => state.covering === "search");
+  return (
+    <button
+      type="button"
+      onClick={openSearch}
+      aria-current={shown ? "page" : undefined}
+      data-testid="sidebar-search"
+      className={SIDEBAR_ROW_CLASS}
+    >
+      <span className="flex size-5 shrink-0 items-center justify-center">
+        <Search size={15} aria-hidden="true" />
+      </span>
+      <span className="truncate">Search</span>
+    </button>
+  );
+}
+
 /** Opens Trash over the current page, which stays as the page Back returns to. */
 function TrashEntry() {
   const openTrash = useOpenTrash();
@@ -104,6 +125,7 @@ export function Sidebar({ editMenu }: { readonly editMenu?: ReactNode }) {
         <ProjectsSection />
       </div>
       <div className="flex flex-col gap-0.5 border-t border-line px-2 py-2">
+        <SearchEntry />
         <TrashEntry />
         <SettingsLink />
       </div>

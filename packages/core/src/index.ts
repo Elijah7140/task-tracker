@@ -87,3 +87,29 @@ export { UndoHistory, type UndoDirection } from "./undo/undo-history.js";
 export * from "./lookups/status-level.js";
 export * from "./items/item-status.js";
 export { TrashProject, type TrashBatch } from "./trash/trash-project.js";
+export { foldSearchText } from "./search/text-folding.js";
+export { buildFtsTerms } from "./search/fts-term-builder.js";
+export { scopeProjectId, type SearchScope } from "./search/search-scope.js";
+export { FILTER_OPERATORS, type FilterOperator } from "./search/filter-operator.js";
+export type { FilterValue } from "./search/filter-value.js";
+export {
+  isBuiltInSearchField,
+  type FieldSource,
+  type SearchableField,
+  type SearchChoice,
+} from "./search/searchable-field.js";
+export { searchOperatorsFor } from "./search/search-operators.js";
+export {
+  BUILT_IN_SEARCH_FIELDS,
+  listSearchableFields,
+  listSearchChoices,
+  type SearchChoiceSources,
+} from "./search/field-registry.js";
+export {
+  DEFAULT_SEARCH_LIMIT,
+  type FieldFilter,
+  type ItemQuery,
+  type ItemSearchResult,
+  type ItemSearchResults,
+} from "./search/item-query.js";
+export { validateItemQuery, type QueryValidationContext } from "./search/item-query-validator.js";
