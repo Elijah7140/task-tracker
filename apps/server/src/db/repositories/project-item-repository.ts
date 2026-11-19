@@ -1,42 +1,9 @@
 import { Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
-import { DateText, FloatingTimestamp, Guid, TimeText, UtcTimestamp } from "../storage-codecs.js";
-import { projectBatch, trackedColumns, trackedFields } from "./row-fields.js";
-
-const row = Schema.Struct({
-  ...trackedFields,
-  projectId: Guid,
-  folderId: Schema.NullOr(Guid),
-  parentItemId: Schema.NullOr(Guid),
-  title: Schema.String,
-  description: Schema.NullOr(Schema.String),
-  ticketNumber: Schema.NullOr(Schema.String),
-  itemTypeId: Schema.NullOr(Guid),
-  priorityLevelId: Schema.NullOr(Guid),
-  dueDate: Schema.NullOr(DateText),
-  dueTime: Schema.NullOr(TimeText),
-  scheduledStart: Schema.NullOr(FloatingTimestamp),
-  scheduledEnd: Schema.NullOr(FloatingTimestamp),
-  completedAtUtc: Schema.NullOr(UtcTimestamp),
-}).pipe(
-  Schema.encodeKeys({
-    ...trackedColumns,
-    projectId: "ProjectId",
-    folderId: "FolderId",
-    parentItemId: "ParentItemId",
-    title: "Title",
-    description: "Description",
-    ticketNumber: "TicketNumber",
-    itemTypeId: "ItemTypeId",
-    priorityLevelId: "PriorityLevelId",
-    dueDate: "DueDate",
-    dueTime: "DueTime",
-    scheduledStart: "ScheduledStart",
-    scheduledEnd: "ScheduledEnd",
-    completedAtUtc: "CompletedAtUtc",
-  }),
-);
+import { Guid, UtcTimestamp } from "../storage-codecs.js";
+import { ItemRow } from "./item-row.js";
+import { projectBatch } from "./row-fields.js";
 
 /** Item reads, cascades and completion updates needed by project and folder operations. */
 export function projectItemRepository(sql: SqlClient.SqlClient) {
@@ -57,7 +24,7 @@ export function projectItemRepository(sql: SqlClient.SqlClient) {
   return {
     listActive: SqlSchema.findAll({
       Request: Guid,
-      Result: row,
+      Result: ItemRow,
       execute: (projectId) =>
         sql`SELECT * FROM TodoItem WHERE ProjectId = ${projectId} AND ${activeRow(sql)}`,
     }),

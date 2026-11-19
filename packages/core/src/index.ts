@@ -70,3 +70,5 @@ export { UrgencyThresholds } from "./urgency/urgency-thresholds.js";
 export { createProject, renameProject, reorderProjects } from "./projects/project.js";
 export { createFolder, renameFolder } from "./projects/folder.js";
 export { summarizeProject, type ProjectSummary } from "./projects/project-summary.js";
+export { createItem } from "./items/todo-item.js";
+export { editItem, type ItemEdit } from "./items/item-edit.js";

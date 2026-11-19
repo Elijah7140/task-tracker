@@ -1,4 +1,5 @@
 import type { DeletionFields } from "../hierarchy/deletion-fields.js";
+import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 
 /** A task or sub-item in a single project area. */
 export interface TodoItem extends DeletionFields {
@@ -19,4 +20,45 @@ export interface TodoItem extends DeletionFields {
   readonly sortOrder: number;
   readonly createdAtUtc: Temporal.Instant;
   readonly updatedAtUtc: Temporal.Instant;
+}
+
+/** Validate and trim the title shared by item creation and editing. */
+export function itemTitle(title: string): string {
+  const trimmed = title.trim();
+  if (trimmed.length === 0 || title.length > 300) {
+    throw new MetadataRuleError("Item title is required and must be at most 300 characters.");
+  }
+  return trimmed;
+}
+
+/** Create an open item before its tree assigns the sibling position. */
+export function createItem(
+  id: string,
+  projectId: string,
+  folderId: string | null,
+  parentItemId: string | null,
+  title: string,
+  now: Temporal.Instant,
+): TodoItem {
+  return {
+    id,
+    projectId,
+    folderId,
+    parentItemId,
+    title: itemTitle(title),
+    description: null,
+    ticketNumber: null,
+    priorityLevelId: null,
+    itemTypeId: null,
+    dueDate: null,
+    dueTime: null,
+    scheduledStart: null,
+    scheduledEnd: null,
+    completedAtUtc: null,
+    sortOrder: 0,
+    createdAtUtc: now,
+    updatedAtUtc: now,
+    deletedAtUtc: null,
+    deletionBatchId: null,
+  };
 }

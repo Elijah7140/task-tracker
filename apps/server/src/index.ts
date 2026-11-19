@@ -4,3 +4,5 @@ export type { ProjectWorkspaceSnapshot } from "./services/project-workspace-snap
 export { FolderService } from "./services/folder-service.js";
 export { LookupService } from "./services/lookup-service.js";
 export { EffectiveSettingsService } from "./services/effective-settings-service.js";
+export { ItemService } from "./services/item-service.js";
+export type { AreaSnapshot, ItemNode } from "./services/area-snapshot.js";

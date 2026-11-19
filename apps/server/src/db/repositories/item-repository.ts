@@ -1,0 +1,54 @@
+import { HierarchyError } from "@task-tracker/core";
+import { Effect, Option, Schema } from "effect";
+import { SqlSchema, type SqlClient } from "effect/sql";
+import { activeRow } from "../active-row.js";
+import { Guid } from "../storage-codecs.js";
+import { ItemEditRow, ItemRow, ItemStructureRow } from "./item-row.js";
+
+const area = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
+
+/** Persist item edits and structure alongside completion changes in the caller's transaction. */
+export function itemRepository(sql: SqlClient.SqlClient) {
+  const findActive = SqlSchema.findOneOption({
+    Request: Guid,
+    Result: ItemRow,
+    execute: (id) => sql`SELECT * FROM TodoItem WHERE Id = ${id} AND ${activeRow(sql)}`,
+  });
+  const listArea = (includeDeleted: boolean) =>
+    SqlSchema.findAll({
+      Request: area,
+      Result: ItemRow,
+      execute: ({ projectId, folderId }) => sql`SELECT * FROM TodoItem
+        WHERE ProjectId = ${projectId} AND FolderId IS ${folderId}
+        ${includeDeleted ? sql` ` : sql`AND ${activeRow(sql)}`} ORDER BY rowid`,
+    });
+
+  return {
+    loadActiveArea: listArea(false),
+    // Deleted rows still carry their batch and follow the branch on cross-area moves.
+    loadAreaIncludingDeleted: listArea(true),
+    requireActive: (id: string) =>
+      findActive(id).pipe(
+        Effect.flatMap(
+          Option.match({
+            onSome: Effect.succeed,
+            onNone: () => Effect.fail(new HierarchyError("Item is missing or deleted.")),
+          }),
+        ),
+      ),
+    insert: SqlSchema.void({
+      Request: ItemRow,
+      execute: (values) => sql`INSERT INTO TodoItem ${sql.insert(values)}`,
+    }),
+    updateStructure: SqlSchema.void({
+      Request: ItemStructureRow,
+      execute: ({ Id, ProjectId, ...values }) => sql`UPDATE TodoItem SET ${sql.update(values)}
+        WHERE Id = ${Id} AND ProjectId = ${ProjectId}`,
+    }),
+    updateEdit: SqlSchema.void({
+      Request: ItemEditRow,
+      execute: ({ Id, ...values }) =>
+        sql`UPDATE TodoItem SET ${sql.update(values)} WHERE Id = ${Id} AND ${activeRow(sql)}`,
+    }),
+  };
+}
