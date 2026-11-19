@@ -1,6 +1,7 @@
 import type { FieldDataType, FieldDefinitionProjection, Item } from "@task-tracker/contracts";
 import { describe, expect, it } from "vitest";
 import { editorDraftStatus } from "../../src/editor/editor-draft.js";
+import { EMPTY_LINK_DRAFT } from "../../src/editor/link-draft.js";
 
 type Definition = typeof FieldDefinitionProjection.Type;
 
@@ -108,5 +109,59 @@ describe("editorDraftStatus", () => {
     expect(status.dirty).toBe(true);
     expect(status.fields.title).toBe("Renamed");
     expect(status.customValues).toEqual([]);
+  });
+});
+
+describe("editorDraftStatus with links", () => {
+  const STORED = [
+    {
+      id: "0190A1B2-0000-7000-8000-000000000020",
+      url: "https://a.example",
+      title: null,
+      sortOrder: 0,
+    },
+  ];
+
+  it("Untouched links leave the draft clean and send nothing", () => {
+    const status = editorDraftStatus({
+      item: ITEM,
+      builtIn: {},
+      custom: {},
+      activeFields: [],
+      storedLinks: STORED,
+    });
+
+    expect([status.dirty, status.links, status.linkEntryProblem]).toEqual([false, undefined, null]);
+  });
+
+  it("Text left in the link boxes makes the draft dirty and is sent with the stored links", () => {
+    const status = editorDraftStatus({
+      item: ITEM,
+      builtIn: {},
+      custom: {},
+      activeFields: [],
+      storedLinks: STORED,
+      links: { ...EMPTY_LINK_DRAFT, url: "https://b.example" },
+    });
+
+    expect(status.dirty).toBe(true);
+    expect(status.links).toEqual([
+      { id: STORED[0]!.id, url: "https://a.example", title: null },
+      { id: null, url: "https://b.example", title: null },
+    ]);
+  });
+
+  it("An invalid link entry keeps the draft valid but reports the problem for Save", () => {
+    const status = editorDraftStatus({
+      item: ITEM,
+      builtIn: {},
+      custom: {},
+      activeFields: [],
+      storedLinks: STORED,
+      links: { ...EMPTY_LINK_DRAFT, url: "ftp://example.com" },
+    });
+
+    expect([status.dirty, status.valid, status.links]).toEqual([true, true, undefined]);
+    expect(status.linkEntryProblem).toBe("A link must be a full http, https or mailto address.");
   });
 });

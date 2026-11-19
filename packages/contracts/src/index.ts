@@ -22,6 +22,7 @@ export {
 export { AreaSnapshot } from "./area-snapshot.js";
 export { Item, ItemEdit } from "./item.js";
 export { ItemRpcs } from "./item-rpcs.js";
+export { ItemLink, ItemLinkInput } from "./item-link.js";
 export { CompletionResult } from "./completion-result.js";
 export { CardColumns } from "./card-columns.js";
 export { DurationTicks } from "./duration-ticks.js";

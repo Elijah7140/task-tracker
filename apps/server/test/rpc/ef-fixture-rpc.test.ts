@@ -1,6 +1,7 @@
 import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { expect, it } from "@effect/vitest";
 import { Effect, Layer, type Scope } from "effect";
 import { FetchHttpClient } from "effect/http";
@@ -62,7 +63,7 @@ const rendererFetch: typeof fetch = (input, init) => {
 
 type RpcClientHandle = Effect.Success<ReturnType<typeof makeRpcClient>>;
 
-function copyEfFixture(fixture: "initial-create" | "phase-3") {
+function copyEfFixture(fixture: "initial-create" | "phase-3" | "legacy-final") {
   return Effect.acquireRelease(
     Effect.sync(() => {
       const folder = mkdtempSync(join(tmpdir(), `tasktracker-ef-rpc-${fixture}-`));
@@ -890,4 +891,73 @@ it.effect(
         );
       }),
     ),
+);
+
+interface FixtureNode {
+  readonly item: { readonly id: string; readonly title: string };
+  readonly children: FixtureBranch;
+}
+interface FixtureBranch {
+  readonly open: ReadonlyArray<FixtureNode>;
+  readonly finished: ReadonlyArray<FixtureNode>;
+}
+
+/** The raw EF creation time of a link, read outside the server. */
+function readLinkCreatedAt(path: string, linkId: string) {
+  const database = new DatabaseSync(path, { readOnly: true });
+  try {
+    const row = database.prepare("SELECT CreatedAtUtc FROM ItemLink WHERE Id = ?").get(linkId);
+    return row?.["CreatedAtUtc"];
+  } finally {
+    database.close();
+  }
+}
+
+function findFixtureItem(branch: FixtureBranch, id: string): FixtureNode["item"] | undefined {
+  for (const node of [...branch.open, ...branch.finished]) {
+    const found = node.item.id === id ? node.item : findFixtureItem(node.children, id);
+    if (found !== undefined) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+it.effect("Opens legacy-final.db links, saves a new list and keeps the stored link row", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Temporal.Instant.from(writeStartedAtUtc).epochMilliseconds);
+      const { path } = yield* copyEfFixture("legacy-final");
+      const storedLinkId = "019A0000-0000-7000-8000-000000000FFB";
+
+      const initial = yield* openFixtureRpc(path, (client) =>
+        Effect.gen(function* () {
+          const links = yield* client.LoadItemLinks({ itemId: childId });
+          const area = yield* client.LoadArea(nestedArea);
+          const title = findFixtureItem(area.items, childId)?.title ?? "";
+          yield* client.EditItem({
+            itemId: childId,
+            fields: { ...blankFields, title },
+            links: [
+              { id: null, url: "mailto:dba@example.test", title: "DBA" },
+              { id: storedLinkId.toLowerCase(), url: "https://example.test/guide", title: null },
+            ],
+          });
+          return links;
+        }),
+      );
+      const reopened = yield* openFixtureRpc(path, (client) =>
+        client.LoadItemLinks({ itemId: childId }),
+      );
+
+      expect(initial).toEqual([
+        { id: storedLinkId, url: "https://example.test/guide", title: "Sample link", sortOrder: 0 },
+      ]);
+      expect(reopened).toMatchObject([
+        { url: "mailto:dba@example.test", title: "DBA", sortOrder: 0 },
+        { id: storedLinkId, url: "https://example.test/guide", title: null, sortOrder: 1 },
+      ]);
+      expect(readLinkCreatedAt(path, storedLinkId)).toBe("2026-11-13 12:00:00.1234567");
+    }),
+  ),
 );

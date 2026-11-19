@@ -177,6 +177,7 @@ describe("Description tabs", () => {
     );
     await previewTab().click();
     await expect.element(preview().getByRole("heading")).toBeVisible();
+    await expect.element(editor().getByText("No links yet.")).toBeVisible();
 
     await settleTheme(theme);
 

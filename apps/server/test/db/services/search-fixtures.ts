@@ -16,6 +16,7 @@ import { LookupService } from "../../../src/services/lookup-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
 import { SearchService } from "../../../src/services/search-service.js";
 import { TrashService } from "../../../src/services/trash-service.js";
+import type { UndoService } from "../../../src/services/undo-service.js";
 import { withSchema } from "../store.js";
 
 const services = Effect.gen(function* () {
@@ -44,7 +45,7 @@ export type SearchServices = Effect.Success<typeof services>;
 
 /** Runs `body` against freshly migrated in-memory SQLite. */
 export const withSearchServices = <A, E>(
-  body: (svc: SearchServices) => Effect.Effect<A, E, SqlClient.SqlClient>,
+  body: (svc: SearchServices) => Effect.Effect<A, E, SqlClient.SqlClient | UndoService>,
 ) => withSchema(Effect.flatMap(services, body));
 
 /** An item edit that sets only the title plus `overrides`. */

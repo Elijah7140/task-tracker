@@ -2,16 +2,19 @@ import {
   editItem,
   MetadataRuleError,
   planFieldValueEdits,
+  planItemLinkEdits,
   planStatusChange,
   type AppliedCompletion,
   type FieldValueInput,
   type ItemEdit,
+  type ItemLinkInput,
   type TodoItem,
 } from "@task-tracker/core";
 import { Context, Effect, Layer, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { fieldRepository } from "../db/repositories/field-repository.js";
 import { itemFieldValueRepository } from "../db/repositories/item-field-value-repository.js";
+import { itemLinkRepository } from "../db/repositories/item-link-repository.js";
 import { itemRepository } from "../db/repositories/item-repository.js";
 import { lookupRepository } from "../db/repositories/lookup-repository.js";
 import { statusRepository } from "../db/repositories/status-repository.js";
@@ -22,6 +25,7 @@ import { readEffectiveSettings } from "./effective-settings-service.js";
 import { checkRules } from "./check-rules.js";
 import { itemCompletionOperations } from "./item-completion-operations.js";
 import { itemStructureOperations } from "./item-structure-operations.js";
+import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 import { UndoService, undoLabel } from "./undo-service.js";
 
@@ -41,6 +45,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   const items = itemRepository(sql);
   const fields = fieldRepository(sql);
   const itemValues = itemFieldValueRepository(sql);
+  const itemLinks = itemLinkRepository(sql);
   const lookups = lookupRepository(sql);
   const statuses = statusRepository(sql);
   const settings = settingsRepository(sql);
@@ -150,11 +155,39 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     yield* Effect.forEach(custom.upserts, itemValues.upsert, { discard: true });
   });
 
+  /** Validates a replacement link list against the stored links (§7.10). */
+  const planLinks = Effect.fnUntraced(function* (
+    itemId: string,
+    links: readonly ItemLinkInput[],
+    now: Temporal.Instant,
+  ) {
+    const inputs = yield* Effect.forEach(links, (link) =>
+      Effect.map(decodeNullableId(link.id), (linkId) => ({ ...link, id: linkId })),
+    );
+    const existing = yield* itemLinks.list(itemId);
+    return yield* checkRules(() =>
+      planItemLinkEdits(itemId, existing, inputs, now, () => newId(now)),
+    );
+  });
+
+  const writeLinks = Effect.fnUntraced(function* (
+    plan: Effect.Success<ReturnType<typeof planLinks>>,
+  ) {
+    yield* Effect.forEach(plan.removals, itemLinks.remove, { discard: true });
+    yield* Effect.forEach(plan.updates, itemLinks.update, { discard: true });
+    yield* Effect.forEach(plan.inserts, itemLinks.insert, { discard: true });
+  });
+
+  /**
+   * Saves the editor's built-in fields, changed custom values, optional status
+   * and, when `links` is present, the item's whole link list as one undo step.
+   */
   const edit = Effect.fnUntraced(function* (
     id: string,
     values: ItemEdit,
     customValues: readonly FieldValueInput[] = [],
     confirmedOpenItemIds?: readonly string[],
+    links?: readonly ItemLinkInput[],
   ) {
     const item = yield* items.requireActive(id);
     const now = yield* operationTime;
@@ -166,6 +199,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     // The connection lease serializes this snapshot and write with definition mutations.
     const custom =
       customValues.length === 0 ? undefined : yield* planCustomEdit(item, customValues);
+    const linkPlan = links === undefined ? undefined : yield* planLinks(item.id, links, now);
     const status = yield* planEditStatus(item, values.statusId, now, confirmedOpenItemIds);
     if (status.result.kind !== "applied") {
       return status.result;
@@ -174,6 +208,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     yield* undo.capture(undoLabel(status.changed ? "Set status of" : "Edit", edited.title), [
       status.changed ? areaRows(item) : { table: "TodoItem", where: sql`Id = ${item.id}` },
       { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
+      { table: "ItemLink", where: sql`ItemId = ${item.id}` },
     ]);
     if (status.changed) {
       yield* applyStatus(item, status.statusId, now, status.result);
@@ -181,6 +216,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     yield* items.updateEdit(edited);
     if (custom) {
       yield* writeCustomValues(item.id, custom);
+    }
+    if (linkPlan) {
+      yield* writeLinks(linkPlan);
     }
     return status.result;
   }, undo.record);
@@ -254,6 +292,12 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     return yield* itemValues.list(item.id);
   }, sql.withTransaction);
 
+  /** An active item's links in list order. A deleted item's links stay hidden until restored. */
+  const loadLinks = Effect.fnUntraced(function* (id: string) {
+    const item = yield* items.requireActive(id);
+    return yield* itemLinks.list(item.id);
+  }, sql.withTransaction);
+
   const setCompleted = Effect.fnUntraced(function* (
     projectId: string,
     folderId: string | null,
@@ -301,6 +345,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     setStatus,
     loadArea,
     loadFieldValues,
+    loadLinks,
   };
 });
 
