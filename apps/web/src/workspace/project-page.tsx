@@ -1,10 +1,12 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import type { ProjectWorkspace } from "@task-tracker/contracts";
-import { Navigate } from "@tanstack/react-router";
+import { Link, Navigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/reactivity";
+import { Settings } from "lucide-react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { projectWorkspaceAtom } from "../rpc/project-queries.js";
 import { serverInfoAtom } from "../rpc/server-info-query.js";
+import { buttonClassName } from "../ui/button.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
@@ -41,6 +43,17 @@ function WorkspaceArea({ workspace, folderId, timeZone }: WorkspaceAreaProps) {
             folders={workspace.folders}
             folderId={folderId}
           />
+        }
+        actions={
+          <Link
+            to="/projects/$projectId/settings"
+            params={{ projectId: workspace.projectId }}
+            data-testid="workspace-project-settings"
+            className={buttonClassName("ghost", "sm")}
+          >
+            <Settings size={14} aria-hidden="true" />
+            Project settings
+          </Link>
         }
       />
       <AreaItems

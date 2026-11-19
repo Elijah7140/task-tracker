@@ -30,7 +30,16 @@ const sizes: Record<ButtonSize, string> = {
   icon: "size-7",
 };
 
+/** Returns the Tailwind class string for a button variant and size, for reuse on links. */
+export function buttonClassName(
+  variant: ButtonVariant = "secondary",
+  size: ButtonSize = "md",
+  className?: string,
+) {
+  return cx(base, variants[variant], sizes[size], className);
+}
+
 /** The shared button built on Base UI. Pass it to Base UI `render` props to style triggers. */
 export function Button({ variant = "secondary", size = "md", className, ...props }: ButtonProps) {
-  return <BaseButton className={cx(base, variants[variant], sizes[size], className)} {...props} />;
+  return <BaseButton className={buttonClassName(variant, size, className)} {...props} />;
 }

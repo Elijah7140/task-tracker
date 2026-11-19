@@ -5,6 +5,8 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { HomePage } from "../home/home-page.js";
+import { AppSettingsPage } from "../settings/app-settings-page.js";
+import { ProjectSettingsPage } from "../settings/project-settings-page.js";
 import { AppShell } from "../shell/app-shell.js";
 import { ProjectPage } from "../workspace/project-page.js";
 import { NotFoundPage } from "./not-found-page.js";
@@ -13,10 +15,22 @@ const rootRoute = createRootRoute({ component: AppShell, notFoundComponent: NotF
 
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
 
+const appSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: AppSettingsPage,
+});
+
 const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/projects/$projectId",
   component: ProjectPage,
+});
+
+const projectSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/$projectId/settings",
+  component: ProjectSettingsPage,
 });
 
 const folderRoute = createRoute({
@@ -25,7 +39,13 @@ const folderRoute = createRoute({
   component: ProjectPage,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, projectRoute, folderRoute]);
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  appSettingsRoute,
+  projectRoute,
+  projectSettingsRoute,
+  folderRoute,
+]);
 
 /**
  * Creates the app router. The desktop build uses hash history because it

@@ -1,5 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
-import { Ellipsis, Pencil, Trash2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Ellipsis, Pencil, Settings, Trash2 } from "lucide-react";
 import { Button } from "../ui/button.js";
 import { MenuContent, MenuItem } from "../ui/menu.js";
 import type { ProjectRef } from "./use-project-actions.js";
@@ -13,6 +14,7 @@ export interface ProjectCardMenuProps {
 
 /** The card's overflow menu. It appears on hover or focus to keep cards quiet. */
 export function ProjectCardMenu({ project, onRename, onDelete }: ProjectCardMenuProps) {
+  const navigate = useNavigate();
   return (
     <Menu.Root>
       <Menu.Trigger
@@ -35,6 +37,18 @@ export function ProjectCardMenu({ project, onRename, onDelete }: ProjectCardMenu
           testId="project-rename"
         >
           Rename
+        </MenuItem>
+        <MenuItem
+          icon={<Settings size={14} />}
+          onClick={() =>
+            void navigate({
+              to: "/projects/$projectId/settings",
+              params: { projectId: project.id },
+            })
+          }
+          testId="project-settings"
+        >
+          Settings
         </MenuItem>
         <MenuItem
           icon={<Trash2 size={14} />}
