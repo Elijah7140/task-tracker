@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { dialogStore } from "../../src/state/dialog-store.js";
 import type { SeedProject } from "../support/fake-task-tracker-server.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
@@ -187,6 +188,7 @@ describe("Item actions and reorder", () => {
       .toHaveAccessibleDescription("Also complete 2 open sub-items?");
 
     await userEvent.keyboard("{Escape}");
+    await expect.element(page.getByRole("alertdialog")).not.toBeInTheDocument();
     await expect.element(row("Parent")).toBeVisible();
     await expect
       .element(itemsTree().getByRole("treeitem", { name: "Completed (1)" }))
@@ -275,8 +277,8 @@ describe("Item actions and reorder", () => {
       .toHaveClass(/line-through/);
   });
 
-  it("Renames a focused item with F2 and validates blank names", async () => {
-    await openRoot([{ name: "Billing DB", items: [{ title: "Draft task" }] }]);
+  it("Renames a focused item with F2 and validates blank and overlong names", async () => {
+    const { store } = await openRoot([{ name: "Billing DB", items: [{ title: "Draft task" }] }]);
     await focusRow("Draft task");
 
     await userEvent.keyboard("{F2}");
@@ -284,6 +286,8 @@ describe("Item actions and reorder", () => {
     await userEvent.keyboard("Final task{Enter}");
 
     await expect.element(row("Final task")).toBeVisible();
+    const edits = () => store.calls.filter((call) => call === "EditItem").length;
+    expect(edits()).toBe(1);
 
     await focusRow("Final task");
     await userEvent.keyboard("{F2}");
@@ -291,8 +295,29 @@ describe("Item actions and reorder", () => {
     await userEvent.keyboard("   {Enter}");
 
     await expect
-      .element(page.getByRole("alertdialog", { name: "Item action failed" }))
-      .toHaveAccessibleDescription("Item title is required and must be at most 300 characters.");
+      .element(page.getByTestId("prompt-dialog-error"))
+      .toHaveTextContent("Enter a name.");
+    await expect.element(page.getByTestId("prompt-dialog-submit")).toBeDisabled();
+    await page.getByTestId("prompt-dialog-input").fill("x".repeat(301));
+    await expect
+      .element(page.getByTestId("prompt-dialog-error"))
+      .toHaveTextContent("Name must be 300 characters or fewer.");
+    expect(edits()).toBe(1);
+  });
+
+  it("Validates a new sub-item title before creating it", async () => {
+    const { store } = await openRoot([{ name: "Billing DB", items: [{ title: "Parent" }] }]);
+    await focusRow("Parent");
+
+    await userEvent.keyboard("{Control>}{Shift>}N{/Shift}{/Control}");
+    await expect.element(page.getByRole("textbox", { name: "Title" })).toHaveFocus();
+    await userEvent.keyboard("   {Enter}");
+
+    await expect
+      .element(page.getByTestId("prompt-dialog-error"))
+      .toHaveTextContent("Enter a name.");
+    await expect.element(page.getByTestId("prompt-dialog-submit")).toBeDisabled();
+    expect(store.calls).not.toContain("CreateItem");
   });
 
   it("Confirms deletion with Delete, supports Undo restore, and auto-dismisses the undo banner", async () => {
@@ -313,6 +338,7 @@ describe("Item actions and reorder", () => {
       .element(page.getByRole("alertdialog", { name: "Delete item" }))
       .toHaveAccessibleDescription("Delete Parent and its sub-items?");
     await userEvent.keyboard("{Escape}");
+    await expect.element(page.getByRole("alertdialog")).not.toBeInTheDocument();
     expect(store.calls).not.toContain("DeleteItem");
     await expect.element(row("Parent")).toBeVisible();
 
@@ -429,12 +455,24 @@ describe("Item actions and reorder", () => {
 
     await expect.element(row("Second")).toHaveAttribute("aria-level", "1");
     await expect.element(row("Second")).toHaveFocus();
+  });
+
+  it("Lets Tab and Shift+Tab leave a row that cannot be indented or outdented", async () => {
+    const { store } = await openRoot([
+      { name: "Billing DB", items: [{ title: "First" }, { title: "Second" }] },
+    ]);
+    await focusRow("First");
+
+    await userEvent.keyboard("{Tab}");
+
+    await expect.element(quickAdd()).toHaveFocus();
 
     await focusRow("First");
-    await userEvent.keyboard("{Tab}");
-    await expect.element(row("First")).toHaveFocus();
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
-    await expect.element(row("First")).toHaveFocus();
+
+    await expect.element(page.getByTestId("workspace-project-settings")).toHaveFocus();
+    expect(store.calls).not.toContain("IndentItem");
+    expect(store.calls).not.toContain("OutdentItem");
     await expect.element(page.getByRole("alertdialog")).not.toBeInTheDocument();
   });
 
@@ -539,6 +577,183 @@ describe("Item actions and reorder", () => {
 
     const alpha = store.findItemByTitle(projectId, null, "Alpha")!;
     expect(store.areaSiblingTitles(projectId, null, alpha.item.id)).toEqual(["Child 2", "Child 1"]);
+  });
+
+  it("Focuses the next open sibling after completing an item with Space", async () => {
+    await openRoot([
+      { name: "Billing DB", items: [{ title: "First" }, { title: "Second" }, { title: "Third" }] },
+    ]);
+    await focusRow("Second");
+
+    await userEvent.keyboard(" ");
+
+    await expect.element(row("Third")).toHaveFocus();
+    await expect.element(row("Third")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("Focuses the previous open sibling after completing the last item by click", async () => {
+    await openRoot([{ name: "Billing DB", items: [{ title: "First" }, { title: "Second" }] }]);
+
+    await row("Second").getByTestId("item-completion").first().click();
+
+    await expect.element(row("First")).toHaveFocus();
+  });
+
+  it("Focuses the parent after completing its only open sub-item", async () => {
+    await openRoot([
+      {
+        name: "Billing DB",
+        autoCompleteParents: false,
+        items: [{ title: "Parent", children: [{ title: "Only child" }] }],
+      },
+    ]);
+    await row("Parent").getByTestId("item-toggle").first().click();
+    await focusRow("Only child");
+
+    await userEvent.keyboard(" ");
+
+    await expect.element(row("Parent")).toHaveFocus();
+  });
+
+  it("Keeps focus on a completed parent that stays in the open list", async () => {
+    await openRoot([
+      {
+        name: "Billing DB",
+        autoCompleteParents: false,
+        items: [{ title: "Parent", children: [{ title: "Open child" }] }, { title: "Next" }],
+      },
+    ]);
+    await focusRow("Parent");
+
+    await userEvent.keyboard(" ");
+
+    await expect
+      .element(row("Parent").getByTestId("item-title").first())
+      .toHaveClass(/line-through/);
+    await expect.element(row("Parent")).toHaveFocus();
+  });
+
+  it("Focuses quick-add after completing the last open item", async () => {
+    await openRoot([{ name: "Billing DB", items: [{ title: "Only" }] }]);
+    await focusRow("Only");
+
+    await userEvent.keyboard(" ");
+
+    await expect
+      .element(itemsTree().getByRole("treeitem", { name: "Completed (1)" }))
+      .toBeVisible();
+    await expect.element(quickAdd()).toHaveFocus();
+  });
+
+  it("Focuses the next sibling after deleting and keeps Undo reachable by keyboard", async () => {
+    await openRoot([{ name: "Billing DB", items: [{ title: "First" }, { title: "Second" }] }]);
+    await focusRow("First");
+
+    await userEvent.keyboard("{Delete}");
+    await expect.element(page.getByTestId("confirm-dialog-confirm")).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(row("Second")).toHaveFocus();
+    await userEvent.keyboard("{Tab}");
+    await expect.element(quickAdd()).toHaveFocus();
+    await userEvent.keyboard("{Tab}");
+    await expect.element(page.getByTestId("item-undo-button")).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(row("First")).toBeVisible();
+  });
+
+  it("Focuses quick-add after deleting the last item in an area", async () => {
+    await openRoot([{ name: "Billing DB", items: [{ title: "Only" }] }]);
+    await focusRow("Only");
+
+    await userEvent.keyboard("{Delete}");
+    await expect.element(page.getByTestId("confirm-dialog-confirm")).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(page.getByTestId("empty-area")).toBeVisible();
+    await expect.element(quickAdd()).toHaveFocus();
+  });
+
+  it("Focuses the parent after deleting its only sub-item", async () => {
+    await openRoot([
+      { name: "Billing DB", items: [{ title: "Parent", children: [{ title: "Child" }] }] },
+    ]);
+    await row("Parent").getByTestId("item-toggle").first().click();
+    await focusRow("Child");
+
+    await userEvent.keyboard("{Delete}");
+    await expect.element(page.getByTestId("confirm-dialog-confirm")).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(row("Parent")).toHaveFocus();
+  });
+
+  it("Focuses the next sibling after moving an item to another area", async () => {
+    await openRoot([BILLING_PROJECT]);
+    await focusRow(PARENT);
+
+    await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+    await page.getByTestId("item-menu-move-area").click();
+    const dialog = page.getByRole("dialog", { name: "Move to area" });
+    await dialog.getByRole("radio", { name: "Views" }).click();
+    await dialog.getByRole("button", { name: "Move" }).click();
+
+    await expect.element(row(PARENT)).not.toBeInTheDocument();
+    await expect.element(row(SECOND)).toHaveFocus();
+  });
+
+  it("Reorders finished siblings with Alt+Up/Down within their own group", async () => {
+    const { store, projectId } = await openRoot([
+      {
+        name: "Billing DB",
+        items: [
+          { title: "Open one" },
+          { title: "Done A", completedAtUtc: "2026-11-12T10:00:00Z" },
+          { title: "Open two" },
+          { title: "Done B", completedAtUtc: "2026-11-12T11:00:00Z" },
+        ],
+      },
+    ]);
+    await itemsTree().getByTestId("completed-section-toggle").first().click();
+    await focusRow("Done A");
+
+    await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+
+    await expect
+      .poll(() => store.areaSiblingTitles(projectId, null))
+      .toEqual(["Open one", "Done B", "Open two", "Done A"]);
+    await expect.element(row("Done A")).toHaveFocus();
+
+    await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
+
+    await expect
+      .poll(() => store.areaSiblingTitles(projectId, null))
+      .toEqual(["Open one", "Done A", "Open two", "Done B"]);
+    await expect.element(row("Done A")).toHaveFocus();
+  });
+
+  it("Ignores a second Space while completing a parent is in progress", async () => {
+    const { store } = await openRoot([
+      {
+        name: "Billing DB",
+        items: [{ title: "Parent", children: [{ title: "Child one" }] }],
+      },
+    ]);
+    await focusRow("Parent");
+    const release = store.hold("SetItemCompleted");
+
+    await userEvent.keyboard("  ");
+    release();
+
+    await expect
+      .element(page.getByRole("alertdialog", { name: "Complete sub-items" }))
+      .toBeVisible();
+    expect(dialogStore.getState().queue).toHaveLength(1);
+    expect(store.calls.filter((call) => call === "SetItemCompleted")).toHaveLength(1);
+    await userEvent.keyboard("{Escape}");
+    await expect.element(page.getByRole("alertdialog")).not.toBeInTheDocument();
+    await expect.poll(() => dialogStore.getState().queue).toHaveLength(0);
   });
 
   describe.each(THEMES)("in the %s theme", (theme) => {

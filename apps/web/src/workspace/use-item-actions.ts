@@ -1,5 +1,6 @@
 import { useAtomSet } from "@effect/atom-react";
 import { Exit } from "effect";
+import { NAME_VALIDATION } from "../dialogs/name-validation.js";
 import { areaKey } from "../rpc/area-queries.js";
 import {
   createItemAtom,
@@ -12,16 +13,20 @@ import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
 import { openItemEditor } from "../state/item-editor-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
-import { isEmptyLevel, itemAncestorIds, type ItemNode } from "./item-outline.js";
+import { departureFocusIds, isEmptyLevel, itemAncestorIds, type ItemNode } from "./item-outline.js";
 import {
+  focusAfterDeparture,
   type ItemStructureScope,
   reportItemFailure,
   useItemStructureActions,
 } from "./use-item-structure-actions.js";
+import { useSingleRunPerItem } from "./use-single-run-per-item.js";
 
 /** Info for the undo banner shown after deleting an item subtree. */
 export interface DeletedItemNotice {
   readonly batchId: string;
+  /** The deleted subtree's root, focused again after Undo. */
+  readonly itemId: string;
   readonly title: string;
   readonly projectId: string;
   readonly folderId: string | null;
@@ -57,7 +62,12 @@ function useCreateItemActions(scope: ItemActionScope) {
   };
 
   const addSubItem = async (parent: ItemNode) => {
-    const title = await prompt({ title: "New sub-item", label: "Title", confirmLabel: "Add" });
+    const title = await prompt({
+      title: "New sub-item",
+      label: "Title",
+      confirmLabel: "Add",
+      validation: NAME_VALIDATION,
+    });
     if (title === null) {
       return;
     }
@@ -94,6 +104,7 @@ function useRenameItem(scope: ItemActionScope) {
       label: "Title",
       initialValue: node.item.title,
       confirmLabel: "Rename",
+      validation: NAME_VALIDATION,
     });
     if (title === null) {
       return;
@@ -134,43 +145,72 @@ function confirmationMessage(count: number, refreshed: boolean): string {
     : `Also complete ${count} open ${noun}?`;
 }
 
-function useToggleComplete(scope: ItemActionScope) {
+/** The outcome of one SetItemCompleted request, after any notice it needs. */
+type CompletionStep =
+  | { readonly kind: "done"; readonly applied: boolean }
+  | {
+      readonly kind: "confirm";
+      readonly openSubItemIds: ReadonlyArray<string>;
+      readonly count: number;
+    };
+
+function useSetCompletedStep(scope: ItemActionScope) {
   const setCompleted = useAtomSet(setItemCompletedAtom, { mode: "promiseExit" });
   const keys = [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
 
-  return async (node: ItemNode) => {
-    const completed = node.item.completedAtUtc === null;
-    let confirmedOpenItemIds: ReadonlyArray<string> | undefined;
+  return async (
+    node: ItemNode,
+    confirmedOpenItemIds: ReadonlyArray<string> | undefined,
+  ): Promise<CompletionStep> => {
+    const base = {
+      projectId: scope.projectId,
+      folderId: scope.folderId,
+      itemId: node.item.id,
+      completed: node.item.completedAtUtc === null,
+    };
+    const payload = confirmedOpenItemIds === undefined ? base : { ...base, confirmedOpenItemIds };
+    const exit = await setCompleted({ payload, reactivityKeys: keys });
+    if (!(await reportItemFailure(exit)) || !Exit.isSuccess(exit)) {
+      return { kind: "done", applied: false };
+    }
+    const result = exit.value;
+    if (result.kind === "blocked") {
+      await notify({ title: "Cannot reopen item", message: result.reason });
+    }
+    return result.kind === "needs-confirmation"
+      ? { kind: "confirm", openSubItemIds: result.openSubItemIds, count: result.openSubItemCount }
+      : { kind: "done", applied: result.kind === "applied" };
+  };
+}
 
+/**
+ * Completes or reopens an item, asking before completing open sub-items and
+ * asking again if they changed meanwhile. Focus then follows the item or, when
+ * it left the open list, moves to a neighbouring row.
+ */
+function useToggleComplete(scope: ItemActionScope) {
+  const step = useSetCompletedStep(scope);
+
+  return async (node: ItemNode) => {
+    let confirmedOpenItemIds: ReadonlyArray<string> | undefined;
     for (;;) {
-      const base = {
-        projectId: scope.projectId,
-        folderId: scope.folderId,
-        itemId: node.item.id,
-        completed,
-      };
-      const payload = confirmedOpenItemIds === undefined ? base : { ...base, confirmedOpenItemIds };
-      const exit = await setCompleted({ payload, reactivityKeys: keys });
-      if (!(await reportItemFailure(exit)) || !Exit.isSuccess(exit)) {
-        return;
-      }
-      const result = exit.value;
-      if (result.kind === "applied") {
-        return;
-      }
-      if (result.kind === "blocked") {
-        await notify({ title: "Cannot reopen item", message: result.reason });
+      const outcome = await step(node, confirmedOpenItemIds);
+      if (outcome.kind === "done") {
+        if (outcome.applied) {
+          const fallbackIds = departureFocusIds(scope.items, node);
+          scope.onFocusItem({ id: node.item.id, afterNodes: scope.items, fallbackIds });
+        }
         return;
       }
       const approved = await confirm({
         title: "Complete sub-items",
-        message: confirmationMessage(result.openSubItemCount, confirmedOpenItemIds !== undefined),
+        message: confirmationMessage(outcome.count, confirmedOpenItemIds !== undefined),
         confirmLabel: "Complete",
       });
       if (!approved) {
         return;
       }
-      confirmedOpenItemIds = result.openSubItemIds;
+      confirmedOpenItemIds = outcome.openSubItemIds;
     }
   };
 }
@@ -197,13 +237,10 @@ function useDeleteAndRestore(scope: ItemActionScope) {
       reactivityKeys: [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY],
     });
     if ((await reportItemFailure(exit)) && Exit.isSuccess(exit)) {
-      const parentId = node.item.parentItemId;
-      useWorkspaceStore.getState().selectItem(parentId);
-      if (parentId !== null) {
-        scope.onFocusItem({ id: parentId, afterNodes: scope.items });
-      }
+      focusAfterDeparture(scope, node);
       scope.onDeleted({
         batchId: exit.value,
+        itemId: node.item.id,
         title: node.item.title,
         projectId: scope.projectId,
         folderId: scope.folderId,
@@ -220,7 +257,9 @@ function useDeleteAndRestore(scope: ItemActionScope) {
       },
       reactivityKeys: [areaKey(batch.projectId, batch.folderId), PROJECTS_KEY],
     });
-    await reportItemFailure(exit);
+    if (await reportItemFailure(exit)) {
+      scope.onFocusItem({ id: batch.itemId, afterNodes: scope.items, fallbackIds: [] });
+    }
   };
 
   return { deleteItem, restoreBatch };
@@ -236,15 +275,28 @@ function openEditor(node: ItemNode) {
  * All item actions for an area (the legacy AreaItemsViewModel commands plus
  * Notion-style indent/outdent and moves). Each mutation invalidates area and
  * project reactivity keys and reports server failures through the shared dialog.
+ * A repeated run of an action on the same item is ignored while the first is in
+ * progress, and reorders run one at a time.
  */
 export function useItemActions(scope: ItemActionScope) {
+  const once = useSingleRunPerItem();
+  const { quickAdd, addSubItem } = useCreateItemActions(scope);
+  const { deleteItem, restoreBatch } = useDeleteAndRestore(scope);
+  const structure = useItemStructureActions(scope);
   return {
     editItem: openEditor,
-    ...useCreateItemActions(scope),
-    renameItem: useRenameItem(scope),
-    toggleComplete: useToggleComplete(scope),
-    ...useDeleteAndRestore(scope),
-    ...useItemStructureActions(scope),
+    quickAdd,
+    addSubItem: once("addSubItem", addSubItem),
+    renameItem: once("renameItem", useRenameItem(scope)),
+    toggleComplete: once("toggleComplete", useToggleComplete(scope)),
+    deleteItem: once("deleteItem", deleteItem),
+    restoreBatch,
+    indentItem: once("indentItem", structure.indentItem),
+    outdentItem: once("outdentItem", structure.outdentItem),
+    moveItemParent: once("moveItemParent", structure.moveItemParent),
+    moveItemToArea: once("moveItemToArea", structure.moveItemToArea),
+    reorderByOffset: structure.reorderByOffset,
+    reorderByDrop: structure.reorderByDrop,
   };
 }
 

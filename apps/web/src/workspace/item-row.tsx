@@ -126,7 +126,7 @@ function CompletionMark({
       }}
       className={cx(
         "grid size-5 shrink-0 cursor-default place-items-center rounded-full transition-colors hover:bg-pressed",
-        completed ? "text-accent" : "text-line-strong hover:text-fg-muted",
+        completed ? "text-accent" : "text-control-outline hover:text-fg-muted",
       )}
     >
       <Icon size={16} strokeWidth={completed ? 2.25 : 1.75} aria-hidden="true" />

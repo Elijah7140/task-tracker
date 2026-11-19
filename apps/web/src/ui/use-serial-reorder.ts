@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Runs one list reorder at a time, for lookup, field and choice lists. Each reorder is computed from the rows
- * on screen, so a second request is ignored until the first has failed or
- * its saved order has arrived as new `rows`. A double-click therefore moves
- * a row once, never twice from a stale order.
+ * Runs one list reorder at a time, for lookup, field and choice lists and the
+ * item tree. Each reorder is computed from the rows on screen, so a second
+ * request is ignored until the first has failed or its saved order has arrived
+ * as new `rows` (compared by identity). A double-click therefore moves a row
+ * once, never twice from a stale order.
  */
-export function useSerialReorder<Row>(rows: ReadonlyArray<Row>) {
+export function useSerialReorder<Rows>(rows: Rows) {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const latestRowsRef = useRef(rows);
   latestRowsRef.current = rows;
-  const awaitedRowsRef = useRef<ReadonlyArray<Row> | null>(null);
+  const awaitedRowsRef = useRef<{ readonly rows: Rows } | null>(null);
 
   const finish = useCallback(() => {
     busyRef.current = false;
@@ -20,13 +21,13 @@ export function useSerialReorder<Row>(rows: ReadonlyArray<Row>) {
   }, []);
 
   useEffect(() => {
-    if (awaitedRowsRef.current !== null && rows !== awaitedRowsRef.current) {
+    if (awaitedRowsRef.current !== null && rows !== awaitedRowsRef.current.rows) {
       finish();
     }
   }, [rows, finish]);
 
   /** Runs `reorder` unless one is running. It resolves true when it saved a new order. */
-  const run = async (reorder: (rows: ReadonlyArray<Row>) => Promise<boolean>) => {
+  const run = async (reorder: (rows: Rows) => Promise<boolean>) => {
     if (busyRef.current) {
       return;
     }
@@ -38,7 +39,7 @@ export function useSerialReorder<Row>(rows: ReadonlyArray<Row>) {
       finish();
       return;
     }
-    awaitedRowsRef.current = startRows;
+    awaitedRowsRef.current = { rows: startRows };
   };
 
   return { busy, run };

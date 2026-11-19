@@ -15,8 +15,16 @@ export const EMPTY_SIBLINGS: ItemSiblings = { open: [], finished: [] };
 /** Focus request issued after a tree mutation updates or remounts a row. */
 export interface ItemFocusRequest {
   readonly id: string;
+  /** Waits until the item sits under this parent (`null` for top level). */
   readonly expectedParentId?: string | null | undefined;
+  /** Waits until a snapshot other than this one arrives. */
   readonly afterNodes?: ItemSiblings | undefined;
+  /**
+   * Set when the item may leave the open list, as after completing, deleting or
+   * moving it. `id` is then focused only while it is an open row; otherwise the
+   * first of these rows that is rendered, and quick-add when none is.
+   */
+  readonly fallbackIds?: ReadonlyArray<string> | undefined;
 }
 
 /** Every item in a level, open items first and then finished branches. */
@@ -104,4 +112,32 @@ export function precedingOpenSibling(nodes: ItemSiblings, node: ItemNode): ItemN
 /** Whether `node` can be indented under a preceding open sibling. */
 export function canIndentNode(nodes: ItemSiblings, node: ItemNode): boolean {
   return precedingOpenSibling(nodes, node) !== undefined;
+}
+
+/**
+ * Rows to focus once `node` leaves its list, in order: the next sibling in its
+ * group (open or finished), the previous one, then the parent.
+ */
+export function departureFocusIds(nodes: ItemSiblings, node: ItemNode): ReadonlyArray<string> {
+  const siblings = siblingNodesOf(nodes, node.item.parentItemId);
+  const group = node.isFinished ? siblings.finished : siblings.open;
+  const index = group.findIndex((candidate) => candidate.item.id === node.item.id);
+  const neighbors = index === -1 ? [] : [group[index + 1], group[index - 1]];
+  const neighborIds = neighbors.flatMap((neighbor) =>
+    neighbor === undefined ? [] : [neighbor.item.id],
+  );
+  const parentId = node.item.parentItemId;
+  return parentId === null ? neighborIds : [...neighborIds, parentId];
+}
+
+/**
+ * IDs of the siblings in `node`'s group (open or finished) in persisted order.
+ * Alt+Up/Down swaps within this group, as the legacy workspace did.
+ */
+export function sameGroupSiblingIds(nodes: ItemSiblings, node: ItemNode): ReadonlyArray<string> {
+  const siblings = siblingNodesOf(nodes, node.item.parentItemId);
+  const group = new Set(
+    (node.isFinished ? siblings.finished : siblings.open).map((sibling) => sibling.item.id),
+  );
+  return persistedSiblingOrder(siblings).filter((id) => group.has(id));
 }

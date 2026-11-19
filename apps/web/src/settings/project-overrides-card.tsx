@@ -6,7 +6,7 @@ import type {
 } from "@task-tracker/contracts";
 import { useCallback, useEffect, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
-import { missingProjectMessage } from "../rpc/missing-project.js";
+import { missingEntityMessage } from "../rpc/missing-entity.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import {
   invalidateSettingsKeysAtom,
@@ -207,7 +207,7 @@ function useSaveOverrides({
     });
     setSaving(false);
     if (outcome.kind === "failed") {
-      const missing = missingProjectMessage(outcome.cause);
+      const missing = missingEntityMessage(outcome.cause, "Project");
       if (missing !== undefined) {
         onProjectMissing(missing);
       } else {

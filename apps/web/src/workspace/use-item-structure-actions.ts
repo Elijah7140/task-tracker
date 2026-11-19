@@ -1,7 +1,8 @@
 import { useAtomSet } from "@effect/atom-react";
-import { Exit } from "effect";
+import type { Exit } from "effect";
+import { reportFailure } from "../dialogs/report-failure.js";
 import { areaKey } from "../rpc/area-queries.js";
-import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
+import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
 import {
   indentItemAtom,
   moveItemAtom,
@@ -10,10 +11,12 @@ import {
   reorderItemsAtom,
 } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
-import { choose, notify } from "../state/dialog-store.js";
+import { choose } from "../state/dialog-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
+import { useSerialReorder } from "../ui/use-serial-reorder.js";
 import { areaChoiceOptions, type Folder, ROOT_AREA_CHOICE } from "./folder-outline.js";
 import {
+  departureFocusIds,
   findItemNode,
   flattenItemNodes,
   itemAncestorIds,
@@ -22,6 +25,7 @@ import {
   type ItemSiblings,
   persistedSiblingOrder,
   precedingOpenSibling,
+  sameGroupSiblingIds,
   siblingNodesOf,
 } from "./item-outline.js";
 import { type DropPlacement, moveAmongVisible, swapWithVisibleNeighbor } from "./reorder-plan.js";
@@ -40,12 +44,8 @@ export interface ItemStructureScope {
 }
 
 /** Shows a failed item action dialog and reports whether the exit succeeded. */
-export async function reportItemFailure(exit: Exit.Exit<unknown, RpcFailure>): Promise<boolean> {
-  if (Exit.isSuccess(exit)) {
-    return true;
-  }
-  await notify({ title: "Item action failed", message: describeRpcFailure(exit.cause) });
-  return false;
+export function reportItemFailure(exit: Exit.Exit<unknown, RpcFailure>): Promise<boolean> {
+  return reportFailure("Item action failed", exit);
 }
 
 function expandBranch(items: ItemSiblings, parentItemId: string) {
@@ -54,6 +54,22 @@ function expandBranch(items: ItemSiblings, parentItemId: string) {
     setItemExpanded(ancestorId, true);
   }
   setItemExpanded(parentItemId, true);
+}
+
+/**
+ * Clears the selection of an item that left the area's open list and asks for
+ * focus on a neighbouring row, its parent or quick-add (§8).
+ */
+export function focusAfterDeparture(scope: ItemStructureScope, node: ItemNode) {
+  const store = useWorkspaceStore.getState();
+  if (store.selectedItemId === node.item.id) {
+    store.selectItem(null);
+  }
+  scope.onFocusItem({
+    id: node.item.id,
+    afterNodes: scope.items,
+    fallbackIds: departureFocusIds(scope.items, node),
+  });
 }
 
 function useIndentAndOutdent(scope: ItemStructureScope) {
@@ -179,10 +195,7 @@ function useMoveItems(scope: ItemStructureScope) {
       ],
     });
     if (await reportItemFailure(exit)) {
-      const store = useWorkspaceStore.getState();
-      if (store.selectedItemId === node.item.id) {
-        store.selectItem(null);
-      }
+      focusAfterDeparture(scope, node);
     }
   };
 
@@ -191,55 +204,53 @@ function useMoveItems(scope: ItemStructureScope) {
 
 function useReorderItems(scope: ItemStructureScope) {
   const reorder = useAtomSet(reorderItemsAtom, { mode: "promiseExit" });
+  const serial = useSerialReorder(scope.items);
   const key = areaKey(scope.projectId, scope.folderId);
 
   const applyOrder = async (
+    nodes: ItemSiblings,
     parentItemId: string | null,
     focusId: string,
     itemIds: ReadonlyArray<string> | null,
-  ) => {
+  ): Promise<boolean> => {
     if (itemIds === null) {
-      return;
+      return false;
     }
     const exit = await reorder({
       payload: { projectId: scope.projectId, folderId: scope.folderId, parentItemId, itemIds },
       reactivityKeys: [key],
     });
-    if (await reportItemFailure(exit)) {
+    const saved = await reportItemFailure(exit);
+    if (saved) {
       useWorkspaceStore.getState().selectItem(focusId);
-      scope.onFocusItem({ id: focusId, afterNodes: scope.items });
+      scope.onFocusItem({ id: focusId, afterNodes: nodes });
     }
+    return saved;
   };
 
-  const reorderByOffset = async (node: ItemNode, offset: -1 | 1) => {
-    if (node.isFinished) {
-      return;
-    }
-    const siblings = siblingNodesOf(scope.items, node.item.parentItemId);
-    const allIds = persistedSiblingOrder(siblings);
-    const visibleIds = siblings.open.map((sibling) => sibling.item.id);
-    await applyOrder(
-      node.item.parentItemId,
-      node.item.id,
-      swapWithVisibleNeighbor(allIds, visibleIds, node.item.id, offset),
-    );
-  };
+  /** Swaps an item with its neighbour among open or among finished siblings (legacy). */
+  const reorderByOffset = (node: ItemNode, offset: -1 | 1) =>
+    serial.run((nodes) => {
+      const parentItemId = node.item.parentItemId;
+      const allIds = persistedSiblingOrder(siblingNodesOf(nodes, parentItemId));
+      const groupIds = sameGroupSiblingIds(nodes, node);
+      const order = swapWithVisibleNeighbor(allIds, groupIds, node.item.id, offset);
+      return applyOrder(nodes, parentItemId, node.item.id, order);
+    });
 
-  const reorderByDrop = async (
+  const reorderByDrop = (
     parentItemId: string | null,
     sourceId: string,
     targetId: string,
     placement: DropPlacement,
-  ) => {
-    const siblings = siblingNodesOf(scope.items, parentItemId);
-    const allIds = persistedSiblingOrder(siblings);
-    const visibleIds = siblings.open.map((sibling) => sibling.item.id);
-    await applyOrder(
-      parentItemId,
-      sourceId,
-      moveAmongVisible(allIds, visibleIds, sourceId, targetId, placement),
-    );
-  };
+  ) =>
+    serial.run((nodes) => {
+      const siblings = siblingNodesOf(nodes, parentItemId);
+      const allIds = persistedSiblingOrder(siblings);
+      const visibleIds = siblings.open.map((sibling) => sibling.item.id);
+      const order = moveAmongVisible(allIds, visibleIds, sourceId, targetId, placement);
+      return applyOrder(nodes, parentItemId, sourceId, order);
+    });
 
   return { reorderByOffset, reorderByDrop };
 }

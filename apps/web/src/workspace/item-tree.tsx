@@ -5,7 +5,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
-  useEffect,
+  type RefObject,
   useRef,
   useState,
 } from "react";
@@ -17,7 +17,6 @@ import { useRovingFocus } from "../ui/use-roving-focus.js";
 import {
   canIndentNode,
   findItemNode,
-  type ItemFocusRequest,
   type ItemNode,
   type ItemSiblings,
   isEmptyLevel,
@@ -231,68 +230,110 @@ function visibleNodeIds(
 const hasAnyModifier = (event: KeyboardEvent<HTMLElement>) =>
   event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
 
-function handleRowKey(
-  node: ItemNode,
-  event: KeyboardEvent<HTMLElement>,
-  actions: ItemActions,
-  onMenuFor: (id: string) => void,
-): boolean {
-  if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
-    void (event.shiftKey ? actions.outdentItem(node) : actions.indentItem(node));
-    return true;
-  }
-  if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-    if (event.key === "ArrowUp") {
-      void actions.reorderByOffset(node, -1);
-      return true;
-    }
-    if (event.key === "ArrowDown") {
-      void actions.reorderByOffset(node, 1);
-      return true;
-    }
+const onlyModifier = (event: KeyboardEvent<HTMLElement>, modifier: "altKey" | "shiftKey") =>
+  event[modifier] &&
+  !(["altKey", "ctrlKey", "metaKey", "shiftKey"] as const).some(
+    (other) => other !== modifier && event[other],
+  );
+
+/** Callbacks a focused row's keys trigger. */
+interface RowKeyContext {
+  readonly allNodes: ItemSiblings;
+  readonly actions: ItemActions;
+  readonly onMenuFor: (id: string) => void;
+}
+
+/**
+ * Tab indents and Shift+Tab outdents, as in Notion, but only when that is
+ * possible. Otherwise the key is left to the browser so focus can leave the
+ * tree and the row is never a keyboard trap.
+ */
+function handleTabKey(node: ItemNode, event: KeyboardEvent<HTMLElement>, context: RowKeyContext) {
+  if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) {
     return false;
   }
-  if (event.shiftKey && event.key === "F10" && !event.ctrlKey && !event.altKey && !event.metaKey) {
-    onMenuFor(node.item.id);
+  if (event.shiftKey) {
+    if (node.item.parentItemId === null) {
+      return false;
+    }
+    void context.actions.outdentItem(node);
     return true;
   }
+  if (!canIndentNode(context.allNodes, node)) {
+    return false;
+  }
+  void context.actions.indentItem(node);
+  return true;
+}
+
+/** Alt+Up/Down reorders and Shift+F10 opens the actions menu. */
+function handleModifiedKey(
+  node: ItemNode,
+  event: KeyboardEvent<HTMLElement>,
+  context: RowKeyContext,
+) {
+  if (onlyModifier(event, "altKey") && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    void context.actions.reorderByOffset(node, event.key === "ArrowUp" ? -1 : 1);
+    return true;
+  }
+  if (onlyModifier(event, "shiftKey") && event.key === "F10") {
+    context.onMenuFor(node.item.id);
+    return true;
+  }
+  return false;
+}
+
+/** Unmodified Space, Enter, F2, Delete and the context-menu key. */
+function handlePlainKey(node: ItemNode, event: KeyboardEvent<HTMLElement>, context: RowKeyContext) {
   if (hasAnyModifier(event)) {
     return false;
   }
-  if (event.key === " ") {
-    void actions.toggleComplete(node);
-  } else if (event.key === "Enter") {
-    actions.editItem(node);
-  } else if (event.key === "F2") {
-    void actions.renameItem(node);
-  } else if (event.key === "Delete") {
-    void actions.deleteItem(node);
-  } else if (event.key === "ContextMenu") {
-    onMenuFor(node.item.id);
-  } else {
+  const { actions } = context;
+  const plainKeys: Readonly<Record<string, () => void>> = {
+    " ": () => void actions.toggleComplete(node),
+    Enter: () => actions.editItem(node),
+    F2: () => void actions.renameItem(node),
+    Delete: () => void actions.deleteItem(node),
+    ContextMenu: () => context.onMenuFor(node.item.id),
+  };
+  const run = plainKeys[event.key];
+  run?.();
+  return run !== undefined;
+}
+
+function handleRowKey(node: ItemNode, event: KeyboardEvent<HTMLElement>, context: RowKeyContext) {
+  return (
+    handleTabKey(node, event, context) ||
+    handleModifiedKey(node, event, context) ||
+    handlePlainKey(node, event, context)
+  );
+}
+
+/** Enter or Space on a Completed section header toggles it. */
+function handleSectionKey(
+  id: string,
+  event: KeyboardEvent<HTMLElement>,
+  expandedCompleted: ReadonlySet<string>,
+  onExpandedChange: (nodeId: string, expanded: boolean) => void,
+) {
+  if ((event.key !== "Enter" && event.key !== " ") || hasAnyModifier(event)) {
     return false;
   }
+  onExpandedChange(id, !expandedCompleted.has(id.slice(COMPLETED_PREFIX.length)));
   return true;
 }
 
 function itemKeyHandler(
-  nodes: ItemSiblings,
-  actions: ItemActions,
+  context: RowKeyContext,
   expandedCompleted: ReadonlySet<string>,
   onExpandedChange: (nodeId: string, expanded: boolean) => void,
-  onMenuFor: (id: string) => void,
 ) {
   return (id: string, event: KeyboardEvent<HTMLElement>) => {
     if (id.startsWith(COMPLETED_PREFIX)) {
-      if ((event.key === "Enter" || event.key === " ") && !hasAnyModifier(event)) {
-        const key = id.slice(COMPLETED_PREFIX.length);
-        onExpandedChange(id, !expandedCompleted.has(key));
-        return true;
-      }
-      return false;
+      return handleSectionKey(id, event, expandedCompleted, onExpandedChange);
     }
-    const node = findItemNode(nodes, id);
-    return node === undefined ? false : handleRowKey(node, event, actions, onMenuFor);
+    const node = findItemNode(context.allNodes, id);
+    return node === undefined ? false : handleRowKey(node, event, context);
   };
 }
 
@@ -306,8 +347,6 @@ export interface ItemTreeProps {
   readonly actions: ItemActions;
   readonly hasFolders: boolean;
   readonly quickAdd?: ReactNode | undefined;
-  readonly pendingFocus?: ItemFocusRequest | null | undefined;
-  readonly onFocusApplied?: (() => void) | undefined;
 }
 
 function useTreeState() {
@@ -319,72 +358,42 @@ function useTreeState() {
   return { store, onExpandedChange };
 }
 
-function isFocusReady(nodes: ItemSiblings, request: ItemFocusRequest): boolean {
-  if (
-    request.expectedParentId !== undefined &&
-    findItemNode(nodes, request.id)?.item.parentItemId !== request.expectedParentId
-  ) {
-    return false;
-  }
-  return request.afterNodes === undefined || nodes !== request.afterNodes;
-}
-
-/**
- * An area's items as an ARIA tree: open items first, quick-add at the end of
- * the open list, then a collapsed "Completed (n)" section, newest-completed
- * first. Selection follows focus. Supports WAI-ARIA tree keys, Enter (edit), Space/F2/Delete,
- * Alt+Up/Down reorder, Tab/Shift+Tab indent/outdent and pointer drag reorder.
- */
-export function ItemTree({
-  label,
-  nodes,
-  sectionKey,
-  lookups,
-  actions,
-  hasFolders,
-  quickAdd,
-  pendingFocus = null,
-  onFocusApplied,
-}: ItemTreeProps) {
-  const treeRef = useRef<HTMLUListElement>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
-  const { store, onExpandedChange } = useTreeState();
+/** Roving focus over the visible rows, starting at the selection or the first row. */
+function useTreeRovingFocus(
+  nodes: ItemSiblings,
+  sectionKey: string,
+  store: ReturnType<typeof useTreeState>["store"],
+) {
   const visible = visibleNodeIds(nodes, sectionKey, store);
   const { open, finished } = nodes;
   const firstId = open[0]?.item.id ?? (finished.length > 0 ? completedNodeId(sectionKey) : null);
   const selected = store.selectedItemId;
-  const roving = useRovingFocus(
-    selected !== null && visible.has(selected) ? selected : firstId,
-    visible,
-  );
+  return useRovingFocus(selected !== null && visible.has(selected) ? selected : firstId, visible);
+}
+
+/** Builds the shared context every branch and row of the tree reads. */
+function useTreeContext(
+  props: ItemTreeProps,
+  treeRef: RefObject<HTMLUListElement | null>,
+  menu: { readonly menuFor: string | null; readonly setMenuFor: (id: string | null) => void },
+) {
+  const { nodes, actions } = props;
+  const { store, onExpandedChange } = useTreeState();
+  const roving = useTreeRovingFocus(nodes, props.sectionKey, store);
   const drag = useItemDrag({
     treeRef,
     onDrop: (parentItemId, sourceId, targetId, placement) =>
       void actions.reorderByDrop(parentItemId, sourceId, targetId, placement),
   });
-
-  useEffect(() => {
-    if (pendingFocus === null || !isFocusReady(nodes, pendingFocus)) {
-      return;
-    }
-    const element = treeRef.current?.querySelector<HTMLElement>(
-      `[${TREE_NODE_ATTRIBUTE}="${pendingFocus.id}"]`,
-    );
-    if (element !== null && element !== undefined) {
-      element.focus();
-      onFocusApplied?.();
-    }
-  }, [pendingFocus, nodes, onFocusApplied]);
-
   const context: TreeContext = {
     allNodes: nodes,
-    lookups,
+    lookups: props.lookups,
     actions,
-    hasFolders,
+    hasFolders: props.hasFolders,
     expandedItems: store.expandedItems,
     expandedCompleted: store.expandedCompleted,
-    selectedItemId: selected,
-    menuFor,
+    selectedItemId: store.selectedItemId,
+    menuFor: menu.menuFor,
     dragState: drag.dragState,
     tabIndexFor: roving.tabIndexFor,
     onItemFocus: (id) => {
@@ -395,16 +404,29 @@ export function ItemTree({
     },
     onSelect: store.selectItem,
     onExpandedChange,
-    onMenuFor: setMenuFor,
+    onMenuFor: menu.setMenuFor,
     onStartDrag: drag.startDrag,
   };
-  const onItemKey = itemKeyHandler(
-    nodes,
-    actions,
-    store.expandedCompleted,
-    onExpandedChange,
+  return { context, expandedCompleted: store.expandedCompleted, onExpandedChange };
+}
+
+/**
+ * An area's items as an ARIA tree: open items first, quick-add at the end of
+ * the open list, then a collapsed "Completed (n)" section, newest-completed
+ * first. Selection follows focus. Supports WAI-ARIA tree keys, Enter (edit), Space/F2/Delete,
+ * Alt+Up/Down reorder, Tab/Shift+Tab indent/outdent and pointer drag reorder.
+ */
+export function ItemTree(props: ItemTreeProps) {
+  const { label, nodes, sectionKey, quickAdd } = props;
+  const treeRef = useRef<HTMLUListElement>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const { context, expandedCompleted, onExpandedChange } = useTreeContext(props, treeRef, {
+    menuFor,
     setMenuFor,
-  );
+  });
+  const rowKeys = { allNodes: nodes, actions: props.actions, onMenuFor: setMenuFor };
+  const onItemKey = itemKeyHandler(rowKeys, expandedCompleted, onExpandedChange);
+  const { open, finished } = nodes;
 
   return (
     <ul

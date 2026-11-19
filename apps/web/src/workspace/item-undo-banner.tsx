@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { Clock, Duration, Effect, Exit } from "effect";
 import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { type Ref, useEffect, useRef } from "react";
 import { rendererClockAtom } from "../rpc/urgency-refresh.js";
 import { Button } from "../ui/button.js";
 import type { DeletedItemNotice } from "./use-item-actions.js";
@@ -12,6 +12,7 @@ export const UNDO_BANNER_TIMEOUT = Duration.seconds(10);
 /** Props for {@link ItemUndoBanner}. */
 export interface ItemUndoBannerProps {
   readonly batch: DeletedItemNotice;
+  readonly bannerRef?: Ref<HTMLDivElement> | undefined;
   readonly onUndo: () => Promise<void>;
   readonly onDismiss: () => void;
 }
@@ -20,7 +21,7 @@ export interface ItemUndoBannerProps {
  * Floating status bar offering one-click restore for the most recently deleted
  * item subtree. Auto-dismisses on the renderer's Effect Clock.
  */
-export function ItemUndoBanner({ batch, onUndo, onDismiss }: ItemUndoBannerProps) {
+export function ItemUndoBanner({ batch, bannerRef, onUndo, onDismiss }: ItemUndoBannerProps) {
   const clock = useAtomValue(rendererClockAtom);
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
@@ -42,6 +43,7 @@ export function ItemUndoBanner({ batch, onUndo, onDismiss }: ItemUndoBannerProps
 
   return (
     <div
+      ref={bannerRef}
       role="status"
       aria-live="polite"
       data-testid="item-undo-banner"

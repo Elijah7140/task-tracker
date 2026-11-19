@@ -78,6 +78,7 @@ export class FakeProjectStore {
   summaries: Array<Summary> = [];
   folders: Array<Folder> = [];
   readonly calls: Array<string> = [];
+  private readonly holds = new Map<string, Promise<void>>();
   private readonly areas = new Map<string, FakeAreaState>();
   private readonly autoCompleteByProject = new Map<string, boolean>();
   private sequence = 0;
@@ -86,6 +87,28 @@ export class FakeProjectStore {
   constructor(seed: ReadonlyArray<SeedProject> = []) {
     seed.forEach((project) => this.add(project));
   }
+
+  /**
+   * Holds every call of the RPC `tag` after it is recorded until the returned
+   * function runs, so a test can act while a request is in flight.
+   */
+  hold(tag: string): () => void {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = () => {
+        this.holds.delete(tag);
+        resolve();
+      };
+    });
+    this.holds.set(tag, held);
+    return () => release();
+  }
+
+  /** Records a call and waits while a test holds that RPC. */
+  record = (tag: string) =>
+    Effect.sync(() => this.calls.push(tag)).pipe(
+      Effect.andThen(Effect.promise(() => this.holds.get(tag) ?? Promise.resolve())),
+    );
 
   /** Returns a new uppercase GUID. */
   nextId = () => {
@@ -502,7 +525,7 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
 }
 
 function handlers(store: FakeProjectStore) {
-  const record = (tag: string) => Effect.sync(() => store.calls.push(tag));
+  const { record } = store;
   return TaskTrackerRpcs.toLayer({
     GetServerInfo: () => Effect.succeed({ timeZone: "UTC" }),
     ListProjects: () => record("ListProjects").pipe(Effect.map(() => [...store.summaries])),

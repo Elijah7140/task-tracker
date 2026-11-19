@@ -12,7 +12,11 @@ async function openProject(clock: ReturnType<typeof createTestClock>["clock"]) {
   const app = await renderApp({
     clock,
     projects: [
-      { name: "Billing DB", items: [{ title: MEETING, scheduledStart: "2026-11-14T15:00:00" }] },
+      {
+        name: "Billing DB",
+        items: [{ title: MEETING, scheduledStart: "2026-11-14T15:00:00" }],
+        folders: [{ name: "Reporting" }],
+      },
     ],
   });
   const projectId = app.store.summaries[0]?.project.id ?? "";
@@ -63,6 +67,28 @@ describe("AreaItems", () => {
     await advance("5 minutes");
 
     expect(loadCount(store.calls)).toBe(afterLeaving);
+  });
+
+  it("Falls back to the project root with a message when the open folder is deleted elsewhere", async () => {
+    const { advance, clock } = createTestClock();
+    const { store, projectId, history } = await openProject(clock);
+    const reporting = store.folderNamed("Reporting");
+    history.push(`/projects/${projectId}/folders/${reporting.id}`);
+    await expect.element(page.getByRole("heading", { level: 1, name: "Reporting" })).toBeVisible();
+    store.removeFolder(reporting.id);
+
+    await advance("1 minute");
+
+    await expect
+      .element(page.getByRole("alertdialog", { name: "Folder unavailable" }))
+      .toHaveAccessibleDescription("Folder is missing or deleted.");
+    await expect.element(page.getByTestId("area-load-failure")).not.toBeInTheDocument();
+    await page.getByRole("button", { name: "OK" }).click();
+    await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
+    await expect
+      .element(page.getByRole("treeitem", { name: "Reporting", exact: true }))
+      .not.toBeInTheDocument();
+    expect(history.location.pathname).toBe(`/projects/${projectId}`);
   });
 
   it("Shows an empty state for an area without items", async () => {

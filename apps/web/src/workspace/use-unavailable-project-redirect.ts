@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect } from "react";
 import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
-import { missingProjectMessage } from "../rpc/missing-project.js";
+import { missingEntityMessage } from "../rpc/missing-entity.js";
 import { projectSummariesAtom } from "../rpc/project-queries.js";
 import { notify } from "../state/dialog-store.js";
 
@@ -19,7 +19,9 @@ export function useUnavailableProjectRedirect(
 ) {
   const navigate = useNavigate();
   const refreshProjects = useAtomRefresh(projectSummariesAtom);
-  const rejection = AsyncResult.isFailure(result) ? missingProjectMessage(result.cause) : undefined;
+  const rejection = AsyncResult.isFailure(result)
+    ? missingEntityMessage(result.cause, "Project")
+    : undefined;
 
   useEffect(() => {
     if (rejection === undefined) {
