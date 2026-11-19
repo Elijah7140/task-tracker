@@ -87,3 +87,13 @@ export { UndoHistory, type UndoDirection } from "./undo/undo-history.js";
 export * from "./lookups/status-level.js";
 export * from "./items/item-status.js";
 export { TrashProject, type TrashBatch } from "./trash/trash-project.js";
+export {
+  DEFAULT_CALENDAR_BLOCK_MINUTES,
+  DEFAULT_CALENDAR_THRESHOLDS,
+  calculateCalendarEntryUrgency,
+  effectiveScheduledEnd,
+  validateCalendarRange,
+  type CalendarEntry,
+  type CalendarEntryKind,
+  type CalendarQuery,
+} from "./calendar/calendar-entry.js";

@@ -12,11 +12,44 @@ const urgencyRank: Record<Urgency, number> = {
   Overdue: 3,
 };
 
-function effectiveDeadline(item: TodoItem, timeZone: string): Temporal.Instant | null {
-  if (item.dueDate !== null) {
-    return dueToUtc(item.dueDate, item.dueTime, timeZone);
+/** The floating dates that decide an item's effective deadline (§6.3). */
+export interface DeadlineFields {
+  readonly dueDate: Temporal.PlainDate | null;
+  readonly dueTime: Temporal.PlainTime | null;
+  readonly scheduledStart: Temporal.PlainDateTime | null;
+}
+
+/**
+ * Resolve the effective deadline in `timeZone`: the due date and time, else
+ * the scheduled start, else none. A date-only due date ends that local day.
+ */
+export function effectiveDeadline(
+  fields: DeadlineFields,
+  timeZone: string,
+): Temporal.Instant | null {
+  if (fields.dueDate !== null) {
+    return dueToUtc(fields.dueDate, fields.dueTime, timeZone);
   }
-  return item.scheduledStart === null ? null : toUtc(item.scheduledStart, timeZone);
+  return fields.scheduledStart === null ? null : toUtc(fields.scheduledStart, timeZone);
+}
+
+/** Classify the time left until an open item's `deadline` against `thresholds`. */
+export function urgencyForDeadline(
+  deadline: Temporal.Instant | null,
+  now: Temporal.Instant,
+  thresholds: UrgencyThresholds,
+): Urgency {
+  if (deadline === null) {
+    return "None";
+  }
+  const remaining = deadline.epochNanoseconds - now.epochNanoseconds;
+  if (remaining < 0n) {
+    return "Overdue";
+  }
+  if (remaining <= thresholds.red * nanosecondsPerTick) {
+    return "Imminent";
+  }
+  return remaining <= thresholds.yellow * nanosecondsPerTick ? "Approaching" : "None";
 }
 
 /** Calculate an active, open item's own urgency from its effective deadline. */
@@ -29,19 +62,7 @@ export function calculateUrgency(
   if (item.completedAtUtc !== null || item.deletedAtUtc !== null) {
     return "None";
   }
-
-  const deadline = effectiveDeadline(item, timeZone);
-  if (deadline === null) {
-    return "None";
-  }
-  const remaining = deadline.epochNanoseconds - now.epochNanoseconds;
-  if (remaining < 0n) {
-    return "Overdue";
-  }
-  if (remaining <= thresholds.red * nanosecondsPerTick) {
-    return "Imminent";
-  }
-  return remaining <= thresholds.yellow * nanosecondsPerTick ? "Approaching" : "None";
+  return urgencyForDeadline(effectiveDeadline(item, timeZone), now, thresholds);
 }
 
 function rollUp(
