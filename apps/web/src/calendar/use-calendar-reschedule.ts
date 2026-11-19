@@ -147,8 +147,23 @@ export function useCalendarReschedule(options: Options) {
     running.current ??= drain();
   };
 
+  /**
+   * Runs another write that moves an entry, such as a push back (§7.14), and
+   * then focuses the entry on `date` once Calendar has reloaded.
+   */
+  const follow = async (
+    entry: Pick<FocusRequest, "itemId" | "kind" | "date">,
+    write: () => Promise<boolean>,
+  ) => {
+    const { snapshot: before, view } = latest.current;
+    if ((await write()) && shown.current) {
+      setFocus({ ...entry, before, view });
+    }
+  };
+
   return {
     move,
+    follow,
     error,
     clearError: () => setError(null),
     /** Lets a return request wait for committed dates and workspace invalidation. */

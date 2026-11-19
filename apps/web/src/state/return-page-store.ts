@@ -110,3 +110,32 @@ export function leaveCoveringPageForNavigation(): boolean {
   uncover();
   return true;
 }
+
+const runningWrites = new Set<Promise<boolean>>();
+
+/**
+ * Runs a write started on a covering page outside its own queue, such as a
+ * push back (§7.14). A write that resolves true marks the page behind out of
+ * date, even after a switch to another covering page, and Back waits for it
+ * through {@link settleReturnPageWrites}.
+ */
+export function runReturnPageWrite(write: () => Promise<boolean>): Promise<boolean> {
+  const tracked = (async () => {
+    const changed = await write();
+    if (changed) {
+      markReturnPageStale();
+    }
+    return changed;
+  })();
+  runningWrites.add(tracked);
+  const forget = () => runningWrites.delete(tracked);
+  tracked.then(forget, forget);
+  return tracked;
+}
+
+/** Resolves once every write started through {@link runReturnPageWrite} has settled. */
+export async function settleReturnPageWrites(): Promise<void> {
+  while (runningWrites.size > 0) {
+    await Promise.allSettled(runningWrites);
+  }
+}

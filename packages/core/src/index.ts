@@ -50,6 +50,14 @@ export {
   skipOccurrence,
   stopRepeating,
 } from "./items/recurrence/item-recurrence.js";
+export {
+  PUSH_BACK_COMPLETED,
+  PUSH_BACK_OVERFLOW,
+  PUSH_BACK_UNDATED,
+  pushBackOneDay,
+  pushBackUnavailableReason,
+  type PushBackEligibility,
+} from "./items/push-back-one-day.js";
 export type { ReconciliationPreview } from "./completion/reconciliation-preview.js";
 export {
   archiveChoice,

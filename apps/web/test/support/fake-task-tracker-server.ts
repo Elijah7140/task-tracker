@@ -859,6 +859,13 @@ function handlers(store: FakeProjectStore) {
         (skipped) => (skipped ? `Skip repeat for '${title}'` : null),
       );
     },
+    PushBackOneDay: ({ itemId }) => {
+      const title = itemTitle(itemId);
+      return history.track(
+        record("PushBackOneDay").pipe(Effect.andThen(() => store.recurrence.pushBack(itemId))),
+        () => `Push back '${title}'`,
+      );
+    },
     StopRepeating: ({ itemId }) => {
       const title = itemTitle(itemId);
       return history.track(

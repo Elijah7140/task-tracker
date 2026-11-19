@@ -1,6 +1,17 @@
+import { ContextMenu } from "@base-ui/react/context-menu";
 import type { ItemSearchResult, ItemSearchResults } from "@task-tracker/contracts";
 import { Check, Search } from "lucide-react";
+import type { HTMLAttributes, KeyboardEvent } from "react";
 import { formatFloatingDate, formatFloatingDateTime } from "../format/item-dates.js";
+import { isContextMenuKey, matchesShortcut } from "../ui/keyboard-shortcut.js";
+import { ContextMenuContent } from "../ui/menu.js";
+import { openContextMenuAt } from "../ui/open-context-menu.js";
+import {
+  PUSH_BACK_SHORTCUT,
+  pushBackReason,
+  type PushBackState,
+} from "../workspace/push-back-availability.js";
+import { PushBackMenuItem } from "../workspace/push-back-menu-item.js";
 
 type Result = typeof ItemSearchResult.Type;
 
@@ -14,6 +25,8 @@ export interface SearchResultsListProps {
   readonly showEmpty: boolean;
   readonly limit: number;
   readonly onOpen: (itemId: string) => void;
+  /** Pushes back a result's item from its row menu or Ctrl+Shift+P (§7.14). */
+  readonly onPushBack: (result: Result) => void;
 }
 
 function dueText({ dueDate, dueTime }: Result): string {
@@ -60,20 +73,50 @@ function ResultTitle({ result }: { readonly result: Result }) {
   );
 }
 
-function ResultRow({
-  result,
-  onOpen,
-}: {
+const pushBackState = (result: Result): PushBackState => ({
+  isCompleted: result.isCompleted,
+  hasDates: result.dueDate !== null || result.hasSchedule,
+});
+
+interface ResultRowProps {
   readonly result: Result;
   readonly onOpen: (itemId: string) => void;
-}) {
+  readonly onPushBack: (result: Result) => void;
+}
+
+/**
+ * The Menu key and Shift+F10 open the row menu (§8), and Ctrl+Shift+P pushes
+ * back the focused result's item, ignoring a held key's repeats (§7.14).
+ */
+function rowKeyHandler({ result, onPushBack }: ResultRowProps) {
+  return (event: KeyboardEvent<HTMLElement>) => {
+    if (isContextMenuKey(event)) {
+      event.preventDefault();
+      openContextMenuAt(event.currentTarget);
+    } else if (matchesShortcut(event, PUSH_BACK_SHORTCUT)) {
+      event.preventDefault();
+      if (!event.repeat && pushBackReason(pushBackState(result)) === null) {
+        onPushBack(result);
+      }
+    }
+  };
+}
+
+function ResultButton({
+  triggerProps,
+  ...props
+}: ResultRowProps & { readonly triggerProps: HTMLAttributes<HTMLElement> }) {
+  const { result, onOpen } = props;
   const cell = "truncate text-xs text-fg-muted";
   return (
     <button
+      {...triggerProps}
       type="button"
       data-testid="search-result-row"
       data-item-id={result.itemId}
       onClick={() => onOpen(result.itemId)}
+      onKeyDown={rowKeyHandler(props)}
+      aria-keyshortcuts="Control+Shift+P"
       className={`${COLUMNS} px-3 py-2 text-left text-sm transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}
     >
       <span className="flex items-center justify-center text-fg-subtle">
@@ -86,6 +129,23 @@ function ResultRow({
       <span className={cell}>{result.priorityLabel ?? ""}</span>
       <span className={cell}>{dueText(result)}</span>
     </button>
+  );
+}
+
+/** One result: activation opens the item, and right-click opens its row menu. */
+function ResultRow(props: ResultRowProps) {
+  const { result, onPushBack } = props;
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger
+        render={(triggerProps: HTMLAttributes<HTMLElement>) => (
+          <ResultButton {...props} triggerProps={triggerProps} />
+        )}
+      />
+      <ContextMenuContent testId="search-result-menu">
+        <PushBackMenuItem state={pushBackState(result)} onPushBack={() => onPushBack(result)} />
+      </ContextMenuContent>
+    </ContextMenu.Root>
   );
 }
 
@@ -107,8 +167,17 @@ function ResultsHeader() {
   );
 }
 
-/** One page of results. Clicking a row, or Enter or Space on it, opens the item (§7.2). */
-export function SearchResultsList({ page, showEmpty, limit, onOpen }: SearchResultsListProps) {
+/**
+ * One page of results. Clicking a row, or Enter or Space on it, opens the item
+ * (§7.2). Its row menu offers Push back one day (§7.14).
+ */
+export function SearchResultsList({
+  page,
+  showEmpty,
+  limit,
+  onOpen,
+  onPushBack,
+}: SearchResultsListProps) {
   if (page.items.length === 0) {
     return showEmpty ? <NoMatches /> : null;
   }
@@ -120,7 +189,7 @@ export function SearchResultsList({ page, showEmpty, limit, onOpen }: SearchResu
         className="flex flex-col divide-y divide-line overflow-hidden rounded-card border border-line bg-surface"
       >
         {page.items.map((result) => (
-          <ResultRow key={result.itemId} result={result} onOpen={onOpen} />
+          <ResultRow key={result.itemId} result={result} onOpen={onOpen} onPushBack={onPushBack} />
         ))}
       </div>
       {page.hasMore ? (

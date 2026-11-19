@@ -387,6 +387,53 @@ it("Refreshes shown results when undo changes an item behind Search", async () =
   await expect.element(result("Root invoice")).toBeVisible();
 });
 
+const pushBackItem = () => page.getByRole("menuitem", { name: "Push back one day" });
+const pushBackShortcut = () => userEvent.keyboard("{Control>}{Shift>}p{/Shift}{/Control}");
+const pushBacks = (store: { readonly calls: ReadonlyArray<string> }) =>
+  store.calls.filter((call) => call === "PushBackOneDay").length;
+
+it("Pushes back a result from its row menu and Back asks about the draft behind", async () => {
+  const { store } = await openApp();
+  await openProject("Billing");
+  await item("Root invoice").getByTestId("item-title").first().click();
+  await userEvent.keyboard("{Enter}");
+  await page.getByTestId("item-editor-title").fill("Unsaved title");
+  await ctrlF();
+  await searchInput().fill("audit");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(result("Audit Q4")).toMatchTextContent("Nov 20, 2026");
+
+  await result("Audit Q4").click({ button: "right" });
+  await pushBackItem().click();
+
+  await expect.element(result("Audit Q4")).toMatchTextContent("Nov 21, 2026");
+  expect(pushBacks(store)).toBe(1);
+  await back().click();
+  await expect.element(page.getByRole("alertdialog", { name: "Unsaved changes" })).toBeVisible();
+});
+
+it("Pushes back the focused result with Ctrl+Shift+P and disables it for an undated result", async () => {
+  const { store } = await openApp();
+  await ctrlF();
+  await searchInput().fill("aud");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(result("Audit receipts")).toBeVisible();
+
+  (result("Audit Q4").element() as HTMLElement).focus();
+  await pushBackShortcut();
+  await expect.element(result("Audit Q4")).toMatchTextContent("Nov 21, 2026");
+  (result("Audit receipts").element() as HTMLElement).focus();
+  await pushBackShortcut();
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+
+  await expect.element(page.getByTestId("search-result-menu")).toBeVisible();
+  await expect.element(pushBackItem()).toHaveAttribute("aria-disabled", "true");
+  await expect
+    .element(pushBackItem())
+    .toHaveAccessibleDescription("This item has no due date or scheduled block.");
+  expect(pushBacks(store)).toBe(1);
+});
+
 it("Parses typed syntax with Enter into filter rows, searches them and keeps the text", async () => {
   const { store } = await openApp();
   await openProject("Billing");
@@ -571,4 +618,20 @@ it.each(THEMES)("Renders the empty and refused Search states in %s mode", async 
   await settleTheme(theme);
 
   await expect(page.getByTestId("app-shell")).toMatchScreenshot(`search-error-${theme}`);
+});
+
+it.each(THEMES)("Matches the reviewed result menu baseline in %s mode", async (theme) => {
+  await openApp();
+  await ctrlF();
+  await searchInput().fill("audit");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(result("Audit Q4")).toBeVisible();
+  await settleTheme(theme);
+
+  await result("Audit Q4").click({ button: "right" });
+
+  await expect.element(pushBackItem()).toBeVisible();
+  await expect
+    .element(page.getByTestId("app-shell"))
+    .toMatchScreenshot(`search-result-menu-${theme}`);
 });

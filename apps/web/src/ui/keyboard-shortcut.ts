@@ -37,3 +37,26 @@ export function isContextMenuKey(event: KeyEventLike): boolean {
     matchesShortcut(event, { key: "F10", shift: true })
   );
 }
+
+const NON_TEXT_INPUTS = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
+
+/** Whether `target` takes typed text, so a shortcut that leaves text boxes alone ignores it. */
+export function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable || target.closest("textarea, [role=textbox]") !== null) {
+    return true;
+  }
+  return target instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(target.type);
+}

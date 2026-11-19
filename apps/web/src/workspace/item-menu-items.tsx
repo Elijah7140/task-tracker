@@ -17,6 +17,8 @@ import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/co
 import { MenuItem, MenuSeparator } from "../ui/menu.js";
 import type { ItemNode } from "./item-outline.js";
 import { ItemStatusMenu } from "./item-status-menu.js";
+import { itemPushBackState } from "./push-back-availability.js";
+import { PushBackMenuItem } from "./push-back-menu-item.js";
 import { RowLookupMenu } from "./row-lookup-menu.js";
 import type { ItemActions } from "./use-item-actions.js";
 
@@ -95,6 +97,10 @@ export function ItemMenuItems({
         statuses={statuses}
         statusId={node.item.statusId}
         onChange={(statusId) => void actions.setStatus(node, statusId)}
+      />
+      <PushBackMenuItem
+        state={itemPushBackState(node.item)}
+        onPushBack={() => void actions.pushBack(node)}
       />
       <RepeatMenuItems node={node} actions={actions} />
       <MenuItem

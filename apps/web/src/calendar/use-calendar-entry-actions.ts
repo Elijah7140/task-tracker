@@ -21,9 +21,12 @@ const itemOf = (entry: Entry) => ({
 /**
  * Set status and Set priority for calendar entries, through the same row
  * actions as the workspace (§7.15). Both reload Calendar, and a change marks
- * the page behind it out of date (§7.8).
+ * the page behind it out of date (§7.8). The page supplies Push back one day,
+ * which also restores focus (§7.14).
  */
-export function useCalendarEntryActions(): CalendarEntryMenuActions {
+export function useCalendarEntryActions(
+  pushBack: CalendarEntryMenuActions["pushBack"],
+): CalendarEntryMenuActions {
   const statuses = useAtomValue(statusesAtom);
   const priorityLevels = useAtomValue(priorityLevelsAtom);
   const setItemStatus = useSetItemStatus();
@@ -39,5 +42,6 @@ export function useCalendarEntryActions(): CalendarEntryMenuActions {
     setStatus: (entry, statusId) => void setItemStatus(itemOf(entry), statusId).then(markStaleIf),
     setPriority: (entry, priorityLevelId) =>
       void setItemPriority(itemOf(entry), priorityLevelId).then(markStaleIf),
+    pushBack,
   };
 }

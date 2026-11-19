@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { initialReturnPageState, useReturnPageStore } from "../../src/state/return-page-store.js";
+import {
+  initialReturnPageState,
+  runReturnPageWrite,
+  settleReturnPageWrites,
+  useReturnPageStore,
+} from "../../src/state/return-page-store.js";
 
 const state = () => useReturnPageStore.getState();
 const PROJECT = "0190A1B2-0000-7000-8000-000000000001";
@@ -140,6 +145,60 @@ describe("useReturnPageStore", () => {
       state().openSavedSearch(saved("Errors"), OTHER, null);
 
       expect(state()).toMatchObject({ originProjectId: PROJECT, searchRequest: null });
+    });
+  });
+
+  describe("covering page writes", () => {
+    function deferred() {
+      let resolve: (value: boolean) => void = () => {};
+      const promise = new Promise<boolean>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    }
+
+    it("Marks the page behind out of date after an applied write, even on another covering page", async () => {
+      state().cover("search", PROJECT);
+      const write = deferred();
+
+      const running = runReturnPageWrite(() => write.promise);
+      state().cover("calendar", null);
+      write.resolve(true);
+
+      await expect(running).resolves.toBe(true);
+      expect(state()).toMatchObject({ covering: "calendar", stale: true });
+    });
+
+    it("Leaves the page behind current after a refused write", async () => {
+      state().cover("search", PROJECT);
+
+      await runReturnPageWrite(() => Promise.resolve(false));
+
+      expect(state().stale).toBe(false);
+    });
+
+    it("Settles only after every running write has finished", async () => {
+      state().cover("calendar", PROJECT);
+      const first = deferred();
+      const second = deferred();
+      let settled = false;
+      void runReturnPageWrite(() => first.promise);
+      void runReturnPageWrite(() => second.promise);
+
+      const settling = settleReturnPageWrites().then(() => {
+        settled = true;
+      });
+      first.resolve(false);
+      await first.promise;
+      await Promise.resolve();
+
+      expect(settled).toBe(false);
+
+      second.resolve(true);
+      await settling;
+
+      expect(settled).toBe(true);
+      expect(state().stale).toBe(true);
     });
   });
 });

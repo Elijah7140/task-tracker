@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import { dialogStore } from "../state/dialog-store.js";
-import { type CoveringPage, useReturnPageStore } from "../state/return-page-store.js";
+import {
+  type CoveringPage,
+  settleReturnPageWrites,
+  useReturnPageStore,
+} from "../state/return-page-store.js";
 import { findShortcut, matchesShortcut, type Shortcut } from "../ui/keyboard-shortcut.js";
 import type { ReturnGuard } from "./return-guards.js";
 import { useOpenCoveringPage } from "./use-open-covering-page.js";
@@ -50,7 +54,8 @@ function useCoveringPageKeys(open: (page: CoveringPage) => void, goBack: () => v
 
 /**
  * Handles keyboard shortcuts and Back for Search, Calendar and Trash. Returning
- * waits for the covering page to finish any changes and asks the return page’s
+ * waits for the covering page to finish any changes, including a running
+ * push back (§7.14), and asks the return page’s
  * unsaved-changes guard if it needs a refresh, then puts focus back where it
  * was. Only the user's navigation closes a covering page: a redirect of the
  * page behind it, such as after undoing a folder's creation, happens underneath.
@@ -61,12 +66,16 @@ export function useCoveringPage(runGuards: ReturnGuard) {
   const restoreFocusAfterReturn = useReturnFocus();
 
   const goBack = useCallback(async () => {
-    const { busy, covering, stale } = useReturnPageStore.getState();
-    if (returning.current || busy || covering === null) {
+    if (returning.current || useReturnPageStore.getState().covering === null) {
       return;
     }
     returning.current = true;
     try {
+      await settleReturnPageWrites();
+      const { busy, covering, stale } = useReturnPageStore.getState();
+      if (busy || covering === null) {
+        return;
+      }
       if (!stale || (await runGuards())) {
         restoreFocusAfterReturn();
         useReturnPageStore.getState().uncover();

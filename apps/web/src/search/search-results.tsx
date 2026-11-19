@@ -1,5 +1,5 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
-import type { ItemQuery, ItemSearchResults } from "@task-tracker/contracts";
+import type { ItemQuery, ItemSearchResult, ItemSearchResults } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect, useRef } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
@@ -15,6 +15,8 @@ export interface SearchResultsProps {
   /** Increases each time the user searches, so repeating a query runs it again. */
   readonly run: number;
   readonly onOpen: (itemId: string) => void;
+  /** Pushes back a result's item from its row menu or Ctrl+Shift+P (§7.14). */
+  readonly onPushBack: (result: typeof ItemSearchResult.Type) => void;
 }
 
 /**
@@ -45,7 +47,7 @@ function useLastPage(result: AsyncResult.AsyncResult<Page, unknown>) {
  * The results of a submitted search, read through a query atom per query, so a
  * newer search replaces an older one and undo or redo refreshes the page (§7.2).
  */
-export function SearchResults({ query, run, onOpen }: SearchResultsProps) {
+export function SearchResults({ query, run, onOpen, onPushBack }: SearchResultsProps) {
   const atom = searchResultsAtom(query);
   const result = useAtomValue(atom);
   const refresh = useAtomRefresh(atom);
@@ -68,6 +70,7 @@ export function SearchResults({ query, run, onOpen }: SearchResultsProps) {
           showEmpty={!busy && AsyncResult.isSuccess(result)}
           limit={SEARCH_RESULT_LIMIT}
           onOpen={onOpen}
+          onPushBack={onPushBack}
         />
       )}
     </>

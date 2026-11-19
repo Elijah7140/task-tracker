@@ -201,6 +201,36 @@ export class FakeRecurrence {
     return Effect.succeed(true);
   }
 
+  /**
+   * Push back one day (§7.14): moves only this item's dates one day later. It
+   * mirrors the server's refusals; the server's own tests cover the full rules.
+   */
+  pushBack(itemId: string): Effect.Effect<void, NotFound | RuleViolation> {
+    const located = this.find(itemId);
+    if (located === undefined) {
+      return Effect.fail(missingItem());
+    }
+    const { item } = located.node;
+    if (item.completedAtUtc !== null) {
+      return Effect.fail(new RuleViolation({ message: "Completed items cannot be pushed back." }));
+    }
+    if (item.dueDate === null && item.scheduledStart === null) {
+      return Effect.fail(
+        new RuleViolation({ message: "This item has no due date or scheduled block." }),
+      );
+    }
+    const dates = [item.dueDate, item.scheduledStart, item.scheduledEnd];
+    if (dates.some((date) => date?.startsWith("9999-12-31") === true)) {
+      return Effect.fail(
+        new RuleViolation({
+          message: "Pushing back would move a date outside the supported calendar.",
+        }),
+      );
+    }
+    this.update(itemId, (row) => shiftDates(row, 1));
+    return Effect.void;
+  }
+
   /** Removes the rule and series from one occurrence. */
   stop(itemId: string): Effect.Effect<void, NotFound> {
     if (this.find(itemId) === undefined) {

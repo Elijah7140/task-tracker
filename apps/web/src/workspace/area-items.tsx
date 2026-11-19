@@ -298,6 +298,7 @@ export function AreaItems(props: AreaItemsProps) {
     items,
     addSubItem: actions.addSubItem,
     moveItemToArea: actions.moveItemToArea,
+    pushBack: actions.pushBack,
   });
 
   const { quickAddRef } = focus;

@@ -1,8 +1,9 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { Menu } from "@base-ui/react/menu";
 import { Check, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { cx } from "./class-names.js";
+import { Tooltip } from "./tooltip.js";
 
 /** Props for {@link MenuContent}. */
 export interface MenuContentProps {
@@ -52,10 +53,39 @@ export interface MenuItemProps {
    * `aria-keyshortcuts` value, such as "Control+Z", for assistive technology.
    */
   readonly shortcut?: { readonly label: string; readonly keys: string } | undefined;
+  /**
+   * Why a disabled row is unavailable. It appears as a tooltip on hover or
+   * focus and is the row's accessible description. Ignored while enabled.
+   */
+  readonly disabledReason?: string | null | undefined;
 }
 
-/** A menu row with an optional leading icon and trailing shortcut. */
-export function MenuItem({
+/**
+ * A menu row with an optional leading icon and trailing shortcut. A disabled
+ * row with a reason explains itself in a tooltip.
+ */
+export function MenuItem(props: MenuItemProps) {
+  const reasonId = useId();
+  const { disabled = false, disabledReason, testId } = props;
+  if (!disabled || disabledReason == null) {
+    return <MenuItemRow {...props} />;
+  }
+  return (
+    <Tooltip
+      content={disabledReason}
+      testId={testId === undefined ? undefined : `${testId}-reason`}
+    >
+      <div>
+        <MenuItemRow {...props} describedBy={reasonId} />
+        <span id={reasonId} hidden>
+          {disabledReason}
+        </span>
+      </div>
+    </Tooltip>
+  );
+}
+
+function MenuItemRow({
   children,
   icon,
   tone = "default",
@@ -63,13 +93,15 @@ export function MenuItem({
   onClick,
   testId,
   shortcut,
-}: MenuItemProps) {
+  describedBy,
+}: MenuItemProps & { readonly describedBy?: string }) {
   return (
     <Menu.Item
       disabled={disabled}
       onClick={onClick}
       data-testid={testId}
       aria-keyshortcuts={shortcut?.keys}
+      aria-describedby={describedBy}
       className={cx(
         "flex h-8 cursor-default items-center gap-2 rounded-[0.375rem] px-2 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-hover",
         tone === "danger" ? "text-danger" : "text-fg",

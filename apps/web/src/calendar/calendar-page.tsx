@@ -10,9 +10,12 @@ import { rendererClockAtom, urgencyRefreshAtom } from "../rpc/urgency-refresh.js
 import type { ReturnGuard } from "../shell/return-guards.js";
 import { dialogStore } from "../state/dialog-store.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
+import { matchesShortcut } from "../ui/keyboard-shortcut.js";
 import { LoadFailure } from "../ui/load-failure.js";
-import { formatIsoDateInZone, weekdayHeaders } from "./calendar-dates.js";
-import { CalendarEntryMenuContext } from "./calendar-entry-menu.js";
+import { PUSH_BACK_SHORTCUT, pushBackReason } from "../workspace/push-back-availability.js";
+import { usePushBackOneDay } from "../workspace/use-push-back-one-day.js";
+import { addDays, formatIsoDateInZone, weekdayHeaders } from "./calendar-dates.js";
+import { CalendarEntryMenuContext, type CalendarEntryMenuActions } from "./calendar-entry-menu.js";
 import { buildCalendarDays, type CalendarDay } from "./calendar-layout.js";
 import { calendarStep } from "./calendar-move-keys.js";
 import { CalendarMonthGrid } from "./calendar-month-grid.js";
@@ -92,6 +95,43 @@ function isPageKey(event: KeyboardEvent, page: HTMLElement | null) {
   return insidePage && !event.defaultPrevented && dialogStore.getState().queue.length === 0;
 }
 
+/** Ctrl+Shift+P on a focused entry pushes back its item, ignoring a held key's repeats (§7.14). */
+function pushBackKey(
+  event: KeyboardEvent,
+  days: ReadonlyArray<CalendarDay>,
+  pushBack: CalendarEntryMenuActions["pushBack"],
+): boolean {
+  const occurrence = matchesShortcut(event, PUSH_BACK_SHORTCUT)
+    ? entryAt(event.target, days)?.occurrence
+    : undefined;
+  if (occurrence === undefined) {
+    return false;
+  }
+  const { entry, day } = occurrence;
+  if (
+    !event.repeat &&
+    pushBackReason({ isCompleted: entry.isCompleted, hasDates: true }) === null
+  ) {
+    pushBack(entry, day);
+  }
+  return true;
+}
+
+/** Push back one day for an entry, focusing the moved entry on its new day afterwards. */
+function useEntryPushBack(
+  follow: ReturnType<typeof useCalendarReschedule>["follow"],
+  clearErrors: () => void,
+): CalendarEntryMenuActions["pushBack"] {
+  const pushBackItem = usePushBackOneDay();
+  return (entry, day) => {
+    clearErrors();
+    const { itemId, kind, projectId, folderId } = entry;
+    void follow({ itemId, kind, date: addDays(day, 1) }, () =>
+      pushBackItem({ id: itemId, projectId, folderId }),
+    );
+  };
+}
+
 function isEscape(event: KeyboardEvent) {
   return (
     event.key === "Escape" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
@@ -134,7 +174,6 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
   const dates = useMemo(() => days.map((day) => day.date), [days]);
   const root = useRef<HTMLDivElement>(null);
   const requestFocus = useCalendarFocus(root, result, dates);
-  const entryActions = useCalendarEntryActions();
   const reschedule = useCalendarReschedule({
     root,
     snapshot,
@@ -151,6 +190,8 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     activation.clearError();
     reschedule.clearError();
   };
+  const pushBack = useEntryPushBack(reschedule.follow, () => clearError.current());
+  const entryActions = useCalendarEntryActions(pushBack);
 
   useCalendarKeys({
     previous: () => {
@@ -173,6 +214,10 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     if (isEscape(event) && useReturnPageStore.getState().busy) {
       event.preventDefault();
       goBack();
+      return;
+    }
+    if (pushBackKey(event, days, entryActions.pushBack)) {
+      event.preventDefault();
       return;
     }
     const step = calendarStep(event);

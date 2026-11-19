@@ -41,7 +41,8 @@ type TriggerProps = HTMLAttributes<HTMLElement>;
  * One interactive calendar entry button in Month cells, the Week all-day row,
  * or the Week time grid. Urgency is always shown with a text label in addition
  * to color, overdue titles are bold, and short time blocks stay on one line (§7.4).
- * Right-click, the Menu key or Shift+F10 open its row menu.
+ * Right-click, the Menu key or Shift+F10 open its row menu, and Ctrl+Shift+P
+ * pushes back its item (§7.14).
  */
 export function CalendarEntryButton(props: CalendarEntryButtonProps) {
   return (
@@ -51,7 +52,7 @@ export function CalendarEntryButton(props: CalendarEntryButtonProps) {
           <EntryButton {...props} triggerProps={triggerProps} />
         )}
       />
-      <CalendarEntryMenu entry={props.occurrence.entry} />
+      <CalendarEntryMenu entry={props.occurrence.entry} day={props.occurrence.day} />
     </ContextMenu.Root>
   );
 }
@@ -88,8 +89,8 @@ function EntryButton({
       aria-label={occurrence.accessibleLabel}
       aria-keyshortcuts={
         occurrence.isAllDay
-          ? "Alt+ArrowLeft Alt+ArrowRight"
-          : "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+          ? "Alt+ArrowLeft Alt+ArrowRight Control+Shift+P"
+          : "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown Control+Shift+P"
       }
       {...calendarNavProps(occurrence.day, navIndex)}
       data-testid="calendar-entry"

@@ -693,6 +693,32 @@ it.effect("Skips, reports the last repeat and stops repeating through the render
   ),
 );
 
+it.effect("Pushes back one day and refuses an undated item through the renderer client", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area, create } = yield* setup;
+      const dated = yield* create("Report");
+      const undated = yield* create("Someday");
+      const fields = { ...repeatFields(dated.title), scheduledStart: "2026-11-10T09:00:00" };
+      yield* client.EditItem({ itemId: dated.id, fields });
+
+      yield* client.PushBackOneDay({ itemId: dated.id.toLowerCase() });
+      const failure = yield* Effect.flip(client.PushBackOneDay({ itemId: undated.id }));
+
+      const { items } = yield* client.LoadArea(area);
+      expect(items.open[0]!.item).toMatchObject({
+        dueDate: "2026-11-11",
+        scheduledStart: "2026-11-11T09:00:00",
+      });
+      expect(failure).toMatchObject({
+        _tag: "RuleViolation",
+        message: "This item has no due date or scheduled block.",
+      });
+      expect(yield* client.GetHistory()).toMatchObject({ undo: "Push back 'Report'" });
+    }),
+  ),
+);
+
 it.effect("Rejects an invalid repeat rule with a rule violation", () =>
   withItemRpc(
     Effect.gen(function* () {

@@ -26,6 +26,7 @@ import { areaUndoSources } from "./area-undo-sources.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
 import { checkRules } from "./check-rules.js";
 import { itemCompletionOperations } from "./item-completion-operations.js";
+import { itemPushBackOperation } from "./item-push-back-operation.js";
 import { itemRecurrenceOperations } from "./item-recurrence-operations.js";
 import { itemStructureOperations } from "./item-structure-operations.js";
 import { newId } from "./new-id.js";
@@ -56,6 +57,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
 
   const completion = itemCompletionOperations(sql, timeZone);
   const recurrence = itemRecurrenceOperations(sql, undo, timeZone);
+  const pushBack = itemPushBackOperation(sql, undo);
   const { loadAreaTree, saveStructure, ...structure } = itemStructureOperations(
     sql,
     completion,
@@ -367,6 +369,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   return {
     ...structure,
     ...recurrence,
+    ...pushBack,
     edit,
     setCompleted,
     setPriority,

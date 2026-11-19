@@ -13,7 +13,7 @@ import {
 } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
-import { openItemEditor } from "../state/item-editor-store.js";
+import { isItemEditorOpen, openItemEditor } from "../state/item-editor-store.js";
 import { noticeCompletion } from "../state/status-notice-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { departureFocusIds, isEmptyLevel, itemAncestorIds, type ItemNode } from "./item-outline.js";
@@ -24,6 +24,7 @@ import {
   useItemStructureActions,
 } from "./use-item-structure-actions.js";
 import { useItemDropActions } from "./use-item-drop-actions.js";
+import { usePushBackOneDay } from "./use-push-back-one-day.js";
 import { useSetItemPriority } from "./use-set-item-priority.js";
 import { useRepeatActions } from "./use-repeat-actions.js";
 import { useSetItemStatus } from "./use-set-item-status.js";
@@ -259,6 +260,7 @@ export function useItemActions(scope: ItemActionScope) {
   const structure = useItemStructureActions(scope);
   const setStatus = useSetItemStatus();
   const repeat = useRepeatActions();
+  const pushBack = usePushBackOneDay();
   const refocus = (node: ItemNode) => (applied: boolean) => {
     if (applied) {
       scope.onFocusItem({ id: node.item.id, afterNodes: scope.items });
@@ -285,6 +287,10 @@ export function useItemActions(scope: ItemActionScope) {
     ),
     stopRepeating: once("stopRepeating", (node: ItemNode) =>
       repeat.stopRepeating(node.item).then(refocus(node)),
+    ),
+    // The editor keeps focus when Ctrl+Shift+P pushes back its item from there.
+    pushBack: once("pushBack", (node: ItemNode) =>
+      pushBack(node.item).then((applied) => refocus(node)(applied && !isItemEditorOpen())),
     ),
     deleteItem: once("deleteItem", deleteItem),
     restoreBatch,

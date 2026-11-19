@@ -130,8 +130,10 @@ describe("Repeating items in the workspace", () => {
 
     await userEvent.keyboard("{Shift>}{F10}{/Shift}");
     await expect.element(menuItem("Stop repeating")).toBeVisible();
-    // Edit, Set priority, Complete, Set status and Skip this one come first.
-    await userEvent.keyboard("{Home}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}");
+    // Edit, Set priority, Complete, Set status, Push back one day and Skip this one come first.
+    await userEvent.keyboard(
+      "{Home}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}",
+    );
     await expect.element(menuItem("Stop repeating")).toHaveFocus();
     await userEvent.keyboard("{Enter}");
 

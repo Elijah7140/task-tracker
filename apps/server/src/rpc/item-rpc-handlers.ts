@@ -76,6 +76,7 @@ export const itemRpcHandlers = (timeZone: string) =>
             Effect.map((values) => values.map(projectItemFieldValue)),
             mapOperationError,
           ),
+        PushBackOneDay: ({ itemId }) => items.pushBackOneDay(itemId).pipe(mapOperationError),
         SkipRepeat: ({ itemId }) => items.skipRepeat(itemId).pipe(mapOperationError),
         StopRepeating: ({ itemId }) => items.stopRepeating(itemId).pipe(mapOperationError),
         LoadItemLinks: ({ itemId }) =>

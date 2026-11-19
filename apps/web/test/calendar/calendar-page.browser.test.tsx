@@ -792,6 +792,91 @@ describe("row menu", () => {
   });
 });
 
+describe("push back one day", () => {
+  const pushBackItem = () => page.getByRole("menuitem", { name: "Push back one day" });
+  const pushBacks = (store: { readonly calls: ReadonlyArray<string> }) =>
+    store.calls.filter((call) => call === "PushBackOneDay").length;
+
+  it("Pushes back the focused entry with Ctrl+Shift+P and keeps it focused on its new day", async () => {
+    const { store } = await openFromHome();
+    const operations = store.summaries[1]!.project.id;
+    await focusEntry("Rotate keys");
+
+    await shortcut("p");
+
+    await expect
+      .poll(() => store.findItemByTitle(operations, null, "Rotate keys")?.item.dueDate)
+      .toBe("2026-11-19");
+    await expect.element(entry("Rotate keys")).toHaveAttribute("data-date", "2026-11-19");
+    await expect.element(entry("Rotate keys")).toHaveFocus();
+    expect(pushBacks(store)).toBe(1);
+  });
+
+  it("Moves both ends of a block from the pointer menu", async () => {
+    const { store } = await openWeek();
+    const billing = store.summaries[0]!.project.id;
+    const invoices = store.folders.find((folder) => folder.name === "Invoices")!.id;
+
+    await entry("Client standup").first().click({ button: "right" });
+    await pushBackItem().click();
+
+    await expect
+      .poll(() => store.findItemByTitle(billing, invoices, "Client standup")?.item.scheduledStart)
+      .toBe("2026-11-17T09:00:00");
+    expect(store.findItemByTitle(billing, invoices, "Client standup")?.item.scheduledEnd).toBe(
+      "2026-11-17T10:30:00",
+    );
+    await expect.element(entry("Client standup")).toHaveAttribute("data-date", "2026-11-17");
+  });
+
+  it("Shows the action disabled for a completed entry and ignores the shortcut", async () => {
+    const { store } = await openFromHome();
+    await page.getByTestId("calendar-include-completed").click();
+    await expect.element(entry("✓ Done report")).toBeVisible();
+
+    await focusEntry("✓ Done report");
+    await shortcut("p");
+    await entry("✓ Done report").click({ button: "right" });
+
+    await expect.element(pushBackItem()).toHaveAttribute("aria-disabled", "true");
+    await expect
+      .element(pushBackItem())
+      .toHaveAccessibleDescription("Completed items cannot be pushed back.");
+    expect(pushBacks(store)).toBe(0);
+  });
+
+  it("Back waits for a running push back, then asks about the draft behind", async () => {
+    const { store } = await openDraftWorkspace();
+    const release = store.hold("PushBackOneDay");
+    await focusEntry("Pay vendor");
+
+    await shortcut("p");
+    await expect.poll(() => pushBacks(store)).toBe(1);
+    await page.getByTestId("calendar-back").click();
+
+    await expect.element(calendar()).toBeVisible();
+    await expect.element(draftPrompt()).not.toBeInTheDocument();
+    release();
+    await expect.element(draftPrompt()).toBeVisible();
+  });
+});
+
+describe("row menu baselines", () => {
+  for (const theme of THEMES) {
+    it(`Matches the reviewed entry menu baseline in ${theme} mode`, async () => {
+      await openFromHome();
+      await settleTheme(theme);
+
+      await entry("Rotate keys").first().click({ button: "right" });
+
+      await expect.element(page.getByTestId("calendar-entry-menu")).toBeVisible();
+      await expect
+        .element(page.getByTestId("app-shell"))
+        .toMatchScreenshot(`calendar-entry-menu-${theme}`);
+    });
+  }
+});
+
 describe("baselines", () => {
   for (const theme of THEMES) {
     it(`Matches the month, week, late-night and narrow baselines in ${theme} mode`, async () => {

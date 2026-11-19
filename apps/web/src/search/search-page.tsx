@@ -26,6 +26,7 @@ import { SearchFilterRow } from "./search-filter-row.js";
 import { SearchResults } from "./search-results.js";
 import { currentField, useFilterRows } from "./use-filter-rows.js";
 import { useOpenSearchResult } from "./use-open-search-result.js";
+import { usePushBackOneDay } from "../workspace/use-push-back-one-day.js";
 import { useSavedSearchLoad } from "./use-saved-search-load.js";
 import { useSearchPageSavedSearches } from "./use-search-page-saved-searches.js";
 import { useSearchQuery } from "./use-search-query.js";
@@ -188,6 +189,7 @@ function SearchContent({ onBack, runGuards, savedSearch }: SearchContentProps) {
     initialIncludeCompleted: savedSearch?.includeCompleted ?? false,
   });
   const opening = useOpenSearchResult(runGuards);
+  const pushBack = usePushBackOneDay();
   const saved = useSearchPageSavedSearches(savedSearch?.id ?? null, query.definition);
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
   const run = (next: Query) =>
@@ -264,6 +266,9 @@ function SearchContent({ onBack, runGuards, savedSearch }: SearchContentProps) {
             query={submitted.query}
             run={submitted.run}
             onOpen={(itemId) => void opening.open(itemId)}
+            onPushBack={({ itemId, projectId, folderId }) =>
+              void pushBack({ id: itemId, projectId, folderId })
+            }
           />
         )}
       </div>

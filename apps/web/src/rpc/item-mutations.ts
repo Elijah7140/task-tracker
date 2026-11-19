@@ -47,3 +47,6 @@ export const skipRepeatAtom = TaskTrackerClient.mutation("SkipRepeat");
 
 /** Removes the repeat rule from one occurrence (§7.11). */
 export const stopRepeatingAtom = TaskTrackerClient.mutation("StopRepeating");
+
+/** Moves an open item's due date and scheduled block one calendar day later (§7.14). */
+export const pushBackOneDayAtom = TaskTrackerClient.mutation("PushBackOneDay");
