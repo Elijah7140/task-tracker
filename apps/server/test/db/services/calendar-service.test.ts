@@ -15,7 +15,8 @@ import { ItemService } from "../../../src/services/item-service.js";
 import { LookupService } from "../../../src/services/lookup-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
 import { SettingsService } from "../../../src/services/settings-service.js";
-import { withSchema } from "./fixtures.js";
+import { UndoService } from "../../../src/services/undo-service.js";
+import { readItems, withSchema } from "./fixtures.js";
 
 const ticksPerHour = 36_000_000_000n;
 const ticksPerDay = 24n * ticksPerHour;
@@ -43,7 +44,10 @@ const setup = Effect.gen(function* () {
 
 type World = Effect.Success<typeof setup>;
 
-function test<A, E>(name: string, run: (world: World) => Effect.Effect<A, E, SqlClient.SqlClient>) {
+function test<A, E>(
+  name: string,
+  run: (world: World) => Effect.Effect<A, E, SqlClient.SqlClient | UndoService>,
+) {
   it.effect(name, () => setup.pipe(Effect.flatMap(run), Effect.provide(services), withSchema));
 }
 
@@ -391,4 +395,197 @@ test("Locating an item in a deleted folder reports it missing", (world) =>
     const missing = yield* Effect.flip(world.calendar.locateItem(item.id));
 
     expect(missing).toBeInstanceOf(EntityMissing);
+  }));
+
+test("A month drop keeps the latest due time and records one undoable date change", (world) =>
+  Effect.gen(function* () {
+    const undo = yield* UndoService;
+    const item = yield* seed(world, "Review", {
+      dueDate: "2026-11-16",
+      dueTime: "10:07:42.1234567",
+      scheduledStart: "2026-11-16T09:00",
+      scheduledEnd: "2026-11-16T10:00",
+    });
+    const request = {
+      itemId: item.id,
+      kind: "due",
+      sourceDay: "2026-11-15",
+      target: { type: "month", date: "2026-11-17" },
+    } as const;
+    yield* TestClock.setTime(Date.parse("2026-11-16T12:10:00Z"));
+
+    const moved = yield* world.calendar.reschedule(request);
+    const query = range("2026-11-16", "2026-11-18");
+    const after = yield* world.calendar.load(query);
+    const revision = (yield* undo.status()).revision;
+    const noop = yield* world.calendar.reschedule(request);
+    const unchanged = yield* undo.status();
+    const undone = yield* undo.apply("undo");
+    const restored = yield* world.calendar.load(query);
+    yield* undo.apply("redo");
+    const replayed = yield* world.calendar.load(query);
+    const persisted = yield* readItems();
+
+    expect(moved?.date).toBe("2026-11-17");
+    expect(after.find((entry) => entry.kind === "due")?.dueTime?.toString()).toBe(
+      "10:07:42.1234567",
+    );
+    expect(after.find((entry) => entry.kind === "scheduled")?.scheduledEnd?.toString()).toBe(
+      "2026-11-16T10:00:00",
+    );
+    expect(noop).toBeNull();
+    expect(unchanged.revision).toBe(revision);
+    expect(undone?.label).toBe("Reschedule 'Review'");
+    expect(restored.find((entry) => entry.kind === "due")?.date.toString()).toBe("2026-11-16");
+    expect(replayed).toEqual(after);
+    expect(persisted[0]?.["UpdatedAtUtc"]).toBe("2026-11-16 12:10:00");
+  }));
+
+test("Timed due moves set and clear the time while allowing completed items", (world) =>
+  Effect.gen(function* () {
+    const item = yield* seed(world, "Done", { dueDate: "2026-11-16" });
+    yield* world.items.setCompleted(world.project.id, null, item.id, true);
+    const entry = { itemId: item.id, kind: "due", sourceDay: "2026-11-16" } as const;
+    const query = range("2026-11-16", "2026-11-22", { includeCompleted: true });
+
+    yield* world.calendar.reschedule({
+      ...entry,
+      target: { type: "time", date: "2026-11-17", minute: 675 },
+    });
+    const timed = yield* world.calendar.load(query);
+    yield* world.calendar.reschedule({ ...entry, target: { type: "all-day", date: "2026-11-18" } });
+    const allDay = yield* world.calendar.load(query);
+    yield* world.calendar.reschedule({ ...entry, target: { type: "month", date: "2026-11-19" } });
+    const month = yield* world.calendar.load(query);
+
+    expect(timed[0]?.date.toString()).toBe("2026-11-17");
+    expect(timed[0]?.dueTime?.toString()).toBe("11:15:00");
+    expect(allDay[0]?.date.toString()).toBe("2026-11-18");
+    expect(allDay[0]?.dueTime).toBeNull();
+    expect(month[0]?.date.toString()).toBe("2026-11-19");
+    expect(month[0]?.dueTime).toBeNull();
+    expect(month[0]?.isCompleted).toBe(true);
+  }));
+
+for (const [name, end, expected] of [
+  ["a missing end", undefined, null],
+  ["a zero-length end", "2026-11-16T22:30", "2026-11-17T23:45:00"],
+  ["a midnight crossing", "2026-11-17T00:30:53.1234567", "2026-11-18T01:45:53.1234567"],
+] as const) {
+  test(`Moving a schedule keeps ${name} and undo restores it`, (world) =>
+    Effect.gen(function* () {
+      const undo = yield* UndoService;
+      const item = yield* seed(world, "Deploy", {
+        scheduledStart: "2026-11-16T22:30",
+        ...(end === undefined ? {} : { scheduledEnd: end }),
+      });
+      const query = range("2026-11-16", "2026-11-19");
+      const before = yield* world.calendar.load(query);
+
+      yield* world.calendar.reschedule({
+        itemId: item.id,
+        kind: "scheduled",
+        sourceDay: "2026-11-16",
+        target: { type: "time", date: "2026-11-17", minute: 1425 },
+      });
+      const moved = yield* world.calendar.load(query);
+      yield* undo.apply("undo");
+      const undone = yield* world.calendar.load(query);
+      yield* undo.apply("redo");
+      const redone = yield* world.calendar.load(query);
+
+      expect(moved[0]?.scheduledStart?.toString()).toBe("2026-11-17T23:45:00");
+      expect(moved[0]?.scheduledEnd?.toString() ?? null).toBe(expected);
+      expect(undone).toEqual(before);
+      expect(redone).toEqual(moved);
+    }));
+}
+
+test("A stale schedule drop shifts the latest stored duration from the dragged continuation", (world) =>
+  Effect.gen(function* () {
+    const item = yield* seed(world, "Deploy", {
+      scheduledStart: "2026-11-16T23:00",
+      scheduledEnd: "2026-11-17T02:30",
+    });
+
+    yield* world.calendar.reschedule({
+      itemId: item.id,
+      kind: "scheduled",
+      sourceDay: "2026-11-17",
+      target: { type: "time", date: "2026-11-18", minute: 45 },
+    });
+    const [moved] = yield* world.calendar.load(range("2026-11-17", "2026-11-20"));
+
+    expect(moved?.scheduledStart?.toString()).toBe("2026-11-17T23:45:00");
+    expect(moved?.scheduledEnd?.toString()).toBe("2026-11-18T03:15:00");
+  }));
+
+test("Bounds and absent entries reject the reschedule without modifying rows or history", (world) =>
+  Effect.gen(function* () {
+    const undo = yield* UndoService;
+    const item = yield* seed(world, "Deploy", {
+      scheduledStart: "2026-11-16T23:00",
+      scheduledEnd: "2026-11-17T02:00",
+    });
+    const deleted = yield* seed(world, "Deleted", { dueDate: "2026-11-16" });
+    yield* world.items.delete(world.project.id, null, deleted.id);
+    const before = yield* readItems();
+    const history = yield* undo.status();
+    const move = {
+      itemId: item.id,
+      kind: "scheduled",
+      sourceDay: "2026-11-16",
+      target: { type: "month", date: "9999-12-31" },
+    } as const;
+
+    const overflow = yield* Effect.flip(world.calendar.reschedule(move));
+    const removed = yield* Effect.flip(world.calendar.reschedule({ ...move, itemId: deleted.id }));
+    const unknown = yield* Effect.flip(
+      world.calendar.reschedule({ ...move, itemId: "019A0000-0000-7000-8000-000000000CCD" }),
+    );
+    const unscheduled = yield* seed(world, "Unscheduled", {});
+    const noSchedule = yield* Effect.flip(
+      world.calendar.reschedule({ ...move, itemId: unscheduled.id }),
+    );
+    const noDue = yield* Effect.flip(world.calendar.reschedule({ ...move, kind: "due" }));
+    const offGrid = yield* Effect.flip(
+      world.calendar.reschedule({
+        ...move,
+        target: { type: "time", date: "2026-11-16", minute: 61 },
+      }),
+    );
+    const after = yield* readItems();
+    const finalHistory = yield* undo.status();
+
+    expect(overflow.message).toMatch(/supported dates/);
+    expect([removed, unknown]).toEqual([new EntityMissing("Item"), new EntityMissing("Item")]);
+    expect(noSchedule.message).toBe("Item has no schedule to move.");
+    expect(noDue.message).toBe("Item has no due date to move.");
+    expect(offGrid.message).toMatch(/quarter-hour/);
+    expect(after.filter((row) => row["Id"] !== unscheduled.id)).toEqual(before);
+    expect(finalHistory.revision).toBe(history.revision + 1);
+  }));
+
+test("A failed schedule write rolls back dates and the undo step", (world) =>
+  Effect.gen(function* () {
+    const undo = yield* UndoService;
+    const sql = yield* SqlClient.SqlClient;
+    const item = yield* seed(world, "Deploy", { scheduledStart: "2026-11-16T23:00" });
+    yield* sql`CREATE TRIGGER reject_calendar_change AFTER UPDATE OF ScheduledStart ON TodoItem
+      BEGIN SELECT RAISE(ABORT, 'calendar rejected'); END`;
+    const before = yield* undo.status();
+
+    yield* Effect.flip(
+      world.calendar.reschedule({
+        itemId: item.id,
+        kind: "scheduled",
+        sourceDay: "2026-11-16",
+        target: { type: "month", date: "2026-11-17" },
+      }),
+    );
+    const entries = yield* world.calendar.load(range("2026-11-16", "2026-11-18"));
+    const after = yield* undo.status();
+
+    expect(entries[0]?.date.toString()).toBe("2026-11-16");
+    expect(after).toEqual(before);
   }));

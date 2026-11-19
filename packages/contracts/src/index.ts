@@ -54,3 +54,4 @@ export {
   CalendarUrgency,
 } from "./calendar-entry.js";
 export { CalendarRpcs } from "./calendar-rpcs.js";
+export { CalendarReschedule } from "./calendar-reschedule.js";

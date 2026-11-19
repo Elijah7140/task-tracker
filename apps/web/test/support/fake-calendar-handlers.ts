@@ -1,8 +1,15 @@
-import { type CalendarEntry, NotFound, RuleViolation } from "@task-tracker/contracts";
+import {
+  type CalendarEntry,
+  type CalendarReschedule,
+  NotFound,
+  OperationFailed,
+  RuleViolation,
+} from "@task-tracker/contracts";
 import { Effect } from "effect";
 import { isoDateToUtcMillis, parseIsoDate } from "../../src/calendar/calendar-dates.js";
 import { DEFAULT_BLOCK_MINUTES } from "../../src/calendar/calendar-metrics.js";
 import { FAKE_LOOKUPS, type FakeItemNode } from "./fake-area-items.js";
+import { fakeCalendarMove } from "./fake-calendar-move.js";
 import type { FakeProjectStore } from "./fake-task-tracker-server.js";
 
 type WireEntry = typeof CalendarEntry.Type;
@@ -32,6 +39,8 @@ export class FakeCalendar {
   today = "2026-11-16";
   /** Optional simulated load failure message for `LoadCalendar`. */
   loadFailure: string | null = null;
+  /** Simulates an unexpected write failure. */
+  moveFailure = false;
 }
 
 /** Fake RPC handlers for `LoadCalendar` and `LocateCalendarItem`. */
@@ -154,6 +163,42 @@ export function calendarHandlers(store: FakeProjectStore) {
 
           return Effect.succeed({ today: store.calendar.today, entries });
         }),
+      ),
+    RescheduleCalendarEntry: (request: typeof CalendarReschedule.Type) =>
+      store.record("RescheduleCalendarEntry").pipe(
+        Effect.andThen(
+          Effect.gen(function* () {
+            if (store.calendar.moveFailure) {
+              return yield* Effect.fail(
+                new OperationFailed({ message: "The operation could not be completed." }),
+              );
+            }
+            const item = activeItems().find(({ item }) => item.id === request.itemId)?.item;
+            if (item === undefined) {
+              return yield* Effect.fail(
+                new NotFound({ entity: "Item", message: "Item is missing or deleted." }),
+              );
+            }
+            if (request.kind === "due" ? item.dueDate === null : item.scheduledStart === null) {
+              return yield* Effect.fail(
+                new RuleViolation({
+                  message:
+                    request.kind === "due"
+                      ? "Item has no due date to move."
+                      : "Item has no schedule to move.",
+                }),
+              );
+            }
+            const dates = fakeCalendarMove(item, request);
+            if (dates === null) {
+              return null;
+            }
+            store.patchItem(item.id, { ...dates, updatedAtUtc: store.nextTimestamp() });
+            const date =
+              request.kind === "due" ? dates.dueDate! : dates.scheduledStart!.slice(0, 10);
+            return { itemId: item.id, folderId: item.folderId, projectId: item.projectId, date };
+          }),
+        ),
       ),
     LocateCalendarItem: ({ itemId }: { itemId: string }) =>
       store.record("LocateCalendarItem").pipe(

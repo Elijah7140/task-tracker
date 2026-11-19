@@ -97,3 +97,5 @@ export {
   type CalendarEntryKind,
   type CalendarQuery,
 } from "./calendar/calendar-entry.js";
+
+export { planCalendarMove, type CalendarMoveIntent } from "./calendar/calendar-reschedule.js";

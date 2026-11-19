@@ -2,21 +2,25 @@ import { useAtomMount, useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import { Clock, Effect } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { CircleAlert } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 import { CALENDAR_KEY, calendarSnapshotAtom } from "../rpc/calendar-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { serverInfoAtom } from "../rpc/server-info-query.js";
 import { rendererClockAtom, urgencyRefreshAtom } from "../rpc/urgency-refresh.js";
 import type { ReturnGuard } from "../shell/return-guards.js";
+import { dialogStore } from "../state/dialog-store.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { formatIsoDateInZone, weekdayHeaders } from "./calendar-dates.js";
-import { buildCalendarDays } from "./calendar-layout.js";
+import { buildCalendarDays, type CalendarDay } from "./calendar-layout.js";
+import { calendarStep } from "./calendar-move-keys.js";
 import { CalendarMonthGrid } from "./calendar-month-grid.js";
 import { type CalendarScope, CalendarToolbar } from "./calendar-toolbar.js";
 import { CalendarWeekGrid } from "./calendar-week-grid.js";
 import { useCalendarActivation } from "./use-calendar-activation.js";
+import { useCalendarDrag } from "./use-calendar-drag.js";
 import { useCalendarKeys } from "./use-calendar-keys.js";
+import { useCalendarReschedule } from "./use-calendar-reschedule.js";
 import { useCalendarPeriod } from "./use-calendar-period.js";
 
 /** Props for {@link CalendarPage}. */
@@ -63,6 +67,25 @@ function CalendarError({ message }: { readonly message: string }) {
   );
 }
 
+function entryAt(target: EventTarget, days: ReadonlyArray<CalendarDay>) {
+  const button =
+    target instanceof Element ? target.closest<HTMLElement>("[data-entry-kind]") : null;
+  if (button === null) {
+    return;
+  }
+  const { date, itemId, entryKind } = button.dataset;
+  const occurrence = days
+    .find((day) => day.date === date)
+    ?.entries.find(({ entry }) => entry.itemId === itemId && entry.kind === entryKind);
+  return occurrence === undefined ? undefined : { button, occurrence };
+}
+
+function isEscape(event: KeyboardEvent) {
+  return (
+    event.key === "Escape" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+  );
+}
+
 /**
  * Month and week calendar covering page (§7.4). Displays due dates and scheduled
  * blocks with server-computed urgency refreshed every minute, scope and
@@ -86,7 +109,6 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     includeCompleted,
   });
   const activation = useCalendarActivation({ runGuards, reload });
-  clearError.current = activation.clearError;
   const snapshot = AsyncResult.isSuccess(result) ? result.value : null;
   if (snapshot !== null && snapshot.today !== loadedToday) {
     setLoadedToday(snapshot.today);
@@ -104,35 +126,89 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     () => buildCalendarDays(period.range.fromDate, period.dayCount, period.anchor, today, entries),
     [period.range.fromDate, period.dayCount, period.anchor, today, entries],
   );
+  const root = useRef<HTMLDivElement>(null);
+  const reschedule = useCalendarReschedule({
+    root,
+    snapshot,
+    waitingForSnapshot: result.waiting,
+    view: JSON.stringify([period.mode, period.range.fromDate, scope, includeCompleted]),
+    fromDate: period.range.fromDate,
+    reload,
+  });
+  const drag = useCalendarDrag((request) => {
+    activation.clearError();
+    reschedule.move(request);
+  });
+  clearError.current = () => {
+    activation.clearError();
+    reschedule.clearError();
+  };
+  const goBack = () => void reschedule.afterMoves(onBack);
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || dialogStore.getState().queue.length > 0) {
+      return;
+    }
+    if (isEscape(event) && useReturnPageStore.getState().busy) {
+      event.preventDefault();
+      goBack();
+      return;
+    }
+    const step = calendarStep(event);
+    const occurrence = step === undefined ? undefined : entryAt(event.target, days)?.occurrence;
+    if (step === undefined || occurrence === undefined) {
+      return;
+    }
+    event.preventDefault();
+    if (!occurrence.isAllDay || step.quarters === 0) {
+      activation.clearError();
+      const { itemId, kind } = occurrence.entry;
+      reschedule.move({ itemId, kind, sourceDay: occurrence.day, target: step });
+    }
+  };
   const weekdays = useMemo(() => weekdayHeaders(period.weekStartsOn), [period.weekStartsOn]);
-  const onActivate = (occurrence: Parameters<typeof activation.activate>[0]) =>
-    void activation.activate(occurrence);
+  const onActivate = (occurrence: Parameters<typeof activation.activate>[0]) => {
+    if (!useReturnPageStore.getState().busy) {
+      reschedule.clearError();
+      void activation.activate(occurrence);
+    }
+  };
+  const error = reschedule.error ?? activation.error;
 
   return (
     <div
+      ref={root}
       data-testid="calendar-page"
-      className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-3 px-6 py-5"
+      data-dragging={drag.dragging || undefined}
+      onScrollCapture={drag.refresh}
+      onKeyDown={onKeyDown}
+      onPointerDown={(event) => {
+        const source = entryAt(event.target, days);
+        if (source !== undefined) {
+          drag.press(event, source.button, source.occurrence);
+        }
+      }}
+      className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-3 px-6 py-5 data-dragging:cursor-grabbing"
     >
       <CalendarToolbar
         title={period.title}
         mode={period.mode}
         scope={originProjectId === null ? null : scope}
         includeCompleted={includeCompleted}
-        onBack={onBack}
+        onBack={goBack}
         onPrevious={period.previous}
         onToday={period.goToday}
         onNext={period.next}
         onModeChange={period.show}
         onScopeChange={(nextScope) => {
-          activation.clearError();
+          clearError.current();
           setScope(nextScope);
         }}
         onIncludeCompletedChange={(checked) => {
-          activation.clearError();
+          clearError.current();
           setIncludeCompleted(checked);
         }}
       />
-      {activation.error === null ? null : <CalendarError message={activation.error} />}
+      {error === null ? null : <CalendarError message={error} />}
       {AsyncResult.isFailure(result) ? (
         <LoadFailure
           message={describeRpcFailure(result.cause)}
@@ -143,12 +219,14 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
         <CalendarMonthGrid
           weekdays={weekdays}
           days={days}
+          feedback={drag.feedback}
           onActivate={onActivate}
           onOpenDayInWeek={period.openDayInWeek}
         />
       ) : (
         <CalendarWeekGrid
           days={days}
+          feedback={drag.feedback}
           scrollTrigger={period.weekScrollTrigger}
           onActivate={onActivate}
         />

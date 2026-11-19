@@ -1,12 +1,15 @@
 import { useLayoutEffect, useRef } from "react";
+import { CalendarDropGhost } from "./calendar-drop-ghost.js";
 import { CalendarEntryButton } from "./calendar-entry-button.js";
 import { handleCalendarGridKey } from "./calendar-grid-keys.js";
 import type { CalendarDay, CalendarOccurrence } from "./calendar-layout.js";
 import { DAY_HEIGHT, HOUR_HEIGHT, HOUR_LABELS, MORNING_OFFSET } from "./calendar-metrics.js";
+import type { CalendarDragFeedback } from "./use-calendar-drag.js";
 import { cx } from "../ui/class-names.js";
 
 /** Props for {@link CalendarWeekGrid}. */
 export interface CalendarWeekGridProps {
+  readonly feedback: CalendarDragFeedback | null;
   readonly days: ReadonlyArray<CalendarDay>;
   /** Incremented whenever the view opens or switches to Week so it scrolls to 07:00. */
   readonly scrollTrigger: number;
@@ -17,7 +20,12 @@ export interface CalendarWeekGridProps {
  * Seven-column week view with an expandable all-day row and a 00:00–24:00 time
  * grid at 48 pixels per hour, scrolled to 07:00 when opened (§7.4).
  */
-export function CalendarWeekGrid({ days, scrollTrigger, onActivate }: CalendarWeekGridProps) {
+export function CalendarWeekGrid({
+  days,
+  scrollTrigger,
+  onActivate,
+  feedback,
+}: CalendarWeekGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -72,9 +80,14 @@ export function CalendarWeekGrid({ days, scrollTrigger, onActivate }: CalendarWe
                 role="group"
                 aria-label={`${day.accessibleName}, all day`}
                 data-testid="calendar-allday-cell"
+                data-calendar-drop-zone="all-day"
+                data-drop-active={
+                  (feedback?.target.type === "all-day" && feedback.target.date === day.date) ||
+                  undefined
+                }
                 data-date={day.date}
                 className={cx(
-                  "flex min-h-8 min-w-0 flex-col gap-1 p-1",
+                  "flex min-h-8 min-w-0 flex-col gap-1 p-1 data-drop-active:ring-2 data-drop-active:ring-inset data-drop-active:ring-focus",
                   day.isToday && "bg-accent-soft/35",
                 )}
               >
@@ -116,6 +129,7 @@ export function CalendarWeekGrid({ days, scrollTrigger, onActivate }: CalendarWe
                   role="group"
                   aria-label={day.accessibleName}
                   data-testid="calendar-time-column"
+                  data-calendar-drop-zone="time"
                   data-date={day.date}
                   data-today={day.isToday ? "true" : undefined}
                   style={{ height: `${DAY_HEIGHT}px` }}
@@ -132,6 +146,9 @@ export function CalendarWeekGrid({ days, scrollTrigger, onActivate }: CalendarWe
                       className="pointer-events-none absolute inset-x-0 border-b border-line/70"
                     />
                   ))}
+                  {feedback?.target.type === "time" && feedback.target.date === day.date ? (
+                    <CalendarDropGhost feedback={feedback} />
+                  ) : null}
                   {day.timedEntries.map((occurrence, index) => (
                     <CalendarEntryButton
                       key={`${occurrence.entry.itemId}-${occurrence.entry.kind}`}

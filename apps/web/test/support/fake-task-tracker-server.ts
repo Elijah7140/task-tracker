@@ -636,6 +636,7 @@ function handlers(store: FakeProjectStore) {
   const editItem = editItemHandler(store, record);
   const folder = folderHandlers(store, record);
   const statuses = statusHandlers(store, record);
+  const calendar = calendarHandlers(store);
   const itemTitle = (id: string): string | undefined => {
     const find = (nodes: ReadonlyArray<FakeItemNode>): string | undefined => {
       for (const node of nodes) {
@@ -754,7 +755,11 @@ function handlers(store: FakeProjectStore) {
     ReorderStatuses: (payload) =>
       history.track(statuses.ReorderStatuses(payload), () => "Reorder statuses"),
     ...trashHandlers(store, history.track),
-    ...calendarHandlers(store),
+    ...calendar,
+    RescheduleCalendarEntry: (payload) =>
+      history.track(calendar.RescheduleCalendarEntry(payload), (result) =>
+        result === null ? null : `Reschedule '${itemTitle(payload.itemId)}'`,
+      ),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const verb = payload.fields.statusId === undefined ? "Edit" : "Set status of";
