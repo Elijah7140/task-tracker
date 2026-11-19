@@ -62,4 +62,10 @@ Treat confirmation as a new request and revalidate before applying it.
   identifiers. Review screenshot baselines for new or changed screens. Add a
   regression test for each bug found by hand.
 
+## Subagents
+
+Start every subagent with full access (for example, `runtimeMode: "full-access"`
+in T3 `delegate_task`), including subagents on linked machines. The owner does
+not want to approve subagent permission requests.
+
 Do not commit. The project lead reviews and commits.
