@@ -1,4 +1,4 @@
-import { OperationFailed, RuleViolation } from "@task-tracker/contracts";
+import { NotFound, OperationFailed, RuleViolation } from "@task-tracker/contracts";
 import { Cause } from "effect";
 import { RpcClientError } from "effect/rpc";
 import { describe, expect, it } from "vitest";
@@ -25,6 +25,16 @@ describe("describeRpcFailure", () => {
     const message = describeRpcFailure(cause);
 
     expect(message).toBe("The operation could not be completed.");
+  });
+
+  it("Shows the server's message for a missing entity", () => {
+    const cause = Cause.fail(
+      new NotFound({ entity: "Project", message: "Project is missing or deleted." }),
+    );
+
+    const message = describeRpcFailure(cause);
+
+    expect(message).toBe("Project is missing or deleted.");
   });
 
   it("Explains a lost connection for a transport failure", () => {

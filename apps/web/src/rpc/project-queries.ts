@@ -4,6 +4,9 @@ import { TaskTrackerClient } from "./task-tracker-client.js";
 /** Reactivity key shared by every query that shows project names or counts. */
 export const PROJECTS_KEY = "projects";
 
+/** Reactivity key for one project's navigation snapshot, refreshed after folder mutations. */
+export const projectKey = (projectId: typeof Guid.Type) => `project:${projectId}`;
+
 /** Home summaries with open and overdue counts, refreshed after project mutations. */
 export const projectSummariesAtom = TaskTrackerClient.query("ListProjects", undefined, {
   reactivityKeys: [PROJECTS_KEY],
@@ -14,7 +17,7 @@ export const projectWorkspaceAtom = (projectId: typeof Guid.Type) =>
   TaskTrackerClient.query(
     "LoadWorkspace",
     { projectId },
-    { reactivityKeys: [PROJECTS_KEY, `project:${projectId}`] },
+    { reactivityKeys: [PROJECTS_KEY, projectKey(projectId)] },
   );
 
 /** Creates a project. */

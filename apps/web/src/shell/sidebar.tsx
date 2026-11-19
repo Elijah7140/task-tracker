@@ -39,8 +39,9 @@ function ProjectsSection() {
 }
 
 /**
- * The app's navigation sidebar. Later screens add sections (the folder tree,
- * settings) between the project list and the footer.
+ * The app's navigation sidebar. The open project's folder tree nests under its
+ * project link. Later screens add sections (settings) between the project list
+ * and the footer.
  */
 export function Sidebar() {
   return (

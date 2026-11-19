@@ -19,7 +19,13 @@ const projectRoute = createRoute({
   component: ProjectPage,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, projectRoute]);
+const folderRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/$projectId/folders/$folderId",
+  component: ProjectPage,
+});
+
+const routeTree = rootRoute.addChildren([homeRoute, projectRoute, folderRoute]);
 
 /**
  * Creates the app router. The desktop build uses hash history because it
