@@ -8,7 +8,7 @@ import {
   type ReconciliationApproval,
   type SettingDefinition,
 } from "@task-tracker/core";
-import { Context, Effect, Layer, Option } from "effect";
+import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { projectRepository } from "../db/repositories/project-repository.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
@@ -50,6 +50,16 @@ const make = Effect.gen(function* () {
     return yield* checkRules(
       () => SettingsResolver.resolveValue(definition, global, noOverrides).value,
     );
+  }, sql.withTransaction);
+
+  const getGlobalSettings = Effect.fnUntraced(function* () {
+    const global = yield* settings.global();
+    return yield* checkRules(() => SettingsResolver.resolve(global, noOverrides));
+  }, sql.withTransaction);
+
+  const getEffective = Effect.fnUntraced(function* (projectId: string) {
+    const project = yield* projects.requireActive(projectId);
+    return yield* readEffectiveSettings(settings, project.id);
   }, sql.withTransaction);
 
   const planReconciliation = Effect.fnUntraced(function* (projectIds: readonly string[]) {
@@ -105,7 +115,7 @@ const make = Effect.gen(function* () {
     const rows =
       projectId === undefined
         ? yield* projects.listActive()
-        : Option.toArray(yield* projects.findActive(projectId));
+        : [yield* projects.requireActive(projectId)];
     const enabled: string[] = [];
     for (const project of rows) {
       const overrides = yield* settings.project(project.id);
@@ -170,9 +180,10 @@ const make = Effect.gen(function* () {
   return {
     /** Read a global value, falling back to its built-in default. */
     getGlobal,
-    /** Read effective settings and their sources from one snapshot. */
-    getEffective: (projectId: string) =>
-      sql.withTransaction(readEffectiveSettings(settings, projectId)),
+    /** Read all global values from one snapshot, falling back to built-in defaults. */
+    getGlobalSettings,
+    /** Read an active project's effective settings and their sources from one snapshot. */
+    getEffective,
     /** Preview enabling automatic completion for active projects that inherit the global value. */
     previewGlobalAutoComplete: () => previewAutoComplete(undefined),
     /** Preview enabling automatic completion for one active project. */
