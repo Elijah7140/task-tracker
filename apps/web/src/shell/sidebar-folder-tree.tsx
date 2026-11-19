@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { type FocusEvent, type KeyboardEvent, useState } from "react";
+import { leaveCoveringPageForNavigation } from "../state/return-page-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { handleTreeKeyDown, TREE_NODE_ATTRIBUTE } from "../ui/tree-keyboard.js";
 import { treeStyles } from "../ui/tree-styles.js";
@@ -117,8 +118,9 @@ function folderKeyHandler(folders: ReadonlyArray<Folder>, context: BranchContext
 
 /**
  * The open project's folders as an ARIA tree under its sidebar link. Click or
- * Enter opens a folder's area. Arrows move and expand, F2 renames, Delete
- * deletes and the context-menu key or Shift+F10 opens the folder's actions.
+ * Enter opens a folder's area, leaving any covering page. Arrows move and
+ * expand, F2 renames, Delete deletes and the context-menu key or Shift+F10
+ * opens the folder's actions.
  * Expansion lasts for the session.
  */
 export function SidebarFolderTree(props: SidebarFolderTreeProps) {
@@ -144,7 +146,11 @@ export function SidebarFolderTree(props: SidebarFolderTreeProps) {
     menuFor,
     actions,
     ...roving,
-    onOpen: (folder) => void navigate(areaTarget(projectId, folder.id)),
+    onOpen: (folder) => {
+      if (leaveCoveringPageForNavigation()) {
+        void navigate(areaTarget(projectId, folder.id));
+      }
+    },
     onExpandedChange: setFolderExpanded,
     onMenuFor: setMenuFor,
   };

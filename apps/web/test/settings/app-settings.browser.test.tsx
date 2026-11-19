@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { trashBatch } from "../support/fake-trash-handlers.js";
 import { renderApp } from "../support/render-app.js";
 import { matchShellAtBothSizes, THEMES } from "../support/screenshots.js";
 
@@ -369,6 +370,34 @@ describe("AppSettingsPage", () => {
       .element(page.getByRole("alertdialog", { name: "Discard unsaved settings?" }))
       .toBeVisible();
     expect(history.location.pathname).toBe("/settings");
+  });
+
+  it("Asks about unsaved defaults when returning from Trash after a change there", async () => {
+    await openAppSettings({
+      projects: [{ name: "Billing" }],
+      configure(store) {
+        store.trash.add(trashBatch(1, store.summaries[0]!.project.id, "Old note"));
+      },
+    });
+    await yellowAmount().fill("5");
+    await page.getByTestId("sidebar-trash").click();
+    await page
+      .getByRole("article", { name: "Old note" })
+      .getByRole("button", { name: "Restore" })
+      .click();
+    await expect.element(page.getByText("The trash is empty.")).toBeVisible();
+    const discardDialog = page.getByRole("alertdialog", { name: "Discard unsaved settings?" });
+
+    await page.getByTestId("trash-back").click();
+    await expect.element(discardDialog).toBeVisible();
+    await discardDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect.element(page.getByRole("heading", { name: "Trash", exact: true })).toBeVisible();
+    await page.getByTestId("trash-back").click();
+    await discardDialog.getByRole("button", { name: "Discard" }).click();
+
+    await expect.element(appSettingsHeading()).toBeVisible();
+    await expect.element(yellowAmount()).toHaveValue("3");
+    await expect.element(saveButton()).toBeDisabled();
   });
 
   it("Steps threshold amounts with ArrowUp and ArrowDown without going below zero", async () => {

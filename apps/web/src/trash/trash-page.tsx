@@ -2,7 +2,7 @@ import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import type { TrashBatch } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { ArrowLeft, CircleAlert, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type RefObject, useRef, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { trashBatchesAtom } from "../rpc/trash-queries.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
@@ -12,7 +12,8 @@ import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
 import { Select } from "../ui/select.js";
 import { TrashBatchRow } from "./trash-batch-row.js";
-import { useTrashActions } from "./use-trash-actions.js";
+import { type TrashChangeOutcome, useTrashActions } from "./use-trash-actions.js";
+import { useTrashFocus } from "./use-trash-focus.js";
 
 type Batch = typeof TrashBatch.Type;
 type Scope = "project" | "all";
@@ -63,6 +64,7 @@ function TrashHeader({ scope, onScopeChange, canEmpty, busy, onBack, onEmpty }: 
   return (
     <PageHeader
       title="Trash"
+      focusTitle
       eyebrow={
         <Button
           size="sm"
@@ -100,28 +102,37 @@ function TrashHeader({ scope, onScopeChange, canEmpty, busy, onBack, onEmpty }: 
 }
 
 interface TrashListProps {
+  readonly listRef: RefObject<HTMLElement | null>;
   readonly batches: ReadonlyArray<Batch>;
   readonly busy: boolean;
   readonly onRestore: (batch: Batch) => void;
   readonly onPurge: (batch: Batch) => void;
 }
 
-function TrashList({ batches, busy, onRestore, onPurge }: TrashListProps) {
-  if (batches.length === 0) {
-    return <EmptyTrash />;
-  }
+/** The batches, or the empty state. It takes focus when no row is left to focus. */
+function TrashList({ listRef, batches, busy, onRestore, onPurge }: TrashListProps) {
   return (
-    <div className="flex flex-col gap-3" data-testid="trash-list">
-      {batches.map((batch) => (
-        <TrashBatchRow
-          key={batch.batchId}
-          batch={batch}
-          busy={busy}
-          onRestore={onRestore}
-          onPurge={onPurge}
-        />
-      ))}
-    </div>
+    <section
+      ref={listRef}
+      tabIndex={-1}
+      aria-label="Deleted items"
+      data-testid="trash-list"
+      className="flex flex-col gap-3 outline-none"
+    >
+      {batches.length === 0 ? (
+        <EmptyTrash />
+      ) : (
+        batches.map((batch) => (
+          <TrashBatchRow
+            key={batch.batchId}
+            batch={batch}
+            busy={busy}
+            onRestore={onRestore}
+            onPurge={onPurge}
+          />
+        ))
+      )}
+    </section>
   );
 }
 
@@ -145,9 +156,17 @@ export function TrashPage({ onBack }: { readonly onBack: () => void }) {
     batches,
     reload,
   });
+  const listRef = useRef<HTMLElement>(null);
+  const focus = useTrashFocus(listRef, batches);
   const changeScope = (next: Scope) => {
     actions.clearError();
     setScope(next);
+  };
+  const changeRow = async (batch: Batch, change: (batch: Batch) => Promise<TrashChangeOutcome>) => {
+    focus.holdRow(batch.batchId);
+    if ((await change(batch)) === "finished") {
+      focus.afterChange();
+    }
   };
 
   return (
@@ -158,7 +177,10 @@ export function TrashPage({ onBack }: { readonly onBack: () => void }) {
         canEmpty={batches.length > 0}
         busy={busy}
         onBack={onBack}
-        onEmpty={() => void actions.emptyTrash()}
+        onEmpty={() => {
+          focus.holdList();
+          void actions.emptyTrash();
+        }}
       />
       <div className="flex flex-col gap-4">
         {actions.error === null ? null : <TrashError message={actions.error} />}
@@ -170,10 +192,11 @@ export function TrashPage({ onBack }: { readonly onBack: () => void }) {
           <LoadFailure message={describeRpcFailure(result.cause)} onRetry={reload} />
         ) : (
           <TrashList
+            listRef={listRef}
             batches={batches}
             busy={busy}
-            onRestore={(batch) => void actions.restoreBatch(batch)}
-            onPurge={(batch) => void actions.purgeBatch(batch)}
+            onRestore={(batch) => void changeRow(batch, actions.restoreBatch)}
+            onPurge={(batch) => void changeRow(batch, actions.purgeBatch)}
           />
         )}
       </div>

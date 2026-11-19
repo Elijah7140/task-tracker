@@ -61,19 +61,20 @@ export interface ItemRowProps {
 export const ITEM_ROW_COLUMNS =
   "grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_10.5rem_8rem_1.75rem] items-center gap-3";
 
-/** The grip shown on hover. The whole row starts a drag; the grip only signals it. */
-function DragHandle({ node }: { readonly node: ItemNode }) {
+/**
+ * The grip shown on hover. The whole row starts a drag; the grip only signals
+ * it, so assistive technology skips it and the keyboard moves rows with
+ * Alt+arrows and Tab instead (§8).
+ */
+function DragHandle() {
   return (
-    <button
-      type="button"
-      tabIndex={-1}
-      aria-label={`Move ${node.item.title}`}
+    <span
+      aria-hidden="true"
       data-testid="item-drag-handle"
-      onClick={(event) => event.stopPropagation()}
       className="grid h-5 w-4 shrink-0 cursor-grab place-items-center rounded-[0.3125rem] text-fg-subtle opacity-0 group-hover/row:opacity-100 hover:bg-pressed hover:text-fg active:cursor-grabbing"
     >
-      <GripVertical size={13} aria-hidden="true" />
-    </button>
+      <GripVertical size={13} />
+    </span>
   );
 }
 
@@ -378,7 +379,7 @@ export function ItemRow(props: ItemRowProps) {
           className="flex min-w-0 items-center gap-1.5"
           style={{ paddingLeft: `${0.25 + depth * 1.5}rem` }}
         >
-          <DragHandle node={node} />
+          <DragHandle />
           <ExpandToggle node={node} expanded={expanded} onExpandedChange={onExpandedChange} />
           <CompletionMark
             title={node.item.title}

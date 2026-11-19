@@ -1,7 +1,7 @@
 import { type Exit } from "effect";
 import { useEffect, useRef } from "react";
-import { resolveEditorDraft } from "../editor/editor-draft-guard.js";
 import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
+import { useRunReturnGuards } from "../shell/return-guards.js";
 import { hasItemEditorEdits, isItemEditorOpen } from "../state/item-editor-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 
@@ -58,6 +58,7 @@ function useMounted() {
  */
 export function useItemMoveRunner() {
   const mounted = useMounted();
+  const resolveDrafts = useRunReturnGuards();
 
   const finish = async (
     move: ItemMove,
@@ -86,7 +87,7 @@ export function useItemMoveRunner() {
     }
     store.setItemMoveSaving(true);
     try {
-      if (!(await resolveEditorDraft())) {
+      if (!(await resolveDrafts())) {
         return;
       }
       const origin = captureOrigin();

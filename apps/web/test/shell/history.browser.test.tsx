@@ -50,6 +50,40 @@ it("Replays completion using Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z", async () => {
   await expect.element(status()).toHaveTextContent("Redid: Complete 'Report'");
 });
 
+it("Keeps the status region mounted and changes only its text", async () => {
+  await openWorkspace();
+  const region = status();
+  await expect.element(region).toHaveAttribute("role", "status");
+  await expect.element(region).toBeEmptyDOMElement();
+  const mounted = region.element();
+  await item("Report").getByTestId("item-row").click();
+  await userEvent.keyboard(" ");
+  await expect.element(item("Completed (1)")).toBeVisible();
+
+  await undo();
+
+  await expect.element(region).toHaveTextContent("Undid: Complete 'Report'");
+  expect(region.element()).toBe(mounted);
+  await page.getByTestId("sidebar-home").click();
+  await expect.element(region).toBeEmptyDOMElement();
+  expect(region.element()).toBe(mounted);
+});
+
+it("Shows each Edit action's shortcut", async () => {
+  await openWorkspace();
+
+  await editMenu().click();
+
+  const undoAction = page.getByRole("menuitem", { name: "Undo", exact: true });
+  const redoAction = page.getByRole("menuitem", { name: "Redo", exact: true });
+  await expect.element(undoAction).toHaveAttribute("aria-keyshortcuts", "Control+Z");
+  await expect.element(undoAction.getByText("Ctrl+Z")).toBeVisible();
+  await expect
+    .element(redoAction)
+    .toHaveAttribute("aria-keyshortcuts", "Control+Y Control+Shift+Z");
+  await expect.element(redoAction.getByText("Ctrl+Y")).toBeVisible();
+});
+
 it("Keeps native text undo and ignores shortcuts while a prompt is open", async () => {
   const { store } = await openWorkspace();
   const quickAdd = page.getByTestId("quick-add-input");
@@ -143,7 +177,7 @@ it("Preserves selection and focus through reorder replay and clears the outcome 
   await expect.element(item("Report")).toHaveAttribute("aria-selected", "true");
   await expect.element(status()).toHaveTextContent("Undid: Reorder items");
   await page.getByTestId("sidebar-home").click();
-  await expect.element(status()).not.toBeInTheDocument();
+  await expect.element(status()).toBeEmptyDOMElement();
 });
 
 it.each(THEMES)(
@@ -237,7 +271,7 @@ it("Clears a replay outcome after a newly recorded action", async () => {
   await userEvent.keyboard("New action{Enter}");
 
   await expect.element(item("New action")).toBeVisible();
-  await expect.element(status()).not.toBeInTheDocument();
+  await expect.element(status()).toBeEmptyDOMElement();
   await editMenu().click();
   await expect.element(page.getByRole("menuitem", { name: "Redo", exact: true })).toBeDisabled();
 });

@@ -10,7 +10,6 @@ import {
   editItemAtom,
   restoreItemsAtom,
   setItemCompletedAtom,
-  setItemPriorityAtom,
 } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
@@ -24,6 +23,7 @@ import {
   useItemStructureActions,
 } from "./use-item-structure-actions.js";
 import { useItemDropActions } from "./use-item-drop-actions.js";
+import { useSetItemPriority } from "./use-set-item-priority.js";
 import { useSetItemStatus } from "./use-set-item-status.js";
 import { useSingleRunPerItem } from "./use-single-run-per-item.js";
 
@@ -145,18 +145,9 @@ function useRenameItem(scope: ItemActionScope) {
 
 /** Sets only the item's priority from a row menu, then returns focus to the row. */
 function useSetPriority(scope: ItemActionScope) {
-  const setPriority = useAtomSet(setItemPriorityAtom, { mode: "promiseExit" });
-  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId)];
-
+  const setPriority = useSetItemPriority();
   return async (node: ItemNode, priorityLevelId: string | null) => {
-    if (priorityLevelId === node.item.priorityLevelId) {
-      return;
-    }
-    const exit = await setPriority({
-      payload: { itemId: node.item.id, priorityLevelId },
-      reactivityKeys: keys,
-    });
-    if (await reportItemFailure(exit)) {
+    if (await setPriority(node.item, priorityLevelId)) {
       scope.onFocusItem({ id: node.item.id, afterNodes: scope.items });
     }
   };

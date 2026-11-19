@@ -47,9 +47,14 @@ export interface MenuItemProps {
   readonly disabled?: boolean | undefined;
   readonly onClick: () => void;
   readonly testId?: string | undefined;
+  /**
+   * The keyboard shortcut shown at the row's end, such as "Ctrl+Z", with its
+   * `aria-keyshortcuts` value, such as "Control+Z", for assistive technology.
+   */
+  readonly shortcut?: { readonly label: string; readonly keys: string } | undefined;
 }
 
-/** A menu row with an optional leading icon. */
+/** A menu row with an optional leading icon and trailing shortcut. */
 export function MenuItem({
   children,
   icon,
@@ -57,12 +62,14 @@ export function MenuItem({
   disabled = false,
   onClick,
   testId,
+  shortcut,
 }: MenuItemProps) {
   return (
     <Menu.Item
       disabled={disabled}
       onClick={onClick}
       data-testid={testId}
+      aria-keyshortcuts={shortcut?.keys}
       className={cx(
         "flex h-8 cursor-default items-center gap-2 rounded-[0.375rem] px-2 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-hover",
         tone === "danger" ? "text-danger" : "text-fg",
@@ -70,6 +77,11 @@ export function MenuItem({
     >
       <span className="flex size-4 items-center justify-center opacity-80">{icon}</span>
       {children}
+      {shortcut === undefined ? null : (
+        <kbd aria-hidden="true" className="ml-auto pl-6 font-sans text-xs text-fg-subtle">
+          {shortcut.label}
+        </kbd>
+      )}
     </Menu.Item>
   );
 }

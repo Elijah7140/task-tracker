@@ -36,8 +36,7 @@ interface ItemDragOptions {
 }
 
 /** Row controls that keep their own click and never start a drag. */
-const NON_DRAG_CONTROLS =
-  "button:not([data-testid='item-drag-handle']), [data-testid='item-toggle']";
+const NON_DRAG_CONTROLS = "button, [data-testid='item-toggle']";
 
 /**
  * Splits a row into thirds along the direction items flow: the top third

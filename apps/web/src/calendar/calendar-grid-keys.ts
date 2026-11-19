@@ -99,3 +99,18 @@ export function handleCalendarGridKey(
     event.preventDefault();
   }
 }
+
+/**
+ * The first entry shown in `days` order, with `firstDate`'s entries first when
+ * given. "+N more" buttons are skipped.
+ */
+export function firstCalendarEntry(
+  container: HTMLElement,
+  days: ReadonlyArray<string>,
+  firstDate?: string,
+): HTMLElement | undefined {
+  const order = firstDate === undefined ? days : [firstDate, ...days];
+  return order
+    .flatMap((date) => controlsOf(container, date))
+    .find((control) => control.dataset["testid"] === "calendar-entry");
+}

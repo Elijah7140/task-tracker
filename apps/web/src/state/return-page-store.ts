@@ -64,3 +64,17 @@ export const isPageCovered = () => useReturnPageStore.getState().covering !== nu
 
 /** Marks the page behind a covering page out of date. Without one it does nothing. */
 export const markReturnPageStale = () => useReturnPageStore.getState().markStale();
+
+/**
+ * Hides any covering page for the user's navigation, such as a sidebar link.
+ * Returns false, leaving it shown, while one of its changes is running, so
+ * the navigation should not happen. Redirects of the page behind keep it.
+ */
+export function leaveCoveringPageForNavigation(): boolean {
+  const { busy, uncover } = useReturnPageStore.getState();
+  if (busy) {
+    return false;
+  }
+  uncover();
+  return true;
+}

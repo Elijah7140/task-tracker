@@ -185,3 +185,19 @@ describe("Description tabs", () => {
       .toMatchScreenshot(`editor-markdown-preview-${theme}`);
   });
 });
+
+describe("Description label", () => {
+  it("Points only at a mounted text box while Preview is shown", async () => {
+    await openWithDescription(docs);
+
+    await previewTab().click();
+
+    await expect.element(descriptionInput()).not.toBeInTheDocument();
+    const dangling = [...editor().element().querySelectorAll("label[for]")].filter(
+      (label) => document.getElementById((label as HTMLLabelElement).htmlFor) === null,
+    );
+    expect(dangling).toEqual([]);
+    await editTab().click();
+    await expect.element(descriptionInput()).toBeVisible();
+  });
+});

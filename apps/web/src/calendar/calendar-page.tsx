@@ -11,11 +11,14 @@ import type { ReturnGuard } from "../shell/return-guards.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { formatIsoDateInZone, weekdayHeaders } from "./calendar-dates.js";
+import { CalendarEntryMenuContext } from "./calendar-entry-menu.js";
 import { buildCalendarDays } from "./calendar-layout.js";
 import { CalendarMonthGrid } from "./calendar-month-grid.js";
 import { type CalendarScope, CalendarToolbar } from "./calendar-toolbar.js";
 import { CalendarWeekGrid } from "./calendar-week-grid.js";
 import { useCalendarActivation } from "./use-calendar-activation.js";
+import { useCalendarEntryActions } from "./use-calendar-entry-actions.js";
+import { useCalendarFocus } from "./use-calendar-focus.js";
 import { useCalendarKeys } from "./use-calendar-keys.js";
 import { useCalendarPeriod } from "./use-calendar-period.js";
 
@@ -92,24 +95,40 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     setLoadedToday(snapshot.today);
   }
 
-  useCalendarKeys({
-    previous: period.previous,
-    next: period.next,
-    showMonth: () => period.show("month"),
-    showWeek: () => period.show("week"),
-  });
-
   const entries = snapshot?.entries ?? [];
   const days = useMemo(
     () => buildCalendarDays(period.range.fromDate, period.dayCount, period.anchor, today, entries),
     [period.range.fromDate, period.dayCount, period.anchor, today, entries],
   );
+  const dates = useMemo(() => days.map((day) => day.date), [days]);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const requestFocus = useCalendarFocus(pageRef, result, dates);
+  const entryActions = useCalendarEntryActions();
+
+  useCalendarKeys({
+    previous: () => {
+      period.previous();
+      requestFocus({ kind: "period", fallbackTestId: "calendar-previous" });
+    },
+    next: () => {
+      period.next();
+      requestFocus({ kind: "period", fallbackTestId: "calendar-next" });
+    },
+    showMonth: () => period.show("month"),
+    showWeek: () => period.show("week"),
+  });
+
   const weekdays = useMemo(() => weekdayHeaders(period.weekStartsOn), [period.weekStartsOn]);
   const onActivate = (occurrence: Parameters<typeof activation.activate>[0]) =>
     void activation.activate(occurrence);
+  const openDayInWeek = (date: string) => {
+    period.openDayInWeek(date);
+    requestFocus({ kind: "day", date });
+  };
 
   return (
     <div
+      ref={pageRef}
       data-testid="calendar-page"
       className="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-3 px-6 py-5"
     >
@@ -133,26 +152,28 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
         }}
       />
       {activation.error === null ? null : <CalendarError message={activation.error} />}
-      {AsyncResult.isFailure(result) ? (
-        <LoadFailure
-          message={describeRpcFailure(result.cause)}
-          onRetry={reload}
-          testId="calendar-load-failure"
-        />
-      ) : period.mode === "month" ? (
-        <CalendarMonthGrid
-          weekdays={weekdays}
-          days={days}
-          onActivate={onActivate}
-          onOpenDayInWeek={period.openDayInWeek}
-        />
-      ) : (
-        <CalendarWeekGrid
-          days={days}
-          scrollTrigger={period.weekScrollTrigger}
-          onActivate={onActivate}
-        />
-      )}
+      <CalendarEntryMenuContext.Provider value={entryActions}>
+        {AsyncResult.isFailure(result) ? (
+          <LoadFailure
+            message={describeRpcFailure(result.cause)}
+            onRetry={reload}
+            testId="calendar-load-failure"
+          />
+        ) : period.mode === "month" ? (
+          <CalendarMonthGrid
+            weekdays={weekdays}
+            days={days}
+            onActivate={onActivate}
+            onOpenDayInWeek={openDayInWeek}
+          />
+        ) : (
+          <CalendarWeekGrid
+            days={days}
+            scrollTrigger={period.weekScrollTrigger}
+            onActivate={onActivate}
+          />
+        )}
+      </CalendarEntryMenuContext.Provider>
     </div>
   );
 }
