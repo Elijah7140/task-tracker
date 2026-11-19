@@ -71,7 +71,7 @@ it.effect("Keeps archived lookup references on items and restores them with thei
       yield* client.RestorePriorityLevel({ id: level.id });
       const restored = yield* client.LoadArea(area);
 
-      expect(archived.items[0]?.item).toMatchObject({
+      expect(archived.items.open[0]?.item).toMatchObject({
         itemTypeId: type.id,
         priorityLevelId: level.id,
       });
@@ -80,7 +80,7 @@ it.effect("Keeps archived lookup references on items and restores them with thei
       expect(archivedTypes).toContainEqual({ ...type, isArchived: true });
       expect(restored.itemTypes).toContainEqual(type);
       expect(restored.priorityLevels).toContainEqual(level);
-      expect(restored.items[0]?.item).toMatchObject({ itemTypeId: type.id });
+      expect(restored.items.open[0]?.item).toMatchObject({ itemTypeId: type.id });
     }),
   ),
 );

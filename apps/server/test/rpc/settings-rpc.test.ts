@@ -150,7 +150,7 @@ it.effect("Requires fresh confirmation when the affected parents change before a
         },
       });
       expect(unchanged.autoCompleteParents).toBe(false);
-      expect(beforeApproval.items[1]?.item).toMatchObject({
+      expect(beforeApproval.items.open[1]?.item).toMatchObject({
         id: replacement.id,
         completedAtUtc: "2026-11-13T12:00:00Z",
       });
@@ -168,7 +168,7 @@ it.effect("Requires fresh confirmation when the affected parents change before a
 
       expect(applied).toEqual({ kind: "applied" });
       expect(saved.autoCompleteParents).toBe(true);
-      expect(reconciled.items[1]?.item).toMatchObject({
+      expect(reconciled.items.open[1]?.item).toMatchObject({
         id: replacement.id,
         completedAtUtc: null,
       });
@@ -200,7 +200,7 @@ it.effect("Persists nothing until a project override that enables completion is 
       expect(confirmed).toEqual({ kind: "applied" });
       expect(settings.autoCompleteParents).toEqual({ value: true, source: "Project" });
       expect(settings.urgencyYellowThreshold).toEqual({ value: days(4), source: "Project" });
-      expect(reconciled.items[0]?.item).toMatchObject({ id: parent.id, completedAtUtc: null });
+      expect(reconciled.items.open[0]?.item).toMatchObject({ id: parent.id, completedAtUtc: null });
     }),
   ),
 );
@@ -305,9 +305,9 @@ it.effect("Rolls back a failed confirmed save and lets the caller retry", () =>
         message: "The operation could not be completed.",
       });
       expect(unchanged.autoCompleteParents).toBe(false);
-      expect(unreconciled.items[0]?.item.completedAtUtc).not.toBeNull();
+      expect(unreconciled.items.open[0]?.item.completedAtUtc).not.toBeNull();
       expect(retry).toEqual({ kind: "applied" });
-      expect((yield* client.LoadArea(area)).items[0]?.item).toMatchObject({
+      expect((yield* client.LoadArea(area)).items.open[0]?.item).toMatchObject({
         id: parent.id,
         completedAtUtc: null,
       });

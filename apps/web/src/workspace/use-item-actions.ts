@@ -11,7 +11,7 @@ import {
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
-import { itemAncestorIds, type ItemNode } from "./item-outline.js";
+import { isEmptyLevel, itemAncestorIds, type ItemNode } from "./item-outline.js";
 import {
   type ItemStructureScope,
   reportItemFailure,
@@ -179,10 +179,9 @@ function useDeleteAndRestore(scope: ItemActionScope) {
   const restore = useAtomSet(restoreItemsAtom, { mode: "promiseExit" });
 
   const deleteItem = async (node: ItemNode) => {
-    const message =
-      node.children.length > 0
-        ? `Delete ${node.item.title} and its sub-items?`
-        : `Delete ${node.item.title}?`;
+    const message = !isEmptyLevel(node.children)
+      ? `Delete ${node.item.title} and its sub-items?`
+      : `Delete ${node.item.title}?`;
     const confirmed = await confirm({
       title: "Delete item",
       message,

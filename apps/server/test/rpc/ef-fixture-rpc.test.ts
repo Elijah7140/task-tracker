@@ -152,33 +152,39 @@ function assertSharedFixtureState(
   expect(area).toMatchObject({
     projectId,
     folderId: childFolderId,
-    items: [
-      {
-        item: {
-          id: parentId,
-          title: "Sample parent",
-          createdAtUtc: efStampUtc,
-          completedAtUtc: efStampUtc,
-        },
-        isFinished: true,
-        children: [
-          {
-            item: {
-              id: childId,
-              title: "Sample child",
-              itemTypeId: archivedTypeId,
-              priorityLevelId: highPriorityId,
-              dueDate: "2026-12-10",
-              dueTime: "09:30:00.12",
-              scheduledStart: "2026-12-09T14:00:00.1234567",
-              scheduledEnd: "2026-12-09T15:00:00.1234567",
-              completedAtUtc: efStampUtc,
-            },
-            isFinished: true,
+    items: {
+      open: [],
+      finished: [
+        {
+          item: {
+            id: parentId,
+            title: "Sample parent",
+            createdAtUtc: efStampUtc,
+            completedAtUtc: efStampUtc,
           },
-        ],
-      },
-    ],
+          isFinished: true,
+          children: {
+            open: [],
+            finished: [
+              {
+                item: {
+                  id: childId,
+                  title: "Sample child",
+                  itemTypeId: archivedTypeId,
+                  priorityLevelId: highPriorityId,
+                  dueDate: "2026-12-10",
+                  dueTime: "09:30:00.12",
+                  scheduledStart: "2026-12-09T14:00:00.1234567",
+                  scheduledEnd: "2026-12-09T15:00:00.1234567",
+                  completedAtUtc: efStampUtc,
+                },
+                isFinished: true,
+              },
+            ],
+          },
+        },
+      ],
+    },
   });
 }
 
@@ -242,7 +248,7 @@ it.effect(
               fieldId: status.id,
               label: "Ready",
             });
-            const childItem = initialArea.items[0]!.children[0]!.item;
+            const childItem = initialArea.items.finished[0]!.children.finished[0]!.item;
             yield* TestClock.adjust("1 second");
             yield* client.EditItem({
               itemId: childId,
@@ -270,11 +276,10 @@ it.effect(
 
             yield* client.RestoreItems({ ...nestedArea, batchId: efBatchId });
             const reopenedAfterRestore = yield* client.LoadArea(nestedArea);
-            expect(reopenedAfterRestore.items[0]?.item.completedAtUtc).toBeNull();
-            expect(reopenedAfterRestore.items[0]?.children.map(({ item }) => item.id)).toEqual([
-              childId,
-              deletedId,
-            ]);
+            const reopenedParent = reopenedAfterRestore.items.open[0];
+            expect(reopenedParent?.item.completedAtUtc).toBeNull();
+            expect(reopenedParent?.children.open.map(({ item }) => item.id)).toEqual([deletedId]);
+            expect(reopenedParent?.children.finished.map(({ item }) => item.id)).toEqual([childId]);
             yield* TestClock.adjust("1 second");
             const completedRestored = yield* client.SetItemCompleted({
               ...nestedArea,
@@ -387,47 +392,54 @@ it.effect(
               childFolderId,
               written.addedFolder.id,
             ]);
-            expect(nested.items[0]).toMatchObject({
+            expect(nested.items.finished[0]).toMatchObject({
               item: {
                 id: parentId,
                 createdAtUtc: efStampUtc,
                 completedAtUtc: "2026-11-14T12:00:02Z",
               },
               isFinished: true,
-              children: [
-                {
-                  item: {
-                    id: childId,
-                    description: "Adopted description",
-                    ticketNumber: "EF-1",
-                    itemTypeId: archivedTypeId,
-                    priorityLevelId: highPriorityId,
-                    dueDate: "2026-12-10",
-                    dueTime: "09:30:00.12",
-                    scheduledStart: "2026-12-09T14:00:00.1234567",
-                    scheduledEnd: "2026-12-09T15:00:00.1234567",
-                    updatedAtUtc: "2026-11-14T12:00:01Z",
+              children: {
+                open: [],
+                finished: [
+                  {
+                    item: {
+                      id: deletedId,
+                      deletedAtUtc: null,
+                      deletionBatchId: null,
+                      completedAtUtc: "2026-11-14T12:00:02Z",
+                    },
                   },
-                },
-                {
-                  item: {
-                    id: deletedId,
-                    deletedAtUtc: null,
-                    deletionBatchId: null,
-                    completedAtUtc: "2026-11-14T12:00:02Z",
+                  {
+                    item: {
+                      id: childId,
+                      description: "Adopted description",
+                      ticketNumber: "EF-1",
+                      itemTypeId: archivedTypeId,
+                      priorityLevelId: highPriorityId,
+                      dueDate: "2026-12-10",
+                      dueTime: "09:30:00.12",
+                      scheduledStart: "2026-12-09T14:00:00.1234567",
+                      scheduledEnd: "2026-12-09T15:00:00.1234567",
+                      updatedAtUtc: "2026-11-14T12:00:01Z",
+                    },
                   },
-                },
-              ],
+                ],
+              },
             });
-            expect(addedBeforeRestore.items).toHaveLength(1);
-            expect(addedBeforeRestore.items[0]).toMatchObject({
-              item: { id: written.branchParent.id, completedAtUtc: "2026-11-14T12:00:02Z" },
-              isFinished: true,
-              children: [{ item: { id: written.branchChild.id } }],
-            });
-            expect(addedAfterRestore.items.map(({ item }) => item.id)).toEqual([
-              written.branchParent.id,
+            expect(addedBeforeRestore.items.open).toEqual([]);
+            expect(addedBeforeRestore.items.finished).toMatchObject([
+              {
+                item: { id: written.branchParent.id, completedAtUtc: "2026-11-14T12:00:02Z" },
+                isFinished: true,
+                children: { finished: [{ item: { id: written.branchChild.id } }] },
+              },
+            ]);
+            expect(addedAfterRestore.items.open.map(({ item }) => item.id)).toEqual([
               written.batchTarget.id,
+            ]);
+            expect(addedAfterRestore.items.finished.map(({ item }) => item.id)).toEqual([
+              written.branchParent.id,
             ]);
             expect(effectiveFields.map(({ id }) => id)).toEqual([
               written.reviewDate.id,
@@ -625,7 +637,7 @@ it.effect(
               dataType: "Text",
               projectId,
             });
-            const childItem = initialArea.items[0]!.children[0]!.item;
+            const childItem = initialArea.items.finished[0]!.children.finished[0]!.item;
             yield* TestClock.adjust("1 second");
             yield* client.EditItem({
               itemId: childId,
@@ -661,7 +673,7 @@ it.effect(
 
             yield* client.RestoreItems({ ...nestedArea, batchId: efBatchId });
             const reopenedArea = yield* client.LoadArea(nestedArea);
-            expect(reopenedArea.items[0]?.item.completedAtUtc).toBeNull();
+            expect(reopenedArea.items.open[0]?.item.completedAtUtc).toBeNull();
             yield* TestClock.adjust("1 second");
             const preview = yield* client.SetItemCompleted({
               ...nestedArea,
@@ -743,41 +755,46 @@ it.effect(
               childFolderId,
               written.newFolder.id,
             ]);
-            expect(nested.items[0]).toMatchObject({
+            expect(nested.items.finished[0]).toMatchObject({
               item: {
                 id: parentId,
                 createdAtUtc: efStampUtc,
                 completedAtUtc: "2026-11-14T12:00:02Z",
               },
               isFinished: true,
-              children: [
-                {
-                  item: {
-                    id: childId,
-                    title: "Updated child",
-                    ticketNumber: "P3-9",
-                    itemTypeId: archivedTypeId,
-                    priorityLevelId: highPriorityId,
-                    dueDate: "2026-12-10",
-                    dueTime: "09:30:00.12",
-                    scheduledStart: "2026-12-09T14:00:00.1234567",
-                    scheduledEnd: "2026-12-09T15:00:00.1234567",
-                    completedAtUtc: efStampUtc,
-                    updatedAtUtc: "2026-11-14T12:00:01Z",
+              children: {
+                open: [],
+                finished: [
+                  {
+                    item: {
+                      id: deletedId,
+                      deletedAtUtc: null,
+                      deletionBatchId: null,
+                      completedAtUtc: "2026-11-14T12:00:02Z",
+                    },
                   },
-                },
-                {
-                  item: {
-                    id: deletedId,
-                    deletedAtUtc: null,
-                    deletionBatchId: null,
-                    completedAtUtc: "2026-11-14T12:00:02Z",
+                  {
+                    item: {
+                      id: childId,
+                      title: "Updated child",
+                      ticketNumber: "P3-9",
+                      itemTypeId: archivedTypeId,
+                      priorityLevelId: highPriorityId,
+                      dueDate: "2026-12-10",
+                      dueTime: "09:30:00.12",
+                      scheduledStart: "2026-12-09T14:00:00.1234567",
+                      scheduledEnd: "2026-12-09T15:00:00.1234567",
+                      completedAtUtc: efStampUtc,
+                      updatedAtUtc: "2026-11-14T12:00:01Z",
+                    },
                   },
-                },
-              ],
+                ],
+              },
             });
-            expect(deletedArea.items).toEqual([]);
-            expect(restoredArea.items.map(({ item }) => item.id)).toEqual([written.batchItem.id]);
+            expect(deletedArea.items).toEqual({ open: [], finished: [] });
+            expect(restoredArea.items.open.map(({ item }) => item.id)).toEqual([
+              written.batchItem.id,
+            ]);
             expect(managedFields).toContainEqual({
               id: phase3FieldIds.estimate,
               key: "estimate",

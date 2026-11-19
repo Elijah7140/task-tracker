@@ -6,6 +6,6 @@ export { LookupService } from "./services/lookup-service.js";
 export { EffectiveSettingsService } from "./services/effective-settings-service.js";
 export { LoopbackRpc, loopbackRpcLayer } from "./rpc/loopback-rpc.js";
 export { ItemService } from "./services/item-service.js";
-export type { AreaSnapshot, ItemNode } from "./services/area-snapshot.js";
+export type { AreaSnapshot, ItemNode, ItemSiblings } from "./services/area-snapshot.js";
 export { FieldService } from "./services/field-service.js";
 export { SettingsService } from "./services/settings-service.js";

@@ -19,9 +19,10 @@ import {
   itemAncestorIds,
   type ItemFocusRequest,
   type ItemNode,
+  type ItemSiblings,
+  persistedSiblingOrder,
   precedingOpenSibling,
   siblingNodesOf,
-  splitFinished,
 } from "./item-outline.js";
 import { type DropPlacement, moveAmongVisible, swapWithVisibleNeighbor } from "./reorder-plan.js";
 
@@ -34,7 +35,7 @@ export interface ItemStructureScope {
   readonly folderId: string | null;
   readonly areaName: string;
   readonly folders: ReadonlyArray<Folder>;
-  readonly items: ReadonlyArray<ItemNode>;
+  readonly items: ItemSiblings;
   readonly onFocusItem: (request: ItemFocusRequest) => void;
 }
 
@@ -47,7 +48,7 @@ export async function reportItemFailure(exit: Exit.Exit<unknown, RpcFailure>): P
   return false;
 }
 
-function expandBranch(items: ReadonlyArray<ItemNode>, parentItemId: string) {
+function expandBranch(items: ItemSiblings, parentItemId: string) {
   const { setItemExpanded } = useWorkspaceStore.getState();
   for (const ancestorId of itemAncestorIds(items, parentItemId)) {
     setItemExpanded(ancestorId, true);
@@ -67,9 +68,9 @@ function useIndentAndOutdent(scope: ItemStructureScope) {
     if (targetParent === undefined) {
       return;
     }
-    const siblings = siblingNodesOf(scope.items, node.item.parentItemId);
-    const index = siblings.findIndex((candidate) => candidate.item.id === node.item.id);
-    const adjacent = index > 0 && siblings[index - 1]?.item.id === targetParent.item.id;
+    const siblingIds = persistedSiblingOrder(siblingNodesOf(scope.items, node.item.parentItemId));
+    const index = siblingIds.indexOf(node.item.id);
+    const adjacent = index > 0 && siblingIds[index - 1] === targetParent.item.id;
     const area = { projectId: scope.projectId, folderId: scope.folderId };
     const exit = adjacent
       ? await indent({
@@ -215,8 +216,8 @@ function useReorderItems(scope: ItemStructureScope) {
       return;
     }
     const siblings = siblingNodesOf(scope.items, node.item.parentItemId);
-    const allIds = siblings.map((sibling) => sibling.item.id);
-    const visibleIds = splitFinished(siblings).open.map((sibling) => sibling.item.id);
+    const allIds = persistedSiblingOrder(siblings);
+    const visibleIds = siblings.open.map((sibling) => sibling.item.id);
     await applyOrder(
       node.item.parentItemId,
       node.item.id,
@@ -231,8 +232,8 @@ function useReorderItems(scope: ItemStructureScope) {
     placement: DropPlacement,
   ) => {
     const siblings = siblingNodesOf(scope.items, parentItemId);
-    const allIds = siblings.map((sibling) => sibling.item.id);
-    const visibleIds = splitFinished(siblings).open.map((sibling) => sibling.item.id);
+    const allIds = persistedSiblingOrder(siblings);
+    const visibleIds = siblings.open.map((sibling) => sibling.item.id);
     await applyOrder(
       parentItemId,
       sourceId,

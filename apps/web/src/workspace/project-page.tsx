@@ -3,6 +3,7 @@ import type { ProjectWorkspace } from "@task-tracker/contracts";
 import { Link, Navigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/reactivity";
 import { Settings } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { projectWorkspaceAtom } from "../rpc/project-queries.js";
 import { serverInfoAtom } from "../rpc/server-info-query.js";
@@ -24,9 +25,15 @@ interface WorkspaceAreaProps {
 /**
  * The open area's header and items. A folder that is no longer in the
  * snapshot, such as one deleted elsewhere, falls back to the project root as
- * the legacy workspace did.
+ * the legacy workspace did. Opening the project focuses quick-add, but moving
+ * between its folders leaves focus where the user put it.
  */
 function WorkspaceArea({ workspace, folderId, timeZone }: WorkspaceAreaProps) {
+  const openedProjectRef = useRef<string | null>(null);
+  const opening = openedProjectRef.current !== workspace.projectId;
+  useEffect(() => {
+    openedProjectRef.current = workspace.projectId;
+  }, [workspace.projectId]);
   const folder = workspace.folders.find((candidate) => candidate.id === folderId);
   if (folderId !== null && folder === undefined) {
     return <Navigate {...areaTarget(workspace.projectId, null)} replace />;
@@ -64,6 +71,7 @@ function WorkspaceArea({ workspace, folderId, timeZone }: WorkspaceAreaProps) {
         areaName={areaName}
         folders={workspace.folders}
         timeZone={timeZone}
+        focusQuickAddOnLoad={opening}
       />
     </PageContainer>
   );

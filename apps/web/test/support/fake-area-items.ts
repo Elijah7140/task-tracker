@@ -1,7 +1,12 @@
 import type { AreaSnapshot } from "@task-tracker/contracts";
 
 type Snapshot = typeof AreaSnapshot.Type;
-export type FakeItemNode = Snapshot["items"][number];
+type WireItemNode = Snapshot["items"]["open"][number];
+
+/** An item in the fake's stored tree, with children in persisted sibling order. */
+export interface FakeItemNode extends Omit<WireItemNode, "children"> {
+  readonly children: ReadonlyArray<FakeItemNode>;
+}
 export type FakeUrgency = FakeItemNode["ownUrgency"];
 
 /** An item seeded into a fake area. Urgency and finished flags stand in for the server's rules. */
@@ -179,6 +184,39 @@ function findByTitle(nodes: ReadonlyArray<FakeItemNode>, title: string): FakeIte
   return undefined;
 }
 
+/**
+ * Orders ISO UTC instants with differing fractional precision, such as
+ * `12:00:00Z` and `12:00:00.5Z`, by padding the fraction.
+ */
+function instantSortKey(instant: string | null): string {
+  const [whole = "", fraction = ""] = (instant ?? "").replace("Z", "").split(".");
+  return `${whole}.${fraction.padEnd(9, "0")}`;
+}
+
+function newestCompletedFirst(left: FakeItemNode, right: FakeItemNode): number {
+  const leftKey = instantSortKey(left.item.completedAtUtc);
+  const rightKey = instantSortKey(right.item.completedAtUtc);
+  return leftKey === rightKey ? 0 : leftKey < rightKey ? 1 : -1;
+}
+
+/**
+ * Stands in for the server's Core partition (§6.2): open siblings keep their
+ * order and finished branches follow newest-completed first, ties in sibling order.
+ */
+function projectSiblings(nodes: ReadonlyArray<FakeItemNode>): Snapshot["items"] {
+  const project = (node: FakeItemNode): WireItemNode => ({
+    ...node,
+    children: projectSiblings(node.children),
+  });
+  return {
+    open: nodes.filter((node) => !node.isFinished).map(project),
+    finished: nodes
+      .filter((node) => node.isFinished)
+      .toSorted(newestCompletedFirst)
+      .map(project),
+  };
+}
+
 /** Wraps area items in the snapshot the LoadArea RPC returns. */
 export function areaSnapshot(
   projectId: string,
@@ -189,7 +227,7 @@ export function areaSnapshot(
   return {
     projectId,
     folderId,
-    items,
+    items: projectSiblings(items),
     ...FAKE_LOOKUPS,
     settings: {
       ...settings,

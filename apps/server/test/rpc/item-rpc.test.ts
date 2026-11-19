@@ -69,7 +69,7 @@ it.effect("Edits and reads floating times and UTC timestamps through the rendere
 
       expect(item.id).toMatch(/^[A-F0-9-]+$/);
       expect(saved.projectId).toBe(area.projectId.toUpperCase());
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         {
           item: {
             ...fields,
@@ -118,13 +118,13 @@ it.effect(
           openSubItemCount: 1,
           openSubItemIds: [replacement.id],
         });
-        expect(unchanged.items).toMatchObject([
+        expect(unchanged.items.open).toMatchObject([
           {
             item: { id: parent.id, completedAtUtc: null },
-            children: [
-              { item: { id: original.id, completedAtUtc: createdAtUtc } },
-              { item: { id: replacement.id, completedAtUtc: null } },
-            ],
+            children: {
+              open: [{ item: { id: replacement.id, completedAtUtc: null } }],
+              finished: [{ item: { id: original.id, completedAtUtc: createdAtUtc } }],
+            },
           },
         ]);
         if (refreshed.kind !== "needs-confirmation") return;
@@ -149,16 +149,22 @@ it.effect(
           kind: "blocked",
           reason: "Reopen a sub-item instead, or add a new one.",
         });
-        expect(finished.items).toMatchObject([
-          {
-            item: { id: parent.id, completedAtUtc },
-            isFinished: true,
-            children: [
-              { item: { id: original.id, completedAtUtc: createdAtUtc } },
-              { item: { id: replacement.id, completedAtUtc } },
-            ],
-          },
-        ]);
+        expect(finished.items).toMatchObject({
+          open: [],
+          finished: [
+            {
+              item: { id: parent.id, completedAtUtc },
+              isFinished: true,
+              children: {
+                open: [],
+                finished: [
+                  { item: { id: replacement.id, completedAtUtc } },
+                  { item: { id: original.id, completedAtUtc: createdAtUtc } },
+                ],
+              },
+            },
+          ],
+        });
       }),
     ),
 );
@@ -180,18 +186,21 @@ it.effect("Moves, indents, outdents and reorders items while reconciling complet
       yield* client.ReorderItems({ ...area, parentItemId: null, itemIds: [child.id, parent.id] });
       const reordered = yield* client.LoadArea(area);
 
-      expect(indented.items[0]).toMatchObject({
+      expect(indented.items.open[0]).toMatchObject({
         item: { id: parent.id, completedAtUtc: null },
-        children: [{ item: { id: child.id, parentItemId: parent.id } }],
+        children: { open: [{ item: { id: child.id, parentItemId: parent.id } }] },
       });
-      expect(outdented.items[2]).toMatchObject({
+      expect(outdented.items.open[2]).toMatchObject({
         item: { id: child.id, parentItemId: null, sortOrder: 2 },
       });
-      expect(reordered.items).toMatchObject([
-        { item: { id: child.id, parentItemId: null, sortOrder: 0 }, children: [] },
+      expect(reordered.items.open).toMatchObject([
+        {
+          item: { id: child.id, parentItemId: null, sortOrder: 0 },
+          children: { open: [], finished: [] },
+        },
         {
           item: { id: parent.id, sortOrder: 1 },
-          children: [{ item: { id: sibling.id, parentItemId: parent.id, sortOrder: 0 } }],
+          children: { open: [{ item: { id: sibling.id, parentItemId: parent.id, sortOrder: 0 } }] },
         },
       ]);
     }),
@@ -230,7 +239,7 @@ it.effect("Carries earlier deletion batches with a moved branch and restores the
       expect(earlierBatch).toMatch(/^[A-F0-9-]+$/);
       expect(laterBatch).toMatch(/^[A-F0-9-]+$/);
       expect(laterBatch).not.toBe(earlierBatch);
-      expect(source.items).toEqual([]);
+      expect(source.items).toEqual({ open: [], finished: [] });
       expect(wrongArea).toMatchObject({
         _tag: "NotFound",
         entity: "DeletionBatch",
@@ -240,16 +249,19 @@ it.effect("Carries earlier deletion batches with a moved branch and restores the
         _tag: "RuleViolation",
         message: expect.stringMatching(/restore the parent/i),
       });
-      expect(deleted.items).toEqual([]);
-      expect(branch.items).toMatchObject([
-        { item: { id: parent.id, folderId: folder.id }, children: [{ item: { id: later.id } }] },
+      expect(deleted.items).toEqual({ open: [], finished: [] });
+      expect(branch.items.open).toMatchObject([
+        {
+          item: { id: parent.id, folderId: folder.id },
+          children: { open: [{ item: { id: later.id } }] },
+        },
       ]);
-      expect(restored.items[0]?.children.map(({ item }) => item.id)).toEqual(
+      expect(restored.items.open[0]?.children.open.map(({ item }) => item.id)).toEqual(
         expect.arrayContaining([earlier.id, later.id]),
       );
-      expect(restored.items[0]?.children).toHaveLength(2);
+      expect(restored.items.open[0]?.children.open).toHaveLength(2);
       expect(
-        restored.items[0]?.children.find(({ item }) => item.id === earlier.id)?.item,
+        restored.items.open[0]?.children.open.find(({ item }) => item.id === earlier.id)?.item,
       ).toMatchObject({ folderId: folder.id, deletedAtUtc: null, deletionBatchId: null });
     }),
   ),
@@ -293,7 +305,7 @@ it.effect("Returns a typed edit error and preserves the stored fields", () =>
         _tag: "RuleViolation",
         message: "Due time requires a due date.",
       });
-      expect(saved.items).toMatchObject([{ item: { id: item.id, title, dueTime: null } }]);
+      expect(saved.items.open).toMatchObject([{ item: { id: item.id, title, dueTime: null } }]);
     }),
   ),
 );
@@ -325,10 +337,10 @@ it.effect("Rolls back a failed confirmed completion and lets the caller retry", 
         _tag: "OperationFailed",
         message: "The operation could not be completed.",
       });
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         {
           item: { id: parent.id, completedAtUtc: null },
-          children: [{ item: { id: child.id, completedAtUtc: null } }],
+          children: { open: [{ item: { id: child.id, completedAtUtc: null } }] },
         },
       ]);
       expect(retry.kind).toBe("applied");

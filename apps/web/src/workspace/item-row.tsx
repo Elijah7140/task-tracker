@@ -17,7 +17,7 @@ import { ContextMenuContent, MenuContent } from "../ui/menu.js";
 import { Tooltip } from "../ui/tooltip.js";
 import { treeStyles } from "../ui/tree-styles.js";
 import { ItemMenuItems } from "./item-menu-items.js";
-import type { ItemNode } from "./item-outline.js";
+import { isEmptyLevel, type ItemNode } from "./item-outline.js";
 import { ItemTypeIcon } from "./item-type-icon.js";
 import type { DropPlacement } from "./reorder-plan.js";
 import { UrgencyBadge } from "./urgency-badge.js";
@@ -84,7 +84,7 @@ function ExpandToggle({
   expanded,
   onExpandedChange,
 }: Pick<ItemRowProps, "node" | "expanded" | "onExpandedChange">) {
-  if (node.children.length === 0) {
+  if (isEmptyLevel(node.children)) {
     return <span className="size-5 shrink-0" aria-hidden="true" />;
   }
   const toggle = (event: MouseEvent) => {

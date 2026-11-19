@@ -10,7 +10,13 @@ import { dialogStore } from "../state/dialog-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import type { Folder } from "./folder-outline.js";
-import { findItemNode, findItemTitle, type ItemFocusRequest } from "./item-outline.js";
+import {
+  EMPTY_SIBLINGS,
+  findItemNode,
+  findItemTitle,
+  isEmptyLevel,
+  type ItemFocusRequest,
+} from "./item-outline.js";
 import type { ItemRowLookups } from "./item-row.js";
 import { ItemTree } from "./item-tree.js";
 import { ItemUndoBanner } from "./item-undo-banner.js";
@@ -25,6 +31,16 @@ export interface AreaItemsProps {
   readonly areaName: string;
   readonly folders: ReadonlyArray<Folder>;
   readonly timeZone: string;
+  /** Focuses quick-add once the area loads, as when a project opens (legacy workspace). */
+  readonly focusQuickAddOnLoad?: boolean | undefined;
+}
+
+/** A request to focus quick-add once it is rendered. */
+interface QuickAddFocusRequest {
+  /** Waits until the list has items, as after the first quick-add in an empty area. */
+  readonly waitForNonEmpty: boolean;
+  /** Drops the request if the user moves focus away from this element first. */
+  readonly unlessFocusLeaves?: Element | null;
 }
 
 function lookupsFor(snapshot: typeof AreaSnapshot.Type, timeZone: string): ItemRowLookups {
@@ -77,6 +93,7 @@ export function AreaItems({
   areaName,
   folders,
   timeZone,
+  focusQuickAddOnLoad = false,
 }: AreaItemsProps) {
   const atom = areaAtom(projectId, folderId);
   const area = useAtomValue(atom);
@@ -86,11 +103,16 @@ export function AreaItems({
 
   const quickAddRef = useRef<HTMLInputElement>(null);
   const [pendingFocus, setPendingFocus] = useState<ItemFocusRequest | null>(null);
-  const [pendingQuickAddFocus, setPendingQuickAddFocus] = useState<{
-    readonly waitForNonEmpty: boolean;
-  } | null>(null);
+  const [pendingQuickAddFocus, setPendingQuickAddFocus] = useState<QuickAddFocusRequest | null>(
+    () =>
+      focusQuickAddOnLoad
+        ? { waitForNonEmpty: false, unlessFocusLeaves: document.activeElement }
+        : null,
+  );
   const [deletedBatch, setDeletedBatch] = useState<DeletedItemNotice | null>(null);
-  const items = AsyncResult.isSuccess(area) ? area.value.items : [];
+  const loaded = AsyncResult.isSuccess(area);
+  const items = loaded ? area.value.items : EMPTY_SIBLINGS;
+  const areaIsEmpty = isEmptyLevel(items);
 
   const clearPendingFocus = useCallback(() => setPendingFocus(null), []);
   const actions = useItemActions({
@@ -110,17 +132,18 @@ export function AreaItems({
   latestActionsRef.current = actions;
 
   useEffect(() => {
-    if (
-      pendingQuickAddFocus === null ||
-      (pendingQuickAddFocus.waitForNonEmpty && items.length === 0)
-    ) {
+    if (pendingQuickAddFocus === null || (pendingQuickAddFocus.waitForNonEmpty && areaIsEmpty)) {
       return;
     }
-    if (quickAddRef.current !== null) {
-      quickAddRef.current.focus();
-      setPendingQuickAddFocus(null);
+    if (quickAddRef.current === null) {
+      return;
     }
-  }, [pendingQuickAddFocus, items.length]);
+    const { unlessFocusLeaves } = pendingQuickAddFocus;
+    if (unlessFocusLeaves === undefined || document.activeElement === unlessFocusLeaves) {
+      quickAddRef.current.focus();
+    }
+    setPendingQuickAddFocus(null);
+  }, [pendingQuickAddFocus, areaIsEmpty, loaded]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -148,7 +171,7 @@ export function AreaItems({
   }, []);
 
   const handleQuickAdd = async (title: string) => {
-    const waitForNonEmpty = items.length === 0;
+    const waitForNonEmpty = areaIsEmpty;
     const created = await actions.quickAdd(title);
     if (created) {
       setPendingQuickAddFocus({ waitForNonEmpty });
@@ -170,7 +193,7 @@ export function AreaItems({
           />
         ),
         onSuccess: ({ value }) =>
-          value.items.length === 0 ? (
+          isEmptyLevel(value.items) ? (
             <div className="flex flex-col gap-3">
               {quickAdd}
               <EmptyArea />

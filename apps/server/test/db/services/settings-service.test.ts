@@ -47,7 +47,7 @@ const readCompletedAt = Effect.fnUntraced(function* (
 ) {
   const items = yield* ItemService;
   const area = yield* items.loadArea(projectId, folderId);
-  const item = area.items.find((node) => node.item.id === itemId);
+  const item = [...area.items.open, ...area.items.finished].find((node) => node.item.id === itemId);
   if (item === undefined) {
     throw new Error("Expected the parent in the persisted area.");
   }
@@ -324,8 +324,10 @@ it.effect("Clearing a disabled override previews bottom-up completion in active 
     expect(preview.parentsToComplete).toBe(2);
     expect(preview.parentsToReopen).toBe(0);
     expect(new Set(preview.parentIdsToComplete)).toEqual(new Set([root.id, middle.id]));
-    expect(area.items[0]?.item.completedAtUtc).toBeInstanceOf(Temporal.Instant);
-    expect(area.items[0]?.children[0]?.item.completedAtUtc).toBeInstanceOf(Temporal.Instant);
+    expect(area.items.finished[0]?.item.completedAtUtc).toBeInstanceOf(Temporal.Instant);
+    expect(area.items.finished[0]?.children.finished[0]?.item.completedAtUtc).toBeInstanceOf(
+      Temporal.Instant,
+    );
     expect(area.settings.autoCompleteParents).toEqual({ value: true, source: "Global" });
   }).pipe(withServices, withSchema),
 );
