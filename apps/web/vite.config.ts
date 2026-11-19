@@ -8,6 +8,6 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     // The desktop renderer loads from local disk, so one larger bundle costs no network time.
-    chunkSizeWarningLimit: 1024,
+    chunkSizeWarningLimit: 2048,
   },
 });
