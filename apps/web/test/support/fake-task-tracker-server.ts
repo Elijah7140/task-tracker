@@ -113,6 +113,17 @@ function handlers(store: FakeProjectStore) {
     RestoreProject: notUsed,
     DeleteFolder: notUsed,
     RestoreFolder: notUsed,
+    LoadArea: notUsed,
+    CreateItem: notUsed,
+    EditItem: notUsed,
+    SetItemCompleted: notUsed,
+    IndentItem: notUsed,
+    OutdentItem: notUsed,
+    MoveItem: notUsed,
+    ReorderItems: notUsed,
+    MoveItemToArea: notUsed,
+    DeleteItem: notUsed,
+    RestoreItems: notUsed,
   });
 }
 
