@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { renderApp } from "../support/render-app.js";
-import { settleTheme, THEMES } from "../support/screenshots.js";
+import { matchShellAtBothSizes, THEMES } from "../support/screenshots.js";
 
 const TICKS_PER_HOUR = 36_000_000_000n;
 const daysTicks = (count: number) => String(BigInt(count) * 24n * TICKS_PER_HOUR);
@@ -359,11 +359,7 @@ describe("AppSettingsPage", () => {
         },
       });
 
-      await settleTheme(theme);
-
-      await expect
-        .element(page.getByTestId("app-shell"))
-        .toMatchScreenshot(`app-settings-${theme}`);
+      await matchShellAtBothSizes("app-settings", theme);
     });
   });
 });

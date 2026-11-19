@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { renderApp } from "../support/render-app.js";
-import { settleTheme, THEMES } from "../support/screenshots.js";
+import { matchShellAtBothSizes, settleTheme, THEMES } from "../support/screenshots.js";
 
 const billing = { name: "Billing DB", openCount: 3, overdueCount: 1 };
 
@@ -108,6 +108,19 @@ describe("HomePage", () => {
     await expect.element(card("Billing DB")).toBeVisible();
   });
 
+  it("Shows a project action failure when a project disappears during rename", async () => {
+    const { store } = await renderApp({ projects: [billing] });
+    await openCardAction("Billing DB", "project-rename");
+    store.remove(store.summaries[0]?.project.id ?? "");
+
+    await userEvent.keyboard("Accounting{Enter}");
+
+    await expect
+      .element(page.getByRole("alertdialog", { name: "Project action failed" }))
+      .toHaveAccessibleDescription("Project is missing or deleted.");
+    expect(store.names()).toEqual([]);
+  });
+
   it("Deletes a project after the user confirms", async () => {
     const { store } = await renderApp({ projects: [billing, { name: "Website" }] });
     await openCardAction("Billing DB", "project-delete");
@@ -174,9 +187,7 @@ describe("HomePage", () => {
       });
       await expect.element(card("Data warehouse")).toBeVisible();
 
-      await settleTheme(theme);
-
-      await expect.element(page.getByTestId("app-shell")).toMatchScreenshot(`home-${theme}`);
+      await matchShellAtBothSizes("home", theme);
     });
 
     it("Matches the reviewed empty home baseline", async () => {
