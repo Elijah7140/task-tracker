@@ -94,3 +94,18 @@ export async function expandCompleted(scope: Locator, label: string) {
 export function isCompleted(row: Locator) {
   return row.getByTestId("item-completion").first().getAttribute("data-completed");
 }
+
+/** Opens the item editor through the row's context menu. */
+export async function openItemEditor(page: Page, row: Locator) {
+  await row.getByTestId("item-row").first().click({ button: "right" });
+  await page.getByTestId("item-menu-edit").click();
+  const editor = page.getByTestId("item-editor");
+  await editor.waitFor();
+  return editor;
+}
+
+/** Saves an editor draft and waits for a successful save to close the editor. */
+export async function saveItemEditor(editor: Locator) {
+  await editor.getByTestId("item-editor-save").click();
+  await expectGone(editor);
+}

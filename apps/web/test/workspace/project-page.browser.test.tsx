@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { renderApp } from "../support/render-app.js";
-import { settleTheme, THEMES } from "../support/screenshots.js";
+import { matchShellAtBothSizes, settleTheme, THEMES } from "../support/screenshots.js";
 import { BILLING_PROJECT } from "../support/workspace-seed.js";
 
 const MISSING_PROJECT_ID = "0190A1B2-0000-7000-8000-000000000999";
@@ -134,9 +134,7 @@ describe("ProjectPage", () => {
       );
       (document.activeElement as HTMLElement | null)?.blur();
 
-      await settleTheme(theme);
-
-      await expect.element(page.getByTestId("app-shell")).toMatchScreenshot(`workspace-${theme}`);
+      await matchShellAtBothSizes("workspace", theme);
     });
 
     it("Matches the reviewed empty folder baseline", async () => {
