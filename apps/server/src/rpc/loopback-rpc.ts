@@ -18,6 +18,7 @@ import { itemRpcHandlers } from "./item-rpc-handlers.js";
 import { mapOperationError } from "./map-operation-error.js";
 import { settingsRpcHandlers } from "./settings-rpc-handlers.js";
 import { lookupRpcHandlers } from "./lookup-rpc-handlers.js";
+import { fieldRpcHandlers } from "./field-rpc-handlers.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
 export class LoopbackRpc extends Context.Service<LoopbackRpc, RpcConnection>()(
@@ -55,6 +56,7 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         Effect.provide(itemRpcHandlers(options.timeZone)),
         Effect.provide(settingsRpcHandlers),
         Effect.provide(lookupRpcHandlers),
+        Effect.provide(fieldRpcHandlers),
       );
       const host = `${RPC_HOST}:${connection.port}`;
       yield* server.serve(

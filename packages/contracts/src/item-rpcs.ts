@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 import { AreaSnapshot } from "./area-snapshot.js";
 import { CompletionResult } from "./completion-result.js";
+import { FieldValueInput, ItemFieldValue } from "./field-value.js";
 import { Guid } from "./guid.js";
 import { Item, ItemEdit } from "./item.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
@@ -18,7 +19,14 @@ export const ItemRpcs = RpcGroup.make(
     success: Item,
     error: RpcOperationError,
   }),
-  Rpc.make("EditItem", { payload: { itemId: Guid, fields: ItemEdit }, error: RpcOperationError }),
+  Rpc.make("EditItem", {
+    payload: {
+      itemId: Guid,
+      fields: ItemEdit,
+      customValues: Schema.optionalKey(Schema.Array(FieldValueInput)),
+    },
+    error: RpcOperationError,
+  }),
   Rpc.make("SetItemCompleted", {
     payload: {
       ...areaItem,
@@ -46,4 +54,9 @@ export const ItemRpcs = RpcGroup.make(
   }),
   Rpc.make("DeleteItem", { payload: areaItem, success: Guid, error: RpcOperationError }),
   Rpc.make("RestoreItems", { payload: { ...area, batchId: Guid }, error: RpcOperationError }),
+  Rpc.make("LoadItemFieldValues", {
+    payload: { itemId: Guid },
+    success: Schema.Array(ItemFieldValue),
+    error: RpcOperationError,
+  }),
 );
