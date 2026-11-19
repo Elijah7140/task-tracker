@@ -33,6 +33,8 @@ Needs a Linux x64 machine with Docker and Compose. The image is Ubuntu 24.04, th
 `ubuntu-latest`, with fonts and desktop libraries for Chromium snapshots and Electron smoke.
 Rebuild an existing runner image to pick up these dependencies. The Linux jobs
 use sudo to install browser dependencies and set the packaged Chromium sandbox owner.
+The container has `SYS_ADMIN` so the setuid helper can create PID and network namespaces.
+Run this container on a trusted runner host.
 
 1. On GitHub, open **Settings → Actions → Runners → New self-hosted runner** and copy the token
    from the `--token` argument. It expires after an hour.

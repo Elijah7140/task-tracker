@@ -3,6 +3,10 @@
 services:
   runner:
     build: .
+    init: true
+    # Packaged Electron smoke runs with the Chromium sandbox enabled.
+    cap_add:
+      - SYS_ADMIN
     hostname: tasktracker-linux-runner
     restart: unless-stopped
     environment:
