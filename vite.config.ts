@@ -4,6 +4,7 @@ import { defineConfig } from "vite-plus";
 
 // Web suites read the contracts source so they run without a prior build.
 const webTestResolve = {
+  dedupe: ["react", "react-dom"],
   alias: {
     "@task-tracker/contracts": fileURLToPath(
       new URL("./packages/contracts/src/index.ts", import.meta.url),
@@ -44,6 +45,37 @@ export default defineConfig({
         extends: "./apps/web/vite.config.ts",
         root: "./apps/web",
         resolve: webTestResolve,
+        // Pre-bundle browser dependencies up front so Vite never reloads mid-run on a cold cache.
+        optimizeDeps: {
+          entries: ["src/**/*.{ts,tsx}", "test/**/*.browser.test.tsx"],
+          include: [
+            "@base-ui/react/alert-dialog",
+            "@base-ui/react/button",
+            "@base-ui/react/context-menu",
+            "@base-ui/react/dialog",
+            "@base-ui/react/field",
+            "@base-ui/react/input",
+            "@base-ui/react/menu",
+            "@base-ui/react/radio",
+            "@base-ui/react/radio-group",
+            "@base-ui/react/toggle",
+            "@base-ui/react/toggle-group",
+            "@base-ui/react/tooltip",
+            "@effect/atom-react",
+            "@tanstack/react-router",
+            "effect",
+            "effect/http",
+            "effect/reactivity",
+            "effect/rpc",
+            "lucide-react",
+            "react",
+            "react-dom",
+            "react/jsx-dev-runtime",
+            "react/jsx-runtime",
+            "vitest-browser-react",
+            "zustand",
+          ],
+        },
         test: {
           name: "web-browser",
           include: ["test/**/*.browser.test.tsx"],
