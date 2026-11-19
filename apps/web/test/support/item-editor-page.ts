@@ -100,7 +100,7 @@ export const itemRow = (title: string) =>
 /** Opens the editor for an item with the row's context menu, as in §8. */
 export async function openEditor(title = EDITOR_ITEM) {
   await itemRow(title).getByTestId("item-row").first().click({ button: "right" });
-  await page.getByTestId("item-menu-edit").click();
+  await page.getByRole("menuitem", { name: "Edit…", exact: true }).click();
   await expect.element(editor()).toBeVisible();
   await expect.element(editorTitle()).toHaveValue(title);
 }
