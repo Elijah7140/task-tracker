@@ -1,1 +1,127 @@
-@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "tailwindcss" source("..");
+
+/*
+ * Design tokens. Screens use the semantic Tailwind names below (bg-canvas, text-fg,
+ * border-line, rounded-card, ...) and never raw palette colors, so both themes stay
+ * consistent. The resolved theme is set as data-theme on <html>.
+ */
+:root {
+  color-scheme: light;
+  --tt-canvas: #ffffff;
+  --tt-sidebar: #f7f7f5;
+  --tt-surface: #ffffff;
+  --tt-raised: #ffffff;
+  --tt-hover: rgb(55 53 47 / 0.06);
+  --tt-pressed: rgb(55 53 47 / 0.1);
+  --tt-line: #e9e9e7;
+  --tt-line-strong: #d5d5d2;
+  --tt-fg: #37352f;
+  --tt-fg-muted: #73726e;
+  --tt-fg-subtle: #8e8d89;
+  --tt-accent: #2383e2;
+  --tt-accent-hover: #1b74cc;
+  --tt-on-accent: #ffffff;
+  --tt-accent-soft: #e7f1fb;
+  --tt-danger: #c4332d;
+  --tt-danger-solid: #d93a35;
+  --tt-danger-solid-hover: #c4302b;
+  --tt-danger-soft: #fdebec;
+  --tt-approaching: #a26a00;
+  --tt-approaching-soft: #fbf3db;
+  --tt-focus: rgb(35 131 226 / 0.55);
+  --tt-backdrop: rgb(15 15 15 / 0.32);
+  --tt-shadow-card: 0 1px 2px rgb(15 15 15 / 0.04);
+  --tt-shadow-card-hover: 0 2px 8px rgb(15 15 15 / 0.08);
+  --tt-shadow-raised:
+    0 0 0 1px rgb(15 15 15 / 0.05), 0 3px 6px rgb(15 15 15 / 0.1), 0 9px 24px rgb(15 15 15 / 0.2);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --tt-canvas: #191919;
+  --tt-sidebar: #202020;
+  --tt-surface: #232323;
+  --tt-raised: #2a2a2a;
+  --tt-hover: rgb(255 255 255 / 0.055);
+  --tt-pressed: rgb(255 255 255 / 0.09);
+  --tt-line: #2f2f2f;
+  --tt-line-strong: #404040;
+  --tt-fg: #e3e3e1;
+  --tt-fg-muted: #a3a3a0;
+  --tt-fg-subtle: #858582;
+  --tt-accent: #2f8ae5;
+  --tt-accent-hover: #4a9bec;
+  --tt-on-accent: #ffffff;
+  --tt-accent-soft: rgb(47 138 229 / 0.18);
+  --tt-danger: #ff7b72;
+  --tt-danger-solid: #d93a35;
+  --tt-danger-solid-hover: #e5524d;
+  --tt-danger-soft: rgb(224 62 62 / 0.18);
+  --tt-approaching: #f5b74e;
+  --tt-approaching-soft: rgb(245 183 78 / 0.15);
+  --tt-focus: rgb(74 155 236 / 0.65);
+  --tt-backdrop: rgb(0 0 0 / 0.55);
+  --tt-shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
+  --tt-shadow-card-hover: 0 2px 10px rgb(0 0 0 / 0.4);
+  --tt-shadow-raised:
+    0 0 0 1px rgb(255 255 255 / 0.06), 0 3px 6px rgb(0 0 0 / 0.3), 0 9px 24px rgb(0 0 0 / 0.45);
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: var(--tt-canvas);
+  --color-sidebar: var(--tt-sidebar);
+  --color-surface: var(--tt-surface);
+  --color-raised: var(--tt-raised);
+  --color-hover: var(--tt-hover);
+  --color-pressed: var(--tt-pressed);
+  --color-line: var(--tt-line);
+  --color-line-strong: var(--tt-line-strong);
+  --color-fg: var(--tt-fg);
+  --color-fg-muted: var(--tt-fg-muted);
+  --color-fg-subtle: var(--tt-fg-subtle);
+  --color-accent: var(--tt-accent);
+  --color-accent-hover: var(--tt-accent-hover);
+  --color-on-accent: var(--tt-on-accent);
+  --color-accent-soft: var(--tt-accent-soft);
+  --color-danger: var(--tt-danger);
+  --color-danger-solid: var(--tt-danger-solid);
+  --color-danger-solid-hover: var(--tt-danger-solid-hover);
+  --color-danger-soft: var(--tt-danger-soft);
+  --color-urgency-approaching: var(--tt-approaching);
+  --color-urgency-approaching-soft: var(--tt-approaching-soft);
+  --color-urgency-overdue: var(--tt-danger);
+  --color-urgency-overdue-soft: var(--tt-danger-soft);
+  --color-focus: var(--tt-focus);
+  --color-backdrop: var(--tt-backdrop);
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-dialog: 0.875rem;
+
+  --shadow-card: var(--tt-shadow-card);
+  --shadow-card-hover: var(--tt-shadow-card-hover);
+  --shadow-raised: var(--tt-shadow-raised);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-sm text-fg antialiased;
+    font-feature-settings: "cv11";
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
