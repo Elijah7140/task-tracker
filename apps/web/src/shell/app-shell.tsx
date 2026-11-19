@@ -4,6 +4,7 @@ import { SearchPage } from "../search/search-page.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
 import { CalendarPage } from "../calendar/calendar-page.js";
 import { TodayPage } from "../today/today-page.js";
+import { TicketsPage } from "../tickets/tickets-page.js";
 import { TrashPage } from "../trash/trash-page.js";
 import { ReminderBell } from "../reminders/reminder-bell.js";
 import { EditMenu } from "./edit-menu.js";
@@ -79,6 +80,9 @@ export function AppShell() {
             ) : null}
             {covering === "today" ? (
               <TodayPage onBack={() => void goBack()} runGuards={returnGuards.run} />
+            ) : null}
+            {covering === "tickets" ? (
+              <TicketsPage onBack={() => void goBack()} runGuards={returnGuards.run} />
             ) : null}
           </main>
           <StatusNotice superseded={history.message !== null} />

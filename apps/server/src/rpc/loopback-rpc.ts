@@ -27,6 +27,7 @@ import { searchQueryRpcHandlers } from "./search-query-rpc-handlers.js";
 import { savedSearchRpcHandlers } from "./saved-search-rpc-handlers.js";
 import { todayRpcHandlers } from "./today-rpc-handlers.js";
 import { reminderRpcHandlers } from "./reminder-rpc-handlers.js";
+import { ticketRpcHandlers } from "./ticket-rpc-handlers.js";
 import { UndoService } from "../services/undo-service.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
@@ -77,6 +78,7 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         Effect.provide(searchQueryRpcHandlers(options.timeZone)),
         Effect.provide(savedSearchRpcHandlers),
         Effect.provide(todayRpcHandlers(options.timeZone)),
+        Effect.provide(ticketRpcHandlers),
         // One session layer supplies the shared UndoService to every handler above.
         Effect.provide(session),
       );

@@ -7,6 +7,7 @@ import {
   Plus,
   Search,
   Settings,
+  Ticket,
   Trash2,
 } from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
@@ -133,6 +134,11 @@ export function Sidebar({ editMenu }: { readonly editMenu?: ReactNode }) {
           page="today"
           label="Today"
           icon={<CalendarCheck size={15} aria-hidden="true" />}
+        />
+        <CoveringPageEntry
+          page="tickets"
+          label="Tickets"
+          icon={<Ticket size={15} aria-hidden="true" />}
         />
         <CoveringPageEntry
           page="trash"

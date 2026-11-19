@@ -87,3 +87,11 @@ export {
   ReminderSnooze,
 } from "./reminder.js";
 export { ReminderRpcs } from "./reminder-rpcs.js";
+export {
+  TicketBoard,
+  TicketPosition,
+  TicketProject,
+  TicketRow,
+  TicketSection,
+} from "./ticket-board.js";
+export { TicketRpcs } from "./ticket-rpcs.js";

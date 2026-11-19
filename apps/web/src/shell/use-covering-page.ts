@@ -15,6 +15,7 @@ const COVERING_PAGE_SHORTCUTS: Readonly<Record<CoveringPage, Shortcut>> = {
   trash: { key: "t", ctrl: true, shift: true },
   search: { key: "f", ctrl: true },
   today: { key: "d", ctrl: true, shift: true },
+  tickets: { key: "k", ctrl: true, shift: true },
 };
 
 const coveringPageShortcut = (event: KeyboardEvent) => findShortcut(event, COVERING_PAGE_SHORTCUTS);
@@ -54,7 +55,7 @@ function useCoveringPageKeys(open: (page: CoveringPage) => void, goBack: () => v
 }
 
 /**
- * Handles keyboard shortcuts and Back for Search, Calendar, Trash and Today. Returning
+ * Handles keyboard shortcuts and Back for Search, Calendar, Trash, Today and Tickets. Returning
  * waits for the covering page to finish any changes, including a running
  * push back or Today reopen (§7.14), and asks the return page’s
  * unsaved-changes guard if it needs a refresh, then puts focus back where it

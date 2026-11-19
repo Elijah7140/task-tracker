@@ -48,6 +48,7 @@ import { searchQueryHandlers } from "./fake-search-query.js";
 import { FakeSavedSearches, savedSearchHandlers } from "./fake-saved-search-handlers.js";
 import { FakeToday, todayHandlers } from "./fake-today-handlers.js";
 import { FakeReminders, reminderHandlers } from "./fake-reminder-handlers.js";
+import { FakeTickets, ticketHandlers } from "./fake-ticket-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -161,6 +162,8 @@ export class FakeProjectStore {
 
   /** The local day and failure state behind the Today view. */
   readonly today = new FakeToday();
+  /** Ticket ranks and load failures for the Tickets view (§7.16). */
+  readonly tickets = new FakeTickets();
 
   /** Saved searches listed on Home and the Search page. */
   readonly savedSearches = new FakeSavedSearches(this.nextId);
@@ -378,6 +381,7 @@ export class FakeProjectStore {
       links: this.itemLinks.state,
       savedSearches: this.savedSearches.rows,
       reminders: this.reminders.rows,
+      ticketRanks: this.tickets.ranks,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
@@ -394,6 +398,7 @@ export class FakeProjectStore {
       links,
       savedSearches,
       reminders,
+      ticketRanks,
     } = structuredClone(snapshot);
     this.statuses.rows = statuses;
     this.summaries = summaries;
@@ -408,6 +413,7 @@ export class FakeProjectStore {
     if (reminders.length !== this.reminders.rows.length) {
       this.reminders.publish(reminders);
     }
+    this.tickets.ranks = ticketRanks;
   };
 
   /** Returns all active area states. */
@@ -889,6 +895,7 @@ function handlers(store: FakeProjectStore) {
     ...searchQueryHandlers(store),
     ...savedSearchHandlers(store, history.track),
     ...todayHandlers(store),
+    ...ticketHandlers(store, history.track),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const before = store.recurrence.titleOf(payload.itemId);
