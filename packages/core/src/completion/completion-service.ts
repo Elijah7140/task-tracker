@@ -2,14 +2,20 @@ import type { ItemTree } from "../items/item-tree.js";
 import type { TodoItem } from "../items/todo-item.js";
 import type { AppliedCompletion, CompletionResult } from "./completion-result.js";
 import type { ReconciliationPreview } from "./reconciliation-preview.js";
+import { type OccurrenceContext, RecurringCompletion } from "./recurring-completion.js";
 
-/** Propose completion. An approval must match the current set of open descendants. */
+/**
+ * Propose completion. An approval must match the current set of open descendants.
+ * With `recurrence`, completed repeating items add their next occurrences to the
+ * tree before parents are re-evaluated (§7.11).
+ */
 export function complete(
   tree: ItemTree,
   itemId: string,
   autoComplete: boolean,
   now: Temporal.Instant,
   confirmedOpenItemIds?: readonly string[],
+  recurrence?: OccurrenceContext,
 ): CompletionResult {
   tree.get(itemId);
   const openDescendants = autoComplete
@@ -18,6 +24,9 @@ export function complete(
   const openSubItemIds = openDescendants.map((row) => row.id);
   if (needsConfirmation(openSubItemIds, confirmedOpenItemIds)) {
     return { kind: "needs-confirmation", openSubItemCount: openSubItemIds.length, openSubItemIds };
+  }
+  if (recurrence !== undefined) {
+    return completeRecurring(tree, itemId, autoComplete, now, recurrence);
   }
 
   const proposed = currentStates(tree);
@@ -29,6 +38,23 @@ export function complete(
     reconcileParents(tree, tree.ancestors(itemId), proposed, now);
   }
   return changes(tree, proposed);
+}
+
+function completeRecurring(
+  tree: ItemTree,
+  itemId: string,
+  autoComplete: boolean,
+  now: Temporal.Instant,
+  recurrence: OccurrenceContext,
+): AppliedCompletion {
+  const completion = new RecurringCompletion(tree, now, recurrence);
+  if (!autoComplete) {
+    completion.completeItem(itemId);
+    return completion.result();
+  }
+  completion.completeBranch(itemId);
+  completion.reconcile(tree.ancestors(itemId));
+  return completion.result();
 }
 
 /** Propose reopening. Automatic completion blocks reopening a parent whose children are all complete. */
@@ -52,12 +78,16 @@ export function reopen(
   return changes(tree, proposed);
 }
 
-/** Reconcile the affected parents and ancestors together after a structural change. */
+/**
+ * Reconcile the affected parents and ancestors together after a structural change.
+ * With `recurrence`, a repeating parent that completes creates its next occurrence.
+ */
 export function afterStructureChanged(
   tree: ItemTree,
   affectedParentIds: readonly (string | null)[],
   autoComplete: boolean,
   now: Temporal.Instant,
+  recurrence?: OccurrenceContext,
 ): AppliedCompletion {
   if (!autoComplete) {
     return { kind: "applied", changes: [] };
@@ -76,6 +106,11 @@ export function afterStructureChanged(
     .descendants(null)
     .toReversed()
     .filter((row) => affected.has(row.id));
+  if (recurrence !== undefined) {
+    const completion = new RecurringCompletion(tree, now, recurrence);
+    completion.reconcile(bottomUp);
+    return completion.result();
+  }
   const proposed = currentStates(tree);
   reconcileParents(tree, bottomUp, proposed, now);
   return changes(tree, proposed);

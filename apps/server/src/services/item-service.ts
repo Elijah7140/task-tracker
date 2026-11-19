@@ -4,6 +4,7 @@ import {
   planFieldValueEdits,
   planItemLinkEdits,
   planStatusChange,
+  sameRecurrence,
   type AppliedCompletion,
   type FieldValueInput,
   type ItemEdit,
@@ -21,12 +22,15 @@ import { statusRepository } from "../db/repositories/status-repository.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
 import { Guid } from "../db/storage-codecs.js";
 import { projectAreaItems, type AreaSnapshot } from "./area-snapshot.js";
+import { areaUndoSources } from "./area-undo-sources.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
 import { checkRules } from "./check-rules.js";
 import { itemCompletionOperations } from "./item-completion-operations.js";
+import { itemRecurrenceOperations } from "./item-recurrence-operations.js";
 import { itemStructureOperations } from "./item-structure-operations.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
+import { saveItemRows } from "./save-item-rows.js";
 import { UndoService, undoLabel } from "./undo-service.js";
 
 const decodeId = Schema.decodeEffect(Guid);
@@ -50,7 +54,8 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   const statuses = statusRepository(sql);
   const settings = settingsRepository(sql);
 
-  const completion = itemCompletionOperations(sql);
+  const completion = itemCompletionOperations(sql, timeZone);
+  const recurrence = itemRecurrenceOperations(sql, undo, timeZone);
   const { loadAreaTree, saveStructure, ...structure } = itemStructureOperations(
     sql,
     completion,
@@ -73,6 +78,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     );
   });
 
+  /**
+   * Plans a status selection against the area tree. An editor save passes its
+   * edited row so a next occurrence copies the final draft (§7.15).
+   */
   const planStatus = Effect.fnUntraced(function* (
     item: TodoItem,
     statusId: string | null,
@@ -80,11 +89,13 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     confirmedOpenItemIds?: readonly string[],
   ) {
     const tree = yield* loadAreaTree(item.projectId, item.folderId);
+    const original = new Map(tree.allRows.map((row) => [row.id, row]));
     const effective = yield* readEffectiveSettings(settings, item.projectId);
     const available = yield* statuses.list();
     const approval = yield* decodeOptionalIds(confirmedOpenItemIds);
-    return yield* checkRules(() =>
-      planStatusChange(
+    const result = yield* checkRules(() => {
+      tree.replace(item);
+      return planStatusChange(
         tree,
         item.id,
         statusId,
@@ -92,23 +103,26 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
         effective.autoCompleteParents.value,
         now,
         approval,
-      ),
-    );
+        completion.occurrenceContext(now),
+      );
+    });
+    return { tree, original, result };
   });
 
-  const areaRows = (item: TodoItem) => ({
-    table: "TodoItem" as const,
-    where: sql`ProjectId = ${item.projectId} AND FolderId IS ${item.folderId}`,
-  });
+  type StatusPlan = Effect.Success<ReturnType<typeof planStatus>>;
 
+  /** Saves a planned status change. A Done status kept off by a new occurrence is not assigned. */
   const applyStatus = Effect.fnUntraced(function* (
     item: TodoItem,
     statusId: string | null,
     now: Temporal.Instant,
-    result: AppliedCompletion,
+    { tree, original, result }: StatusPlan & { readonly result: AppliedCompletion },
   ) {
+    yield* saveItemRows(items, tree, original);
     yield* completion.apply(item.projectId, now, result);
-    yield* items.setStatus({ id: item.id, statusId, now });
+    if (result.parentKeptOpenMessage === undefined) {
+      yield* items.setStatus({ id: item.id, statusId, now });
+    }
   });
 
   const setStatus = Effect.fnUntraced(function* (
@@ -122,10 +136,12 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
       return { kind: "applied", changes: [] } satisfies AppliedCompletion;
     }
     const now = yield* operationTime;
-    const result = yield* planStatus(item, statusId, now, confirmedOpenItemIds);
+    const plan = yield* planStatus(item, statusId, now, confirmedOpenItemIds);
+    const { result } = plan;
     if (result.kind === "applied") {
-      yield* undo.capture(undoLabel("Set status of", item.title), [areaRows(item)]);
-      yield* applyStatus(item, statusId, now, result);
+      const sources = areaUndoSources(sql, item.projectId, item.folderId);
+      yield* undo.capture(undoLabel("Set status of", item.title), sources);
+      yield* applyStatus(item, statusId, now, { ...plan, result });
     }
     return result;
   }, undo.record);
@@ -139,11 +155,22 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   ) {
     const statusId = selection === undefined ? item.statusId : yield* decodeNullableId(selection);
     const changed = statusId !== item.statusId;
-    const result = changed
-      ? yield* planStatus(item, statusId, now, confirmedOpenItemIds)
-      : ({ kind: "applied", changes: [] } satisfies AppliedCompletion);
-    return { statusId, changed, result };
+    const plan = changed ? yield* planStatus(item, statusId, now, confirmedOpenItemIds) : null;
+    const result = plan?.result ?? ({ kind: "applied", changes: [] } satisfies AppliedCompletion);
+    return { statusId, changed, plan, result };
   });
+
+  /** A status change names the save; a rule change names it next; otherwise it is an edit. */
+  const editLabel = (item: TodoItem, edited: TodoItem, statusChanged: boolean) => {
+    if (statusChanged) {
+      return undoLabel("Set status of", edited.title);
+    }
+    if (sameRecurrence(item.recurrence, edited.recurrence)) {
+      return undoLabel("Edit", edited.title);
+    }
+    const verb = edited.recurrence === null ? "Stop repeating" : "Set repeat for";
+    return undoLabel(verb, item.title);
+  };
 
   const writeCustomValues = Effect.fnUntraced(function* (
     itemId: string,
@@ -179,8 +206,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   });
 
   /**
-   * Saves the editor's built-in fields, changed custom values, optional status
-   * and, when `links` is present, the item's whole link list as one undo step.
+   * Saves the editor's built-in fields, optional repeat rule, changed custom values,
+   * optional status and, when `links` is present, the item's whole link list as one
+   * undo step. A Done status completes after the other writes, so a next occurrence
+   * copies the final links and values (§7.15).
    */
   const edit = Effect.fnUntraced(function* (
     id: string,
@@ -194,33 +223,39 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     const itemTypeId = yield* decodeNullableId(values.itemTypeId);
     const priorityLevelId = yield* decodeNullableId(values.priorityLevelId);
     const edited = yield* checkRules(() =>
-      editItem(item, { ...values, itemTypeId, priorityLevelId }, now),
+      editItem(item, { ...values, itemTypeId, priorityLevelId }, now, () => newId(now)),
     );
     // The connection lease serializes this snapshot and write with definition mutations.
     const custom =
       customValues.length === 0 ? undefined : yield* planCustomEdit(item, customValues);
     const linkPlan = links === undefined ? undefined : yield* planLinks(item.id, links, now);
-    const status = yield* planEditStatus(item, values.statusId, now, confirmedOpenItemIds);
-    if (status.result.kind !== "applied") {
-      return status.result;
+    const status = yield* planEditStatus(edited, values.statusId, now, confirmedOpenItemIds);
+    const { result } = status;
+    if (result.kind !== "applied") {
+      return result;
     }
-    // A save that changes the status is labelled as a status change (§7.15).
-    yield* undo.capture(undoLabel(status.changed ? "Set status of" : "Edit", edited.title), [
-      status.changed ? areaRows(item) : { table: "TodoItem", where: sql`Id = ${item.id}` },
-      { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
-      { table: "ItemLink", where: sql`ItemId = ${item.id}` },
-    ]);
-    if (status.changed) {
-      yield* applyStatus(item, status.statusId, now, status.result);
-    }
+    yield* undo.capture(
+      editLabel(item, edited, status.changed),
+      status.changed
+        ? areaUndoSources(sql, item.projectId, item.folderId)
+        : [
+            { table: "TodoItem", where: sql`Id = ${item.id}` },
+            { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
+            { table: "ItemLink", where: sql`ItemId = ${item.id}` },
+          ],
+    );
     yield* items.updateEdit(edited);
+    yield* items.saveRecurrence(edited);
     if (custom) {
       yield* writeCustomValues(item.id, custom);
     }
     if (linkPlan) {
       yield* writeLinks(linkPlan);
     }
-    return status.result;
+    if (status.plan !== null) {
+      yield* applyStatus(edited, status.statusId, now, { ...status.plan, result });
+    }
+    return result;
   }, undo.record);
 
   const requireActivePriority = Effect.fnUntraced(function* (priorityLevelId: string | null) {
@@ -274,12 +309,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     const label = priorityChanged
       ? undoLabel("Set priority of", item.title)
       : undoLabel("Move", item.title);
-    yield* undo.capture(label, [
-      {
-        table: "TodoItem",
-        where: sql`ProjectId = ${tree.projectId} AND FolderId IS ${tree.folderId}`,
-      },
-    ]);
+    yield* undo.capture(label, areaUndoSources(sql, tree.projectId, tree.folderId));
     yield* saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);
     if (priorityChanged) {
@@ -310,12 +340,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     // Read the tree and settings again even when the caller is confirming a preview.
     const tree = yield* loadAreaTree(projectId, folderId);
     const item = yield* checkRules(() => tree.get(key));
-    yield* undo.capture(undoLabel(completed ? "Complete" : "Reopen", item.title), [
-      {
-        table: "TodoItem",
-        where: sql`ProjectId = ${tree.projectId} AND FolderId IS ${tree.folderId}`,
-      },
-    ]);
+    yield* undo.capture(
+      undoLabel(completed ? "Complete" : "Reopen", item.title),
+      areaUndoSources(sql, tree.projectId, tree.folderId),
+    );
     return yield* completion.setCompleted(tree, key, completed, approval);
   }, undo.record);
 
@@ -338,6 +366,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
 
   return {
     ...structure,
+    ...recurrence,
     edit,
     setCompleted,
     setPriority,

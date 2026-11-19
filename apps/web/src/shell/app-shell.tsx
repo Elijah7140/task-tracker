@@ -10,6 +10,7 @@ import { UndoBlockers } from "./undo-blockers.js";
 import { useCoveringPage } from "./use-covering-page.js";
 import { useHistoryActions } from "./use-history-actions.js";
 import { Sidebar } from "./sidebar.js";
+import { StatusNotice } from "./status-notice.js";
 
 /** Drafts register unsaved-changes guards. The shell asks them in turn before returning. */
 function useReturnGuardRegistry() {
@@ -68,6 +69,7 @@ export function AppShell() {
               <SearchPage onBack={() => void goBack()} runGuards={returnGuards.runGuards} />
             ) : null}
           </main>
+          <StatusNotice superseded={history.message !== null} />
           {history.message === null ? null : (
             <div
               role="status"

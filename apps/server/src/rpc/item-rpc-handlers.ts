@@ -1,7 +1,13 @@
 import { ItemRpcs } from "@task-tracker/contracts";
 import { Effect, Layer } from "effect";
 import { ItemService } from "../services/item-service.js";
-import { parseItemEdit, projectArea, projectCompletion, projectItem } from "./item-projection.js";
+import {
+  parseItemEdit,
+  parseRecurrence,
+  projectArea,
+  projectCompletion,
+  projectItem,
+} from "./item-projection.js";
 import { parseFieldValueInput, projectItemFieldValue } from "./field-value-projection.js";
 import { projectItemLink } from "./item-link-projection.js";
 
@@ -19,9 +25,12 @@ export const itemRpcHandlers = (timeZone: string) =>
           items
             .create(projectId, folderId, parentItemId, title)
             .pipe(Effect.map(projectItem), mapOperationError),
-        EditItem: ({ itemId, fields, customValues, links, confirmedOpenItemIds }) =>
+        EditItem: ({ itemId, fields, customValues, links, recurrence, confirmedOpenItemIds }) =>
           Effect.sync(() => ({
-            edit: parseItemEdit(fields),
+            edit: {
+              ...parseItemEdit(fields),
+              ...(recurrence === undefined ? {} : { recurrence: parseRecurrence(recurrence) }),
+            },
             values: customValues?.map(parseFieldValueInput),
           })).pipe(
             Effect.flatMap(({ edit, values }) =>
@@ -67,6 +76,8 @@ export const itemRpcHandlers = (timeZone: string) =>
             Effect.map((values) => values.map(projectItemFieldValue)),
             mapOperationError,
           ),
+        SkipRepeat: ({ itemId }) => items.skipRepeat(itemId).pipe(mapOperationError),
+        StopRepeating: ({ itemId }) => items.stopRepeating(itemId).pipe(mapOperationError),
         LoadItemLinks: ({ itemId }) =>
           items.loadLinks(itemId).pipe(
             Effect.map((links) => links.map(projectItemLink)),

@@ -21,6 +21,7 @@ export {
 } from "./rpc-operation-error.js";
 export { AreaSnapshot } from "./area-snapshot.js";
 export { Item, ItemEdit } from "./item.js";
+export { RecurrenceRule } from "./recurrence-rule.js";
 export { ItemRpcs } from "./item-rpcs.js";
 export { ItemLink, ItemLinkInput } from "./item-link.js";
 export { CompletionResult } from "./completion-result.js";

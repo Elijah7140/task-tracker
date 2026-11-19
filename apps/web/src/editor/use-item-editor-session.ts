@@ -13,6 +13,7 @@ import { useReturnGuard } from "../shell/return-guards.js";
 import { useUndoBlocker } from "../shell/undo-blockers.js";
 import { dialogStore, resolveDraft } from "../state/dialog-store.js";
 import { useItemEditorStore } from "../state/item-editor-store.js";
+import { noticeCompletion } from "../state/status-notice-store.js";
 import type { ItemNode } from "../workspace/item-outline.js";
 import { type EditorDraftStatus, FIX_FIELDS_MESSAGE } from "./editor-draft.js";
 import { FIX_LINK_MESSAGE } from "./link-draft.js";
@@ -51,11 +52,16 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       setError(FIX_LINK_MESSAGE);
       return false;
     }
+    if (status.repeatError !== null) {
+      setError(status.repeatError);
+      return false;
+    }
     const payload = {
       itemId: node.item.id,
       fields: status.fields,
       customValues: status.customValues,
       ...(status.links === undefined ? {} : { links: status.links }),
+      ...(status.recurrence === undefined ? {} : { recurrence: status.recurrence }),
     };
     const exit = await requestCompletion((approval) =>
       edit({
@@ -80,6 +86,7 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       setError(exit.value.reason);
       return false;
     }
+    noticeCompletion(exit.value);
     discard();
     return true;
   };

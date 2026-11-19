@@ -8,6 +8,7 @@ import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { setItemStatusAtom } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { notify } from "../state/dialog-store.js";
+import { noticeCompletion } from "../state/status-notice-store.js";
 
 /** Runs the shared row status action with confirmation and area invalidation. */
 export function useSetItemStatus() {
@@ -33,6 +34,7 @@ export function useSetItemStatus() {
     if (exit.value.kind === "blocked") {
       await notify({ title: "Cannot reopen item", message: exit.value.reason });
     }
+    noticeCompletion(exit.value);
     return exit.value.kind === "applied";
   };
 }

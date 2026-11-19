@@ -13,6 +13,8 @@ import {
   ItemDescription,
   ItemOverflowMenu,
   type ItemRowLookups,
+  RepeatMarker,
+  repeatSummary,
   statusName,
   UrgencySource,
   urgencySourceTitle,
@@ -191,6 +193,7 @@ function RowContent(props: ItemRowProps) {
   const { node, expanded, lookups, actions, onExpandedChange } = props;
   const date = dateCell(node, lookups.timeZone);
   const source = urgencySourceTitle(node, lookups);
+  const repeat = repeatSummary(node);
   return (
     <>
       <div className="flex min-w-0 items-center gap-1">
@@ -207,6 +210,7 @@ function RowContent(props: ItemRowProps) {
         <span className="ml-auto flex shrink-0 items-center gap-1">
           <UrgencyBadge urgency={node.displayedUrgency.value} />
           {source === undefined ? null : <UrgencySource title={source} />}
+          {repeat === null ? null : <RepeatMarker summary={repeat} />}
           <ItemOverflowMenu {...props} />
         </span>
       </div>

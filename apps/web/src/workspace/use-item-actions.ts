@@ -15,6 +15,7 @@ import {
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
 import { openItemEditor } from "../state/item-editor-store.js";
+import { noticeCompletion } from "../state/status-notice-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { departureFocusIds, isEmptyLevel, itemAncestorIds, type ItemNode } from "./item-outline.js";
 import {
@@ -24,6 +25,7 @@ import {
   useItemStructureActions,
 } from "./use-item-structure-actions.js";
 import { useItemDropActions } from "./use-item-drop-actions.js";
+import { useRepeatActions } from "./use-repeat-actions.js";
 import { useSetItemStatus } from "./use-set-item-status.js";
 import { useSingleRunPerItem } from "./use-single-run-per-item.js";
 
@@ -186,6 +188,7 @@ function useToggleComplete(scope: ItemActionScope) {
     if (exit.value.kind === "blocked") {
       await notify({ title: "Cannot reopen item", message: exit.value.reason });
     } else if (exit.value.kind === "applied") {
+      noticeCompletion(exit.value);
       scope.onFocusItem({
         id: node.item.id,
         afterNodes: scope.items,
@@ -264,6 +267,12 @@ export function useItemActions(scope: ItemActionScope) {
   const { deleteItem, restoreBatch } = useDeleteAndRestore(scope);
   const structure = useItemStructureActions(scope);
   const setStatus = useSetItemStatus();
+  const repeat = useRepeatActions();
+  const refocus = (node: ItemNode) => (applied: boolean) => {
+    if (applied) {
+      scope.onFocusItem({ id: node.item.id, afterNodes: scope.items });
+    }
+  };
   return {
     editItem: openEditor,
     quickAdd,
@@ -280,6 +289,12 @@ export function useItemActions(scope: ItemActionScope) {
         });
       }
     }),
+    skipRepeat: once("skipRepeat", (node: ItemNode) =>
+      repeat.skipRepeat(node.item).then(refocus(node)),
+    ),
+    stopRepeating: once("stopRepeating", (node: ItemNode) =>
+      repeat.stopRepeating(node.item).then(refocus(node)),
+    ),
     deleteItem: once("deleteItem", deleteItem),
     restoreBatch,
     indentItem: once("indentItem", structure.indentItem),

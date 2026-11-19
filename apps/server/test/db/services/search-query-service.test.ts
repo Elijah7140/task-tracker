@@ -1,5 +1,5 @@
 import { expect, it } from "@effect/vitest";
-import { MetadataRuleError, type SearchScope } from "@task-tracker/core";
+import { MetadataRuleError, recurrenceRule, type SearchScope } from "@task-tracker/core";
 import { Effect } from "effect";
 import { TestClock } from "effect/testing";
 import { SearchQueryService } from "../../../src/services/search-query-service.js";
@@ -262,6 +262,32 @@ it.effect("Rejects a deleted scope project", () =>
 
       expect(parseError).toEqual(new MetadataRuleError("Search project does not exist."));
       expect(formatError).toEqual(new MetadataRuleError("Search project does not exist."));
+    }),
+  ),
+);
+
+it.effect("Finds repeating items with is:recurring and the repeats field (§7.11)", () =>
+  withQueries("UTC", (svc, queries) =>
+    Effect.gen(function* () {
+      const project = yield* svc.projects.create("Ops");
+      const repeating = yield* svc.items.create(project.id, null, null, "Weekly report");
+      yield* svc.items.create(project.id, null, null, "One-off task");
+      const dueDate = Temporal.PlainDate.from("2026-11-20");
+      const recurrence = recurrenceRule("Daily");
+      yield* svc.items.edit(repeating.id, editFields("Weekly report", { dueDate, recurrence }), []);
+
+      const found = yield* Effect.forEach(
+        ["is:recurring", "repeats:yes", "repeats:no", "has:repeats", "no:repeats"],
+        (text) => searchText(svc, queries, text),
+      );
+
+      expect(found).toEqual([
+        ["Weekly report"],
+        ["Weekly report"],
+        ["One-off task"],
+        ["Weekly report"],
+        ["One-off task"],
+      ]);
     }),
   ),
 );

@@ -1,5 +1,6 @@
 import type { DeletionFields } from "../hierarchy/deletion-fields.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
+import type { RecurrenceRule } from "./recurrence/recurrence-rule.js";
 
 /** A task or sub-item in a single project area. */
 export interface TodoItem extends DeletionFields {
@@ -19,6 +20,12 @@ export interface TodoItem extends DeletionFields {
   readonly statusId: string | null;
   readonly reopenStatusId: string | null;
   readonly completedAtUtc: Temporal.Instant | null;
+  /** The repeat rule, or null when the item does not repeat (§7.11). */
+  readonly recurrence: RecurrenceRule | null;
+  /** Shared by the occurrences of one series; null without a rule. */
+  readonly recurrenceSeriesId: string | null;
+  /** True once completing this occurrence created its successor, so it never creates another. */
+  readonly recurrenceSuccessorCreated: boolean;
   readonly sortOrder: number;
   readonly createdAtUtc: Temporal.Instant;
   readonly updatedAtUtc: Temporal.Instant;
@@ -59,6 +66,9 @@ export function createItem(
     statusId: null,
     reopenStatusId: null,
     completedAtUtc: null,
+    recurrence: null,
+    recurrenceSeriesId: null,
+    recurrenceSuccessorCreated: false,
     sortOrder: 0,
     createdAtUtc: now,
     updatedAtUtc: now,

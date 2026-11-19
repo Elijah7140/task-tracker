@@ -1,7 +1,14 @@
-import type { AreaSnapshot, CompletionResult, Item, ItemEdit } from "@task-tracker/contracts";
+import type {
+  AreaSnapshot,
+  CompletionResult,
+  Item,
+  ItemEdit,
+  RecurrenceRule,
+} from "@task-tracker/contracts";
 import type {
   CompletionResult as DomainCompletionResult,
   ItemEdit as DomainItemEdit,
+  RecurrenceRule as DomainRecurrenceRule,
   TodoItem,
 } from "@task-tracker/core";
 import type {
@@ -25,10 +32,26 @@ export function parseItemEdit(fields: typeof ItemEdit.Type): DomainItemEdit {
   };
 }
 
+/** Parse a wire rule's end date as a floating calendar date. */
+export function parseRecurrence(
+  rule: typeof RecurrenceRule.Type | null,
+): DomainRecurrenceRule | null {
+  if (rule === null) {
+    return null;
+  }
+  return { ...rule, endDate: rule.endDate === null ? null : Temporal.PlainDate.from(rule.endDate) };
+}
+
+function projectRecurrence(rule: DomainRecurrenceRule | null): typeof RecurrenceRule.Type | null {
+  return rule === null ? null : { ...rule, endDate: rule.endDate?.toString() ?? null };
+}
+
 /** Convert persisted Temporal values to their ISO representation. */
 export function projectItem(item: TodoItem): typeof Item.Type {
+  const { recurrenceSuccessorCreated: _successorCreated, ...fields } = item;
   return {
-    ...item,
+    ...fields,
+    recurrence: projectRecurrence(item.recurrence),
     dueDate: item.dueDate?.toString() ?? null,
     dueTime: item.dueTime?.toString() ?? null,
     scheduledStart: item.scheduledStart?.toString() ?? null,
@@ -64,7 +87,10 @@ export function projectArea(snapshot: DomainAreaSnapshot): typeof AreaSnapshot.T
   };
 }
 
-/** Preserve the approval set and convert applied timestamps for the client. */
+/**
+ * Preserve the approval set and convert applied timestamps for the client, with
+ * the repeat messages the workspace shows (§7.11).
+ */
 export function projectCompletion(result: DomainCompletionResult): typeof CompletionResult.Type {
   if (result.kind !== "applied") {
     return result;
@@ -75,5 +101,9 @@ export function projectCompletion(result: DomainCompletionResult): typeof Comple
       itemId,
       completedAtUtc: completedAtUtc?.toString() ?? null,
     })),
+    ...(result.lastRepeat === true ? { lastRepeat: true } : {}),
+    ...(result.parentKeptOpenMessage === undefined
+      ? {}
+      : { parentKeptOpenMessage: result.parentKeptOpenMessage }),
   };
 }

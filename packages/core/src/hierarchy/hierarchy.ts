@@ -82,6 +82,18 @@ export class Hierarchy<Entity extends Row> {
     this.append(row, now);
   }
 
+  /** Replace an active row's own fields, keeping its parent and position. */
+  replace(row: Entity): void {
+    const current = this.get(row.id);
+    if (this.parentIdOf(current) !== this.parentIdOf(row) || current.sortOrder !== row.sortOrder) {
+      throw new HierarchyError(`${this.kind} replacement cannot move it.`);
+    }
+    if (row.deletedAtUtc !== null) {
+      throw new HierarchyError(`${this.kind} replacement cannot delete it.`);
+    }
+    this.#rows.set(row.id, row);
+  }
+
   move(row: Entity, now: Temporal.Instant): void {
     const oldParentId = this.parentIdOf(this.get(row.id));
     const parentId = this.parentIdOf(row);

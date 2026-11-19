@@ -11,6 +11,8 @@ import {
   ItemDescription,
   ItemOverflowMenu,
   type ItemRowLookups,
+  RepeatMarker,
+  repeatSummary,
   statusName,
   UrgencySource,
   urgencySourceTitle,
@@ -94,7 +96,9 @@ function CardMetadata({
   const source = urgencySourceTitle(node, lookups);
   const urgency = node.displayedUrgency.value;
   const DateIcon = date?.icon;
-  if (typeName === null && node.item.ticketNumber === null && date === null && urgency === "None") {
+  const repeat = repeatSummary(node);
+  const empty = typeName === null && node.item.ticketNumber === null && date === null;
+  if (empty && urgency === "None" && repeat === null) {
     return null;
   }
   return (
@@ -115,6 +119,7 @@ function CardMetadata({
       )}
       <UrgencyBadge urgency={urgency} />
       {source === undefined ? null : <UrgencySource title={source} />}
+      {repeat === null ? null : <RepeatMarker summary={repeat} />}
     </div>
   );
 }

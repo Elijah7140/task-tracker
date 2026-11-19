@@ -17,10 +17,12 @@ import { CustomFieldsSection } from "./custom-fields-section.js";
 import { editorDraftStatus } from "./editor-draft.js";
 import { draftTexts } from "./item-draft.js";
 import { LinksSection } from "./links-section.js";
+import { RepeatSection } from "./repeat-section.js";
 import { SubItemsSection } from "./sub-items-section.js";
 import { useEditorFields } from "./use-editor-fields.js";
 import { useItemLinks } from "./use-item-links.js";
 import { useItemEditorSession } from "./use-item-editor-session.js";
+import { useRepeatActions } from "../workspace/use-repeat-actions.js";
 
 type Snapshot = typeof AreaSnapshot.Type;
 
@@ -139,6 +141,7 @@ function EditorContent({
     activeFields: fields.status === "ready" ? fields.list.active : null,
     links: store.links,
     storedLinks: links.status === "ready" ? links.links : null,
+    repeat: store.repeat,
   });
   const session = useItemEditorSession({
     projectId: snapshot.projectId,
@@ -149,6 +152,7 @@ function EditorContent({
   const requestClose = () => void session.guarded(store.close);
   useEffect(() => onCloseRequest(requestClose));
   const openItem = (itemId: string) => void session.guarded(() => store.open(itemId));
+  const repeat = useRepeatActions();
   const parentId = node.item.parentItemId;
   const texts = draftTexts(node.item, store.builtIn);
   return (
@@ -179,6 +183,19 @@ function EditorContent({
             priorityLevels={snapshot.priorityLevels}
             statuses={snapshot.statuses}
             onChange={store.setBuiltIn}
+          />
+          <RepeatSection
+            item={node.item}
+            draft={store.repeat}
+            summary={status.repeatSummary}
+            error={status.repeatError}
+            onChange={store.setRepeat}
+            onSkip={() =>
+              void session.guarded(async () => void (await repeat.skipRepeat(node.item)))
+            }
+            onStop={() =>
+              void session.guarded(async () => void (await repeat.stopRepeating(node.item)))
+            }
           />
           <CustomFieldsSection state={fields} drafts={store.custom} onChange={store.setCustom} />
         </aside>

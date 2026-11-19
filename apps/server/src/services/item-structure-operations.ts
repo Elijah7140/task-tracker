@@ -5,10 +5,12 @@ import { folderRepository } from "../db/repositories/folder-repository.js";
 import { itemRepository } from "../db/repositories/item-repository.js";
 import { projectRepository } from "../db/repositories/project-repository.js";
 import { Guid } from "../db/storage-codecs.js";
+import { areaUndoSources } from "./area-undo-sources.js";
 import { checkRules } from "./check-rules.js";
 import type { itemCompletionOperations } from "./item-completion-operations.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
+import { saveItemRows } from "./save-item-rows.js";
 import { type UndoService, undoLabel } from "./undo-service.js";
 
 const decodeId = Schema.decodeEffect(Guid);
@@ -52,19 +54,8 @@ export function itemStructureOperations(
     return yield* loadTree(folderTree, folderId, includeDeleted);
   });
 
-  const saveStructure = Effect.fnUntraced(function* (
-    tree: ItemTree,
-    original: ReadonlyMap<string, TodoItem>,
-  ) {
-    for (const row of tree.allRows) {
-      const previous = original.get(row.id);
-      if (previous === undefined) {
-        yield* items.insert(row);
-      } else if (previous !== row) {
-        yield* items.updateStructure(row);
-      }
-    }
-  });
+  const saveStructure = (tree: ItemTree, original: ReadonlyMap<string, TodoItem>) =>
+    saveItemRows(items, tree, original);
 
   const editTree = Effect.fnUntraced(function* <A>(
     projectId: string,
@@ -78,18 +69,14 @@ export function itemStructureOperations(
       affectedParents: readonly (string | null)[];
     },
     includeDeleted: boolean = false,
+    occurrences: boolean = true,
   ) {
     const tree = yield* loadAreaTree(projectId, folderId, includeDeleted);
     const original = new Map(tree.allRows.map((row) => [row.id, row]));
     const now = yield* operationTime;
     const { result, label, affectedParents } = yield* checkRules(() => change(tree, now));
-    const applied = yield* completion.planReconciliation(tree, affectedParents, now);
-    yield* undo.capture(label, [
-      {
-        table: "TodoItem",
-        where: sql`ProjectId = ${tree.projectId} AND FolderId IS ${tree.folderId}`,
-      },
-    ]);
+    const applied = yield* completion.planReconciliation(tree, affectedParents, now, occurrences);
+    yield* undo.capture(label, areaUndoSources(sql, tree.projectId, tree.folderId));
     yield* saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);
     return result;
@@ -246,6 +233,8 @@ export function itemStructureOperations(
         return { result: undefined, label: undoLabel("Restore", root!.title), affectedParents };
       },
       true,
+      // Restore keeps the completion invariant without generating occurrences (§7.11).
+      false,
     );
   }, undo.record);
 

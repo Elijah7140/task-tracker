@@ -11,7 +11,45 @@ export type {
   AppliedCompletion,
   CompletionChange,
   CompletionResult,
+  OccurrenceCopy,
 } from "./completion/completion-result.js";
+export type { OccurrenceContext } from "./completion/recurring-completion.js";
+export {
+  ALL_RECURRENCE_WEEKDAYS,
+  includesWeekday,
+  RecurrenceWeekday,
+  WEEKDAY_NAMES,
+  weekdayFlag,
+} from "./items/recurrence/recurrence-weekday.js";
+export {
+  describeRecurrence,
+  findRecurrenceError,
+  RECURRENCE_ANCHORS,
+  RECURRENCE_END_KINDS,
+  RECURRENCE_FREQUENCIES,
+  recurrenceErrors,
+  recurrenceRule,
+  sameRecurrence,
+  type RecurrenceAnchor,
+  type RecurrenceEndKind,
+  type RecurrenceError,
+  type RecurrenceFrequency,
+  type RecurrenceRule,
+} from "./items/recurrence/recurrence-rule.js";
+export { isSupportedDate, nextOccurrence } from "./items/recurrence/recurrence-calculator.js";
+export {
+  advanceRule,
+  daysUntil,
+  NEXT_REPEAT_OVERFLOW,
+  recurrenceDate,
+  shiftItemDates,
+} from "./items/recurrence/occurrence-dates.js";
+export {
+  itemRecurrence,
+  RECURRENCE_DATE_REQUIRED,
+  skipOccurrence,
+  stopRepeating,
+} from "./items/recurrence/item-recurrence.js";
 export type { ReconciliationPreview } from "./completion/reconciliation-preview.js";
 export {
   archiveChoice,

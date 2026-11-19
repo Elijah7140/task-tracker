@@ -60,6 +60,8 @@ function builtInFilter(filter: FieldFilter, bind: BindParameter): string {
       return booleanPresenceFilter("t.CompletedAtUtc", filter);
     case "link":
       return linkFilter(filter, bind);
+    case "repeats":
+      return repeatsFilter(filter);
     default:
       throw new Error(`Unknown built-in search field '${filter.fieldKey}'.`);
   }
@@ -168,6 +170,17 @@ function booleanPresenceFilter(column: string, filter: FieldFilter): string {
   const expected = filter.value?.kind === "boolean" && filter.value.value;
   const wantsPresent = filter.operator === "equals" ? expected : !expected;
   return wantsPresent ? `${column} IS NOT NULL` : `${column} IS NULL`;
+}
+
+/**
+ * `repeats` compares rule presence (§7.11). Unlike other boolean fields, `has:repeats`
+ * and `no:repeats` also test the rule, so they read like `is:recurring`.
+ */
+function repeatsFilter(filter: FieldFilter): string {
+  return (
+    presenceFilter("t.RecurrenceFrequency", filter) ??
+    booleanPresenceFilter("t.RecurrenceFrequency", filter)
+  );
 }
 
 /** Matches items with a link whose address or title contains the text, case-insensitively. */

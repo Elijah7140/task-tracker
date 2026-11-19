@@ -1,4 +1,6 @@
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
+import { itemRecurrence } from "./recurrence/item-recurrence.js";
+import type { RecurrenceRule } from "./recurrence/recurrence-rule.js";
 import { itemTitle, type TodoItem } from "./todo-item.js";
 
 /** The built-in fields an item edit replaces as a unit. */
@@ -13,10 +15,26 @@ export type ItemEdit = Pick<
   | "dueTime"
   | "scheduledStart"
   | "scheduledEnd"
-> & { readonly statusId?: string | null };
+> & {
+  readonly statusId?: string | null;
+  /** The replacement repeat rule; omitted keeps the stored rule, null stops repeating. */
+  readonly recurrence?: RecurrenceRule | null;
+};
 
-/** Validate a replacement of built-in item fields, preserving structure and completion. */
-export function editItem(item: TodoItem, edit: ItemEdit, now: Temporal.Instant): TodoItem {
+const noSeriesId = (): string => {
+  throw new Error("A new repeat rule needs a series ID.");
+};
+
+/**
+ * Validate a replacement of built-in item fields, preserving structure and completion.
+ * A stored or replacement rule must still have a due date or scheduled start (§7.11).
+ */
+export function editItem(
+  item: TodoItem,
+  edit: ItemEdit,
+  now: Temporal.Instant,
+  newSeriesId: () => string = noSeriesId,
+): TodoItem {
   const title = itemTitle(edit.title);
   const { ticketNumber, dueDate, dueTime, scheduledStart, scheduledEnd } = edit;
   if (ticketNumber !== null && ticketNumber.length > 100) {
@@ -31,6 +49,8 @@ export function editItem(item: TodoItem, edit: ItemEdit, now: Temporal.Instant):
   ) {
     throw new MetadataRuleError("Scheduled end requires a start no later than the end.");
   }
+  const rule = edit.recurrence === undefined ? item.recurrence : edit.recurrence;
+  const recurrence = itemRecurrence(item, edit, rule, newSeriesId);
 
   return {
     ...item,
@@ -43,6 +63,7 @@ export function editItem(item: TodoItem, edit: ItemEdit, now: Temporal.Instant):
     dueTime,
     scheduledStart,
     scheduledEnd,
+    ...recurrence,
     updatedAtUtc: now,
   };
 }

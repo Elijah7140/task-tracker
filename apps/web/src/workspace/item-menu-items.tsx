@@ -7,7 +7,9 @@ import {
   IndentIncrease,
   ListPlus,
   Pencil,
+  RepeatOff,
   RotateCcw,
+  SkipForward,
   SquarePen,
   Trash2,
 } from "lucide-react";
@@ -26,6 +28,32 @@ export interface ItemMenuItemsProps {
   readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
   readonly statuses: ReadonlyArray<typeof StatusProjection.Type>;
   readonly actions: ItemActions;
+}
+
+/** "Skip this one" and "Stop repeating" for a repeating item (§7.11). */
+function RepeatMenuItems({ node, actions }: Pick<ItemMenuItemsProps, "node" | "actions">) {
+  if ((node.item.recurrence ?? null) === null) {
+    return null;
+  }
+  return (
+    <>
+      <MenuItem
+        icon={<SkipForward size={14} />}
+        disabled={node.item.completedAtUtc !== null}
+        onClick={() => void actions.skipRepeat(node)}
+        testId="item-menu-skip-repeat"
+      >
+        Skip this one
+      </MenuItem>
+      <MenuItem
+        icon={<RepeatOff size={14} />}
+        onClick={() => void actions.stopRepeating(node)}
+        testId="item-menu-stop-repeating"
+      >
+        Stop repeating
+      </MenuItem>
+    </>
+  );
 }
 
 /** Item actions shared by an item row's overflow menu and context menu. */
@@ -68,6 +96,7 @@ export function ItemMenuItems({
         statusId={node.item.statusId}
         onChange={(statusId) => void actions.setStatus(node, statusId)}
       />
+      <RepeatMenuItems node={node} actions={actions} />
       <MenuItem
         icon={<ListPlus size={14} />}
         onClick={() => void actions.addSubItem(node)}

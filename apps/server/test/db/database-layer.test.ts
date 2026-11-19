@@ -263,6 +263,33 @@ it.effect(
     }),
 );
 
+it.effect("Reads the final EF item's repeat rule and series", () =>
+  Effect.gen(function* () {
+    const { path } = yield* temporaryDatabase("legacy-final");
+
+    const item = yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      return yield* sql.withTransaction(itemRepository(sql).requireActive(recurringId));
+    }).pipe(Effect.provide(databaseLayer(path)), Effect.scoped);
+
+    expect(item).toMatchObject({
+      recurrence: {
+        frequency: "Daily",
+        interval: 2,
+        weekdays: null,
+        monthDay: null,
+        month: null,
+        anchor: "DueDate",
+        endKind: "Never",
+        endDate: null,
+        remaining: null,
+      },
+      recurrenceSeriesId: "019A0000-0000-7000-8000-000000000FFC",
+      recurrenceSuccessorCreated: false,
+    });
+  }),
+);
+
 it.effect("Migrates a new file without backup and opens it again without reseeding", () =>
   Effect.gen(function* () {
     const { path, folder } = yield* temporaryDatabase();

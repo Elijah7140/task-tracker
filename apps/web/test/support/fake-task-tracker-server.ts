@@ -6,6 +6,7 @@ import {
   type ItemEdit,
   type ItemLinkInput,
   NotFound,
+  type RecurrenceRule,
   RuleViolation,
   TaskTrackerRpcs,
   type ProjectSummary,
@@ -37,6 +38,7 @@ import {
   itemHandlers,
 } from "./fake-item-operations.js";
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
+import { FakeRecurrence } from "./fake-recurrence.js";
 import { applySetItemStatus, FakeStatuses, statusHandlers } from "./fake-statuses.js";
 import { FakeTrash, trashHandlers } from "./fake-trash-handlers.js";
 import { FakeCalendar, calendarHandlers } from "./fake-calendar-handlers.js";
@@ -156,6 +158,9 @@ export class FakeProjectStore {
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
+
+  /** Repeat rules, Skip, Stop and next occurrences (§7.11). */
+  readonly recurrence = new FakeRecurrence(this);
 
   /** Lookups appended to every area snapshot, such as an archived item type. */
   readonly extraLookups: {
@@ -595,12 +600,14 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
     fields: { statusId, ...fields },
     customValues = [],
     links,
+    recurrence,
     confirmedOpenItemIds,
   }: {
     itemId: string;
     fields: typeof ItemEdit.Type;
     customValues?: ReadonlyArray<typeof FieldValueInput.Type>;
     links?: ReadonlyArray<typeof ItemLinkInput.Type>;
+    recurrence?: typeof RecurrenceRule.Type | null;
     confirmedOpenItemIds?: ReadonlyArray<string>;
   }) => {
     const before = store.captureUndoState();
@@ -608,10 +615,14 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
       Effect.andThen(store.itemProject(itemId)),
       Effect.andThen((projectId) => store.customFields.planEdit(itemId, projectId, customValues)),
       Effect.flatMap((commitValues) =>
-        store.itemLinks.planEdit(itemId, links).pipe(
-          Effect.map((commitLinks) => () => {
+        Effect.all([
+          store.itemLinks.planEdit(itemId, links),
+          store.recurrence.planEdit(itemId, fields, recurrence),
+        ]).pipe(
+          Effect.map(([commitLinks, commitRule]) => () => {
             commitValues();
             commitLinks();
+            commitRule();
           }),
         ),
       ),
@@ -628,7 +639,7 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
         if (result.kind === "applied") {
           commit();
         }
-        return result;
+        return store.recurrence.afterCompletion(result);
       }),
       Effect.tapError(() => Effect.sync(() => store.restoreUndoState(before))),
     );
@@ -752,7 +763,10 @@ function handlers(store: FakeProjectStore) {
     },
     SetItemCompleted: (payload) => {
       const title = itemTitle(payload.itemId);
-      return history.track(item.SetItemCompleted(payload), (result) =>
+      const completion = item
+        .SetItemCompleted(payload)
+        .pipe(Effect.map((result) => store.recurrence.afterCompletion(result)));
+      return history.track(completion, (result) =>
         result.kind === "applied" && result.changes.length > 0
           ? `${payload.completed ? "Complete" : "Reopen"} '${title}'`
           : null,
@@ -792,7 +806,10 @@ function handlers(store: FakeProjectStore) {
     ...statuses,
     SetItemStatus: (payload) => {
       const title = itemTitle(payload.itemId);
-      return history.track(statuses.SetItemStatus(payload), (result) =>
+      const change = statuses
+        .SetItemStatus(payload)
+        .pipe(Effect.map((result) => store.recurrence.afterCompletion(result)));
+      return history.track(change, (result) =>
         result.kind === "applied" ? `Set status of '${title}'` : null,
       );
     },
@@ -816,9 +833,29 @@ function handlers(store: FakeProjectStore) {
     ...searchQueryHandlers(store),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
-      const verb = payload.fields.statusId === undefined ? "Edit" : "Set status of";
+      const before = store.recurrence.titleOf(payload.itemId);
+      const label =
+        payload.fields.statusId !== undefined
+          ? `Set status of '${title}'`
+          : payload.recurrence === undefined
+            ? `Edit '${title}'`
+            : `${payload.recurrence === null ? "Stop repeating" : "Set repeat for"} '${before}'`;
       return history.track(editItem(payload), (result) =>
-        result.kind === "applied" ? `${verb} '${title}'` : null,
+        result.kind === "applied" ? label : null,
+      );
+    },
+    SkipRepeat: ({ itemId }) => {
+      const title = itemTitle(itemId);
+      return history.track(
+        record("SkipRepeat").pipe(Effect.andThen(store.recurrence.skip(itemId))),
+        (skipped) => (skipped ? `Skip repeat for '${title}'` : null),
+      );
+    },
+    StopRepeating: ({ itemId }) => {
+      const title = itemTitle(itemId);
+      return history.track(
+        record("StopRepeating").pipe(Effect.andThen(store.recurrence.stop(itemId))),
+        () => `Stop repeating '${title}'`,
       );
     },
   });

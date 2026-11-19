@@ -65,6 +65,12 @@ export class ItemTree {
     this.#hierarchy.add(item, now);
   }
 
+  /** Replace an active item's fields, such as with an editor save, without moving it. */
+  replace(item: TodoItem): void {
+    this.requireSameArea(item);
+    this.#hierarchy.replace(item);
+  }
+
   /** Reparent an item within its area and append it to the destination siblings. */
   move(id: string, parentId: string | null, now: Temporal.Instant): void {
     this.#hierarchy.move({ ...this.get(id), parentItemId: parentId }, now);

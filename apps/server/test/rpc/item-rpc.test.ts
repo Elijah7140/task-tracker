@@ -607,3 +607,117 @@ it.effect("Saves, reorders and reads item links through the renderer client", ()
     }),
   ),
 );
+
+const repeatFields = (title: string) => ({
+  title,
+  description: null,
+  ticketNumber: null,
+  itemTypeId: null,
+  priorityLevelId: null,
+  dueDate: "2026-11-10",
+  dueTime: null,
+  scheduledStart: null,
+  scheduledEnd: null,
+});
+
+it.effect("Saves a repeat rule and completes from the server zone's local day", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area, create } = yield* setup;
+      const item = yield* create("Water plants");
+      const recurrence = {
+        frequency: "Daily",
+        interval: 1,
+        weekdays: null,
+        monthDay: null,
+        month: null,
+        anchor: "CompletionDate",
+        endKind: "OnDate",
+        endDate: "2026-12-31",
+        remaining: null,
+      } as const;
+      yield* client.EditItem({ itemId: item.id, fields: repeatFields(item.title), recurrence });
+      // 03:00 UTC is still 13 November in New York (§5.4).
+      yield* TestClock.setTime(Temporal.Instant.from("2026-11-14T03:00:00Z").epochMilliseconds);
+
+      const result = yield* client.SetItemCompleted({ ...area, itemId: item.id, completed: true });
+
+      expect(result).toMatchObject({ kind: "applied" });
+      expect(result).not.toHaveProperty("lastRepeat");
+      const { items } = yield* client.LoadArea(area);
+      expect(items.open.map(({ item: row }) => [row.dueDate, row.recurrence])).toEqual([
+        ["2026-11-14", recurrence],
+      ]);
+      expect(items.open[0]!.item.recurrenceSeriesId).toBe(
+        items.finished[0]!.item.recurrenceSeriesId,
+      );
+    }),
+  ),
+);
+
+it.effect("Skips, reports the last repeat and stops repeating through the renderer client", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area, create } = yield* setup;
+      const item = yield* create("Report");
+      const recurrence = {
+        frequency: "Weekly",
+        interval: 1,
+        weekdays: 2,
+        monthDay: null,
+        month: null,
+        anchor: "DueDate",
+        endKind: "AfterCount",
+        endDate: null,
+        remaining: 2,
+      } as const;
+      yield* client.EditItem({ itemId: item.id, fields: repeatFields(item.title), recurrence });
+
+      const skipped = yield* client.SkipRepeat({ itemId: item.id });
+      const exhausted = yield* client.SkipRepeat({ itemId: item.id });
+      const completion = yield* client.SetItemCompleted({
+        ...area,
+        itemId: item.id,
+        completed: true,
+      });
+      yield* client.StopRepeating({ itemId: item.id });
+
+      expect([skipped, exhausted]).toEqual([true, false]);
+      expect(completion).toMatchObject({ kind: "applied", lastRepeat: true });
+      const { items } = yield* client.LoadArea(area);
+      expect(items.finished.map(({ item: row }) => [row.dueDate, row.recurrence])).toEqual([
+        ["2026-11-17", null],
+      ]);
+      expect(items.open).toEqual([]);
+    }),
+  ),
+);
+
+it.effect("Rejects an invalid repeat rule with a rule violation", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, create } = yield* setup;
+      const item = yield* create("Report");
+      const recurrence = {
+        frequency: "Monthly",
+        interval: 1,
+        weekdays: null,
+        monthDay: 32,
+        month: null,
+        anchor: "DueDate",
+        endKind: "Never",
+        endDate: null,
+        remaining: null,
+      } as const;
+
+      const failure = yield* Effect.flip(
+        client.EditItem({ itemId: item.id, fields: repeatFields(item.title), recurrence }),
+      );
+
+      expect(failure).toMatchObject({
+        _tag: "RuleViolation",
+        message: "Choose a valid day for the repeat frequency.",
+      });
+    }),
+  ),
+);

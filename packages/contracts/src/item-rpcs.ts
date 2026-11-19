@@ -6,6 +6,7 @@ import { FieldValueInput, ItemFieldValue } from "./field-value.js";
 import { Guid } from "./guid.js";
 import { Item, ItemEdit } from "./item.js";
 import { ItemLink, ItemLinkInput } from "./item-link.js";
+import { RecurrenceRule } from "./recurrence-rule.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
 
 const area = { projectId: Guid, folderId: Schema.NullOr(Guid) };
@@ -28,6 +29,8 @@ export const ItemRpcs = RpcGroup.make(
       customValues: Schema.optionalKey(Schema.Array(FieldValueInput)),
       /** Replaces the item's whole link list when present; omitted keeps the stored links. */
       links: Schema.optionalKey(Schema.Array(ItemLinkInput)),
+      /** Replaces the repeat rule when present; null stops repeating, omitted keeps it (§7.11). */
+      recurrence: Schema.optionalKey(Schema.NullOr(RecurrenceRule)),
       confirmedOpenItemIds: approval,
     },
     success: CompletionResult,
@@ -90,6 +93,14 @@ export const ItemRpcs = RpcGroup.make(
     success: Schema.Array(ItemFieldValue),
     error: RpcOperationError,
   }),
+  /** Moves an open occurrence to its next date. False means the rule has no next date (§7.11). */
+  Rpc.make("SkipRepeat", {
+    payload: { itemId: Guid },
+    success: Schema.Boolean,
+    error: RpcOperationError,
+  }),
+  /** Removes the repeat rule from this occurrence only (§7.11). */
+  Rpc.make("StopRepeating", { payload: { itemId: Guid }, error: RpcOperationError }),
   Rpc.make("LoadItemLinks", {
     payload: { itemId: Guid },
     success: Schema.Array(ItemLink),
