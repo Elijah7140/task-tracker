@@ -20,6 +20,7 @@ export interface SeedItem {
   readonly dueDate?: string;
   readonly dueTime?: string;
   readonly scheduledStart?: string;
+  readonly scheduledEnd?: string;
   readonly completedAtUtc?: string;
   readonly urgency?: FakeUrgency;
   /** Overrides the displayed urgency, for example one rolled up from a sub-item. */
@@ -152,7 +153,7 @@ export class FakeAreaBuilder {
       dueDate: seed.dueDate ?? null,
       dueTime: seed.dueTime ?? null,
       scheduledStart: seed.scheduledStart ?? null,
-      scheduledEnd: null,
+      scheduledEnd: seed.scheduledEnd ?? null,
       sortOrder,
       createdAtUtc: TIMESTAMP,
       updatedAtUtc: TIMESTAMP,

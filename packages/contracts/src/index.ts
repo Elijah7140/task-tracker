@@ -46,3 +46,11 @@ export { HistoryRpcs, HistoryStatus } from "./history-rpcs.js";
 export { StatusKind, StatusProjection } from "./status-projection.js";
 export { TrashBatch, TrashNodeKind } from "./trash-batch.js";
 export { TrashRpcs } from "./trash-rpcs.js";
+export {
+  CalendarEntry,
+  CalendarEntryKind,
+  CalendarItemLocation,
+  CalendarSnapshot,
+  CalendarUrgency,
+} from "./calendar-entry.js";
+export { CalendarRpcs } from "./calendar-rpcs.js";

@@ -16,6 +16,7 @@ import {
   findItemNode,
   findItemTitle,
   isEmptyLevel,
+  itemAncestorIds,
   type ItemFocusRequest,
   type ItemSiblings,
 } from "./item-outline.js";
@@ -224,9 +225,17 @@ function useFollowedRowFocus(
     }
     const store = useWorkspaceStore.getState();
     store.setPendingRowFocus(null);
-    if (node.isFinished) {
-      store.setCompletedExpanded(key, true);
+    for (const ancestorId of itemAncestorIds(items, node.item.id)) {
+      const ancestor = findItemNode(items, ancestorId);
+      if (ancestor?.isFinished) {
+        store.setCompletedExpanded(ancestor.item.parentItemId ?? key, true);
+      }
+      store.setItemExpanded(ancestorId, true);
     }
+    if (node.isFinished) {
+      store.setCompletedExpanded(node.item.parentItemId ?? key, true);
+    }
+    store.selectItem(node.item.id);
     onFocusItem({ id: node.item.id });
   }, [pending, key, items, onFocusItem]);
 }
