@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { NAME_VALIDATION } from "../../src/dialogs/name-validation.js";
 import { choose, confirm, notify, prompt } from "../../src/state/dialog-store.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
@@ -36,6 +37,17 @@ const renameProject = {
   initialValue: "Billing DB",
   confirmLabel: "Rename",
 };
+
+const newProject = {
+  title: "New project",
+  label: "Project name",
+  confirmLabel: "Create",
+  validation: NAME_VALIDATION,
+};
+
+const promptInput = () => page.getByRole("textbox", { name: "Project name" });
+const promptSubmit = () => page.getByTestId("prompt-dialog-submit");
+const promptError = () => page.getByTestId("prompt-dialog-error");
 
 describe("DialogHost", () => {
   it("Confirms with Enter because focus starts on the confirm button", async () => {
@@ -85,6 +97,46 @@ describe("DialogHost", () => {
     await userEvent.keyboard("Accounting{Escape}");
 
     await expect(answer).resolves.toBeNull();
+  });
+
+  it("Shows Enter a name and disables Save while a validated name is blank", async () => {
+    await renderApp();
+    const answer = prompt(newProject);
+    await expect.element(promptInput()).toHaveFocus();
+
+    await userEvent.keyboard("   {Enter}");
+
+    await expect.element(promptError()).toHaveTextContent("Enter a name.");
+    await expect.element(promptInput()).toHaveAccessibleDescription("Enter a name.");
+    await expect.element(promptInput()).toHaveAttribute("aria-invalid", "true");
+    await expect.element(promptSubmit()).toBeDisabled();
+    await expect.element(page.getByTestId("prompt-dialog")).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect(answer).resolves.toBeNull();
+  });
+
+  it("Shows the length message once a validated name passes the limit", async () => {
+    await renderApp();
+    void prompt(newProject);
+    await expect.element(promptInput()).toHaveFocus();
+
+    await promptInput().fill(` ${"x".repeat(300)} `);
+    await expect.element(promptError()).not.toBeInTheDocument();
+    await expect.element(promptSubmit()).toBeEnabled();
+    await promptInput().fill("x".repeat(301));
+
+    await expect.element(promptError()).toHaveTextContent("Name must be 300 characters or fewer.");
+    await expect.element(promptSubmit()).toBeDisabled();
+  });
+
+  it("Resolves a validated name trimmed once it becomes valid", async () => {
+    await renderApp();
+    const answer = prompt(newProject);
+    await expect.element(promptError()).toHaveTextContent("Enter a name.");
+
+    await userEvent.keyboard("  Data warehouse  {Enter}");
+
+    await expect(answer).resolves.toBe("Data warehouse");
   });
 
   it("Shows queued dialogs one after another", async () => {
@@ -166,6 +218,18 @@ describe("DialogHost", () => {
       await expect
         .element(page.getByTestId("app-shell"))
         .toMatchScreenshot(`prompt-dialog-${theme}`);
+    });
+
+    it("Matches the reviewed invalid name prompt baseline", async () => {
+      await renderApp({ projects: [{ name: "Billing DB", openCount: 3, overdueCount: 1 }] });
+      void prompt(newProject);
+      await expect.element(promptError()).toHaveTextContent("Enter a name.");
+
+      await settleTheme(theme);
+
+      await expect
+        .element(page.getByTestId("app-shell"))
+        .toMatchScreenshot(`prompt-dialog-invalid-${theme}`);
     });
 
     it("Matches the reviewed choice dialog baseline", async () => {

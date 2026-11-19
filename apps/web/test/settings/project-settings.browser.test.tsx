@@ -356,6 +356,37 @@ describe("ProjectSettingsPage", () => {
     expect(store.calls).not.toContain("SaveProjectSettings");
   });
 
+  it("Steps an overridden threshold with arrow keys and stops at zero", async () => {
+    await openProjectSettings();
+    await yellowOverride().click();
+
+    await yellowAmount().click();
+    await userEvent.keyboard("{ArrowUp}");
+    await expect.element(yellowAmount()).toHaveValue("4");
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}");
+
+    await expect.element(yellowAmount()).toHaveValue("0");
+  });
+
+  it("Returns home without the discard prompt when the project is deleted while edits are unsaved", async () => {
+    const { store, history, projectId } = await openProjectSettings({
+      projects: [{ name: "Billing DB" }, { name: "Payroll" }],
+    });
+    await yellowOverride().click();
+    await yellowAmount().fill("5");
+
+    store.remove(projectId);
+    await page.getByTestId("sidebar-new-project").click();
+    await userEvent.keyboard("Reporting{Enter}");
+
+    const message = page.getByRole("alertdialog", { name: "Project unavailable" });
+    await expect.element(message).toHaveAccessibleDescription("Project is missing or deleted.");
+    await expect
+      .element(page.getByRole("alertdialog", { name: "Discard unsaved settings?" }))
+      .not.toBeInTheDocument();
+    expect(history.location.pathname).toBe("/");
+  });
+
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed project settings baseline", async () => {
       await openProjectSettings({

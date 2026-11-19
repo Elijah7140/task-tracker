@@ -4,6 +4,7 @@ import type { PromptOptions } from "../state/dialog-store.js";
 import { Button } from "../ui/button.js";
 import { dialogStyles } from "../ui/dialog-styles.js";
 import { TextField } from "../ui/text-field.js";
+import { validatePromptValue } from "./name-validation.js";
 import { useDialogLifecycle } from "./use-dialog-lifecycle.js";
 
 /** Props for {@link PromptDialog}. */
@@ -13,17 +14,25 @@ export interface PromptDialogProps {
 }
 
 /**
- * Asks for a single line, such as a project name. Enter submits the text as
- * typed and Escape cancels. The server validates the value.
+ * Asks for a single line, such as a project name. Enter submits and Escape
+ * cancels. With `options.validation` it checks the trimmed length as the
+ * legacy dialog did: Save stays disabled and the message shows inline until
+ * the value fits, and the trimmed value is returned. The server still
+ * validates every value.
  */
 export function PromptDialog({ id, options }: PromptDialogProps) {
   const lifecycle = useDialogLifecycle<string | null>(id, null);
   const [value, setValue] = useState(options.initialValue ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { validation } = options;
+  const error = validation === undefined ? null : validatePromptValue(value, validation);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    lifecycle.close(value);
+    if (error !== null) {
+      return;
+    }
+    lifecycle.close(validation === undefined ? value : value.trim());
   };
 
   return (
@@ -48,12 +57,19 @@ export function PromptDialog({ id, options }: PromptDialogProps) {
               inputRef={inputRef}
               onFocus={(event) => event.currentTarget.select()}
               testId="prompt-dialog-input"
+              error={error}
+              errorTestId="prompt-dialog-error"
             />
             <div className={dialogStyles.footer}>
               <Button onClick={() => lifecycle.close(null)} data-testid="prompt-dialog-cancel">
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" data-testid="prompt-dialog-submit">
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={error !== null}
+                data-testid="prompt-dialog-submit"
+              >
                 {options.confirmLabel ?? "Save"}
               </Button>
             </div>

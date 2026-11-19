@@ -32,7 +32,7 @@ function SubItemButton({
         <Icon
           size={15}
           aria-hidden="true"
-          className={cx("shrink-0", completed ? "text-accent" : "text-line-strong")}
+          className={cx("shrink-0", completed ? "text-accent" : "text-control-outline")}
         />
         <span className={cx("truncate", completed && "text-fg-subtle line-through")}>
           {child.item.title}

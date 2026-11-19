@@ -78,6 +78,7 @@ export function ProjectSettingsPage() {
 
   const redirecting = useUnavailableProjectRedirect(
     AsyncResult.isFailure(projectSettings) ? projectSettings : workspace,
+    bypass,
   );
 
   const handleMissingOnSave = useCallback(

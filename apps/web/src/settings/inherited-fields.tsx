@@ -21,7 +21,7 @@ export function InheritedFields({ projectId }: { readonly projectId: string }) {
         <h3 className="text-[13px] font-semibold">Global fields (inherited)</h3>
         <p className="text-[13px] text-fg-muted">
           Available in this project. Manage them in{" "}
-          <Link to="/settings" className="text-accent hover:underline">
+          <Link to="/settings" className="text-accent-text hover:underline">
             App Settings
           </Link>
           .

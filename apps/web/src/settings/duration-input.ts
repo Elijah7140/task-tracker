@@ -19,6 +19,9 @@ export const TICKS_PER_DAY = 24n * TICKS_PER_HOUR;
 /** Maximum nonnegative .NET TimeSpan tick count. */
 export const MAX_TIMESPAN_TICKS = (1n << 63n) - 1n;
 
+/** A nonnegative decimal amount such as `3`, `1.5`, `2.` or `.5`. */
+const DECIMAL_AMOUNT = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
 /**
  * Editable duration field state. `exactTicks` keeps sub-unit values (such as
  * `PT0.5S`) lossless until the user edits the amount or changes the unit.
@@ -59,7 +62,7 @@ export function createDurationDraft(ticksText: string, unit: DurationUnit): Dura
  */
 export function parseDurationTicks(text: string, unit: DurationUnit): string | null {
   const trimmed = text.trim();
-  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(trimmed)) {
+  if (!DECIMAL_AMOUNT.test(trimmed)) {
     return null;
   }
   const [wholePart = "", fracPart = ""] = trimmed.split(".");
@@ -92,4 +95,30 @@ export function validateThresholdTicks(
     return "Red threshold must be no greater than yellow.";
   }
   return null;
+}
+
+/** Formats `scaled / 10^digits` without trailing fractional zeros. */
+function formatScaledAmount(scaled: bigint, digits: number): string {
+  const scale = 10n ** BigInt(digits);
+  const whole = (scaled / scale).toString();
+  const fraction = (scaled % scale).toString().padStart(digits, "0").replace(/0+$/, "");
+  return fraction === "" ? whole : `${whole}.${fraction}`;
+}
+
+/**
+ * Adds or removes one whole unit from a typed amount, keeping its fraction
+ * exact and stopping at zero, like the legacy NumericUpDown (Minimum 0,
+ * Increment 1). A blank amount counts as zero. Other invalid text is returned
+ * unchanged.
+ */
+export function stepDurationAmount(text: string, step: 1 | -1): string {
+  const trimmed = text.trim() === "" ? "0" : text.trim();
+  if (!DECIMAL_AMOUNT.test(trimmed)) {
+    return text;
+  }
+  const [wholePart = "", fracPart = ""] = trimmed.split(".");
+  const scale = 10n ** BigInt(fracPart.length);
+  const current = BigInt(wholePart === "" ? "0" : wholePart) * scale + BigInt(fracPart || "0");
+  const next = current + BigInt(step) * scale;
+  return next <= 0n ? "0" : formatScaledAmount(next, fracPart.length);
 }

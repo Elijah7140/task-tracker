@@ -95,6 +95,46 @@ describe("LookupListCard", () => {
     expect(store.settingsAndLookups.itemTypeNames()).not.toContain("Review");
   });
 
+  it("Keeps the rename prompt open with Enter a name when the new name is blank", async () => {
+    const { store } = await openLookups();
+
+    await rowIn(itemTypesCard(), "Error").getByTestId("lookup-rename").click();
+    await userEvent.keyboard("{Backspace}{Enter}");
+
+    await expect
+      .element(page.getByTestId("prompt-dialog-error"))
+      .toHaveTextContent("Enter a name.");
+    await expect.element(page.getByTestId("prompt-dialog-submit")).toBeDisabled();
+    expect(store.calls).not.toContain("RenameItemType");
+  });
+
+  it("Ignores a second Move up click while the first move is still saving", async () => {
+    const { store } = await openLookups();
+    const moveUp = () => rowIn(priorityLevelsCard(), "Low").getByTestId("lookup-move-up");
+
+    await moveUp().dblClick();
+
+    await expect.element(activeRows(priorityLevelsCard()).nth(2)).toHaveAccessibleName("Low");
+    await expect.element(moveUp()).not.toHaveAttribute("aria-disabled", "true");
+    expect(store.calls.filter((call) => call === "ReorderPriorityLevels")).toHaveLength(1);
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual([
+      "Critical",
+      "High",
+      "Low",
+      "Medium",
+    ]);
+
+    await moveUp().click();
+
+    await expect.element(activeRows(priorityLevelsCard()).nth(1)).toHaveAccessibleName("Low");
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual([
+      "Critical",
+      "Low",
+      "High",
+      "Medium",
+    ]);
+  });
+
   it("Disables boundary move buttons and reorders priorities while preserving archived IDs", async () => {
     const { store } = await openLookups({
       configure: (appStore) => {

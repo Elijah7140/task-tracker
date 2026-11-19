@@ -1,17 +1,21 @@
 import { useAtomRefresh } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
-import { Cause, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect } from "react";
 import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
+import { missingProjectMessage } from "../rpc/missing-project.js";
 import { projectSummariesAtom } from "../rpc/project-queries.js";
 import { notify } from "../state/dialog-store.js";
 
 /**
- * Returns home and reloads the project list when a project is missing or deleted.
+ * Returns home and reloads the project list when a project is missing or
+ * deleted, then shows the server's message. `beforeRedirect` runs first, so a
+ * settings page can drop its unsaved-changes guard: there is nothing left to
+ * save. Returns whether the redirect is under way.
  */
 export function useUnavailableProjectRedirect(
   result: AsyncResult.AsyncResult<unknown, RpcFailure>,
+  beforeRedirect?: () => void,
 ) {
   const navigate = useNavigate();
   const refreshProjects = useAtomRefresh(projectSummariesAtom);
@@ -21,17 +25,11 @@ export function useUnavailableProjectRedirect(
     if (rejection === undefined) {
       return;
     }
+    beforeRedirect?.();
     refreshProjects();
     void navigate({ to: "/" });
     void notify({ title: "Project unavailable", message: rejection });
-  }, [rejection, navigate, refreshProjects]);
+  }, [rejection, beforeRedirect, navigate, refreshProjects]);
 
   return rejection !== undefined;
-}
-
-function missingProjectMessage(cause: Cause.Cause<RpcFailure>) {
-  const error = Cause.findErrorOption(cause);
-  return Option.isSome(error) && error.value._tag === "NotFound" && error.value.entity === "Project"
-    ? error.value.message
-    : undefined;
 }

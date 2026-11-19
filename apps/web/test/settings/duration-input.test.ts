@@ -4,6 +4,7 @@ import {
   formatDurationAmount,
   parseDurationTicks,
   resolveDurationFieldTicks,
+  stepDurationAmount,
   validateThresholdTicks,
 } from "../../src/settings/duration-input.js";
 
@@ -76,5 +77,39 @@ describe("validateThresholdTicks", () => {
     expect(validateThresholdTicks(THREE_DAYS, null)).toBe(
       "Thresholds must be nonnegative numbers within range.",
     );
+  });
+});
+
+describe("stepDurationAmount", () => {
+  it("Adds or removes one whole unit", () => {
+    const up = stepDurationAmount("3", 1);
+    const down = stepDurationAmount("24", -1);
+
+    expect(up).toBe("4");
+    expect(down).toBe("23");
+  });
+
+  it("Keeps the typed fraction exactly", () => {
+    const up = stepDurationAmount("2.3", 1);
+    const down = stepDurationAmount("2.30", -1);
+
+    expect(up).toBe("3.3");
+    expect(down).toBe("1.3");
+  });
+
+  it("Stops at zero like the legacy minimum", () => {
+    const fromZero = stepDurationAmount("0", -1);
+    const fromFraction = stepDurationAmount("0.5", -1);
+
+    expect(fromZero).toBe("0");
+    expect(fromFraction).toBe("0");
+  });
+
+  it("Treats a blank amount as zero and leaves other invalid text alone", () => {
+    const blank = stepDurationAmount(" ", 1);
+    const invalid = stepDurationAmount("abc", 1);
+
+    expect(blank).toBe("1");
+    expect(invalid).toBe("abc");
   });
 });

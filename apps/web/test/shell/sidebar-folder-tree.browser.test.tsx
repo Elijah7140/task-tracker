@@ -237,15 +237,17 @@ describe("SidebarFolderTree", () => {
     expect(store.calls).not.toContain("DeleteFolder");
   });
 
-  it("Shows the server's message when a folder name is rejected", async () => {
+  it("Keeps the new folder prompt open with Enter a name when the name is blank", async () => {
     const { store } = await openProject();
 
     await page.getByRole("button", { name: "New folder in Billing DB" }).click();
     await userEvent.keyboard("   {Enter}");
 
     await expect
-      .element(page.getByRole("alertdialog", { name: "Folder action failed" }))
-      .toHaveAccessibleDescription("Name must be 1 to 300 characters.");
+      .element(page.getByTestId("prompt-dialog-error"))
+      .toHaveTextContent("Enter a name.");
+    await expect.element(page.getByTestId("prompt-dialog-submit")).toBeDisabled();
+    expect(store.calls).not.toContain("CreateFolder");
     expect(store.folders).toHaveLength(4);
   });
 

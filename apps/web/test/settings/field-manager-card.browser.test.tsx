@@ -169,6 +169,24 @@ describe("FieldManagerCard", () => {
       await expect.element(newName()).toHaveValue("Half typed");
     });
 
+    it("Keeps the rename prompt open with the length message for a name over 300 characters", async () => {
+      const { store } = await openAppSettings((appStore) => {
+        appStore.customFields.addFieldSeed("Effort", "Number");
+      });
+
+      await fieldRow("Effort").getByTestId("field-rename").click();
+      await page
+        .getByRole("dialog", { name: "Rename field" })
+        .getByRole("textbox")
+        .fill("x".repeat(301));
+      await userEvent.keyboard("{Enter}");
+
+      await expect
+        .element(page.getByTestId("prompt-dialog-error"))
+        .toHaveTextContent("Name must be 300 characters or fewer.");
+      expect(store.calls).not.toContain("RenameField");
+    });
+
     it("Shows the rule message when renaming to a name in use", async () => {
       const { store } = await openAppSettings((appStore) => {
         appStore.customFields.addFieldSeed("Summary");
@@ -247,6 +265,22 @@ describe("FieldManagerCard", () => {
 
       await expect.element(fieldRows().nth(1)).toHaveAccessibleName("Third");
       expect(store.customFields.fieldNames(null)).toEqual(["Second", "Third", "First"]);
+    });
+
+    it("Ignores a second Move down click while the first field move is still saving", async () => {
+      const { store } = await openAppSettings((appStore) => {
+        appStore.customFields.addFieldSeed("First");
+        appStore.customFields.addFieldSeed("Second");
+        appStore.customFields.addFieldSeed("Third");
+      });
+      const moveDown = () => fieldRow("First").getByTestId("field-move-down");
+
+      await moveDown().dblClick();
+
+      await expect.element(fieldRows().nth(1)).toHaveAccessibleName("First");
+      await expect.element(moveDown()).not.toHaveAttribute("aria-disabled", "true");
+      expect(store.calls.filter((call) => call === "ReorderFields")).toHaveLength(1);
+      expect(store.customFields.fieldNames(null)).toEqual(["Second", "First", "Third"]);
     });
 
     it("Passes archived fields when reordering and skips over them", async () => {
@@ -416,6 +450,42 @@ describe("FieldManagerCard", () => {
       await dismissValidation("Choice label is already used by this field.");
       await expect.element(newChoice("Status")).toHaveValue("ready");
       expect(store.customFields.choices).toHaveLength(1);
+    });
+
+    it("Ignores a second Move down click while the first choice move is still saving", async () => {
+      const { store } = await openAppSettings((appStore) => {
+        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addChoiceSeed(status.id, "Ready");
+        appStore.customFields.addChoiceSeed(status.id, "Blocked");
+        appStore.customFields.addChoiceSeed(status.id, "Done");
+      });
+      const statusId = store.customFields.fieldNamed("Status").id;
+      await choicesToggle("Status").click();
+      const moveDown = () => choiceRow("Status", "Ready").getByTestId("choice-move-down");
+
+      await moveDown().dblClick();
+
+      await expect.element(choiceRows("Status").nth(1)).toHaveAccessibleName("Ready");
+      await expect.element(moveDown()).not.toHaveAttribute("aria-disabled", "true");
+      expect(store.calls.filter((call) => call === "ReorderFieldChoices")).toHaveLength(1);
+      expect(store.customFields.choiceLabels(statusId)).toEqual(["Blocked", "Ready", "Done"]);
+    });
+
+    it("Keeps the choice rename prompt open with Enter a name when the label is blank", async () => {
+      const { store } = await openAppSettings((appStore) => {
+        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addChoiceSeed(status.id, "Ready");
+      });
+      await choicesToggle("Status").click();
+
+      await choiceRow("Status", "Ready").getByTestId("choice-rename").click();
+      await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
+
+      await expect
+        .element(page.getByTestId("prompt-dialog-error"))
+        .toHaveTextContent("Enter a name.");
+      await expect.element(page.getByTestId("prompt-dialog-submit")).toBeDisabled();
+      expect(store.calls).not.toContain("RenameFieldChoice");
     });
 
     it("Renames a choice through the prompt", async () => {

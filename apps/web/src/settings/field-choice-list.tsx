@@ -1,6 +1,5 @@
 import { useRef } from "react";
-import { usePointerReorder } from "../ui/use-pointer-reorder.js";
-import { useRestoreRowFocus } from "../ui/use-restore-row-focus.js";
+import { useListReorder } from "../ui/use-list-reorder.js";
 import { CHOICE_ROW_ATTRIBUTE, FieldChoiceRow } from "./field-choice-row.js";
 import { partitionLookups } from "./lookup-order.js";
 import type { FieldChoice, useFieldChoiceActions } from "./use-field-choice-actions.js";
@@ -30,18 +29,17 @@ export function FieldChoiceList({
   const shown = choices
     .toSorted((left, right) => left.sortOrder - right.sortOrder)
     .filter((choice) => showArchived || !choice.isArchived);
-  const restoreFocus = useRestoreRowFocus(listRef, CHOICE_ROW_ATTRIBUTE, choices);
-  const drag = usePointerReorder({
+  const reorder = useListReorder({
     listRef,
     rowAttribute: CHOICE_ROW_ATTRIBUTE,
+    rows: choices,
     activeIds,
-    onDrop: (draggedId, targetId) => void actions.dragReorder(choices, draggedId, targetId),
+    move: actions.move,
+    dragReorder: actions.dragReorder,
   });
-
-  const handleMove = (choice: FieldChoice, direction: -1 | 1, keepFocus: boolean) => {
-    restoreFocus(keepFocus ? choice.id : null);
-    void actions.move(choices, choice.id, direction);
-  };
+  const drag = reorder.drag;
+  const handleMove = (choice: FieldChoice, direction: -1 | 1, keepFocus: boolean) =>
+    reorder.move(choice.id, direction, keepFocus);
 
   if (shown.length === 0) {
     return <p className="px-1 py-1.5 text-[13px] text-fg-subtle">No choices yet.</p>;
@@ -62,6 +60,7 @@ export function FieldChoiceList({
             choice={choice}
             canMoveUp={position > 0}
             canMoveDown={position >= 0 && position < activeIds.length - 1}
+            moveBusy={reorder.busy}
             isDragging={drag.draggedId === choice.id}
             dropEdge={drag.dropEdgeFor(choice.id)}
             onDragStart={drag.startDrag}

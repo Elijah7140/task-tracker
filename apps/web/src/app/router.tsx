@@ -15,10 +15,24 @@ const rootRoute = createRootRoute({ component: AppShell, notFoundComponent: NotF
 
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
 
+/**
+ * App Settings search params. `returnProjectId` is the project Back returns
+ * to (the legacy `returnProjectId`); without it Back goes home.
+ */
+export interface AppSettingsSearch {
+  readonly returnProjectId?: string;
+}
+
+function validateAppSettingsSearch(search: Record<string, unknown>): AppSettingsSearch {
+  const returnProjectId = search["returnProjectId"];
+  return typeof returnProjectId === "string" ? { returnProjectId } : {};
+}
+
 const appSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
   component: AppSettingsPage,
+  validateSearch: validateAppSettingsSearch,
 });
 
 const projectRoute = createRoute({

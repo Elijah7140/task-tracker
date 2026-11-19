@@ -15,6 +15,8 @@ export interface FieldChoiceRowProps {
   readonly choice: FieldChoice;
   readonly canMoveUp: boolean;
   readonly canMoveDown: boolean;
+  /** A reorder is saving. Move buttons stay focusable but ignore presses. */
+  readonly moveBusy: boolean;
   readonly isDragging: boolean;
   readonly dropEdge: DropEdge;
   readonly onDragStart: (id: string, event: PointerEvent<HTMLButtonElement>) => void;
@@ -29,6 +31,7 @@ export function FieldChoiceRow({
   choice,
   canMoveUp,
   canMoveDown,
+  moveBusy,
   isDragging,
   dropEdge,
   onDragStart,
@@ -82,6 +85,7 @@ export function FieldChoiceRow({
           isArchived={choice.isArchived}
           canMoveUp={canMoveUp}
           canMoveDown={canMoveDown}
+          moveBusy={moveBusy}
           onMove={(direction) => onMove(choice, direction, false)}
           onRename={() => onRename(choice)}
           onArchive={() => onArchive(choice)}

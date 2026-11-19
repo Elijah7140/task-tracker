@@ -68,7 +68,10 @@ export function ProjectOverrideRow({
 
       <span
         data-testid={sourceTestId}
-        className={cx("text-[13px]", overridden ? "font-medium text-accent" : "text-fg-subtle")}
+        className={cx(
+          "text-[13px]",
+          overridden ? "font-medium text-accent-text" : "text-fg-subtle",
+        )}
       >
         {overridden ? "Project override" : "Inherited from global"}
       </span>

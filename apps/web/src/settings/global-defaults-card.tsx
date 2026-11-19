@@ -1,7 +1,6 @@
-import { Input } from "@base-ui/react/input";
 import { useAtomSet } from "@effect/atom-react";
 import type { GlobalSettings } from "@task-tracker/contracts";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import {
@@ -23,6 +22,8 @@ import {
   resolveDurationFieldTicks,
   validateThresholdTicks,
 } from "./duration-input.js";
+import { ThresholdInput } from "./threshold-input.js";
+import { useExternalReset } from "./use-external-reset.js";
 
 type Global = typeof GlobalSettings.Type;
 
@@ -32,8 +33,12 @@ export interface GlobalDefaultsCardProps {
   readonly onDirtyChange: (dirty: boolean) => void;
 }
 
-const numberInputClass =
-  "h-9 w-full rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg tabular-nums outline-none transition-colors focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus";
+/** The editable form values. Thresholds keep their typed text and unit. */
+interface GlobalDraft {
+  readonly autoComplete: boolean;
+  readonly yellow: DurationFieldDraft;
+  readonly red: DurationFieldDraft;
+}
 
 function sameGlobal(left: Global, right: Global) {
   return (
@@ -43,24 +48,117 @@ function sameGlobal(left: Global, right: Global) {
   );
 }
 
+function draftFrom(settings: Global): GlobalDraft {
+  return {
+    autoComplete: settings.autoCompleteParents,
+    yellow: createDurationDraft(settings.urgencyYellowThreshold, "days"),
+    red: createDurationDraft(settings.urgencyRedThreshold, "hours"),
+  };
+}
+
+/** Draft, saved values and validation for the global defaults form. */
+function useGlobalDraft(initial: Global) {
+  const [saved, setSaved] = useState<Global>(initial);
+  const [draft, setDraft] = useState(() => draftFrom(initial));
+  const [serverError, setServerError] = useState<string | null>(null);
+  const reset = useCallback(() => {
+    setSaved(initial);
+    setDraft(draftFrom(initial));
+    setServerError(null);
+  }, [initial]);
+  useExternalReset(initial, saved, sameGlobal, reset);
+
+  const edit = (change: Partial<GlobalDraft>) => {
+    setDraft((current) => ({ ...current, ...change }));
+    setServerError(null);
+  };
+  const yellowTicks = resolveDurationFieldTicks(draft.yellow);
+  const redTicks = resolveDurationFieldTicks(draft.red);
+  const isDirty =
+    draft.autoComplete !== saved.autoCompleteParents ||
+    yellowTicks !== saved.urgencyYellowThreshold ||
+    redTicks !== saved.urgencyRedThreshold;
+  const validationError = validateThresholdTicks(yellowTicks, redTicks);
+  return {
+    saved,
+    setSaved,
+    draft,
+    edit,
+    serverError,
+    setServerError,
+    yellowTicks,
+    redTicks,
+    isDirty,
+    validationError,
+  };
+}
+
+type GlobalForm = ReturnType<typeof useGlobalDraft>;
+
+/** The settings the draft would save, or null while a threshold is invalid. */
+function nextGlobal(form: GlobalForm): Global | null {
+  if (form.yellowTicks === null || form.redTicks === null) {
+    return null;
+  }
+  return {
+    autoCompleteParents: form.draft.autoComplete,
+    urgencyYellowThreshold: form.yellowTicks,
+    urgencyRedThreshold: form.redTicks,
+  };
+}
+
+/** Saves the draft, confirming parent reconciliation when auto-complete turns on. */
+function useSaveGlobalDefaults(form: GlobalForm) {
+  const [saving, setSaving] = useState(false);
+  const previewAutoComplete = useAtomSet(previewGlobalAutoCompleteAtom, { mode: "promiseExit" });
+  const saveGlobal = useAtomSet(saveGlobalSettingsAtom, { mode: "promiseExit" });
+  const invalidateKeys = useAtomSet(invalidateSettingsKeysAtom, { mode: "promise" });
+  const canSave = !saving && form.isDirty && form.validationError === null;
+
+  const save = async () => {
+    const next = nextGlobal(form);
+    if (!canSave || next === null) {
+      return;
+    }
+    setSaving(true);
+    form.setServerError(null);
+    const outcome = await confirmSettingsSave({
+      turnsAutoCompleteOn: !form.saved.autoCompleteParents && next.autoCompleteParents,
+      preview: () => previewAutoComplete({ payload: undefined }),
+      save: (approval) =>
+        saveGlobal({
+          payload: approval === undefined ? { settings: next } : { settings: next, approval },
+        }),
+    });
+    setSaving(false);
+    if (outcome.kind === "failed") {
+      form.setServerError(describeRpcFailure(outcome.cause));
+    } else if (outcome.kind === "applied") {
+      form.setSaved(next);
+      await invalidateKeys([SETTINGS_KEY, PROJECTS_KEY]);
+    }
+  };
+
+  return { save, saving, canSave };
+}
+
 interface ThresholdFieldRowProps {
   readonly id: string;
   readonly label: string;
   readonly dotClass: string;
   readonly draft: DurationFieldDraft;
-  readonly onTextChange: (text: string) => void;
-  readonly onUnitChange: (unit: DurationUnit) => void;
+  readonly onChange: (draft: DurationFieldDraft) => void;
   readonly amountTestId: string;
   readonly unitTestId: string;
 }
 
+/** A threshold label, amount and unit. Editing either drops the exact server ticks. */
 function ThresholdFieldRow({
   id,
   label,
   dotClass,
   draft,
-  onTextChange,
-  onUnitChange,
+  onChange,
   amountTestId,
   unitTestId,
 }: ThresholdFieldRowProps) {
@@ -70,19 +168,16 @@ function ThresholdFieldRow({
         <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${dotClass}`} />
         {label}
       </label>
-      <Input
+      <ThresholdInput
         id={id}
         value={draft.text}
-        onValueChange={onTextChange}
-        inputMode="decimal"
-        autoComplete="off"
-        spellCheck={false}
-        data-testid={amountTestId}
-        className={numberInputClass}
+        onValueChange={(text) => onChange({ ...draft, text, exactTicks: null })}
+        testId={amountTestId}
+        widthClass="w-full"
       />
       <Select
         value={draft.unit}
-        onValueChange={onUnitChange}
+        onValueChange={(unit: DurationUnit) => onChange({ ...draft, unit, exactTicks: null })}
         options={DURATION_UNITS}
         ariaLabel={`${label} unit`}
         testId={unitTestId}
@@ -91,146 +186,66 @@ function ThresholdFieldRow({
   );
 }
 
+function GlobalThresholdRows({ form }: { readonly form: GlobalForm }) {
+  return (
+    <div className="grid grid-cols-1 items-center gap-x-3 gap-y-2.5 sm:grid-cols-[13rem_6.5rem_6.5rem]">
+      <ThresholdFieldRow
+        id="global-yellow-amount"
+        label="Yellow urgency threshold"
+        dotClass="bg-urgency-approaching"
+        draft={form.draft.yellow}
+        onChange={(yellow) => form.edit({ yellow })}
+        amountTestId="global-yellow-amount"
+        unitTestId="global-yellow-unit"
+      />
+      <ThresholdFieldRow
+        id="global-red-amount"
+        label="Red urgency threshold"
+        dotClass="bg-urgency-overdue"
+        draft={form.draft.red}
+        onChange={(red) => form.edit({ red })}
+        amountTestId="global-red-amount"
+        unitTestId="global-red-unit"
+      />
+    </div>
+  );
+}
+
 /**
  * Edits global auto-complete and urgency defaults. Thresholds save together
  * and prompt when enabling auto-complete changes parent completion states.
  */
 export function GlobalDefaultsCard({ initial, onDirtyChange }: GlobalDefaultsCardProps) {
-  const [saved, setSaved] = useState<Global>(initial);
-  const [autoComplete, setAutoComplete] = useState(initial.autoCompleteParents);
-  const [yellow, setYellow] = useState(() =>
-    createDurationDraft(initial.urgencyYellowThreshold, "days"),
-  );
-  const [red, setRed] = useState(() => createDurationDraft(initial.urgencyRedThreshold, "hours"));
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const prevInitialRef = useRef(initial);
-
-  const previewAutoComplete = useAtomSet(previewGlobalAutoCompleteAtom, { mode: "promiseExit" });
-  const saveGlobal = useAtomSet(saveGlobalSettingsAtom, { mode: "promiseExit" });
-  const invalidateKeys = useAtomSet(invalidateSettingsKeysAtom, { mode: "promise" });
+  const form = useGlobalDraft(initial);
+  const { save, saving, canSave } = useSaveGlobalDefaults(form);
+  const error = form.validationError ?? form.serverError;
 
   useEffect(() => {
-    if (sameGlobal(prevInitialRef.current, initial)) {
-      return;
-    }
-    prevInitialRef.current = initial;
-    if (sameGlobal(saved, initial)) {
-      return;
-    }
-    setSaved(initial);
-    setAutoComplete(initial.autoCompleteParents);
-    setYellow(createDurationDraft(initial.urgencyYellowThreshold, "days"));
-    setRed(createDurationDraft(initial.urgencyRedThreshold, "hours"));
-    setServerError(null);
-  }, [initial, saved]);
-
-  const yellowTicks = resolveDurationFieldTicks(yellow);
-  const redTicks = resolveDurationFieldTicks(red);
-  const validationError = validateThresholdTicks(yellowTicks, redTicks);
-  const isDirty =
-    autoComplete !== saved.autoCompleteParents ||
-    yellowTicks !== saved.urgencyYellowThreshold ||
-    redTicks !== saved.urgencyRedThreshold;
-
-  useEffect(() => {
-    onDirtyChange(isDirty);
-  }, [isDirty, onDirtyChange]);
-
-  const error = validationError ?? serverError;
-  const canSave = !saving && isDirty && validationError === null;
-
-  const handleSave = async () => {
-    if (!canSave || yellowTicks === null || redTicks === null) {
-      return;
-    }
-    const next: Global = {
-      autoCompleteParents: autoComplete,
-      urgencyYellowThreshold: yellowTicks,
-      urgencyRedThreshold: redTicks,
-    };
-    setSaving(true);
-    setServerError(null);
-    const outcome = await confirmSettingsSave({
-      turnsAutoCompleteOn: !saved.autoCompleteParents && next.autoCompleteParents,
-      preview: () => previewAutoComplete({ payload: undefined }),
-      save: (approval) =>
-        saveGlobal({
-          payload: approval === undefined ? { settings: next } : { settings: next, approval },
-        }),
-    });
-    setSaving(false);
-    if (outcome.kind === "failed") {
-      setServerError(describeRpcFailure(outcome.cause));
-      return;
-    }
-    if (outcome.kind === "applied") {
-      setSaved(next);
-      await invalidateKeys([SETTINGS_KEY, PROJECTS_KEY]);
-    }
-  };
+    onDirtyChange(form.isDirty);
+  }, [form.isDirty, onDirtyChange]);
 
   return (
     <SectionCard title="Global defaults" testId="global-defaults-card">
       <div className="flex flex-col gap-4">
         <Checkbox
-          checked={autoComplete}
-          onCheckedChange={(checked) => {
-            setAutoComplete(checked);
-            setServerError(null);
-          }}
+          checked={form.draft.autoComplete}
+          onCheckedChange={(autoComplete) => form.edit({ autoComplete })}
           testId="global-auto-complete"
         >
           Automatically complete parents when all sub-items are complete
         </Checkbox>
-
-        <div className="grid grid-cols-1 items-center gap-x-3 gap-y-2.5 sm:grid-cols-[13rem_6.5rem_6.5rem]">
-          <ThresholdFieldRow
-            id="global-yellow-amount"
-            label="Yellow urgency threshold"
-            dotClass="bg-urgency-approaching"
-            draft={yellow}
-            onTextChange={(text) => {
-              setYellow((prev) => ({ ...prev, text, exactTicks: null }));
-              setServerError(null);
-            }}
-            onUnitChange={(unit) => {
-              setYellow((prev) => ({ ...prev, unit, exactTicks: null }));
-              setServerError(null);
-            }}
-            amountTestId="global-yellow-amount"
-            unitTestId="global-yellow-unit"
-          />
-          <ThresholdFieldRow
-            id="global-red-amount"
-            label="Red urgency threshold"
-            dotClass="bg-urgency-overdue"
-            draft={red}
-            onTextChange={(text) => {
-              setRed((prev) => ({ ...prev, text, exactTicks: null }));
-              setServerError(null);
-            }}
-            onUnitChange={(unit) => {
-              setRed((prev) => ({ ...prev, unit, exactTicks: null }));
-              setServerError(null);
-            }}
-            amountTestId="global-red-amount"
-            unitTestId="global-red-unit"
-          />
-        </div>
-
+        <GlobalThresholdRows form={form} />
         {error === null ? null : (
           <p role="alert" data-testid="global-settings-error" className="text-[13px] text-danger">
             {error}
           </p>
         )}
-
         <div>
           <Button
             variant="primary"
             disabled={!canSave}
             aria-busy={saving || undefined}
-            onClick={() => void handleSave()}
+            onClick={() => void save()}
             data-testid="save-global-settings"
           >
             Save defaults

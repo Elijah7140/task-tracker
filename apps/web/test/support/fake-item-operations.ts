@@ -28,7 +28,7 @@ export interface FakeItemStoreContext {
   readonly requireArea: (
     projectId: string,
     folderId: string | null,
-  ) => Effect.Effect<FakeAreaState, RuleViolation>;
+  ) => Effect.Effect<FakeAreaState, ItemError>;
   readonly allAreas: () => ReadonlyArray<FakeAreaState>;
 }
 

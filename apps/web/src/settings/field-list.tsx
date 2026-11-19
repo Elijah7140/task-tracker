@@ -1,6 +1,5 @@
 import { useRef } from "react";
-import { usePointerReorder } from "../ui/use-pointer-reorder.js";
-import { useRestoreRowFocus } from "../ui/use-restore-row-focus.js";
+import { useListReorder } from "../ui/use-list-reorder.js";
 import type { FieldDataType } from "./field-data-types.js";
 import { FIELD_ROW_ATTRIBUTE, FieldRow } from "./field-row.js";
 import { partitionLookups } from "./lookup-order.js";
@@ -30,18 +29,17 @@ export function FieldList(props: FieldListProps) {
   const shown = fields
     .toSorted((left, right) => left.sortOrder - right.sortOrder)
     .filter((field) => showArchived || !field.isArchived);
-  const restoreFocus = useRestoreRowFocus(listRef, FIELD_ROW_ATTRIBUTE, fields);
-  const drag = usePointerReorder({
+  const reorder = useListReorder({
     listRef,
     rowAttribute: FIELD_ROW_ATTRIBUTE,
+    rows: fields,
     activeIds,
-    onDrop: (draggedId, targetId) => void actions.dragReorder(fields, draggedId, targetId),
+    move: actions.move,
+    dragReorder: actions.dragReorder,
   });
-
-  const handleMove = (field: FieldDefinition, direction: -1 | 1, keepFocus: boolean) => {
-    restoreFocus(keepFocus ? field.id : null);
-    void actions.move(fields, field.id, direction);
-  };
+  const drag = reorder.drag;
+  const handleMove = (field: FieldDefinition, direction: -1 | 1, keepFocus: boolean) =>
+    reorder.move(field.id, direction, keepFocus);
 
   const handleChangeType = async (field: FieldDefinition, dataType: FieldDataType) => {
     const saved = await actions.changeType(field, dataType);
@@ -65,6 +63,7 @@ export function FieldList(props: FieldListProps) {
             field={field}
             canMoveUp={position > 0}
             canMoveDown={position >= 0 && position < activeIds.length - 1}
+            moveBusy={reorder.busy}
             isDragging={drag.draggedId === field.id}
             dropEdge={drag.dropEdgeFor(field.id)}
             choicesExpanded={props.openChoiceIds.has(field.id)}

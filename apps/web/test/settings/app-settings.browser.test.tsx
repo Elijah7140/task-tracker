@@ -15,6 +15,8 @@ const yellowUnit = () => page.getByTestId("global-yellow-unit");
 const redAmount = () => page.getByTestId("global-red-amount");
 const redUnit = () => page.getByTestId("global-red-unit");
 const saveButton = () => page.getByTestId("save-global-settings");
+const backButton = () => page.getByTestId("app-settings-back");
+const appSettingsHeading = () => page.getByRole("heading", { level: 1, name: "App Settings" });
 
 async function openAppSettings(options: Parameters<typeof renderApp>[0] = {}) {
   const app = await renderApp(options);
@@ -277,6 +279,74 @@ describe("AppSettingsPage", () => {
 
     await expect.element(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
     expect(store.calls).not.toContain("SaveGlobalSettings");
+  });
+
+  it("Returns home with Back when opened from Home", async () => {
+    const { history } = await openAppSettings();
+
+    await backButton().click();
+
+    await expect.element(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
+    expect(history.location.pathname).toBe("/");
+  });
+
+  it("Opens from the workspace header and returns to that project with Back", async () => {
+    const { store, history } = await renderApp({ projects: [{ name: "Billing DB" }] });
+    const projectId = store.summaries[0]!.project.id;
+    history.push(`/projects/${projectId}`);
+    await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
+
+    await page.getByTestId("workspace-app-settings").click();
+    await expect.element(appSettingsHeading()).toBeVisible();
+    await backButton().click();
+
+    await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
+    expect(history.location.pathname).toBe(`/projects/${projectId}`);
+  });
+
+  it("Returns to the open project with Back when opened from the sidebar in a folder", async () => {
+    const { store, history } = await renderApp({
+      projects: [{ name: "Billing DB", folders: [{ name: "Tables" }] }],
+    });
+    const projectId = store.summaries[0]!.project.id;
+    history.push(`/projects/${projectId}/folders/${store.folderNamed("Tables").id}`);
+    await expect.element(page.getByRole("heading", { level: 1, name: "Tables" })).toBeVisible();
+
+    await sidebarSettings().click();
+    await expect.element(appSettingsHeading()).toBeVisible();
+    await expect.element(sidebarSettings()).toHaveAttribute("aria-current", "page");
+    await backButton().click();
+
+    await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
+    expect(history.location.pathname).toBe(`/projects/${projectId}`);
+  });
+
+  it("Asks before Back discards unsaved defaults", async () => {
+    const { history } = await openAppSettings();
+    await yellowAmount().fill("5");
+
+    await backButton().click();
+
+    await expect
+      .element(page.getByRole("alertdialog", { name: "Discard unsaved settings?" }))
+      .toBeVisible();
+    expect(history.location.pathname).toBe("/settings");
+  });
+
+  it("Steps threshold amounts with ArrowUp and ArrowDown without going below zero", async () => {
+    await openAppSettings();
+
+    await yellowAmount().click();
+    await userEvent.keyboard("{ArrowUp}");
+    await expect.element(yellowAmount()).toHaveValue("4");
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}");
+    await expect.element(yellowAmount()).toHaveValue("0");
+    await redAmount().fill("0.5");
+    await userEvent.keyboard("{ArrowUp}");
+
+    await expect.element(redAmount()).toHaveValue("1.5");
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    await expect.element(redAmount()).toHaveValue("0");
   });
 
   describe.each(THEMES)("in the %s theme", (theme) => {

@@ -19,6 +19,8 @@ export interface FieldRowProps {
   readonly field: FieldDefinition;
   readonly canMoveUp: boolean;
   readonly canMoveDown: boolean;
+  /** A reorder is saving. Move buttons stay focusable but ignore presses. */
+  readonly moveBusy: boolean;
   readonly isDragging: boolean;
   readonly dropEdge: DropEdge;
   readonly choicesExpanded: boolean;
@@ -89,6 +91,7 @@ export function FieldRow(props: FieldRowProps) {
             isArchived={field.isArchived}
             canMoveUp={props.canMoveUp}
             canMoveDown={props.canMoveDown}
+            moveBusy={props.moveBusy}
             onMove={(direction) => onMove(field, direction, false)}
             onRename={() => props.onRename(field)}
             onArchive={() => props.onArchive(field)}

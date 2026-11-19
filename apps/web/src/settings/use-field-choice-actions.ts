@@ -1,6 +1,7 @@
 import { useAtomSet } from "@effect/atom-react";
 import type { FieldChoiceProjection } from "@task-tracker/contracts";
 import { Exit } from "effect";
+import { NAME_VALIDATION } from "../dialogs/name-validation.js";
 import {
   addFieldChoiceAtom,
   archiveFieldChoiceAtom,
@@ -52,6 +53,7 @@ export function useFieldChoiceActions(fieldId: string) {
       label: "Label",
       initialValue: choice.label,
       confirmLabel: "Rename",
+      validation: NAME_VALIDATION,
     });
     if (label !== null) {
       await runFieldMutation(() =>

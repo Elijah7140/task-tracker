@@ -9,12 +9,24 @@ export interface ConfirmOptions {
   readonly tone?: "default" | "danger" | undefined;
 }
 
-/** A single-line text question, such as a name. */
+/** Client-side rules for a prompt: the trimmed value must be 1 to `maxLength` characters. */
+export interface PromptValidation {
+  readonly maxLength: number;
+  readonly emptyMessage: string;
+  readonly tooLongMessage: string;
+}
+
+/**
+ * A single-line text question, such as a name. With `validation` the dialog
+ * stays open, disables Save and shows the message inline until the trimmed
+ * value fits, then resolves with the trimmed value.
+ */
 export interface PromptOptions {
   readonly title: string;
   readonly label: string;
   readonly initialValue?: string | undefined;
   readonly confirmLabel?: string | undefined;
+  readonly validation?: PromptValidation | undefined;
 }
 
 /** One option of a choice dialog. `depth` indents it, for example a folder in a tree. */

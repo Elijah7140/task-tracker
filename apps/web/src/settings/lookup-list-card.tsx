@@ -1,9 +1,8 @@
 import { Input } from "@base-ui/react/input";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, type RefObject, useRef, useState } from "react";
 import { Button } from "../ui/button.js";
 import { SectionCard } from "../ui/section-card.js";
-import { usePointerReorder } from "../ui/use-pointer-reorder.js";
-import { useRestoreRowFocus } from "../ui/use-restore-row-focus.js";
+import { useListReorder } from "../ui/use-list-reorder.js";
 import { partitionLookups } from "./lookup-order.js";
 import { LookupRow } from "./lookup-row.js";
 import { type LookupItem, type LookupKind, useLookupActions } from "./use-lookup-actions.js";
@@ -14,6 +13,26 @@ const ROW_ATTRIBUTE = "data-lookup-row-id";
 export interface LookupListCardProps {
   readonly kind: LookupKind;
   readonly rows: ReadonlyArray<LookupItem>;
+}
+
+/** Visible text and test IDs for one lookup list. */
+function lookupLabels(kind: LookupKind) {
+  if (kind === "itemTypes") {
+    return {
+      title: "Item types",
+      description: "Changes save immediately.",
+      listLabel: "item types",
+      singular: "item type",
+      testId: "lookup-list-item-types",
+    };
+  }
+  return {
+    title: "Priority levels",
+    description: "Top of the list is the most important. Changes save immediately.",
+    listLabel: "priority levels",
+    singular: "priority level",
+    testId: "lookup-list-priority-levels",
+  };
 }
 
 function ArchivedRows({
@@ -57,54 +76,75 @@ function ArchivedRows({
   );
 }
 
+/** The new-name input. It clears only after the server accepts the name. */
+function AddLookupForm({
+  singular,
+  onAdd,
+}: {
+  readonly singular: string;
+  readonly onAdd: (name: string) => Promise<boolean>;
+}) {
+  const [newName, setNewName] = useState("");
+
+  const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (await onAdd(newName)) {
+      setNewName("");
+    }
+  };
+
+  return (
+    <form className="flex items-center gap-2 pt-1" onSubmit={(event) => void handleAdd(event)}>
+      <Input
+        value={newName}
+        onValueChange={setNewName}
+        placeholder="New name"
+        aria-label={`New ${singular} name`}
+        autoComplete="off"
+        spellCheck={false}
+        data-testid="lookup-new-name"
+        className="h-9 min-w-0 flex-1 rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg outline-none placeholder:text-fg-subtle focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus"
+      />
+      <Button type="submit" data-testid="lookup-add">
+        Add
+      </Button>
+    </form>
+  );
+}
+
+/** The list actions plus button, Alt+Arrow and pointer-drag reordering of the active rows. */
+function useActiveRowReorder(
+  kind: LookupKind,
+  rows: ReadonlyArray<LookupItem>,
+  listRef: RefObject<HTMLUListElement | null>,
+) {
+  const actions = useLookupActions(kind);
+  const reorder = useListReorder({
+    listRef,
+    rowAttribute: ROW_ATTRIBUTE,
+    rows,
+    activeIds: partitionLookups(rows).active.map((row) => row.id),
+    move: actions.move,
+    dragReorder: actions.dragReorder,
+  });
+  return { actions, ...reorder };
+}
+
 /**
  * Editable card for either item types or priority levels. Supports adding,
  * renaming, button/Alt+Arrow/pointer-drag reordering, archiving and restoring.
  */
 export function LookupListCard({ kind, rows }: LookupListCardProps) {
-  const isItemType = kind === "itemTypes";
-  const title = isItemType ? "Item types" : "Priority levels";
-  const listLabel = isItemType ? "item types" : "priority levels";
-  const singular = isItemType ? "item type" : "priority level";
-  const testId = isItemType ? "lookup-list-item-types" : "lookup-list-priority-levels";
-
-  const [newName, setNewName] = useState("");
+  const labels = lookupLabels(kind);
   const listRef = useRef<HTMLUListElement>(null);
-  const actions = useLookupActions(kind);
+  const { actions, busy, drag, move } = useActiveRowReorder(kind, rows, listRef);
   const { active, archived } = partitionLookups(rows);
-  const restoreFocus = useRestoreRowFocus(listRef, ROW_ATTRIBUTE, rows);
-  const drag = usePointerReorder({
-    listRef,
-    rowAttribute: ROW_ATTRIBUTE,
-    activeIds: active.map((row) => row.id),
-    onDrop: (draggedId, targetId) => void actions.dragReorder(rows, draggedId, targetId),
-  });
-
-  const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (await actions.add(newName)) {
-      setNewName("");
-    }
-  };
-
-  const handleMove = (id: string, direction: -1 | 1, keepFocus: boolean) => {
-    restoreFocus(keepFocus ? id : null);
-    void actions.move(rows, id, direction);
-  };
 
   return (
-    <SectionCard
-      title={title}
-      description={
-        isItemType
-          ? "Changes save immediately."
-          : "Top of the list is the most important. Changes save immediately."
-      }
-      testId={testId}
-    >
+    <SectionCard title={labels.title} description={labels.description} testId={labels.testId}>
       <ul
         ref={listRef}
-        aria-label={`Active ${listLabel}`}
+        aria-label={`Active ${labels.listLabel}`}
         data-testid="lookup-active-list"
         className="flex flex-col"
       >
@@ -115,37 +155,22 @@ export function LookupListCard({ kind, rows }: LookupListCardProps) {
             kind={kind}
             isFirst={index === 0}
             isLast={index === active.length - 1}
+            moveBusy={busy}
             isDragging={drag.draggedId === row.id}
             dropEdge={drag.dropEdgeFor(row.id)}
             onDragStart={drag.startDrag}
-            onMove={handleMove}
+            onMove={move}
             onRename={(target) => void actions.rename(target)}
             onArchive={(target) => void actions.archive(target)}
           />
         ))}
       </ul>
-
       <ArchivedRows
         archived={archived}
-        listLabel={listLabel}
+        listLabel={labels.listLabel}
         onRestore={(target) => void actions.restore(target)}
       />
-
-      <form className="flex items-center gap-2 pt-1" onSubmit={(event) => void handleAdd(event)}>
-        <Input
-          value={newName}
-          onValueChange={setNewName}
-          placeholder="New name"
-          aria-label={`New ${singular} name`}
-          autoComplete="off"
-          spellCheck={false}
-          data-testid="lookup-new-name"
-          className="h-9 min-w-0 flex-1 rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg outline-none placeholder:text-fg-subtle focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus"
-        />
-        <Button type="submit" data-testid="lookup-add">
-          Add
-        </Button>
-      </form>
+      <AddLookupForm singular={labels.singular} onAdd={actions.add} />
     </SectionCard>
   );
 }

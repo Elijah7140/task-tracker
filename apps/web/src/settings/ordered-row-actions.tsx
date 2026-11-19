@@ -12,6 +12,8 @@ export interface OrderedRowActionsProps {
   readonly isArchived: boolean;
   readonly canMoveUp: boolean;
   readonly canMoveDown: boolean;
+  /** A reorder is saving. Move buttons stay focusable but ignore presses. */
+  readonly moveBusy: boolean;
   readonly onMove: (direction: -1 | 1) => void;
   readonly onRename: () => void;
   readonly onArchive: () => void;
@@ -23,6 +25,7 @@ function IconAction({
   label,
   testId,
   disabled = false,
+  focusableWhenDisabled = false,
   onClick,
   icon,
 }: {
@@ -30,6 +33,7 @@ function IconAction({
   readonly label: string;
   readonly testId: string;
   readonly disabled?: boolean;
+  readonly focusableWhenDisabled?: boolean;
   readonly onClick: () => void;
   readonly icon: ReactElement;
 }) {
@@ -40,6 +44,7 @@ function IconAction({
         variant="ghost"
         size="icon"
         disabled={disabled}
+        focusableWhenDisabled={focusableWhenDisabled}
         aria-label={label}
         onClick={onClick}
         data-testid={testId}
@@ -60,6 +65,7 @@ export function OrderedRowActions({
   isArchived,
   canMoveUp,
   canMoveDown,
+  moveBusy,
   onMove,
   onRename,
   onArchive,
@@ -74,7 +80,8 @@ export function OrderedRowActions({
         tooltip={tip("Move", "up")}
         label={`Move ${noun}${name} up`}
         testId={`${kind}-move-up`}
-        disabled={isArchived || !canMoveUp}
+        disabled={isArchived || !canMoveUp || moveBusy}
+        focusableWhenDisabled={!isArchived && canMoveUp}
         onClick={() => onMove(-1)}
         icon={<ArrowUp size={14} aria-hidden="true" />}
       />
@@ -82,7 +89,8 @@ export function OrderedRowActions({
         tooltip={tip("Move", "down")}
         label={`Move ${noun}${name} down`}
         testId={`${kind}-move-down`}
-        disabled={isArchived || !canMoveDown}
+        disabled={isArchived || !canMoveDown || moveBusy}
+        focusableWhenDisabled={!isArchived && canMoveDown}
         onClick={() => onMove(1)}
         icon={<ArrowDown size={14} aria-hidden="true" />}
       />

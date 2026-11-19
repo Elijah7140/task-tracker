@@ -1,13 +1,12 @@
-import { Input } from "@base-ui/react/input";
 import { useAtomSet } from "@effect/atom-react";
 import type {
   GlobalSettings,
   ProjectSettingOverrides,
   ProjectSettings,
 } from "@task-tracker/contracts";
-import { Cause, Option } from "effect";
-import { useEffect, useRef, useState } from "react";
-import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
+import { useCallback, useEffect, useState } from "react";
+import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
+import { missingProjectMessage } from "../rpc/missing-project.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import {
   invalidateSettingsKeysAtom,
@@ -26,6 +25,8 @@ import {
   validateThresholdTicks,
 } from "./duration-input.js";
 import { ProjectOverrideRow } from "./project-override-row.js";
+import { ThresholdInput } from "./threshold-input.js";
+import { useExternalReset } from "./use-external-reset.js";
 
 type Global = typeof GlobalSettings.Type;
 type Overrides = typeof ProjectSettingOverrides.Type;
@@ -40,19 +41,23 @@ export interface ProjectOverridesCardProps {
   readonly onProjectMissing: (message: string) => void;
 }
 
-const numberInputClass =
-  "h-9 w-24 rounded-control border border-line-strong bg-canvas px-3 text-sm text-fg tabular-nums outline-none transition-colors focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-focus disabled:bg-hover disabled:text-fg-subtle disabled:opacity-70";
+/** The editable form: which settings are overridden and their values. */
+interface OverrideDraft {
+  readonly overrideAuto: boolean;
+  readonly autoValue: boolean;
+  readonly overrideYellow: boolean;
+  readonly yellow: DurationFieldDraft;
+  readonly overrideRed: boolean;
+  readonly red: DurationFieldDraft;
+}
 
 function toSavedOverrides(settings: Effective): Overrides {
+  const projectValue = <Value,>(setting: { source: string; value: Value }) =>
+    setting.source === "Project" ? setting.value : null;
   return {
-    autoCompleteParents:
-      settings.autoCompleteParents.source === "Project" ? settings.autoCompleteParents.value : null,
-    urgencyYellowThreshold:
-      settings.urgencyYellowThreshold.source === "Project"
-        ? settings.urgencyYellowThreshold.value
-        : null,
-    urgencyRedThreshold:
-      settings.urgencyRedThreshold.source === "Project" ? settings.urgencyRedThreshold.value : null,
+    autoCompleteParents: projectValue(settings.autoCompleteParents),
+    urgencyYellowThreshold: projectValue(settings.urgencyYellowThreshold),
+    urgencyRedThreshold: projectValue(settings.urgencyRedThreshold),
   };
 }
 
@@ -64,11 +69,220 @@ function sameOverrides(left: Overrides, right: Overrides) {
   );
 }
 
-function missingProjectMessage(cause: Cause.Cause<RpcFailure>): string | undefined {
-  const error = Cause.findErrorOption(cause);
-  return Option.isSome(error) && error.value._tag === "NotFound" && error.value.entity === "Project"
-    ? error.value.message
-    : undefined;
+function draftFrom(settings: Effective): OverrideDraft {
+  return {
+    overrideAuto: settings.autoCompleteParents.source === "Project",
+    autoValue: settings.autoCompleteParents.value,
+    overrideYellow: settings.urgencyYellowThreshold.source === "Project",
+    yellow: createDurationDraft(settings.urgencyYellowThreshold.value, "days"),
+    overrideRed: settings.urgencyRedThreshold.source === "Project",
+    red: createDurationDraft(settings.urgencyRedThreshold.value, "hours"),
+  };
+}
+
+/** Whether one override differs from the saved one. */
+function overrideChanged<Value>(overridden: boolean, value: Value, saved: Value | null) {
+  return overridden !== (saved !== null) || (overridden && value !== saved);
+}
+
+/** Turning an override off shows the inherited global value again. */
+function toggledDraft(
+  draft: OverrideDraft,
+  setting: "auto" | "yellow" | "red",
+  checked: boolean,
+  globalDefaults: Global,
+): OverrideDraft {
+  switch (setting) {
+    case "auto":
+      return checked
+        ? { ...draft, overrideAuto: true }
+        : { ...draft, overrideAuto: false, autoValue: globalDefaults.autoCompleteParents };
+    case "yellow":
+      return checked
+        ? { ...draft, overrideYellow: true }
+        : {
+            ...draft,
+            overrideYellow: false,
+            yellow: createDurationDraft(globalDefaults.urgencyYellowThreshold, "days"),
+          };
+    case "red":
+      return checked
+        ? { ...draft, overrideRed: true }
+        : {
+            ...draft,
+            overrideRed: false,
+            red: createDurationDraft(globalDefaults.urgencyRedThreshold, "hours"),
+          };
+  }
+}
+
+/** Draft, saved overrides and validation for the project overrides form. */
+function useOverrideDraft(initial: Effective, globalDefaults: Global) {
+  const [saved, setSaved] = useState<Overrides>(() => toSavedOverrides(initial));
+  const [draft, setDraft] = useState(() => draftFrom(initial));
+  const [serverError, setServerError] = useState<string | null>(null);
+  const reset = useCallback(() => {
+    setSaved(toSavedOverrides(initial));
+    setDraft(draftFrom(initial));
+    setServerError(null);
+  }, [initial]);
+  useExternalReset(toSavedOverrides(initial), saved, sameOverrides, reset);
+
+  const edit = (change: Partial<OverrideDraft>) => {
+    setDraft((current) => ({ ...current, ...change }));
+    setServerError(null);
+  };
+  const toggle = (setting: "auto" | "yellow" | "red", checked: boolean) => {
+    setDraft((current) => toggledDraft(current, setting, checked, globalDefaults));
+    setServerError(null);
+  };
+  const derived = deriveOverrideState(draft, saved, globalDefaults);
+  return { saved, setSaved, draft, edit, toggle, serverError, setServerError, ...derived };
+}
+
+/** Ticks, dirtiness, validation and the overrides the draft would save. */
+function deriveOverrideState(draft: OverrideDraft, saved: Overrides, globalDefaults: Global) {
+  const yellowTicks = resolveDurationFieldTicks(draft.yellow);
+  const redTicks = resolveDurationFieldTicks(draft.red);
+  const effectiveYellow = draft.overrideYellow
+    ? yellowTicks
+    : globalDefaults.urgencyYellowThreshold;
+  const effectiveRed = draft.overrideRed ? redTicks : globalDefaults.urgencyRedThreshold;
+  const isDirty =
+    overrideChanged(draft.overrideAuto, draft.autoValue, saved.autoCompleteParents) ||
+    overrideChanged(draft.overrideYellow, yellowTicks, saved.urgencyYellowThreshold) ||
+    overrideChanged(draft.overrideRed, redTicks, saved.urgencyRedThreshold);
+  const overrides: Overrides = {
+    autoCompleteParents: draft.overrideAuto ? draft.autoValue : null,
+    urgencyYellowThreshold: draft.overrideYellow ? yellowTicks : null,
+    urgencyRedThreshold: draft.overrideRed ? redTicks : null,
+  };
+  return {
+    isDirty,
+    overrides,
+    validationError: validateThresholdTicks(effectiveYellow, effectiveRed),
+  };
+}
+
+type OverrideForm = ReturnType<typeof useOverrideDraft>;
+
+interface SaveOverridesOptions {
+  readonly projectId: string;
+  readonly globalDefaults: Global;
+  readonly form: OverrideForm;
+  readonly onProjectMissing: (message: string) => void;
+}
+
+/** Saves the overrides, confirming parent reconciliation when auto-complete turns on. */
+function useSaveOverrides({
+  projectId,
+  globalDefaults,
+  form,
+  onProjectMissing,
+}: SaveOverridesOptions) {
+  const [saving, setSaving] = useState(false);
+  const previewAutoComplete = useAtomSet(previewProjectAutoCompleteAtom, { mode: "promiseExit" });
+  const saveProject = useAtomSet(saveProjectSettingsAtom, { mode: "promiseExit" });
+  const invalidateKeys = useAtomSet(invalidateSettingsKeysAtom, { mode: "promise" });
+  const canSave = !saving && form.isDirty && form.validationError === null;
+
+  const save = async () => {
+    if (!canSave) {
+      return;
+    }
+    const { overrides } = form;
+    const effectiveAuto = (value: boolean | null) => value ?? globalDefaults.autoCompleteParents;
+    setSaving(true);
+    form.setServerError(null);
+    const outcome = await confirmSettingsSave({
+      turnsAutoCompleteOn:
+        !effectiveAuto(form.saved.autoCompleteParents) &&
+        effectiveAuto(overrides.autoCompleteParents),
+      preview: () => previewAutoComplete({ payload: { projectId } }),
+      save: (approval) =>
+        saveProject({
+          payload:
+            approval === undefined ? { projectId, overrides } : { projectId, overrides, approval },
+        }),
+    });
+    setSaving(false);
+    if (outcome.kind === "failed") {
+      const missing = missingProjectMessage(outcome.cause);
+      if (missing !== undefined) {
+        onProjectMissing(missing);
+      } else {
+        form.setServerError(describeRpcFailure(outcome.cause));
+      }
+    } else if (outcome.kind === "applied") {
+      form.setSaved(overrides);
+      await invalidateKeys([projectSettingsKey(projectId), PROJECTS_KEY]);
+    }
+  };
+
+  return { save, saving, canSave };
+}
+
+function AutoCompleteOverrideRow({ form }: { readonly form: OverrideForm }) {
+  return (
+    <ProjectOverrideRow
+      label="Automatic parent completion"
+      overridden={form.draft.overrideAuto}
+      onOverriddenChange={(checked) => form.toggle("auto", checked)}
+      onReset={() => form.toggle("auto", false)}
+      overrideTestId="project-auto-complete-override"
+      sourceTestId="project-auto-complete-source"
+      resetTestId="project-auto-complete-reset"
+    >
+      <Checkbox
+        checked={form.draft.autoValue}
+        onCheckedChange={(autoValue) => form.edit({ autoValue })}
+        disabled={!form.draft.overrideAuto}
+        ariaLabel="Automatically complete parents when all sub-items are complete"
+        testId="project-auto-complete"
+      >
+        On
+      </Checkbox>
+    </ProjectOverrideRow>
+  );
+}
+
+interface ThresholdOverrideRowProps {
+  readonly form: OverrideForm;
+  readonly setting: "yellow" | "red";
+}
+
+function ThresholdOverrideRow({ form, setting }: ThresholdOverrideRowProps) {
+  const isYellow = setting === "yellow";
+  const overridden = isYellow ? form.draft.overrideYellow : form.draft.overrideRed;
+  const draft = isYellow ? form.draft.yellow : form.draft.red;
+  const amountId = `project-${setting}-amount`;
+  const updateText = (text: string) => {
+    const next = { ...draft, text, exactTicks: null };
+    form.edit(isYellow ? { yellow: next } : { red: next });
+  };
+  return (
+    <ProjectOverrideRow
+      label={isYellow ? "Yellow urgency threshold" : "Red urgency threshold"}
+      labelFor={amountId}
+      dotClass={isYellow ? "bg-urgency-approaching" : "bg-urgency-overdue"}
+      overridden={overridden}
+      onOverriddenChange={(checked) => form.toggle(setting, checked)}
+      onReset={() => form.toggle(setting, false)}
+      overrideTestId={`project-${setting}-override`}
+      sourceTestId={`project-${setting}-source`}
+      resetTestId={`project-${setting}-reset`}
+    >
+      <ThresholdInput
+        id={amountId}
+        value={draft.text}
+        onValueChange={updateText}
+        disabled={!overridden}
+        testId={amountId}
+        widthClass="w-24"
+      />
+      <span className="text-sm text-fg-muted">{isYellow ? "days" : "hours"}</span>
+    </ProjectOverrideRow>
+  );
 }
 
 /**
@@ -82,131 +296,18 @@ export function ProjectOverridesCard({
   onDirtyChange,
   onProjectMissing,
 }: ProjectOverridesCardProps) {
-  const initialSaved = toSavedOverrides(initial);
-  const [saved, setSaved] = useState<Overrides>(initialSaved);
-  const [overrideAuto, setOverrideAuto] = useState(
-    initial.autoCompleteParents.source === "Project",
-  );
-  const [autoValue, setAutoValue] = useState(initial.autoCompleteParents.value);
-  const [overrideYellow, setOverrideYellow] = useState(
-    initial.urgencyYellowThreshold.source === "Project",
-  );
-  const [yellow, setYellow] = useState<DurationFieldDraft>(() =>
-    createDurationDraft(initial.urgencyYellowThreshold.value, "days"),
-  );
-  const [overrideRed, setOverrideRed] = useState(initial.urgencyRedThreshold.source === "Project");
-  const [red, setRed] = useState<DurationFieldDraft>(() =>
-    createDurationDraft(initial.urgencyRedThreshold.value, "hours"),
-  );
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const prevInitialRef = useRef(initialSaved);
-
-  const previewAutoComplete = useAtomSet(previewProjectAutoCompleteAtom, { mode: "promiseExit" });
-  const saveProject = useAtomSet(saveProjectSettingsAtom, { mode: "promiseExit" });
-  const invalidateKeys = useAtomSet(invalidateSettingsKeysAtom, { mode: "promise" });
+  const form = useOverrideDraft(initial, globalDefaults);
+  const { save, saving, canSave } = useSaveOverrides({
+    projectId,
+    globalDefaults,
+    form,
+    onProjectMissing,
+  });
+  const error = form.validationError ?? form.serverError;
 
   useEffect(() => {
-    const incoming = toSavedOverrides(initial);
-    if (sameOverrides(prevInitialRef.current, incoming)) {
-      return;
-    }
-    prevInitialRef.current = incoming;
-    if (sameOverrides(saved, incoming)) {
-      return;
-    }
-    setSaved(incoming);
-    setOverrideAuto(initial.autoCompleteParents.source === "Project");
-    setAutoValue(initial.autoCompleteParents.value);
-    setOverrideYellow(initial.urgencyYellowThreshold.source === "Project");
-    setYellow(createDurationDraft(initial.urgencyYellowThreshold.value, "days"));
-    setOverrideRed(initial.urgencyRedThreshold.source === "Project");
-    setRed(createDurationDraft(initial.urgencyRedThreshold.value, "hours"));
-    setServerError(null);
-  }, [initial, saved]);
-
-  const yellowTicks = resolveDurationFieldTicks(yellow);
-  const redTicks = resolveDurationFieldTicks(red);
-  const effectiveYellow = overrideYellow ? yellowTicks : globalDefaults.urgencyYellowThreshold;
-  const effectiveRed = overrideRed ? redTicks : globalDefaults.urgencyRedThreshold;
-  const validationError = validateThresholdTicks(effectiveYellow, effectiveRed);
-
-  const isDirty =
-    overrideAuto !== (saved.autoCompleteParents !== null) ||
-    (overrideAuto && autoValue !== saved.autoCompleteParents) ||
-    overrideYellow !== (saved.urgencyYellowThreshold !== null) ||
-    (overrideYellow && yellowTicks !== saved.urgencyYellowThreshold) ||
-    overrideRed !== (saved.urgencyRedThreshold !== null) ||
-    (overrideRed && redTicks !== saved.urgencyRedThreshold);
-
-  useEffect(() => {
-    onDirtyChange(isDirty);
-  }, [isDirty, onDirtyChange]);
-
-  const error = validationError ?? serverError;
-  const canSave = !saving && isDirty && validationError === null;
-
-  const toggleOverrideAuto = (checked: boolean) => {
-    setOverrideAuto(checked);
-    if (!checked) {
-      setAutoValue(globalDefaults.autoCompleteParents);
-    }
-    setServerError(null);
-  };
-
-  const toggleOverrideYellow = (checked: boolean) => {
-    setOverrideYellow(checked);
-    if (!checked) {
-      setYellow(createDurationDraft(globalDefaults.urgencyYellowThreshold, "days"));
-    }
-    setServerError(null);
-  };
-
-  const toggleOverrideRed = (checked: boolean) => {
-    setOverrideRed(checked);
-    if (!checked) {
-      setRed(createDurationDraft(globalDefaults.urgencyRedThreshold, "hours"));
-    }
-    setServerError(null);
-  };
-
-  const handleSave = async () => {
-    if (!canSave) {
-      return;
-    }
-    const overrides: Overrides = {
-      autoCompleteParents: overrideAuto ? autoValue : null,
-      urgencyYellowThreshold: overrideYellow ? yellowTicks : null,
-      urgencyRedThreshold: overrideRed ? redTicks : null,
-    };
-    const prevEffectiveAuto = saved.autoCompleteParents ?? globalDefaults.autoCompleteParents;
-    const nextEffectiveAuto = overrides.autoCompleteParents ?? globalDefaults.autoCompleteParents;
-    setSaving(true);
-    setServerError(null);
-    const outcome = await confirmSettingsSave({
-      turnsAutoCompleteOn: !prevEffectiveAuto && nextEffectiveAuto,
-      preview: () => previewAutoComplete({ payload: { projectId } }),
-      save: (approval) =>
-        saveProject({
-          payload:
-            approval === undefined ? { projectId, overrides } : { projectId, overrides, approval },
-        }),
-    });
-    setSaving(false);
-    if (outcome.kind === "failed") {
-      const missing = missingProjectMessage(outcome.cause);
-      if (missing !== undefined) {
-        onProjectMissing(missing);
-        return;
-      }
-      setServerError(describeRpcFailure(outcome.cause));
-      return;
-    }
-    if (outcome.kind === "applied") {
-      setSaved(overrides);
-      await invalidateKeys([projectSettingsKey(projectId), PROJECTS_KEY]);
-    }
-  };
+    onDirtyChange(form.isDirty);
+  }, [form.isDirty, onDirtyChange]);
 
   return (
     <SectionCard
@@ -215,98 +316,21 @@ export function ProjectOverridesCard({
       testId="project-overrides-card"
     >
       <div className="flex flex-col">
-        <ProjectOverrideRow
-          label="Automatic parent completion"
-          overridden={overrideAuto}
-          onOverriddenChange={toggleOverrideAuto}
-          onReset={() => toggleOverrideAuto(false)}
-          overrideTestId="project-auto-complete-override"
-          sourceTestId="project-auto-complete-source"
-          resetTestId="project-auto-complete-reset"
-        >
-          <Checkbox
-            checked={autoValue}
-            onCheckedChange={(checked) => {
-              setAutoValue(checked);
-              setServerError(null);
-            }}
-            disabled={!overrideAuto}
-            ariaLabel="Automatically complete parents when all sub-items are complete"
-            testId="project-auto-complete"
-          >
-            On
-          </Checkbox>
-        </ProjectOverrideRow>
-
-        <ProjectOverrideRow
-          label="Yellow urgency threshold"
-          labelFor="project-yellow-amount"
-          dotClass="bg-urgency-approaching"
-          overridden={overrideYellow}
-          onOverriddenChange={toggleOverrideYellow}
-          onReset={() => toggleOverrideYellow(false)}
-          overrideTestId="project-yellow-override"
-          sourceTestId="project-yellow-source"
-          resetTestId="project-yellow-reset"
-        >
-          <Input
-            id="project-yellow-amount"
-            value={yellow.text}
-            onValueChange={(text) => {
-              setYellow((prev) => ({ ...prev, text, exactTicks: null }));
-              setServerError(null);
-            }}
-            disabled={!overrideYellow}
-            inputMode="decimal"
-            autoComplete="off"
-            spellCheck={false}
-            data-testid="project-yellow-amount"
-            className={numberInputClass}
-          />
-          <span className="text-sm text-fg-muted">days</span>
-        </ProjectOverrideRow>
-
-        <ProjectOverrideRow
-          label="Red urgency threshold"
-          labelFor="project-red-amount"
-          dotClass="bg-urgency-overdue"
-          overridden={overrideRed}
-          onOverriddenChange={toggleOverrideRed}
-          onReset={() => toggleOverrideRed(false)}
-          overrideTestId="project-red-override"
-          sourceTestId="project-red-source"
-          resetTestId="project-red-reset"
-        >
-          <Input
-            id="project-red-amount"
-            value={red.text}
-            onValueChange={(text) => {
-              setRed((prev) => ({ ...prev, text, exactTicks: null }));
-              setServerError(null);
-            }}
-            disabled={!overrideRed}
-            inputMode="decimal"
-            autoComplete="off"
-            spellCheck={false}
-            data-testid="project-red-amount"
-            className={numberInputClass}
-          />
-          <span className="text-sm text-fg-muted">hours</span>
-        </ProjectOverrideRow>
+        <AutoCompleteOverrideRow form={form} />
+        <ThresholdOverrideRow form={form} setting="yellow" />
+        <ThresholdOverrideRow form={form} setting="red" />
       </div>
-
       {error === null ? null : (
         <p role="alert" data-testid="project-settings-error" className="text-[13px] text-danger">
           {error}
         </p>
       )}
-
       <div>
         <Button
           variant="primary"
           disabled={!canSave}
           aria-busy={saving || undefined}
-          onClick={() => void handleSave()}
+          onClick={() => void save()}
           data-testid="save-project-settings"
         >
           Save

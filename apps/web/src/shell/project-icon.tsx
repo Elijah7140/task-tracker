@@ -13,7 +13,7 @@ export function ProjectIcon({ name, size = "sm" }: ProjectIconProps) {
     <span
       aria-hidden="true"
       className={cx(
-        "grid shrink-0 place-items-center bg-accent-soft font-semibold text-accent",
+        "grid shrink-0 place-items-center bg-accent-soft font-semibold text-accent-text",
         size === "lg" ? "size-8 rounded-control text-sm" : "size-5 rounded-[0.3125rem] text-[11px]",
       )}
     >
