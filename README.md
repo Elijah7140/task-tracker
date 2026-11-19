@@ -18,7 +18,9 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the URL printed by Vite+ to see the React scaffold.
+`pnpm dev` opens Electron with the Vite renderer and a local RPC server. On Linux,
+source `scripts/dev-env.sh` first. Set `TASKTRACKER_DB_PATH` to develop against an
+isolated SQLite file.
 
 ```sh
 pnpm exec vp check --deny-warnings
@@ -39,6 +41,17 @@ missing shared-library dependencies were downloaded with `apt-get download`,
 extracted with `dpkg-deb -x` under `~/.local/task-tracker-gtk`, and loaded by
 prepending `~/.local/task-tracker-gtk/usr/lib/x86_64-linux-gnu` to
 `LD_LIBRARY_PATH` (`. scripts/dev-env.sh` does this when the folder exists).
+
+### Package the TypeScript desktop app
+
+```sh
+pnpm run package:desktop
+pnpm run test:desktop
+```
+
+The installer and unpacked executable are written to `apps/desktop/dist/package`.
+Playwright runs the unpacked executable against temporary databases. On headless
+Linux, run the smoke suite with `xvfb-run -a pnpm run test:desktop`.
 
 ## Build and run the .NET app
 

@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @task-tracker/web dev",
+    "dev": "pnpm --filter @task-tracker/desktop dev",
     "build": "pnpm -r run build",
     "test:server-db:electron": "node scripts/test-server-db-electron.mjs",
-    "check:electron": "pnpm --filter @task-tracker/desktop check:runtime"
+    "check:electron": "pnpm --filter @task-tracker/desktop check:runtime",
+    "package:desktop": "pnpm run build && pnpm --filter @task-tracker/desktop package",
+    "test:desktop": "vp test run --config apps/desktop/vitest.config.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

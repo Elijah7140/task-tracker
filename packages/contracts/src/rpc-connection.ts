@@ -3,6 +3,9 @@ import { Schema } from "effect";
 /** The only network interface on which the RPC server listens. */
 export const RPC_HOST = "127.0.0.1";
 
+/** The registered Electron origin for the packaged renderer. */
+export const DESKTOP_RENDERER_ORIGIN = "tasktracker://app";
+
 /** The HTTP RPC route. */
 export const RPC_PATH = "/rpc/";
 
