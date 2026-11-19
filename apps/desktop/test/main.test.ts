@@ -1,45 +1,20 @@
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { chmod, copyFile, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, copyFile, rm, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { MessageBoxOptions } from "electron";
-import { _electron, type ElectronApplication, type Page } from "playwright";
-import { expect, test } from "vitest";
-
-const output = fileURLToPath(new URL("../dist/package", import.meta.url));
-const executable =
-  process.platform === "win32"
-    ? join(output, "win-unpacked", "task-tracker.exe")
-    : join(output, "linux-unpacked", "task-tracker");
-
-interface DesktopFixture {
-  readonly database: string;
-  readonly profile: string;
-}
-
-const desktopTest = test.extend<{ desktop: DesktopFixture }>({
-  desktop: async ({ onTestFinished }, use) => {
-    const temporary = await mkdtemp(join(tmpdir(), "task-tracker-desktop-"));
-    onTestFinished(() => rm(temporary, { recursive: true, force: true, maxRetries: 5 }));
-    const data = join(temporary, "data");
-    await mkdir(data);
-    await use({ database: join(data, "tasktracker.db"), profile: join(temporary, "profile") });
-  },
-});
-
-function launch(desktop: DesktopFixture) {
-  return _electron.launch({
-    executablePath: executable,
-    args: [`--user-data-dir=${desktop.profile}`],
-    env: { ...process.env, TASKTRACKER_DB_PATH: desktop.database },
-    chromiumSandbox: true,
-    timeout: 10_000,
-  });
-}
+import type { ElectronApplication, Page } from "playwright";
+import { expect } from "vitest";
+import {
+  type DesktopFixture,
+  desktopTest,
+  executable,
+  firstWindow,
+  launch,
+  phase3Fixture,
+} from "./support/desktop-app.js";
 
 function serverPid(application: ElectronApplication) {
   const parent = application.process().pid;
@@ -110,7 +85,7 @@ desktopTest(
     const application = await launch(desktop);
     let child: number;
     try {
-      const page = await application.firstWindow({ timeout: 10_000 });
+      const page = await firstWindow(application);
 
       await page.getByTestId("empty-home-create").click();
       await page.keyboard.type("Packaged project");
@@ -132,7 +107,7 @@ desktopTest(
 
     const reopened = await launch(desktop);
     try {
-      const page = await reopened.firstWindow({ timeout: 10_000 });
+      const page = await firstWindow(reopened);
       await page.getByRole("article", { name: "Packaged project" }).waitFor();
     } finally {
       await reopened.close();
@@ -177,7 +152,7 @@ desktopTest(
   async ({ desktop }) => {
     const application = await launch(desktop);
     try {
-      const page = await application.firstWindow({ timeout: 10_000 });
+      const page = await firstWindow(application);
       await page.getByTestId("empty-home-create").waitFor();
       const dialogs = await observeDialogs(application);
       const originalServer = serverPid(application);
@@ -224,15 +199,14 @@ const startupFailures = [
     name: "a failed backup",
     diagnostic: "Could not back up the database.",
     prepare: async (database: string) => {
-      const fixture = new URL("../../server/test/fixtures/ef/phase-3.db", import.meta.url);
       const directory = dirname(database);
       if (process.platform === "win32") {
-        await copyFile(fixture, database);
+        await copyFile(phase3Fixture, database);
       } else {
         // SQLite writes its journal beside the resolved file. Keep that folder
         // writable while denying the server's backup mkdir beside the symlink.
         const target = join(directory, "..", "legacy.db");
-        await copyFile(fixture, target);
+        await copyFile(phase3Fixture, target);
         await rm(database);
         await symlink(target, database);
       }
@@ -246,7 +220,7 @@ desktopTest.for(startupFailures)(
   async ({ diagnostic, prepare }, { desktop }) => {
     const application = await launch(desktop);
     try {
-      const page = await application.firstWindow({ timeout: 10_000 });
+      const page = await firstWindow(application);
       await page.getByTestId("empty-home-create").waitFor();
       const dialogs = await observeDialogs(application);
       process.kill(serverPid(application), "SIGKILL");

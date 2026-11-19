@@ -258,6 +258,27 @@ describe("AppSettingsPage", () => {
     expect(store.settingsAndLookups.globalSettings.urgencyYellowThreshold).toBe(daysTicks(3));
   });
 
+  it("Offers only Discard and Cancel for unsaved defaults, as legacy Back did", async () => {
+    const { store, history } = await openAppSettings();
+    const discardDialog = page.getByRole("alertdialog", { name: "Discard unsaved settings?" });
+    await yellowAmount().fill("5");
+
+    await page.getByTestId("sidebar-home").click();
+    await expect.element(discardDialog).toBeVisible();
+    expect(discardDialog.getByRole("button").elements()).toHaveLength(2);
+    await discardDialog.getByRole("button", { name: "Cancel" }).click();
+
+    await expect.element(discardDialog).not.toBeInTheDocument();
+    await expect.element(yellowAmount()).toHaveValue("5");
+    expect(history.location.pathname).toBe("/settings");
+
+    await page.getByTestId("sidebar-home").click();
+    await discardDialog.getByRole("button", { name: "Discard" }).click();
+
+    await expect.element(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
+    expect(store.calls).not.toContain("SaveGlobalSettings");
+  });
+
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed app settings baseline", async () => {
       await openAppSettings({

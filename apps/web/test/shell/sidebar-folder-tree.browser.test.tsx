@@ -17,11 +17,11 @@ const tree = () => page.getByRole("tree", { name: "Folders in Billing DB" });
 
 const folder = (name: string) => tree().getByRole("treeitem", { name, exact: true });
 
-async function openProject(seed: ReadonlyArray<SeedProject> = [billing]) {
+async function openProject(seed: ReadonlyArray<SeedProject> = [billing], firstFolder = "dbo") {
   const app = await renderApp({ projects: seed });
   const projectId = app.store.summaries[0]?.project.id ?? "";
   app.history.push(`/projects/${projectId}`);
-  await expect.element(folder("dbo")).toBeVisible();
+  await expect.element(folder(firstFolder)).toBeVisible();
   return { ...app, projectId };
 }
 
@@ -170,6 +170,28 @@ describe("SidebarFolderTree", () => {
     expect(store.folderTree()).toContain("dbo/Archive");
   });
 
+  it("Leaves the folders unchanged when the move dialog is cancelled", async () => {
+    const { store } = await openProject();
+    const before = store.folderTree();
+    const dialog = page.getByRole("dialog", { name: "Move Tables" });
+    const openMove = async () => {
+      await folder("Tables").getByTestId("folder-menu").first().click();
+      await page.getByTestId("folder-move").click();
+      await dialog.getByRole("radio", { name: "Billing DB" }).click();
+    };
+
+    await openMove();
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
+    await openMove();
+    await userEvent.keyboard("{Escape}");
+
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(folder("Tables")).toHaveAttribute("aria-level", "2");
+    expect(store.calls).not.toContain("MoveFolder");
+    expect(store.folderTree()).toEqual(before);
+  });
+
   it("Shows the server's message and keeps the folder when a move would create a cycle", async () => {
     const { store } = await openProject();
     await folder("dbo").getByTestId("folder-menu").first().click();
@@ -226,4 +248,35 @@ describe("SidebarFolderTree", () => {
       .toHaveAccessibleDescription("Name must be 1 to 300 characters.");
     expect(store.folders).toHaveLength(4);
   });
+
+  it("Scrolls a tall folder tree inside the sidebar and keeps the footer in view", async () => {
+    const folders = Array.from({ length: 60 }, (_, index) => ({ name: `Folder ${index + 1}` }));
+    await openProject([{ name: "Billing DB", folders }], "Folder 1");
+    const last = folder("Folder 60");
+    const scroller = scrollParent(tree().element());
+
+    await focusFolder("Folder 1");
+    await userEvent.keyboard("{End}");
+
+    await expect.element(last).toHaveFocus();
+    await expect.element(last).toBeInViewport();
+    await expect.element(page.getByTestId("sidebar-settings")).toBeInViewport();
+    expect(scroller.scrollTop).toBeGreaterThan(0);
+    expect(document.scrollingElement?.scrollTop).toBe(0);
+    expect(page.getByTestId("sidebar").element().getBoundingClientRect().height).toBe(
+      window.innerHeight,
+    );
+  });
 });
+
+/** The nearest ancestor that scrolls its overflowing content. */
+function scrollParent(element: Element): HTMLElement {
+  let current = element.parentElement;
+  while (current !== null && getComputedStyle(current).overflowY !== "auto") {
+    current = current.parentElement;
+  }
+  if (current === null || current.scrollHeight <= current.clientHeight) {
+    throw new Error("The folder tree has no overflowing scroll container.");
+  }
+  return current;
+}
