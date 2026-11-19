@@ -141,7 +141,7 @@ it("Preserves selection and focus through reorder replay and clears the outcome 
     .toBeTruthy();
   await expect.element(item("Report")).toHaveFocus();
   await expect.element(item("Report")).toHaveAttribute("aria-selected", "true");
-  await expect.element(status()).toHaveTextContent("Undid: Move 'Report'");
+  await expect.element(status()).toHaveTextContent("Undid: Reorder items");
   await page.getByTestId("sidebar-home").click();
   await expect.element(status()).not.toBeInTheDocument();
 });
