@@ -27,13 +27,31 @@ const diagnosticLength = 4000;
 
 const decodeConnection = Schema.decodeUnknownSync(RpcConnection);
 
+// Chromium can have both ends of a new renderer IPC socket open during spawn.
+// Close inherited descriptors in the child before exec so the server cannot keep
+// that socket alive after the renderer exits. Exec preserves the PID and stdio.
+const closeInheritedDescriptors = `
+for path in /proc/self/fd/*; do
+  descriptor=\${path##*/}
+  if (( descriptor > 2 )); then
+    exec {descriptor}>&-
+  fi
+done
+exec "$@"
+`;
+
 /** Starts the built server under Electron's Node runtime and reads its private readiness line. */
 export function launchServer(
   entry: string,
   rendererOrigin: string,
   timeouts: ServerTimeouts = defaultTimeouts,
 ): ServerProcess {
-  const child = spawn(process.execPath, [entry], {
+  const linux = process.platform === "linux";
+  const executable = linux ? "/bin/bash" : process.execPath;
+  const args = linux
+    ? ["-p", "-c", closeInheritedDescriptors, "task-tracker-server", process.execPath, entry]
+    : [entry];
+  const child = spawn(executable, args, {
     env: serverEnvironment(rendererOrigin),
     windowsHide: true,
   });
