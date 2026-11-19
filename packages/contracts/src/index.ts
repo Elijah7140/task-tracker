@@ -7,14 +7,13 @@ export { ProjectProjection } from "./project-projection.js";
 export { ProjectSummary } from "./project-summary.js";
 export { ProjectWorkspace } from "./project-workspace.js";
 export { ProjectWorkspaceRpcs } from "./project-workspace-rpcs.js";
-export { OperationFailed, RpcOperationError, RuleViolation } from "./rpc-operation-error.js";
+export {
+  NotFound,
+  OperationFailed,
+  RpcOperationError,
+  RuleViolation,
+} from "./rpc-operation-error.js";
 export { AreaSnapshot } from "./area-snapshot.js";
 export { Item, ItemEdit } from "./item.js";
-export {
-  ItemHierarchyError,
-  ItemRpcError,
-  ItemStorageError,
-  ItemValidationError,
-} from "./item-rpc-error.js";
 export { ItemRpcs } from "./item-rpcs.js";
 export { CompletionResult } from "./completion-result.js";

@@ -9,6 +9,7 @@ import { RpcSerialization, RpcServer } from "effect/rpc";
 import { guardRpcRequest } from "./guard-rpc-request.js";
 import { projectWorkspaceHandlers } from "./project-workspace-handlers.js";
 import { itemRpcHandlers } from "./item-rpc-handlers.js";
+import { mapOperationError } from "./map-operation-error.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
 export class LoopbackRpc extends Context.Service<LoopbackRpc, RpcConnection>()(
@@ -36,7 +37,11 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         credential: randomBytes(32).toString("base64url"),
       };
       const rpc = yield* RpcServer.toHttpEffect(TaskTrackerRpcs).pipe(
-        Effect.provide(TaskTrackerRpcs.toLayerHandler("GetServerInfo", () => Effect.succeed(info))),
+        Effect.provide(
+          TaskTrackerRpcs.toLayerHandler("GetServerInfo", () =>
+            Effect.succeed(info).pipe(mapOperationError),
+          ),
+        ),
         Effect.provide(projectWorkspaceHandlers(options.timeZone)),
         Effect.provide(RpcSerialization.layerJson),
         Effect.provide(itemRpcHandlers(options.timeZone)),

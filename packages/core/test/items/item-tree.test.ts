@@ -106,8 +106,12 @@ it("requires an active area folder in the same project", () => {
   const deleted = folder("deleted", { deletedAtUtc: now, deletionBatchId: "batch" });
   const folders = new FolderTree(projectId, [deleted, folder("active")]);
 
-  expect(() => new ItemTree(projectId, "unknown", [], folders)).toThrow(HierarchyError);
-  expect(() => new ItemTree(projectId, deleted.id, [], folders)).toThrow(HierarchyError);
+  expect(() => new ItemTree(projectId, "unknown", [], folders)).toThrow(
+    expect.objectContaining({ entity: "Folder" }),
+  );
+  expect(() => new ItemTree(projectId, deleted.id, [], folders)).toThrow(
+    expect.objectContaining({ entity: "Folder" }),
+  );
   expect(() => new ItemTree("other", "active", [], folders)).toThrow(HierarchyError);
 });
 
@@ -117,7 +121,7 @@ it("requires an active parent when loading or adding active children", () => {
   const tree = new ItemTree(projectId, null, [parent]);
 
   expect(() => new ItemTree(projectId, null, [parent, child])).toThrow(HierarchyError);
-  expect(() => tree.add(child, now)).toThrow(HierarchyError);
+  expect(() => tree.add(child, now)).toThrow(expect.objectContaining({ entity: "Item" }));
 });
 
 it("blocks restoring an earlier item batch until its parent is restored", () => {

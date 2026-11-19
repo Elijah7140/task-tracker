@@ -6,7 +6,7 @@ import {
   createField,
   effectiveFields,
   listFields,
-  MetadataRuleError,
+  EntityMissing,
   renameChoice,
   renameField,
   reorderChoices,
@@ -23,7 +23,7 @@ import { fieldRepository } from "../db/repositories/field-repository.js";
 import { itemFieldValueRepository } from "../db/repositories/item-field-value-repository.js";
 import { projectRepository } from "../db/repositories/project-repository.js";
 import { Guid } from "../db/storage-codecs.js";
-import { checkRules } from "./hierarchy-rules.js";
+import { checkRules } from "./check-rules.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 
@@ -34,10 +34,12 @@ const decodeScope = Schema.decodeEffect(Schema.NullOr(Guid));
 function requireById<Row extends { readonly id: string }>(
   rows: readonly Row[],
   id: string,
-  message: string,
+  entity: "Field" | "Choice",
 ) {
   const row = rows.find((candidate) => candidate.id === id);
-  return row === undefined ? Effect.fail(new MetadataRuleError(message)) : Effect.succeed(row);
+  return row === undefined
+    ? Effect.fail(new EntityMissing(entity, `${entity} was not found.`))
+    : Effect.succeed(row);
 }
 
 const make = Effect.gen(function* () {
@@ -80,7 +82,7 @@ const make = Effect.gen(function* () {
   ) {
     const key = yield* decodeId(id);
     const rows = yield* definitions.list();
-    const field = yield* requireById(rows, key, "Field was not found.");
+    const field = yield* requireById(rows, key, "Field");
     const updated = yield* checkRules(() => change(field, rows));
     yield* definitions.update(updated);
   }, sql.withTransaction);
@@ -88,7 +90,7 @@ const make = Effect.gen(function* () {
   const changeType = Effect.fnUntraced(function* (id: string, dataType: FieldDataType) {
     const key = yield* decodeId(id);
     const rows = yield* definitions.list();
-    const field = yield* requireById(rows, key, "Field was not found.");
+    const field = yield* requireById(rows, key, "Field");
     const used = yield* itemValues.hasValues(key);
     const updated = yield* checkRules(() => changeFieldType(field, dataType, used));
     yield* definitions.update(updated);
@@ -105,7 +107,7 @@ const make = Effect.gen(function* () {
   const addChoice = Effect.fnUntraced(function* (fieldId: string, label: string) {
     const key = yield* decodeId(fieldId);
     const fields = yield* definitions.list();
-    const field = yield* requireById(fields, key, "Field was not found.");
+    const field = yield* requireById(fields, key, "Field");
     const rows = yield* choices.list(key);
     const now = yield* operationTime;
     const choice = yield* checkRules(() => createChoice(newId(now), field, label, rows));
@@ -120,7 +122,7 @@ const make = Effect.gen(function* () {
   ) {
     const key = yield* decodeId(choiceId);
     const rows = yield* choices.list(fieldId);
-    const choice = yield* requireById(rows, key, "Choice was not found.");
+    const choice = yield* requireById(rows, key, "Choice");
     const updated = yield* checkRules(() => change(choice, rows));
     yield* choices.update(updated);
   }, sql.withTransaction);

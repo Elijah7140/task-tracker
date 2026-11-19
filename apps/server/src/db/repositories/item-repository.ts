@@ -1,4 +1,4 @@
-import { HierarchyError } from "@task-tracker/core";
+import { EntityMissing } from "@task-tracker/core";
 import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
@@ -32,7 +32,7 @@ export function itemRepository(sql: SqlClient.SqlClient) {
         Effect.flatMap(
           Option.match({
             onSome: Effect.succeed,
-            onNone: () => Effect.fail(new HierarchyError("Item is missing or deleted.")),
+            onNone: () => Effect.fail(new EntityMissing("Item")),
           }),
         ),
       ),

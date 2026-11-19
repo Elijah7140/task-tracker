@@ -1,3 +1,4 @@
+import { EntityMissing } from "../entity-missing.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import { trimMetadataText } from "../metadata/names.js";
 import type { FieldChoice } from "./field-choice.js";
@@ -67,7 +68,7 @@ export function planFieldValueEdits(
   for (const input of inputs) {
     const field = fieldsById.get(input.fieldDefinitionId);
     if (!field) {
-      throw new MetadataRuleError("Field was not found.");
+      throw new EntityMissing("Field", "Field was not found.");
     }
 
     validateFieldScope(projectId, field);

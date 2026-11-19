@@ -132,7 +132,8 @@ it.effect("Persists folder edits and rejects moves into descendants or another p
         message: expect.stringContaining("cycle"),
       });
       expect(crossProject).toMatchObject({
-        _tag: "RuleViolation",
+        _tag: "NotFound",
+        entity: "Folder",
         message: expect.stringContaining("missing or deleted"),
       });
       expect(workspace.folders).toEqual(
@@ -169,13 +170,16 @@ it.effect("Hides a deleted workspace and restores the project with its active de
       const remaining = yield* client.ListProjects();
       yield* client.RestoreProject({ batchId: batchId.toLowerCase() });
       const restored = yield* client.LoadWorkspace({ projectId: project.id });
+      const restoredBatch = yield* Effect.flip(client.RestoreProject({ batchId }));
       const home = yield* client.ListProjects();
 
       expect(batchId).toMatch(/^[0-9A-F-]{36}$/);
       expect(hidden).toMatchObject({
-        _tag: "RuleViolation",
+        _tag: "NotFound",
+        entity: "Project",
         message: "Project is missing or deleted.",
       });
+      expect(restoredBatch).toMatchObject({ _tag: "NotFound", entity: "DeletionBatch" });
       expect(remaining.map(({ project }) => project.id)).toEqual([other.id]);
       expect(restored.folders.map(({ id, parentFolderId }) => [id, parentFolderId])).toEqual([
         [parent.id, null],
@@ -220,7 +224,8 @@ it.effect("Restores only the folder batch in its owning project after its parent
       const all = yield* client.LoadWorkspace({ projectId });
 
       expect(foreign).toMatchObject({
-        _tag: "RuleViolation",
+        _tag: "NotFound",
+        entity: "DeletionBatch",
         message: "Folder deletion batch was not found.",
       });
       expect(outOfOrder).toMatchObject({

@@ -5,7 +5,7 @@ import { folderRepository } from "../db/repositories/folder-repository.js";
 import { projectItemRepository } from "../db/repositories/project-item-repository.js";
 import { projectRepository } from "../db/repositories/project-repository.js";
 import { Guid } from "../db/storage-codecs.js";
-import { checkRules } from "./hierarchy-rules.js";
+import { checkRules } from "./check-rules.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 import { projectCompletionReconciler } from "./project-completion-reconciler.js";

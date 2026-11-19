@@ -132,7 +132,7 @@ it("rejects repeated and unknown fields before producing an edit plan", () => {
   );
   expect(() =>
     planFieldValueEdits("item", "project", [field], [], [], [{ fieldDefinitionId: "missing" }]),
-  ).toThrow("Field was not found.");
+  ).toThrow(expect.objectContaining({ entity: "Field", message: "Field was not found." }));
 });
 
 it("allows re-supplying the same date or clearing a value after its field is archived", () => {

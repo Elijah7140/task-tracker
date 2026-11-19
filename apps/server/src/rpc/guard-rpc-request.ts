@@ -28,7 +28,7 @@ export function guardRpcRequest(rpc: RpcResponse, access: RpcAccess): RpcRespons
     if (request.url !== RPC_PATH) {
       return HttpServerResponse.empty({ status: 404 });
     }
-    if (request.headers.host !== access.host || request.headers.origin !== access.rendererOrigin) {
+    if (!checkHostAndOrigin(request, access)) {
       return HttpServerResponse.empty({ status: 403, headers: { vary: "Origin, Host" } });
     }
     if (request.method === "OPTIONS") {
@@ -40,8 +40,7 @@ export function guardRpcRequest(rpc: RpcResponse, access: RpcAccess): RpcRespons
         headers: { ...cors, allow: "POST, OPTIONS" },
       });
     }
-    const authorization = Buffer.from(request.headers.authorization ?? "");
-    if (authorization.length !== expected.length || !timingSafeEqual(authorization, expected)) {
+    if (!checkCredential(request, expected)) {
       return HttpServerResponse.empty({ status: 401, headers: cors });
     }
 
@@ -53,6 +52,15 @@ export function guardRpcRequest(rpc: RpcResponse, access: RpcAccess): RpcRespons
       Effect.map(HttpServerResponse.setHeaders(cors)),
     );
   });
+}
+
+function checkHostAndOrigin(request: HttpServerRequest.HttpServerRequest, access: RpcAccess) {
+  return request.headers.host === access.host && request.headers.origin === access.rendererOrigin;
+}
+
+function checkCredential(request: HttpServerRequest.HttpServerRequest, expected: Buffer) {
+  const authorization = Buffer.from(request.headers.authorization ?? "");
+  return authorization.length === expected.length && timingSafeEqual(authorization, expected);
 }
 
 function preflight(request: HttpServerRequest.HttpServerRequest, cors: Headers.Input) {

@@ -1,3 +1,4 @@
+export { EntityMissing } from "./entity-missing.js";
 export { HierarchyError } from "./hierarchy/hierarchy-error.js";
 export { ItemTree } from "./items/item-tree.js";
 export type { TodoItem } from "./items/todo-item.js";

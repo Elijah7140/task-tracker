@@ -1,23 +1,9 @@
-import {
-  ItemHierarchyError,
-  ItemRpcs,
-  ItemStorageError,
-  ItemValidationError,
-} from "@task-tracker/contracts";
-import { HierarchyError, MetadataRuleError } from "@task-tracker/core";
+import { ItemRpcs } from "@task-tracker/contracts";
 import { Effect, Layer } from "effect";
 import { ItemService } from "../services/item-service.js";
 import { parseItemEdit, projectArea, projectCompletion, projectItem } from "./item-projection.js";
 
-function itemFailure(error: Error) {
-  if (error instanceof HierarchyError) {
-    return new ItemHierarchyError({ message: error.message });
-  }
-  if (error instanceof MetadataRuleError) {
-    return new ItemValidationError({ message: error.message });
-  }
-  return new ItemStorageError({ message: "Could not complete the item operation." });
-}
+import { mapOperationError } from "./map-operation-error.js";
 
 /** Delegate item calls to the service with the same clock, time zone and database as the server. */
 export const itemRpcHandlers = (timeZone: string) =>
@@ -26,37 +12,36 @@ export const itemRpcHandlers = (timeZone: string) =>
       const items = yield* ItemService;
       return ItemRpcs.of({
         LoadArea: ({ projectId, folderId }) =>
-          items
-            .loadArea(projectId, folderId)
-            .pipe(Effect.map(projectArea), Effect.mapError(itemFailure)),
+          items.loadArea(projectId, folderId).pipe(Effect.map(projectArea), mapOperationError),
         CreateItem: ({ projectId, folderId, parentItemId, title }) =>
           items
             .create(projectId, folderId, parentItemId, title)
-            .pipe(Effect.map(projectItem), Effect.mapError(itemFailure)),
+            .pipe(Effect.map(projectItem), mapOperationError),
         EditItem: ({ itemId, fields }) =>
-          items.edit(itemId, parseItemEdit(fields)).pipe(Effect.mapError(itemFailure)),
+          Effect.sync(() => parseItemEdit(fields)).pipe(
+            Effect.flatMap((edit) => items.edit(itemId, edit)),
+            mapOperationError,
+          ),
         SetItemCompleted: ({ projectId, folderId, itemId, completed, confirmedOpenItemIds }) =>
           items
             .setCompleted(projectId, folderId, itemId, completed, confirmedOpenItemIds)
-            .pipe(Effect.map(projectCompletion), Effect.mapError(itemFailure)),
+            .pipe(Effect.map(projectCompletion), mapOperationError),
         IndentItem: ({ projectId, folderId, itemId }) =>
-          items.indent(projectId, folderId, itemId).pipe(Effect.mapError(itemFailure)),
+          items.indent(projectId, folderId, itemId).pipe(mapOperationError),
         OutdentItem: ({ projectId, folderId, itemId }) =>
-          items.outdent(projectId, folderId, itemId).pipe(Effect.mapError(itemFailure)),
+          items.outdent(projectId, folderId, itemId).pipe(mapOperationError),
         MoveItem: ({ projectId, folderId, itemId, parentItemId }) =>
-          items.move(projectId, folderId, itemId, parentItemId).pipe(Effect.mapError(itemFailure)),
+          items.move(projectId, folderId, itemId, parentItemId).pipe(mapOperationError),
         ReorderItems: ({ projectId, folderId, parentItemId, itemIds }) =>
-          items
-            .reorder(projectId, folderId, parentItemId, itemIds)
-            .pipe(Effect.mapError(itemFailure)),
+          items.reorder(projectId, folderId, parentItemId, itemIds).pipe(mapOperationError),
         MoveItemToArea: ({ projectId, sourceFolderId, targetFolderId, itemId }) =>
           items
             .moveToArea(projectId, sourceFolderId, targetFolderId, itemId)
-            .pipe(Effect.mapError(itemFailure)),
+            .pipe(mapOperationError),
         DeleteItem: ({ projectId, folderId, itemId }) =>
-          items.delete(projectId, folderId, itemId).pipe(Effect.mapError(itemFailure)),
+          items.delete(projectId, folderId, itemId).pipe(mapOperationError),
         RestoreItems: ({ projectId, folderId, batchId }) =>
-          items.restore(projectId, folderId, batchId).pipe(Effect.mapError(itemFailure)),
+          items.restore(projectId, folderId, batchId).pipe(mapOperationError),
       });
     }),
   ).pipe(Layer.provide(ItemService.layer(timeZone)));

@@ -67,8 +67,12 @@ it("rejects self, missing, cross-project, and deleted folder parents", () => {
   const orphan = folder("orphan", { parentFolderId: foreign.id });
 
   expect(() => tree.move("root", "root", now)).toThrow(HierarchyError);
-  expect(() => tree.move("root", "child", now)).toThrow(HierarchyError);
-  expect(() => tree.move("root", foreign.id, now)).toThrow(HierarchyError);
+  expect(() => tree.move("root", "child", now)).toThrow(
+    expect.objectContaining({ entity: "Folder" }),
+  );
+  expect(() => tree.move("root", foreign.id, now)).toThrow(
+    expect.objectContaining({ entity: "Folder" }),
+  );
   expect(() => new FolderTree(projectId, [orphan])).toThrow(HierarchyError);
   expect(() => new FolderTree(projectId, [orphan, foreign])).toThrow(HierarchyError);
 });

@@ -208,3 +208,19 @@ it.effect("Choices reorder within their field and restore to their saved positio
     }),
   ),
 );
+
+it.effect("Identifies missing fields and choices by entity", () =>
+  withServices(
+    Effect.gen(function* () {
+      const fields = yield* FieldService;
+      const field = yield* fields.create("Status", "Choice", null);
+      const missingId = "0190A1B2-0000-7000-8000-000000000999";
+
+      const missingField = yield* Effect.flip(fields.addChoice(missingId, "Ready"));
+      const missingChoice = yield* Effect.flip(fields.renameChoice(field.id, missingId, "Done"));
+
+      expect(missingField).toMatchObject({ entity: "Field" });
+      expect(missingChoice).toMatchObject({ entity: "Choice" });
+    }),
+  ),
+);

@@ -1,4 +1,4 @@
-import type { OperationFailed, RuleViolation } from "@task-tracker/contracts";
+import type { RpcOperationError } from "@task-tracker/contracts";
 import { Cause, Option } from "effect";
 import type { RpcClientError } from "effect/rpc";
 
@@ -10,11 +10,11 @@ export const CONNECTION_FAILURE_MESSAGE =
 export const UNEXPECTED_FAILURE_MESSAGE = "The operation could not be completed.";
 
 /** Typed failures of an application RPC as seen by the renderer. */
-export type RpcFailure = RuleViolation | OperationFailed | RpcClientError.RpcClientError;
+export type RpcFailure = typeof RpcOperationError.Type | RpcClientError.RpcClientError;
 
 /**
- * Turns a failed RPC into the message the user sees. Rule and operation
- * failures carry messages the server wrote for people.
+ * Turns a failed RPC into the message the user sees. Application failures
+ * carry messages the server wrote for people.
  */
 export function describeRpcFailure(cause: Cause.Cause<RpcFailure>): string {
   const error = Cause.findErrorOption(cause);
@@ -23,6 +23,7 @@ export function describeRpcFailure(cause: Cause.Cause<RpcFailure>): string {
   }
   switch (error.value._tag) {
     case "RuleViolation":
+    case "NotFound":
     case "OperationFailed":
       return error.value.message;
     case "RpcClientError":

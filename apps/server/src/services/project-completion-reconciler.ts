@@ -5,7 +5,7 @@ import { folderRepository } from "../db/repositories/folder-repository.js";
 import { projectItemRepository } from "../db/repositories/project-item-repository.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
-import { checkRules } from "./hierarchy-rules.js";
+import { checkRules } from "./check-rules.js";
 
 /** Plan and persist reconciliation in the caller's transaction. */
 export function projectCompletionOperations(sql: SqlClient.SqlClient) {

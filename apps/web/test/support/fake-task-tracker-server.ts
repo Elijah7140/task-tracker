@@ -1,4 +1,9 @@
-import { RuleViolation, TaskTrackerRpcs, type ProjectSummary } from "@task-tracker/contracts";
+import {
+  NotFound,
+  RuleViolation,
+  TaskTrackerRpcs,
+  type ProjectSummary,
+} from "@task-tracker/contracts";
 import { Effect, Exit, Scope } from "effect";
 import { HttpEffect } from "effect/http";
 import { RpcSerialization, RpcServer } from "effect/rpc";
@@ -20,7 +25,7 @@ const notUsed = () => Effect.die(new Error("The web shell tests do not call this
 
 /**
  * In-memory project data behind the real RPC server and JSON serialization.
- * It mirrors the server's rule messages for names and missing projects.
+ * It mirrors the server's failures for invalid names and missing projects.
  */
 export class FakeProjectStore {
   summaries: Array<Summary> = [];
@@ -59,7 +64,7 @@ export class FakeProjectStore {
   find(projectId: string) {
     const summary = this.summaries.find((candidate) => candidate.project.id === projectId);
     return summary === undefined
-      ? Effect.fail(new RuleViolation({ message: "Project is missing or deleted." }))
+      ? Effect.fail(new NotFound({ entity: "Project", message: "Project is missing or deleted." }))
       : Effect.succeed(summary);
   }
 }

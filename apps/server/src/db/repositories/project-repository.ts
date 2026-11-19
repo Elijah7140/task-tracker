@@ -1,6 +1,6 @@
 import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
-import { HierarchyError } from "@task-tracker/core";
+import { EntityMissing } from "@task-tracker/core";
 import { activeRow } from "../active-row.js";
 import { Guid } from "../storage-codecs.js";
 import { projectBatch, trackedColumns, trackedFields } from "./row-fields.js";
@@ -49,7 +49,7 @@ export function projectRepository(sql: SqlClient.SqlClient) {
         Effect.flatMap(
           Option.match({
             onSome: Effect.succeed,
-            onNone: () => Effect.fail(new HierarchyError("Project is missing or deleted.")),
+            onNone: () => Effect.fail(new EntityMissing("Project")),
           }),
         ),
       ),

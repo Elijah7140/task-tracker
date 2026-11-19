@@ -130,8 +130,11 @@ export function partitionSiblings(
 type CompletionStates = Map<string, Temporal.Instant | null>;
 
 function needsConfirmation(openIds: readonly string[], confirmedIds?: readonly string[]): boolean {
+  if (openIds.length === 0) {
+    return false;
+  }
   if (confirmedIds === undefined) {
-    return openIds.length > 0;
+    return true;
   }
   const confirmed = new Set(confirmedIds);
   return confirmedIds.length !== openIds.length || openIds.some((id) => !confirmed.has(id));

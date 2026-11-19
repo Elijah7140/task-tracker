@@ -295,15 +295,13 @@ it("returns open siblings in sibling order and finished siblings newest first at
   ]);
 });
 
-it("requests a fresh decision when all previously previewed descendants are now complete", () => {
+it("applies the approval when all previously previewed descendants are now complete", () => {
   const items = tree(
     item("root"),
     item("child", { parentItemId: "root", completedAtUtc: earlier }),
   );
 
-  const stale = CompletionService.complete(items, "root", true, now, ["child"]);
-  const refreshed = CompletionService.complete(items, "root", true, now, []);
+  const result = CompletionService.complete(items, "root", true, now, ["child"]);
 
-  expect(stale).toEqual({ kind: "needs-confirmation", openSubItemCount: 0, openSubItemIds: [] });
-  expect(refreshed).toEqual({ kind: "applied", changes: [change("root", now)] });
+  expect(result).toEqual({ kind: "applied", changes: [change("root", now)] });
 });

@@ -1,3 +1,4 @@
+import { EntityMissing } from "../entity-missing.js";
 import type { DeletionFields } from "./deletion-fields.js";
 import { HierarchyError } from "./hierarchy-error.js";
 
@@ -34,7 +35,7 @@ export class Hierarchy<Entity extends Row> {
   get(id: string): Entity {
     const row = this.#rows.get(id);
     if (row === undefined || row.deletedAtUtc !== null) {
-      throw new HierarchyError(`${this.kind} is missing or deleted.`);
+      throw new EntityMissing(this.kind);
     }
     return row;
   }
@@ -153,7 +154,7 @@ export class Hierarchy<Entity extends Row> {
       (row) => row.deletedAtUtc !== null && row.deletionBatchId === batchId,
     );
     if (branch.length === 0) {
-      throw new HierarchyError(`${this.kind} deletion batch was not found.`);
+      throw new EntityMissing("DeletionBatch", `${this.kind} deletion batch was not found.`);
     }
 
     this.validateRestore(branch);

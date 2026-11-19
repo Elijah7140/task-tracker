@@ -69,7 +69,9 @@ it("requires the selected choice to exist, be active, and belong to the field", 
   const input = { fieldDefinitionId: field.id, choiceId: choice.id };
 
   expect(() => validateFieldValue("project", field, input, choice)).not.toThrow();
-  expect(() => validateFieldValue("project", field, input)).toThrow("Choice is missing");
+  expect(() => validateFieldValue("project", field, input)).toThrow(
+    expect.objectContaining({ entity: "Choice" }),
+  );
   expect(() => validateFieldValue("project", field, input, archiveChoice(choice))).toThrow(
     "Choice is missing",
   );

@@ -1,6 +1,5 @@
 import {
   describeReconciliation,
-  MetadataRuleError,
   needsReconciliationConfirmation,
   SettingsCatalogue,
   SettingsResolver,
@@ -13,28 +12,13 @@ import { Context, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql";
 import { projectRepository } from "../db/repositories/project-repository.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
+import { checkRules } from "./check-rules.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
 import { operationTime } from "./operation-time.js";
 import { projectCompletionOperations } from "./project-completion-reconciler.js";
 
 const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold } = SettingsCatalogue;
 const noOverrides: ReadonlyMap<string, string> = new Map();
-
-function checkSettings<A>(run: () => A) {
-  return Effect.try({
-    try: run,
-    catch: (error) => {
-      if (
-        error instanceof SyntaxError ||
-        error instanceof RangeError ||
-        error instanceof MetadataRuleError
-      ) {
-        return error;
-      }
-      throw error;
-    },
-  });
-}
 
 function applyOverrides(
   current: ReadonlyMap<string, string>,
@@ -63,7 +47,7 @@ const make = Effect.gen(function* () {
 
   const getGlobal = Effect.fnUntraced(function* <T>(definition: SettingDefinition<T>) {
     const global = yield* settings.global();
-    return yield* checkSettings(
+    return yield* checkRules(
       () => SettingsResolver.resolveValue(definition, global, noOverrides).value,
     );
   }, sql.withTransaction);
@@ -82,13 +66,13 @@ const make = Effect.gen(function* () {
     current: ReadonlyMap<string, string>,
     proposed: ReadonlyMap<string, string>,
   ) {
-    yield* checkSettings(() => validateThresholds(SettingsResolver.resolve(proposed, noOverrides)));
+    yield* checkRules(() => validateThresholds(SettingsResolver.resolve(proposed, noOverrides)));
     // Include deleted projects so restoring them cannot introduce invalid thresholds.
     const rows = yield* projects.listAll(undefined);
     const enabled: string[] = [];
     for (const project of rows) {
       const overrides = yield* settings.project(project.id);
-      const turnsOn = yield* checkSettings(() => {
+      const turnsOn = yield* checkRules(() => {
         const next = SettingsResolver.resolve(proposed, overrides);
         validateThresholds(next, project.name);
         const previous = SettingsResolver.resolveValue(autoCompleteParents, current, overrides);
@@ -107,7 +91,7 @@ const make = Effect.gen(function* () {
     current: ReadonlyMap<string, string>,
     proposed: ReadonlyMap<string, string>,
   ) {
-    const turnsOn = yield* checkSettings(() => {
+    const turnsOn = yield* checkRules(() => {
       const next = SettingsResolver.resolve(global, proposed);
       validateThresholds(next);
       const previous = SettingsResolver.resolveValue(autoCompleteParents, global, current);
@@ -125,7 +109,7 @@ const make = Effect.gen(function* () {
     const enabled: string[] = [];
     for (const project of rows) {
       const overrides = yield* settings.project(project.id);
-      const current = yield* checkSettings(() =>
+      const current = yield* checkRules(() =>
         SettingsResolver.resolveValue(autoCompleteParents, global, overrides),
       );
       if (!current.value && (projectId !== undefined || current.source === "Global")) {
@@ -140,7 +124,7 @@ const make = Effect.gen(function* () {
     encode: () => ReadonlyMap<string, string>,
     approval: ReconciliationApproval | undefined,
   ) {
-    const updates = yield* checkSettings(encode);
+    const updates = yield* checkRules(encode);
     const current = yield* settings.global();
     const proposed = new Map([...current, ...updates]);
     const changes = yield* planGlobal(current, proposed);
@@ -162,7 +146,7 @@ const make = Effect.gen(function* () {
     approval: ReconciliationApproval | undefined,
   ) {
     const project = yield* projects.requireActive(projectId);
-    const updates = yield* checkSettings(encode);
+    const updates = yield* checkRules(encode);
     const global = yield* settings.global();
     const current = yield* settings.project(project.id);
     const changes = yield* planProject(

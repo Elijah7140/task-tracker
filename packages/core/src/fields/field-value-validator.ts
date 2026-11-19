@@ -1,3 +1,4 @@
+import { EntityMissing } from "../entity-missing.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import type { FieldChoice } from "./field-choice.js";
 import type { FieldDataType } from "./field-data-type.js";
@@ -26,12 +27,10 @@ export function validateFieldScope(projectId: string, field: FieldDefinition): v
 }
 
 function validateChoice(fieldId: string, choiceId: string, choice: FieldChoice | undefined): void {
-  if (
-    !choice ||
-    choice.id !== choiceId ||
-    choice.fieldDefinitionId !== fieldId ||
-    choice.isArchived
-  ) {
+  if (choice === undefined || choice.id !== choiceId) {
+    throw new EntityMissing("Choice");
+  }
+  if (choice.fieldDefinitionId !== fieldId || choice.isArchived) {
     throw new MetadataRuleError("Choice is missing, archived, or belongs to another field.");
   }
 }

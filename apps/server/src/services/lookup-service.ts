@@ -15,7 +15,7 @@ import { SqlClient } from "effect/sql";
 import type { SqlError } from "effect/sql/SqlError";
 import { lookupRepository } from "../db/repositories/lookup-repository.js";
 import { Guid } from "../db/storage-codecs.js";
-import { checkRules } from "./hierarchy-rules.js";
+import { checkRules } from "./check-rules.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 

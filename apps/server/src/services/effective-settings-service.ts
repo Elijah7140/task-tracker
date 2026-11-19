@@ -2,6 +2,7 @@ import { SettingsResolver } from "@task-tracker/core";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
+import { checkRules } from "./check-rules.js";
 
 /** Resolve settings inside an existing transaction, optionally reusing its global snapshot. */
 export function readEffectiveSettings(
@@ -12,15 +13,7 @@ export function readEffectiveSettings(
   return Effect.gen(function* () {
     const global = yield* globals;
     const overrides = yield* settings.project(projectId);
-    return yield* Effect.try({
-      try: () => SettingsResolver.resolve(global, overrides),
-      catch: (error) => {
-        if (error instanceof SyntaxError || error instanceof RangeError) {
-          return error;
-        }
-        throw error;
-      },
-    });
+    return yield* checkRules(() => SettingsResolver.resolve(global, overrides));
   });
 }
 

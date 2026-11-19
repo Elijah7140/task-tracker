@@ -1,7 +1,7 @@
 import {
   createProject,
   FolderTree,
-  HierarchyError,
+  EntityMissing,
   renameProject,
   reorderProjects,
   summarizeProject,
@@ -14,7 +14,7 @@ import { projectRepository } from "../db/repositories/project-repository.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
 import { Guid } from "../db/storage-codecs.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
-import { checkRules } from "./hierarchy-rules.js";
+import { checkRules } from "./check-rules.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 import { projectCompletionReconciler } from "./project-completion-reconciler.js";
@@ -92,7 +92,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   const restore = Effect.fnUntraced(function* (batchId: string) {
     const project = yield* projects.findDeletedBatch(batchId);
     if (Option.isNone(project)) {
-      return yield* Effect.fail(new HierarchyError("Project deletion batch was not found."));
+      return yield* Effect.fail(
+        new EntityMissing("DeletionBatch", "Project deletion batch was not found."),
+      );
     }
     const now = yield* operationTime;
     const change = { projectId: project.value.id, batchId, now };

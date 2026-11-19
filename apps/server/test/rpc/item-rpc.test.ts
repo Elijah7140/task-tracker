@@ -232,11 +232,12 @@ it.effect("Carries earlier deletion batches with a moved branch and restores the
       expect(laterBatch).not.toBe(earlierBatch);
       expect(source.items).toEqual([]);
       expect(wrongArea).toMatchObject({
-        _tag: "ItemHierarchyError",
+        _tag: "NotFound",
+        entity: "DeletionBatch",
         message: expect.stringMatching(/not found/i),
       });
       expect(blocked).toMatchObject({
-        _tag: "ItemHierarchyError",
+        _tag: "RuleViolation",
         message: expect.stringMatching(/restore the parent/i),
       });
       expect(deleted.items).toEqual([]);
@@ -289,7 +290,7 @@ it.effect("Returns a typed edit error and preserves the stored fields", () =>
       const saved = yield* client.LoadArea(area);
 
       expect(error).toMatchObject({
-        _tag: "ItemValidationError",
+        _tag: "RuleViolation",
         message: "Due time requires a due date.",
       });
       expect(saved.items).toMatchObject([{ item: { id: item.id, title, dueTime: null } }]);
@@ -321,8 +322,8 @@ it.effect("Rolls back a failed confirmed completion and lets the caller retry", 
       const retry = yield* client.SetItemCompleted(confirmation);
 
       expect(failure).toMatchObject({
-        _tag: "ItemStorageError",
-        message: "Could not complete the item operation.",
+        _tag: "OperationFailed",
+        message: "The operation could not be completed.",
       });
       expect(saved.items).toMatchObject([
         {
@@ -333,4 +334,57 @@ it.effect("Rolls back a failed confirmed completion and lets the caller retry", 
       expect(retry.kind).toBe("applied");
     }),
   ),
+);
+
+it.effect("Identifies a deleted item in both edit and completion requests", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area, create } = yield* setup;
+      const item = yield* create("Deleted");
+      yield* client.DeleteItem({ ...area, itemId: item.id });
+
+      const edit = yield* Effect.flip(
+        client.EditItem({
+          itemId: item.id,
+          fields: {
+            title: "Edited",
+            description: null,
+            ticketNumber: null,
+            itemTypeId: null,
+            priorityLevelId: null,
+            dueDate: null,
+            dueTime: null,
+            scheduledStart: null,
+            scheduledEnd: null,
+          },
+        }),
+      );
+      const completion = yield* Effect.flip(
+        client.SetItemCompleted({ ...area, itemId: item.id, completed: true }),
+      );
+
+      expect(edit).toMatchObject({ _tag: "NotFound", entity: "Item" });
+      expect(completion).toMatchObject({ _tag: "NotFound", entity: "Item" });
+    }),
+  ),
+);
+
+it.effect.each(["malformed", "P999999999D"])(
+  "Hides the stored duration diagnostic for %s",
+  (value) =>
+    withItemRpc(
+      Effect.gen(function* () {
+        const { client, area } = yield* setup;
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql`INSERT INTO GlobalSetting (Key, Value) VALUES ('urgencyYellowThreshold', ${value})
+          ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value`;
+
+        const failure = yield* Effect.flip(client.LoadArea(area));
+
+        expect(failure).toMatchObject({
+          _tag: "OperationFailed",
+          message: "The operation could not be completed.",
+        });
+      }),
+    ),
 );
