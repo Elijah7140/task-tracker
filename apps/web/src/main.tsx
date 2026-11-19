@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { AppRoot } from "./app/app-root.js";
 import { ConnectionRequired } from "./app/connection-required.js";
 import { rpcProtocolLayer } from "./rpc-client.js";
-import { takeRpcConnection } from "./rpc/rpc-connection-source.js";
+import { readRpcConnection } from "./rpc/rpc-connection-source.js";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -12,7 +12,7 @@ if (root === null) {
   throw new Error("Task Tracker requires a root element.");
 }
 
-const connection = takeRpcConnection(window.location, window.history);
+const connection = await readRpcConnection(window.taskTrackerDesktop);
 
 createRoot(root).render(
   <StrictMode>

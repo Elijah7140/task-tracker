@@ -1,7 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import { NodeHttpServer } from "@effect/platform-node";
-import { RPC_HOST, type RpcConnection, ServerInfo, TaskTrackerRpcs } from "@task-tracker/contracts";
+import {
+  DESKTOP_RENDERER_ORIGIN,
+  RPC_HOST,
+  type RpcConnection,
+  ServerInfo,
+  TaskTrackerRpcs,
+} from "@task-tracker/contracts";
 import { Context, Effect, Layer, Schema } from "effect";
 import { HttpServer } from "effect/http";
 import { NetAddress } from "effect/net";
@@ -51,9 +57,14 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
 }
 
 function validateOrigin(origin: string) {
+  if (origin === DESKTOP_RENDERER_ORIGIN) {
+    return Effect.succeed(origin);
+  }
   const url = URL.canParse(origin) ? new URL(origin) : undefined;
   if ((url?.protocol === "http:" || url?.protocol === "https:") && url.origin === origin) {
     return Effect.succeed(origin);
   }
-  return Effect.fail(new Error("Set the renderer origin to a canonical HTTP or HTTPS origin."));
+  return Effect.fail(
+    new Error("Set the renderer origin to the desktop origin or a canonical HTTP or HTTPS origin."),
+  );
 }

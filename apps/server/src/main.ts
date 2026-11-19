@@ -1,6 +1,7 @@
 import { NodeRuntime } from "@effect/platform-node";
 import { Cause, Config, Console, Effect, Layer, Logger } from "effect";
 import { databaseLayer } from "./db/database-layer.js";
+import { parentPipeClosed } from "./parent-pipe.js";
 import { LoopbackRpc, loopbackRpcLayer } from "./rpc/loopback-rpc.js";
 
 const runServer = Effect.gen(function* () {
@@ -18,8 +19,13 @@ const runServer = Effect.gen(function* () {
   }).pipe(Effect.provide(server));
 });
 
+const lifetime =
+  process.env.TASKTRACKER_PARENT_PIPE === "1"
+    ? Effect.raceFirst(runServer, parentPipeClosed)
+    : runServer;
+
 NodeRuntime.runMain(
-  runServer.pipe(
+  lifetime.pipe(
     Effect.tapCause((cause) =>
       Cause.hasInterruptsOnly(cause) ? Effect.void : Effect.logError(cause),
     ),
