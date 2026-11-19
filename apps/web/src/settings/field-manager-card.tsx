@@ -1,6 +1,6 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { fieldsAtom } from "../rpc/field-queries.js";
 import { Checkbox } from "../ui/checkbox.js";
@@ -54,9 +54,12 @@ export function FieldManagerCard({ projectId }: FieldManagerCardProps) {
   const actions = useFieldActions(projectId);
   const panels = useOpenChoicePanels();
   const [showArchived, setShowArchived] = useState(false);
-  const own = AsyncResult.isSuccess(result)
-    ? result.value.filter((field) => field.projectId === projectId)
-    : [];
+  const fields = AsyncResult.isSuccess(result) ? result.value : undefined;
+  // Keep the reorder lock tied to the loaded rows while the query refreshes.
+  const own = useMemo(
+    () => fields?.filter((field) => field.projectId === projectId) ?? [],
+    [fields, projectId],
+  );
 
   const create = async (name: string, dataType: FieldDataType) => {
     const field = await actions.create(name, dataType);

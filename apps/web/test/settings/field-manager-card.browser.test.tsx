@@ -27,6 +27,18 @@ async function openAppSettings(configure: (store: FakeProjectStore) => void = ()
   return app;
 }
 
+async function clickMoveTwiceWhileSaving(moveDown: Locator, store: FakeProjectStore, rpc: string) {
+  const release = store.hold(rpc);
+  try {
+    await moveDown.click();
+    await expect.poll(() => store.calls.filter((call) => call === rpc)).toHaveLength(1);
+    await expect.element(moveDown).toBeDisabled();
+    await moveDown.click({ force: true });
+  } finally {
+    release();
+  }
+}
+
 async function openProjectSettings(
   configure?: (store: FakeProjectStore, projectId: string) => void,
 ) {
@@ -267,15 +279,26 @@ describe("FieldManagerCard", () => {
       expect(store.customFields.fieldNames(null)).toEqual(["Second", "Third", "First"]);
     });
 
-    it("Ignores a second Move down click while the first field move is still saving", async () => {
+    it("Ignores another Move down click until the saved field order is shown", async () => {
       const { store } = await openAppSettings((appStore) => {
         appStore.customFields.addFieldSeed("First");
         appStore.customFields.addFieldSeed("Second");
         appStore.customFields.addFieldSeed("Third");
       });
       const moveDown = () => fieldRow("First").getByTestId("field-move-down");
+      const listCalls = () => store.calls.filter((call) => call === "ListFields").length;
+      const initialListCalls = listCalls();
+      const releaseRefresh = store.hold("ListFields");
 
-      await moveDown().dblClick();
+      try {
+        await clickMoveTwiceWhileSaving(moveDown(), store, "ReorderFields");
+        await expect.poll(listCalls).toBeGreaterThan(initialListCalls);
+        await expect.element(fieldRows().nth(0)).toHaveAccessibleName("First");
+        await expect.element(moveDown()).toBeDisabled();
+        await moveDown().click({ force: true });
+      } finally {
+        releaseRefresh();
+      }
 
       await expect.element(fieldRows().nth(1)).toHaveAccessibleName("First");
       await expect.element(moveDown()).not.toHaveAttribute("aria-disabled", "true");
@@ -463,7 +486,7 @@ describe("FieldManagerCard", () => {
       await choicesToggle("Status").click();
       const moveDown = () => choiceRow("Status", "Ready").getByTestId("choice-move-down");
 
-      await moveDown().dblClick();
+      await clickMoveTwiceWhileSaving(moveDown(), store, "ReorderFieldChoices");
 
       await expect.element(choiceRows("Status").nth(1)).toHaveAccessibleName("Ready");
       await expect.element(moveDown()).not.toHaveAttribute("aria-disabled", "true");

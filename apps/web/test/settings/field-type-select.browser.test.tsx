@@ -36,11 +36,16 @@ async function openSettingsWithTextField(
   return app;
 }
 
-/** Focuses the closed type box and browses one entry down without committing. */
-async function focusClosedAndBrowseDown(steps = 1) {
+async function focusClosedTypeBox() {
   await typeBox().click();
+  await expect.element(page.getByRole("option", { name: "Text", exact: true })).toHaveFocus();
   await userEvent.keyboard("{Escape}");
   await expect.element(typeBox()).toHaveFocus();
+}
+
+/** Focuses the closed type box and browses without committing. */
+async function focusClosedAndBrowseDown(steps = 1) {
+  await focusClosedTypeBox();
   for (let i = 0; i < steps; i++) {
     await userEvent.keyboard("{ArrowDown}");
   }
@@ -68,9 +73,10 @@ describe("FieldTypeSelect", () => {
       const { store } = await openSettingsWithTextField(inProjectSettings);
 
       await typeBox().click();
-      await expect.element(page.getByRole("option", { name: "Text", exact: true })).toBeVisible();
+      await expect.element(page.getByRole("option", { name: "Text", exact: true })).toHaveFocus();
       await userEvent.keyboard("{ArrowDown}{ArrowDown}");
 
+      await expect.element(page.getByRole("option", { name: "Date", exact: true })).toHaveFocus();
       expect(store.customFields.fieldNamed("Effort").dataType).toBe("Text");
       expect(store.calls.filter((call) => call === "ChangeFieldType")).toHaveLength(0);
 
@@ -84,8 +90,7 @@ describe("FieldTypeSelect", () => {
 
   it("Typing a letter on a closed type box browses without saving until committed", async () => {
     const { store } = await openSettingsWithTextField(false);
-    await typeBox().click();
-    await userEvent.keyboard("{Escape}");
+    await focusClosedTypeBox();
 
     await userEvent.keyboard("d");
 
@@ -127,7 +132,7 @@ describe("FieldTypeSelect", () => {
     await expect.element(typeBox()).toHaveTextContent("Number");
 
     await typeBox().click();
-    await expect.element(page.getByRole("option", { name: "Number", exact: true })).toBeVisible();
+    await expect.element(page.getByRole("option", { name: "Number", exact: true })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
 
     await expect.element(typeBox()).toHaveTextContent("Text");
@@ -161,9 +166,7 @@ describe("FieldTypeSelect", () => {
 
   it("The wheel over a closed focused type box leaves scrolling to the page and keeps the type", async () => {
     const { store } = await openSettingsWithTextField(false);
-    await typeBox().click();
-    await userEvent.keyboard("{Escape}");
-    await expect.element(typeBox()).toHaveFocus();
+    await focusClosedTypeBox();
 
     const wheel = new WheelEvent("wheel", { deltaY: -120, bubbles: true, cancelable: true });
     const notCanceled = typeBox().element().dispatchEvent(wheel);
