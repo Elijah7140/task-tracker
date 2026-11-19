@@ -2,6 +2,7 @@ import { useAtomSet } from "@effect/atom-react";
 import { Exit } from "effect";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
 import { areaKey } from "../rpc/area-queries.js";
+import { HISTORY_KEY } from "../rpc/history-queries.js";
 import {
   createItemAtom,
   deleteItemAtom,
@@ -39,7 +40,7 @@ export interface ItemActionScope extends ItemStructureScope {
 
 function useCreateItemActions(scope: ItemActionScope) {
   const create = useAtomSet(createItemAtom, { mode: "promiseExit" });
-  const keys = [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
+  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
 
   const quickAdd = async (title: string): Promise<boolean> => {
     if (title.trim().length === 0) {
@@ -96,7 +97,7 @@ function useCreateItemActions(scope: ItemActionScope) {
 
 function useRenameItem(scope: ItemActionScope) {
   const edit = useAtomSet(editItemAtom, { mode: "promiseExit" });
-  const keys = [areaKey(scope.projectId, scope.folderId)];
+  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId)];
 
   return async (node: ItemNode) => {
     const title = await prompt({
@@ -156,7 +157,7 @@ type CompletionStep =
 
 function useSetCompletedStep(scope: ItemActionScope) {
   const setCompleted = useAtomSet(setItemCompletedAtom, { mode: "promiseExit" });
-  const keys = [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
+  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
 
   return async (
     node: ItemNode,
@@ -234,7 +235,7 @@ function useDeleteAndRestore(scope: ItemActionScope) {
     }
     const exit = await remove({
       payload: { projectId: scope.projectId, folderId: scope.folderId, itemId: node.item.id },
-      reactivityKeys: [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY],
+      reactivityKeys: [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY],
     });
     if ((await reportItemFailure(exit)) && Exit.isSuccess(exit)) {
       focusAfterDeparture(scope, node);
@@ -255,7 +256,7 @@ function useDeleteAndRestore(scope: ItemActionScope) {
         folderId: batch.folderId,
         batchId: batch.batchId,
       },
-      reactivityKeys: [areaKey(batch.projectId, batch.folderId), PROJECTS_KEY],
+      reactivityKeys: [HISTORY_KEY, areaKey(batch.projectId, batch.folderId), PROJECTS_KEY],
     });
     if (await reportItemFailure(exit)) {
       scope.onFocusItem({ id: batch.itemId, afterNodes: scope.items, fallbackIds: [] });

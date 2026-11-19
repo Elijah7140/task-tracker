@@ -1,4 +1,5 @@
 import type { Guid } from "@task-tracker/contracts";
+import { HISTORY_REPLAY_KEY } from "./history-queries.js";
 import { LOOKUPS_KEY } from "./lookup-queries.js";
 import { projectSettingsKey, SETTINGS_KEY } from "./settings-queries.js";
 import { TaskTrackerClient } from "./task-tracker-client.js";
@@ -19,6 +20,7 @@ export const areaAtom = (projectId: Id, folderId: Id | null) =>
     { projectId, folderId },
     {
       reactivityKeys: [
+        HISTORY_REPLAY_KEY,
         areaKey(projectId, folderId),
         SETTINGS_KEY,
         projectSettingsKey(projectId),

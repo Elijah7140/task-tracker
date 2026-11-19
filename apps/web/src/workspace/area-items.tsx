@@ -7,10 +7,17 @@ import { areaAtom, areaKey } from "../rpc/area-queries.js";
 import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
 import { urgencyRefreshAtom } from "../rpc/urgency-refresh.js";
 import { ItemEditor } from "../editor/item-editor.js";
+import { useWorkspaceStore } from "../state/workspace-store.js";
 import { useItemEditorStore } from "../state/item-editor-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import type { Folder } from "./folder-outline.js";
-import { EMPTY_SIBLINGS, findItemTitle, isEmptyLevel, type ItemSiblings } from "./item-outline.js";
+import {
+  EMPTY_SIBLINGS,
+  findItemNode,
+  findItemTitle,
+  isEmptyLevel,
+  type ItemSiblings,
+} from "./item-outline.js";
 import type { ItemRowLookups } from "./item-row.js";
 import { ItemTree } from "./item-tree.js";
 import { ItemUndoBanner } from "./item-undo-banner.js";
@@ -227,6 +234,33 @@ export function AreaItems(props: AreaItemsProps) {
   });
   const banner = useUndoBannerHandlers(deletedBatch, setDeletedBatch, actions.restoreBatch, focus);
   useWorkspaceShortcuts({ quickAddRef: focus.quickAddRef, items, addSubItem: actions.addSubItem });
+
+  const { quickAddRef } = focus;
+  const observedDeletion = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loaded) {
+      return;
+    }
+    const { selectedItemId, selectItem } = useWorkspaceStore.getState();
+    if (selectedItemId !== null && findItemNode(items, selectedItemId) === undefined) {
+      selectItem(null);
+      if (document.activeElement === document.body) {
+        quickAddRef.current?.focus();
+      }
+    }
+  }, [loaded, items, quickAddRef]);
+
+  useEffect(() => {
+    if (!loaded || deletedBatch === null) {
+      return;
+    }
+    // A delete can return before the area refresh removes its row.
+    if (findItemNode(items, deletedBatch.itemId) === undefined) {
+      observedDeletion.current = deletedBatch.batchId;
+    } else if (observedDeletion.current === deletedBatch.batchId) {
+      banner.dismiss();
+    }
+  }, [loaded, items, deletedBatch, banner]);
 
   // The editor belongs to this area; leaving the area closes it.
   useEffect(() => () => useItemEditorStore.getState().close(), []);

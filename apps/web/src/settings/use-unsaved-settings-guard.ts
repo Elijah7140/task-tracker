@@ -1,5 +1,6 @@
 import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useRef } from "react";
+import { UNSAVED_SETTINGS_UNDO_MESSAGE, useUndoBlocker } from "../shell/undo-blockers.js";
 import { confirm } from "../state/dialog-store.js";
 
 /**
@@ -8,6 +9,7 @@ import { confirm } from "../state/dialog-store.js";
  * leave without asking to discard.
  */
 export function useUnsavedSettingsGuard(isDirty: boolean, message: string) {
+  useUndoBlocker(isDirty, UNSAVED_SETTINGS_UNDO_MESSAGE);
   const dirtyRef = useRef(isDirty);
   dirtyRef.current = isDirty;
   const bypassedRef = useRef(false);

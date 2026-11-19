@@ -1,5 +1,6 @@
 import { Input } from "@base-ui/react/input";
 import { type FormEvent, useState } from "react";
+import { UNSAVED_SETTINGS_UNDO_MESSAGE, useUndoBlocker } from "../shell/undo-blockers.js";
 import { Button } from "../ui/button.js";
 
 /** Props for {@link AddChoiceForm}. */
@@ -16,6 +17,8 @@ export interface AddChoiceFormProps {
  */
 export function AddChoiceForm({ fieldName, onAdd }: AddChoiceFormProps) {
   const [label, setLabel] = useState("");
+
+  useUndoBlocker(label.trim() !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

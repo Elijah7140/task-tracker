@@ -1,5 +1,6 @@
 import { Input } from "@base-ui/react/input";
 import { type FormEvent, useState } from "react";
+import { UNSAVED_SETTINGS_UNDO_MESSAGE, useUndoBlocker } from "../shell/undo-blockers.js";
 import { Button } from "../ui/button.js";
 import { Select } from "../ui/select.js";
 import { FIELD_DATA_TYPE_OPTIONS, type FieldDataType } from "./field-data-types.js";
@@ -19,6 +20,8 @@ export interface AddFieldFormProps {
 export function AddFieldForm({ onCreate }: AddFieldFormProps) {
   const [name, setName] = useState("");
   const [dataType, setDataType] = useState<FieldDataType>("Text");
+
+  useUndoBlocker(name.trim() !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

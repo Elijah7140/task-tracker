@@ -9,6 +9,7 @@ import { checkRules } from "./check-rules.js";
 import type { itemCompletionOperations } from "./item-completion-operations.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
+import { type UndoService, undoLabel } from "./undo-service.js";
 
 const decodeId = Schema.decodeEffect(Guid);
 const decodeIds = Schema.decodeEffect(Schema.Array(Guid));
@@ -18,6 +19,7 @@ const decodeNullableId = Schema.decodeEffect(Schema.NullOr(Guid));
 export function itemStructureOperations(
   sql: SqlClient.SqlClient,
   completion: Pick<ReturnType<typeof itemCompletionOperations>, "planReconciliation" | "apply">,
+  undo: UndoService["Service"],
 ) {
   const projects = projectRepository(sql);
   const folders = folderRepository(sql);
@@ -72,6 +74,7 @@ export function itemStructureOperations(
       now: Temporal.Instant,
     ) => {
       result: A;
+      label: string;
       affectedParents: readonly (string | null)[];
     },
     includeDeleted: boolean = false,
@@ -79,8 +82,14 @@ export function itemStructureOperations(
     const tree = yield* loadAreaTree(projectId, folderId, includeDeleted);
     const original = new Map(tree.allRows.map((row) => [row.id, row]));
     const now = yield* operationTime;
-    const { result, affectedParents } = yield* checkRules(() => change(tree, now));
+    const { result, label, affectedParents } = yield* checkRules(() => change(tree, now));
     const applied = yield* completion.planReconciliation(tree, affectedParents, now);
+    yield* undo.capture(label, [
+      {
+        table: "TodoItem",
+        where: sql`ProjectId = ${tree.projectId} AND FolderId IS ${tree.folderId}`,
+      },
+    ]);
     yield* saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);
     return result;
@@ -96,21 +105,30 @@ export function itemStructureOperations(
     return yield* editTree(projectId, folderId, (tree, now) => {
       const row = createItem(newId(now), tree.projectId, tree.folderId, parent, title, now);
       tree.add(row, now);
-      return { result: tree.get(row.id), affectedParents: [parent] };
+      return {
+        result: tree.get(row.id),
+        label: undoLabel("Create", row.title),
+        affectedParents: [parent],
+      };
     });
-  }, sql.withTransaction);
+  }, undo.record);
 
   const reparent = Effect.fnUntraced(function* (
     projectId: string,
     folderId: string | null,
     id: string,
+    verb: string,
     change: (tree: ItemTree, id: string, now: Temporal.Instant) => void,
   ) {
     const key = yield* decodeId(id);
     yield* editTree(projectId, folderId, (tree, now) => {
-      const oldParent = tree.get(key).parentItemId;
+      const item = tree.get(key);
       change(tree, key, now);
-      return { result: undefined, affectedParents: [oldParent, tree.get(key).parentItemId] };
+      return {
+        result: undefined,
+        label: undoLabel(verb, item.title),
+        affectedParents: [item.parentItemId, tree.get(key).parentItemId],
+      };
     });
   });
 
@@ -121,17 +139,19 @@ export function itemStructureOperations(
     newParentId: string | null,
   ) {
     const parent = yield* decodeNullableId(newParentId);
-    yield* reparent(projectId, folderId, id, (tree, key, now) => tree.move(key, parent, now));
-  }, sql.withTransaction);
+    yield* reparent(projectId, folderId, id, "Move", (tree, key, now) =>
+      tree.move(key, parent, now),
+    );
+  }, undo.record);
 
   const indent = (projectId: string, folderId: string | null, id: string) =>
-    sql.withTransaction(
-      reparent(projectId, folderId, id, (tree, key, now) => tree.indent(key, now)),
+    undo.record(
+      reparent(projectId, folderId, id, "Indent", (tree, key, now) => tree.indent(key, now)),
     );
 
   const outdent = (projectId: string, folderId: string | null, id: string) =>
-    sql.withTransaction(
-      reparent(projectId, folderId, id, (tree, key, now) => tree.outdent(key, now)),
+    undo.record(
+      reparent(projectId, folderId, id, "Outdent", (tree, key, now) => tree.outdent(key, now)),
     );
 
   const moveToArea = Effect.fnUntraced(function* (
@@ -148,11 +168,19 @@ export function itemStructureOperations(
       [...source.allRows, ...destination.allRows].map((row) => [row.id, row]),
     );
     const now = yield* operationTime;
+    const item = yield* checkRules(() => source.get(key));
     // Only roots move between areas, so completion needs no reconciliation (§6.1).
     yield* checkRules(() => source.moveTopLevelTo(key, destination, now));
+    yield* undo.capture(undoLabel("Move", item.title), [
+      {
+        table: "TodoItem",
+        where: sql`ProjectId = ${source.projectId}
+        AND (FolderId IS ${source.folderId} OR FolderId IS ${destination.folderId})`,
+      },
+    ]);
     yield* saveStructure(source, original);
     yield* saveStructure(destination, original);
-  }, sql.withTransaction);
+  }, undo.record);
 
   const reorder = Effect.fnUntraced(function* (
     projectId: string,
@@ -164,9 +192,9 @@ export function itemStructureOperations(
     const order = yield* decodeIds(ids);
     yield* editTree(projectId, folderId, (tree, now) => {
       tree.reorder(parent, order, now);
-      return { result: undefined, affectedParents: [parent] };
+      return { result: undefined, label: "Reorder items", affectedParents: [parent] };
     });
-  }, sql.withTransaction);
+  }, undo.record);
 
   const deleteItem = Effect.fnUntraced(function* (
     projectId: string,
@@ -175,12 +203,16 @@ export function itemStructureOperations(
   ) {
     const key = yield* decodeId(id);
     return yield* editTree(projectId, folderId, (tree, now) => {
-      const parent = tree.get(key).parentItemId;
+      const item = tree.get(key);
       const batchId = newId(now);
       tree.deleteSubtree(key, batchId, now);
-      return { result: batchId, affectedParents: [parent] };
+      return {
+        result: batchId,
+        label: undoLabel("Delete", item.title),
+        affectedParents: [item.parentItemId],
+      };
     });
-  }, sql.withTransaction);
+  }, undo.record);
 
   const restore = Effect.fnUntraced(function* (
     projectId: string,
@@ -194,11 +226,15 @@ export function itemStructureOperations(
       (tree, now) => {
         const restored = tree.restoreBatch(batch, now);
         const affectedParents = restored.map((id) => tree.get(id).parentItemId);
-        return { result: undefined, affectedParents };
+        const restoredIds = new Set(restored);
+        const root = restored
+          .map((id) => tree.get(id))
+          .find((row) => !restoredIds.has(row.parentItemId ?? ""));
+        return { result: undefined, label: undoLabel("Restore", root!.title), affectedParents };
       },
       true,
     );
-  }, sql.withTransaction);
+  }, undo.record);
 
   return {
     create,

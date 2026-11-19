@@ -42,3 +42,4 @@ export { FieldValueInput, ItemFieldValue } from "./field-value.js";
 export { FieldRpcs } from "./field-rpcs.js";
 
 export { externalLinkAddress } from "./external-link-address.js";
+export { HistoryRpcs, HistoryStatus } from "./history-rpcs.js";

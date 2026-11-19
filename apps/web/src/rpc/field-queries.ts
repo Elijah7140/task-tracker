@@ -1,4 +1,5 @@
 import type { Guid } from "@task-tracker/contracts";
+import { HISTORY_REPLAY_KEY } from "./history-queries.js";
 import { TaskTrackerClient } from "./task-tracker-client.js";
 
 type Id = typeof Guid.Type;
@@ -35,18 +36,26 @@ export const choiceMutationKeys = (fieldId: Id): ReadonlyArray<string> => [
  * project ID lists global and that project's fields.
  */
 export const fieldsAtom = (projectId: Id | null) =>
-  TaskTrackerClient.query("ListFields", { projectId }, { reactivityKeys: [FIELDS_KEY] });
+  TaskTrackerClient.query(
+    "ListFields",
+    { projectId },
+    { reactivityKeys: [HISTORY_REPLAY_KEY, FIELDS_KEY] },
+  );
 
 /** Active global fields, then active project fields, each in saved order, for pickers. */
 export const effectiveFieldsAtom = (projectId: Id) =>
-  TaskTrackerClient.query("ListEffectiveFields", { projectId }, { reactivityKeys: [FIELDS_KEY] });
+  TaskTrackerClient.query(
+    "ListEffectiveFields",
+    { projectId },
+    { reactivityKeys: [HISTORY_REPLAY_KEY, FIELDS_KEY] },
+  );
 
 /** One field's choices, including archived ones, in saved order. */
 export const fieldChoicesAtom = (fieldId: Id) =>
   TaskTrackerClient.query(
     "ListFieldChoices",
     { fieldId },
-    { reactivityKeys: [FIELD_CHOICES_KEY, fieldChoicesKey(fieldId)] },
+    { reactivityKeys: [HISTORY_REPLAY_KEY, FIELD_CHOICES_KEY, fieldChoicesKey(fieldId)] },
   );
 
 /** One item's stored custom-field values. */
@@ -54,7 +63,7 @@ export const itemFieldValuesAtom = (itemId: Id) =>
   TaskTrackerClient.query(
     "LoadItemFieldValues",
     { itemId },
-    { reactivityKeys: [itemFieldValuesKey(itemId), FIELDS_KEY] },
+    { reactivityKeys: [HISTORY_REPLAY_KEY, itemFieldValuesKey(itemId), FIELDS_KEY] },
   );
 
 /** Creates a global or project field. */
