@@ -389,7 +389,7 @@ it.effect(
           choiceField.id,
           archivedField.id,
         ]);
-        expect(snapshot.items[0]?.item).toMatchObject({
+        expect(snapshot.items.open[0]?.item).toMatchObject({
           id: item.id,
           title: "Partial edit",
           updatedAtUtc: "2026-11-13T12:00:02Z",
@@ -557,7 +557,7 @@ it.effect(
         expect(deletedLoad).toMatchObject({ _tag: "NotFound", entity: "Item" });
         expect(deletedEdit).toMatchObject({ _tag: "NotFound", entity: "Item" });
         expect(Exit.isFailure(nonFinite)).toBe(true);
-        expect(areaAfter.items).toMatchObject([{ item: { id: item.id, title: "Original" } }]);
+        expect(areaAfter.items.open).toMatchObject([{ item: { id: item.id, title: "Original" } }]);
         expect(valuesAfter).toEqual([]);
       }),
     ),
@@ -626,7 +626,7 @@ it.effect(
             message: "The operation could not be completed.",
           }),
         );
-        expect(areaAfterFailure.items).toMatchObject([
+        expect(areaAfterFailure.items.open).toMatchObject([
           { item: { id: item.id, title: "Original" } },
         ]);
         expect(valuesAfterFailure).toEqual([
@@ -649,7 +649,9 @@ it.effect(
             choiceId: null,
           },
         ]);
-        expect(areaAfterRetry.items).toMatchObject([{ item: { id: item.id, title: "Changed" } }]);
+        expect(areaAfterRetry.items.open).toMatchObject([
+          { item: { id: item.id, title: "Changed" } },
+        ]);
         expect(valuesAfterRetry).toEqual([
           {
             itemId: item.id,

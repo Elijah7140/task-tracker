@@ -19,7 +19,8 @@ import {
   findItemNode,
   type ItemFocusRequest,
   type ItemNode,
-  splitFinished,
+  type ItemSiblings,
+  isEmptyLevel,
 } from "./item-outline.js";
 import { ItemRow, type ItemRowLookups } from "./item-row.js";
 import type { ItemActions } from "./use-item-actions.js";
@@ -31,7 +32,7 @@ const COMPLETED_PREFIX = "completed:";
 const completedNodeId = (sectionKey: string) => `${COMPLETED_PREFIX}${sectionKey}`;
 
 interface TreeContext {
-  readonly allNodes: ReadonlyArray<ItemNode>;
+  readonly allNodes: ItemSiblings;
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
   readonly hasFolders: boolean;
@@ -130,7 +131,7 @@ function SubItems({
   readonly depth: number;
   readonly context: TreeContext;
 }) {
-  const { open, finished } = splitFinished(node.children);
+  const { open, finished } = node.children;
   return (
     <ul role="group" className={treeStyles.group}>
       {open.map((child) => (
@@ -159,7 +160,7 @@ function ItemBranch({
   readonly context: TreeContext;
 }) {
   const { id } = node.item;
-  const hasChildren = node.children.length > 0;
+  const hasChildren = !isEmptyLevel(node.children);
   const expanded = hasChildren && context.expandedItems.has(id);
   const selected = context.selectedItemId === id;
   const dropIndicator = context.dragState?.targetId === id ? context.dragState.placement : null;
@@ -200,7 +201,7 @@ function ItemBranch({
 }
 
 function visibleNodeIds(
-  nodes: ReadonlyArray<ItemNode>,
+  nodes: ItemSiblings,
   areaSectionKey: string,
   state: Pick<TreeContext, "expandedItems" | "expandedCompleted">,
 ) {
@@ -211,8 +212,7 @@ function visibleNodeIds(
       finished.forEach(visitItem);
     }
   };
-  const visitSiblings = (siblings: ReadonlyArray<ItemNode>, sectionKey: string) => {
-    const { open, finished } = splitFinished(siblings);
+  const visitSiblings = ({ open, finished }: ItemSiblings, sectionKey: string) => {
     open.forEach(visitItem);
     if (finished.length > 0) {
       visitSection(sectionKey, finished);
@@ -274,7 +274,7 @@ function handleRowKey(
 }
 
 function itemKeyHandler(
-  nodes: ReadonlyArray<ItemNode>,
+  nodes: ItemSiblings,
   actions: ItemActions,
   expandedCompleted: ReadonlySet<string>,
   onExpandedChange: (nodeId: string, expanded: boolean) => void,
@@ -297,7 +297,7 @@ function itemKeyHandler(
 /** Props for {@link ItemTree}. */
 export interface ItemTreeProps {
   readonly label: string;
-  readonly nodes: ReadonlyArray<ItemNode>;
+  readonly nodes: ItemSiblings;
   /** Keys the area's Completed section, so its expansion is per area. */
   readonly sectionKey: string;
   readonly lookups: ItemRowLookups;
@@ -317,7 +317,7 @@ function useTreeState() {
   return { store, onExpandedChange };
 }
 
-function isFocusReady(nodes: ReadonlyArray<ItemNode>, request: ItemFocusRequest): boolean {
+function isFocusReady(nodes: ItemSiblings, request: ItemFocusRequest): boolean {
   if (
     request.expectedParentId !== undefined &&
     findItemNode(nodes, request.id)?.item.parentItemId !== request.expectedParentId
@@ -348,7 +348,7 @@ export function ItemTree({
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const { store, onExpandedChange } = useTreeState();
   const visible = visibleNodeIds(nodes, sectionKey, store);
-  const { open, finished } = splitFinished(nodes);
+  const { open, finished } = nodes;
   const firstId = open[0]?.item.id ?? (finished.length > 0 ? completedNodeId(sectionKey) : null);
   const selected = store.selectedItemId;
   const roving = useRovingFocus(

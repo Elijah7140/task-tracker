@@ -149,6 +149,29 @@ describe("Item actions and reorder", () => {
     await expect.element(row("Leaf task")).toBeVisible();
   });
 
+  it("Returns a reopened item to its previous place among open siblings", async () => {
+    await openRoot([
+      {
+        name: "Billing DB",
+        items: [
+          { title: "First" },
+          { title: "Middle", completedAtUtc: "2026-11-12T10:00:00Z" },
+          { title: "Last" },
+        ],
+      },
+    ]);
+    await itemsTree().getByTestId("completed-section-toggle").first().click();
+    await focusRow("Middle");
+
+    await userEvent.keyboard(" ");
+
+    await expect.element(itemsTree().getByTestId("completed-section")).not.toBeInTheDocument();
+    const rows = itemsTree().getByTestId("item-tree-item");
+    await expect.element(rows.nth(0)).toHaveAccessibleName("First");
+    await expect.element(rows.nth(1)).toHaveAccessibleName("Middle");
+    await expect.element(rows.nth(2)).toHaveAccessibleName("Last");
+  });
+
   it("Asks before completing a parent with open sub-items and obeys Cancel and Complete", async () => {
     await openRoot([
       {

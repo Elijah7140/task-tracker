@@ -10,7 +10,13 @@ import { dialogStore } from "../state/dialog-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import type { Folder } from "./folder-outline.js";
-import { findItemNode, findItemTitle, type ItemFocusRequest } from "./item-outline.js";
+import {
+  EMPTY_SIBLINGS,
+  findItemNode,
+  findItemTitle,
+  isEmptyLevel,
+  type ItemFocusRequest,
+} from "./item-outline.js";
 import type { ItemRowLookups } from "./item-row.js";
 import { ItemTree } from "./item-tree.js";
 import { ItemUndoBanner } from "./item-undo-banner.js";
@@ -90,7 +96,8 @@ export function AreaItems({
     readonly waitForNonEmpty: boolean;
   } | null>(null);
   const [deletedBatch, setDeletedBatch] = useState<DeletedItemNotice | null>(null);
-  const items = AsyncResult.isSuccess(area) ? area.value.items : [];
+  const items = AsyncResult.isSuccess(area) ? area.value.items : EMPTY_SIBLINGS;
+  const areaIsEmpty = isEmptyLevel(items);
 
   const clearPendingFocus = useCallback(() => setPendingFocus(null), []);
   const actions = useItemActions({
@@ -110,17 +117,14 @@ export function AreaItems({
   latestActionsRef.current = actions;
 
   useEffect(() => {
-    if (
-      pendingQuickAddFocus === null ||
-      (pendingQuickAddFocus.waitForNonEmpty && items.length === 0)
-    ) {
+    if (pendingQuickAddFocus === null || (pendingQuickAddFocus.waitForNonEmpty && areaIsEmpty)) {
       return;
     }
     if (quickAddRef.current !== null) {
       quickAddRef.current.focus();
       setPendingQuickAddFocus(null);
     }
-  }, [pendingQuickAddFocus, items.length]);
+  }, [pendingQuickAddFocus, areaIsEmpty]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -148,7 +152,7 @@ export function AreaItems({
   }, []);
 
   const handleQuickAdd = async (title: string) => {
-    const waitForNonEmpty = items.length === 0;
+    const waitForNonEmpty = areaIsEmpty;
     const created = await actions.quickAdd(title);
     if (created) {
       setPendingQuickAddFocus({ waitForNonEmpty });
@@ -170,7 +174,7 @@ export function AreaItems({
           />
         ),
         onSuccess: ({ value }) =>
-          value.items.length === 0 ? (
+          isEmptyLevel(value.items) ? (
             <div className="flex flex-col gap-3">
               {quickAdd}
               <EmptyArea />

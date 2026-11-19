@@ -4,7 +4,11 @@ import type {
   ItemEdit as DomainItemEdit,
   TodoItem,
 } from "@task-tracker/core";
-import type { AreaSnapshot as DomainAreaSnapshot, ItemNode } from "../services/area-snapshot.js";
+import type {
+  AreaSnapshot as DomainAreaSnapshot,
+  ItemNode,
+  ItemSiblings,
+} from "../services/area-snapshot.js";
 import { projectEffectiveSettings } from "./settings-projection.js";
 
 /** Parse the schema-validated floating strings for the domain without resolving a time zone. */
@@ -35,17 +39,25 @@ export function projectItem(item: TodoItem): typeof Item.Type {
   };
 }
 
-type WireItemNode = (typeof AreaSnapshot.Type)["items"][number];
+type WireItemSiblings = (typeof AreaSnapshot.Type)["items"];
+type WireItemNode = WireItemSiblings["open"][number];
 
 function projectItemNode(node: ItemNode): WireItemNode {
-  return { ...node, item: projectItem(node.item), children: node.children.map(projectItemNode) };
+  return { ...node, item: projectItem(node.item), children: projectSiblings(node.children) };
+}
+
+function projectSiblings(siblings: ItemSiblings): WireItemSiblings {
+  return {
+    open: siblings.open.map(projectItemNode),
+    finished: siblings.finished.map(projectItemNode),
+  };
 }
 
 /** Convert an area's item tree and resolved settings to JSON-safe values. */
 export function projectArea(snapshot: DomainAreaSnapshot): typeof AreaSnapshot.Type {
   return {
     ...snapshot,
-    items: snapshot.items.map(projectItemNode),
+    items: projectSiblings(snapshot.items),
     settings: projectEffectiveSettings(snapshot.settings),
   };
 }

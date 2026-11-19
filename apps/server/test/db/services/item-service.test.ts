@@ -68,7 +68,7 @@ it.effect("The next operation reads committed item changes", () =>
       yield* items.edit(item.id, edit("Updated"));
       const saved = yield* snapshot();
 
-      expect(saved.items).toMatchObject([{ item: { title: "Updated" } }]);
+      expect(saved.items.open).toMatchObject([{ item: { title: "Updated" } }]);
     }),
   ),
 );
@@ -90,18 +90,76 @@ it.effect("The area marks finished branches and attributes rolled-up urgency", (
 
       const saved = yield* snapshot();
 
-      expect(saved.items).toMatchObject([
-        {
-          item: { id: openRoot.id },
-          isFinished: false,
-          displayedUrgency: { value: "Overdue", sourceDescendantId: openChild.id },
-          children: [
-            { item: { id: openChild.id }, isFinished: false },
-            { item: { id: finishedChild.id }, isFinished: true },
-          ],
-        },
-        { item: { id: finishedRoot.id }, isFinished: true },
-      ]);
+      expect(saved.items).toMatchObject({
+        open: [
+          {
+            item: { id: openRoot.id },
+            isFinished: false,
+            displayedUrgency: { value: "Overdue", sourceDescendantId: openChild.id },
+            children: {
+              open: [{ item: { id: openChild.id }, isFinished: false }],
+              finished: [{ item: { id: finishedChild.id }, isFinished: true }],
+            },
+          },
+        ],
+        finished: [{ item: { id: finishedRoot.id }, isFinished: true }],
+      });
+    }),
+  ),
+);
+
+const titles = (nodes: ReadonlyArray<{ readonly item: { readonly title: string } }>) =>
+  nodes.map(({ item }) => item.title);
+
+it.effect("Finished roots show newest completed first with ties in sibling order", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, complete, snapshot } = yield* setup;
+      const first = yield* root("First");
+      const second = yield* root("Second");
+      yield* root("Third");
+      const fourth = yield* root("Fourth");
+      yield* complete(second.id);
+      yield* TestClock.adjust("1 minute");
+      yield* complete(fourth.id);
+      yield* complete(first.id);
+
+      const finished = yield* snapshot();
+      yield* complete(fourth.id, false);
+      const reopened = yield* snapshot();
+
+      expect(titles(finished.items.open)).toEqual(["Third"]);
+      expect(titles(finished.items.finished)).toEqual(["First", "Fourth", "Second"]);
+      expect(titles(reopened.items.open)).toEqual(["Third", "Fourth"]);
+      expect(titles(reopened.items.finished)).toEqual(["First", "Second"]);
+    }),
+  ),
+);
+
+it.effect("Finished sub-items show newest completed first with ties in sibling order", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { root, child, complete, snapshot } = yield* setup;
+      const parent = yield* root("Parent");
+      const first = yield* child(parent.id, "First");
+      const second = yield* child(parent.id, "Second");
+      yield* child(parent.id, "Third");
+      const fourth = yield* child(parent.id, "Fourth");
+      yield* complete(fourth.id);
+      yield* TestClock.adjust("1 minute");
+      yield* complete(second.id);
+      yield* complete(first.id);
+
+      const finished = yield* snapshot();
+      yield* complete(second.id, false);
+      const reopened = yield* snapshot();
+
+      const finishedChildren = finished.items.open[0]!.children;
+      const reopenedChildren = reopened.items.open[0]!.children;
+      expect(titles(finishedChildren.open)).toEqual(["Third"]);
+      expect(titles(finishedChildren.finished)).toEqual(["First", "Second", "Fourth"]);
+      expect(titles(reopenedChildren.open)).toEqual(["Second", "Third"]);
+      expect(titles(reopenedChildren.finished)).toEqual(["First", "Fourth"]);
     }),
   ),
 );
@@ -122,7 +180,7 @@ it.effect("A rejected edit leaves the item unchanged after a later project renam
       const saved = yield* snapshot();
 
       expect(error.message).toMatch(/due/i);
-      expect(saved.items).toMatchObject([{ item: { title: "Original item" } }]);
+      expect(saved.items.open).toMatchObject([{ item: { title: "Original item" } }]);
       expect(yield* projects.list()).toMatchObject([{ project: { name: "Renamed project" } }]);
     }),
   ),
@@ -140,7 +198,7 @@ it.effect("Moving a root under another item keeps the root order contiguous afte
       const fourth = yield* root("D");
       const saved = yield* snapshot();
 
-      expect(saved.items.map(({ item }) => [item.id, item.sortOrder])).toEqual([
+      expect(saved.items.open.map(({ item }) => [item.id, item.sortOrder])).toEqual([
         [second.id, 0],
         [third.id, 1],
         [fourth.id, 2],
@@ -164,8 +222,8 @@ it.effect("Indent and move reopen a completed destination parent", () =>
       yield* items.move(id, null, open.id, parent.id);
       const moved = yield* snapshot();
 
-      expect(indented.items[0]?.item.completedAtUtc).toBeNull();
-      expect(moved.items[0]?.item.completedAtUtc).toBeNull();
+      expect(indented.items.open[0]?.item.completedAtUtc).toBeNull();
+      expect(moved.items.open[0]?.item.completedAtUtc).toBeNull();
     }),
   ),
 );
@@ -188,15 +246,21 @@ it.effect("Completion previews and blocked reopen requests persist no changes", 
         openSubItemCount: 1,
         openSubItemIds: [leaf.id],
       });
-      expect(unchanged.items).toMatchObject([
-        { item: { completedAtUtc: null }, children: [{ item: { completedAtUtc: null } }] },
+      expect(unchanged.items.open).toMatchObject([
+        {
+          item: { completedAtUtc: null },
+          children: { open: [{ item: { completedAtUtc: null } }] },
+        },
       ]);
       expect(blocked).toEqual({
         kind: "blocked",
         reason: "Reopen a sub-item instead, or add a new one.",
       });
-      expect(saved.items).toMatchObject([
-        { item: { completedAtUtc: now }, children: [{ item: { completedAtUtc: now } }] },
+      expect(saved.items.finished).toMatchObject([
+        {
+          item: { completedAtUtc: now },
+          children: { finished: [{ item: { completedAtUtc: now } }] },
+        },
       ]);
     }),
   ),
@@ -212,7 +276,7 @@ it.effect("Completing the last child persists completion on its parent", () =>
       yield* complete(leaf.id);
       const saved = yield* snapshot();
 
-      expect(saved.items[0]?.item.completedAtUtc?.toString()).toBe(now.toString());
+      expect(saved.items.finished[0]?.item.completedAtUtc?.toString()).toBe(now.toString());
     }),
   ),
 );
@@ -230,13 +294,17 @@ it.effect("Moving a root to another area carries deleted descendants for later r
       yield* items.restore(id, area.id, batch);
       const restored = yield* items.loadArea(id, area.id);
 
-      expect(yield* snapshot()).toMatchObject({ items: [] });
-      expect(restored.items).toMatchObject([
+      expect((yield* snapshot()).items).toEqual({ open: [], finished: [] });
+      expect(restored.items.open).toMatchObject([
         {
           item: { id: parent.id, folderId: area.id },
-          children: [
-            { item: { id: leaf.id, folderId: area.id, deletedAtUtc: null, deletionBatchId: null } },
-          ],
+          children: {
+            open: [
+              {
+                item: { id: leaf.id, folderId: area.id, deletedAtUtc: null, deletionBatchId: null },
+              },
+            ],
+          },
         },
       ]);
     }),
@@ -266,7 +334,7 @@ it.effect("Editing built-in fields round-trips floating values and UTC timestamp
       yield* items.edit(item.id, { ...fields, itemTypeId: type.id.toLowerCase() });
       const saved = yield* snapshot();
 
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         {
           item: {
             ...fields,
@@ -275,7 +343,7 @@ it.effect("Editing built-in fields round-trips floating values and UTC timestamp
           },
         },
       ]);
-      const stored = saved.items[0]?.item;
+      const stored = saved.items.open[0]?.item;
       expect(stored?.dueDate?.toString()).toBe("2026-11-14");
       expect(stored?.dueTime?.toString()).toBe("17:45:00.1234567");
       expect(stored?.scheduledStart?.toString()).toBe("2026-11-14T09:30:00.1234567");
@@ -304,16 +372,21 @@ it.effect("Confirmed completion and reopening cascade across three levels", () =
       yield* complete(leaf.id, false);
       const reopened = yield* snapshot();
 
-      expect(beforeApproval.items[0]?.isFinished).toBe(false);
-      expect(finished.items[0]?.isFinished).toBe(true);
-      expect(finished.items[0]?.item.completedAtUtc?.toString()).toBe(now.toString());
+      expect(beforeApproval.items.open[0]?.isFinished).toBe(false);
+      expect(finished.items.finished[0]?.isFinished).toBe(true);
+      expect(finished.items.finished[0]?.item.completedAtUtc?.toString()).toBe(now.toString());
       expect(blocked.kind).toBe("blocked");
-      expect(reopened.items).toMatchObject([
+      expect(reopened.items.open).toMatchObject([
         {
           item: { completedAtUtc: null },
-          children: [
-            { item: { completedAtUtc: null }, children: [{ item: { completedAtUtc: null } }] },
-          ],
+          children: {
+            open: [
+              {
+                item: { completedAtUtc: null },
+                children: { open: [{ item: { completedAtUtc: null } }] },
+              },
+            ],
+          },
         },
       ]);
     }),
@@ -334,8 +407,8 @@ it.effect("Deleting and restoring an open child reconciles the parent", () =>
       yield* items.restore(id, null, batch);
       const restored = yield* snapshot();
 
-      expect(deleted.items[0]?.item.completedAtUtc?.toString()).toBe(now.toString());
-      expect(restored.items[0]?.item.completedAtUtc).toBeNull();
+      expect(deleted.items.finished[0]?.item.completedAtUtc?.toString()).toBe(now.toString());
+      expect(restored.items.open[0]?.item.completedAtUtc).toBeNull();
     }),
   ),
 );
@@ -355,11 +428,11 @@ it.effect("An area includes active children, lookups, settings and descendant ur
 
       const saved = yield* snapshot();
 
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         {
           item: { id: parent.id },
           displayedUrgency: { value: "Overdue", sourceDescendantId: leaf.id },
-          children: [{ item: { id: leaf.id } }],
+          children: { open: [{ item: { id: leaf.id } }] },
         },
       ]);
       expect(saved.itemTypes).toHaveLength(3);
@@ -384,12 +457,12 @@ it.effect("Move, indent, outdent and reorder persist parent and order", () =>
       yield* items.reorder(id, null, null, [second.id, first.id]);
       const saved = yield* snapshot();
 
-      expect(indented.items[0]?.children[0]?.item.parentItemId).toBe(first.id);
-      expect(saved.items).toMatchObject([
+      expect(indented.items.open[0]?.children.open[0]?.item.parentItemId).toBe(first.id);
+      expect(saved.items.open).toMatchObject([
         { item: { id: second.id, parentItemId: null, sortOrder: 0 } },
         {
           item: { id: first.id, sortOrder: 1 },
-          children: [{ item: { id: third.id, parentItemId: first.id } }],
+          children: { open: [{ item: { id: third.id, parentItemId: first.id } }] },
         },
       ]);
     }),
@@ -418,8 +491,11 @@ it.effect(
           openSubItemCount: 1,
           openSubItemIds: [replacement.id],
         });
-        expect(saved.items).toMatchObject([
-          { item: { completedAtUtc: null }, children: [{ item: { completedAtUtc: null } }] },
+        expect(saved.items.open).toMatchObject([
+          {
+            item: { completedAtUtc: null },
+            children: { open: [{ item: { completedAtUtc: null } }] },
+          },
         ]);
       }),
     ),
@@ -443,8 +519,11 @@ it.effect("A failed completion write rolls back all completion timestamps", () =
       const saved = yield* snapshot();
 
       expect(error.message).toContain("second completion failed");
-      expect(saved.items).toMatchObject([
-        { item: { completedAtUtc: null }, children: [{ item: { completedAtUtc: null } }] },
+      expect(saved.items.open).toMatchObject([
+        {
+          item: { completedAtUtc: null },
+          children: { open: [{ item: { completedAtUtc: null } }] },
+        },
       ]);
     }),
   ),
@@ -468,13 +547,13 @@ it.effect("A failed ancestor completion rolls back the deletion and sibling orde
       const rows = yield* readItems();
 
       expect(error.message).toContain("parent completion failed");
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         {
           item: { completedAtUtc: null },
-          children: [
-            { item: { id: open.id, sortOrder: 0 } },
-            { item: { id: done.id, sortOrder: 1 } },
-          ],
+          children: {
+            open: [{ item: { id: open.id, sortOrder: 0 } }],
+            finished: [{ item: { id: done.id, sortOrder: 1 } }],
+          },
         },
       ]);
       expect(rows.find((row) => row.Id === open.id)).toMatchObject({
@@ -509,7 +588,9 @@ it.effect(
         expect(rows.find((row) => row.Id === current.id)).toMatchObject({
           DeletionBatchId: parentBatch,
         });
-        expect(saved.items).toMatchObject([{ children: [{ item: { id: current.id } }] }]);
+        expect(saved.items.open).toMatchObject([
+          { children: { open: [{ item: { id: current.id } }] } },
+        ]);
       }),
     ),
 );
@@ -528,11 +609,11 @@ it.effect(
         const saved = yield* snapshot();
 
         expect(result.kind).toBe("applied");
-        expect(saved.items).toMatchObject([
+        expect(saved.items.open).toMatchObject([
           {
             item: { completedAtUtc: now },
             isFinished: false,
-            children: [{ item: { id: leaf.id, completedAtUtc: null } }],
+            children: { open: [{ item: { id: leaf.id, completedAtUtc: null } }] },
           },
         ]);
       }),
@@ -560,11 +641,13 @@ it.effect("A failed descendant relocation rolls back the move and both sibling o
       const rows = yield* readItems();
 
       expect(error.message).toContain("descendant move failed");
-      expect(source.items).toMatchObject([
+      expect(source.items.open).toMatchObject([
         { item: { id: parent.id, folderId: null, sortOrder: 0 } },
         { item: { id: remaining.id, folderId: null, sortOrder: 1 } },
       ]);
-      expect(destination.items).toMatchObject([{ item: { id: destinationRoot.id, sortOrder: 0 } }]);
+      expect(destination.items.open).toMatchObject([
+        { item: { id: destinationRoot.id, sortOrder: 0 } },
+      ]);
       expect(rows.find((row) => row.Id === leaf.id)).toMatchObject({
         FolderId: null,
         DeletionBatchId: deleted,
@@ -588,19 +671,23 @@ it.effect("Reparenting the last open child reconciles both sides of a shared anc
       yield* items.move(id, null, open.id, destination.id);
       const saved = yield* snapshot();
 
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         {
           item: { id: ancestor.id, completedAtUtc: null },
-          children: [
-            { item: { id: source.id }, isFinished: true },
-            {
-              item: { id: destination.id, completedAtUtc: null },
-              children: [{ item: { id: open.id, completedAtUtc: null } }],
-            },
-          ],
+          children: {
+            open: [
+              {
+                item: { id: destination.id, completedAtUtc: null },
+                children: { open: [{ item: { id: open.id, completedAtUtc: null } }] },
+              },
+            ],
+            finished: [{ item: { id: source.id }, isFinished: true }],
+          },
         },
       ]);
-      expect(saved.items[0]?.children[0]?.item.completedAtUtc?.toString()).toBe(now.toString());
+      expect(saved.items.open[0]?.children.finished[0]?.item.completedAtUtc?.toString()).toBe(
+        now.toString(),
+      );
     }),
   ),
 );
@@ -615,7 +702,7 @@ it.effect("Passing another item as edit fields updates only the requested item",
       yield* items.edit(target.id, { ...template, title: "Copied" });
       const saved = yield* snapshot();
 
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         { item: { id: target.id, title: "Copied" } },
         { item: { id: template.id, title: "Template" } },
       ]);
@@ -638,7 +725,7 @@ it.effect("An invalid custom value leaves the built-in edit unsaved", () =>
       const values = yield* items.loadFieldValues(item.id);
 
       expect(error.message).toContain("finite");
-      expect(saved.items).toMatchObject([{ item: { title: "Original" } }]);
+      expect(saved.items.open).toMatchObject([{ item: { title: "Original" } }]);
       expect(values).toEqual([]);
     }),
   ),
@@ -664,7 +751,7 @@ it.effect("An unchanged archived choice keeps its value through an item edit", (
       const saved = yield* snapshot();
 
       expect(values).toMatchObject([{ choiceId: choice.id }]);
-      expect(saved.items).toMatchObject([{ item: { title: "Changed" } }]);
+      expect(saved.items.open).toMatchObject([{ item: { title: "Changed" } }]);
     }),
   ),
 );
@@ -815,7 +902,7 @@ it.effect("A rejected custom edit does not leak into the next successful operati
       const saved = yield* snapshot();
 
       expect(error).toBeInstanceOf(MetadataRuleError);
-      expect(saved.items).toMatchObject([
+      expect(saved.items.open).toMatchObject([
         { item: { title: "Original" } },
         { item: { title: "Later" } },
       ]);
@@ -852,7 +939,7 @@ it.effect("An item value edit waits and validates against a concurrent definitio
       const saved = yield* snapshot();
 
       expect(error.message).toContain("matching the field type");
-      expect(saved.items).toMatchObject([{ item: { title: "Original" } }]);
+      expect(saved.items.open).toMatchObject([{ item: { title: "Original" } }]);
       expect(yield* fields.listAll(null)).toEqual([{ ...field, dataType: "Number" }]);
       expect(yield* items.loadFieldValues(item.id)).toEqual([]);
     }),
@@ -888,7 +975,7 @@ it.effect("A failed SQL value write rolls back the title and all custom value ch
       const saved = yield* snapshot();
 
       expect(error.message).toContain("value write failed");
-      expect(saved.items).toMatchObject([{ item: { title: "Original" } }]);
+      expect(saved.items.open).toMatchObject([{ item: { title: "Original" } }]);
       expect(yield* items.loadFieldValues(item.id)).toEqual(originalValues);
     }),
   ),
