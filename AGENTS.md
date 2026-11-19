@@ -4,6 +4,15 @@ Read [docs/PLAN.md](docs/PLAN.md) before changing anything. It defines product s
 business rules and architecture. For the stack pivot, read the assigned work package
 in [docs/MIGRATION.md](docs/MIGRATION.md).
 
+## Roles
+
+- **Owner** sets scope, makes product decisions and reviews the app hands-on (§11.1).
+- **Project lead** plans work, briefs delegates, reviews their changes and owns PR
+  integration. Review and commit Linux snapshots from a Linux run.
+- **Subagents and delegates** implement, test and report on the assigned brief.
+  Commit when the brief requests commits. The project lead handles branch pushes
+  and merges unless the owner delegates those explicitly.
+
 ## Commands
 
 Use the Node 26 and pnpm 12 versions pinned in `.node-version` and `package.json`.
@@ -24,6 +33,10 @@ Both `vp check --help` and `vp lint --help` list `--deny-warnings`. On headless
 Linux, run the Electron runtime check with `xvfb-run -a` after building.
 Once desktop packaging lands, run `pnpm run package:desktop` before
 `pnpm run test:desktop`.
+
+On Linux, source `scripts/dev-env.sh` for user-local GTK. Before pushing, run the
+local TypeScript gate in [docs/CI.md](docs/CI.md) for any OS without an enabled
+self-hosted runner. GitHub-hosted CI requires the owner's request.
 
 ## Code
 
@@ -50,6 +63,10 @@ resulting write. Commit once on success and roll back the entire write on failur
 or interruption. Read persisted results through a fresh operation in tests.
 Treat confirmation as a new request and revalidate before applying it.
 
+When a migration rebuilds `TodoItem` after FTS lands, recreate the search triggers
+and reconcile `TodoItemSearchRow` and `TodoItemSearch`. Verify the resulting schema
+and index behavior in SQLite tests (§7.2).
+
 ## Tests
 
 - Use Vitest and `@effect/vitest`. Keep one test file per unit under test, mirroring
@@ -61,6 +78,10 @@ Treat confirmation as a new request and revalidate before applying it.
   input. Give interactive controls accessible names and stable `data-testid`
   identifiers. Review screenshot baselines for new or changed screens. Add a
   regression test for each bug found by hand.
+
+Review baselines on their respective operating systems. For Linux changes the
+project lead reviews the `browser-screenshot-diffs-linux` CI artifact or the
+received images from a Linux test run.
 
 ## Subagents
 

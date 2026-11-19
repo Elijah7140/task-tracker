@@ -1,0 +1,17 @@
+# Starts the Task Tracker CI runner (docs/CI.md):
+#   RUNNER_TOKEN=<registration token> docker compose up -d --build
+services:
+  runner:
+    build: .
+    hostname: tasktracker-linux-runner
+    restart: unless-stopped
+    environment:
+      RUNNER_URL: ${RUNNER_URL:-https://github.com/Elijah7140/task-tracker}
+      RUNNER_TOKEN: ${RUNNER_TOKEN:-}
+      RUNNER_NAME: ${RUNNER_NAME:-tasktracker-linux-runner}
+    volumes:
+      # Keep registration, runner updates and the job workspace across restarts.
+      - runner:/home/runner/actions-runner
+
+volumes:
+  runner:

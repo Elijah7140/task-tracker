@@ -1,0 +1,77 @@
+name: Workspace build and test
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+
+jobs:
+  workspace-build-and-test:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium and Linux browser dependencies
+        if: runner.os == 'Linux'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Chromium on Windows
+        if: runner.os == 'Windows'
+        run: pnpm exec playwright install chromium
+      - run: pnpm run build
+      - run: pnpm exec vp check --deny-warnings
+      - name: Verify the Vite renderer responds
+        shell: bash
+        run: |
+          pnpm --filter @task-tracker/web dev --host 127.0.0.1 --port 5173 --strictPort &
+          dev_pid=$!
+          trap 'kill "$dev_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 \
+            --output /dev/null http://127.0.0.1:5173/
+      - run: pnpm exec vp test run
+      - name: Run SQLite tests under the Electron runtime
+        run: pnpm run test:server-db:electron
+      - name: Verify Electron runtime on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm run check:electron
+      - name: Verify Electron runtime on Windows
+        if: runner.os == 'Windows'
+        run: pnpm run check:electron
+      - run: pnpm run package:desktop
+      - name: Run packaged desktop smoke on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sandbox=apps/desktop/dist/package/linux-unpacked/chrome-sandbox
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+          xvfb-run -a pnpm run test:desktop
+      - name: Run packaged desktop smoke on Windows
+        if: runner.os == 'Windows'
+        run: pnpm run test:desktop
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ inputs.platform }}-x64
+          path: |
+            apps/desktop/dist/package/*.AppImage
+            apps/desktop/dist/package/*.exe
+          if-no-files-found: error
+      - name: Upload differing browser screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshot-diffs-${{ inputs.platform }}
+          path: |
+            .vitest/attachments/**/*.png
+            test-results/**/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
