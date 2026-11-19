@@ -2,11 +2,15 @@ import type {
   FieldChoiceProjection,
   ItemTypeProjection,
   PriorityLevelProjection,
+  StatusProjection,
 } from "@task-tracker/contracts";
 import type { SelectOption } from "../ui/select.js";
 
 type Choice = typeof FieldChoiceProjection.Type;
-type Lookup = typeof ItemTypeProjection.Type | typeof PriorityLevelProjection.Type;
+type Lookup =
+  | typeof ItemTypeProjection.Type
+  | typeof PriorityLevelProjection.Type
+  | typeof StatusProjection.Type;
 
 /** The dropdown value that stands for "no value", since dropdown values are strings. */
 export const NONE_VALUE = "none";

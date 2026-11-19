@@ -148,3 +148,46 @@ it.effect("Adds, numbers and lists priority labels independently of rank", () =>
     }),
   ),
 );
+
+it.effect("Manages workflow statuses and returns their rule failures as rule violations", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const seeded = yield* client.ListStatuses();
+      const completed = seeded.find(({ kind }) => kind === "Done")!;
+
+      const released = yield* client.AddStatus({ name: " Released ", kind: "Done" });
+      yield* client.RenameStatus({ id: released.id.toLowerCase(), name: "Shipped" });
+      yield* client.ReorderStatuses({ ids: [released.id, ...seeded.map(({ id }) => id)] });
+      yield* client.ArchiveStatus({ id: completed.id });
+      const lastDone = yield* Effect.flip(client.ArchiveStatus({ id: released.id }));
+      yield* client.RestoreStatus({ id: completed.id });
+      const duplicate = yield* Effect.flip(client.AddStatus({ name: "queued", kind: "Open" }));
+      const statuses = yield* client.ListStatuses();
+
+      expect(seeded.map(({ name, kind }) => `${name} · ${kind}`)).toEqual([
+        "Queued · Open",
+        "In progress · Open",
+        "Testing · Open",
+        "Completed · Done",
+      ]);
+      expect(released).toEqual({
+        id: expect.stringMatching(/^[0-9A-F-]{36}$/),
+        name: "Released",
+        kind: "Done",
+        isArchived: false,
+        sortOrder: 4,
+      });
+      expect(statuses[0]).toEqual({ ...released, name: "Shipped", sortOrder: 0 });
+      expect(statuses.find(({ id }) => id === completed.id)?.isArchived).toBe(false);
+      expect(lastDone).toMatchObject({
+        _tag: "RuleViolation",
+        message: "At least one Done status must stay active.",
+      });
+      expect(duplicate).toMatchObject({
+        _tag: "RuleViolation",
+        message: "The name 'queued' is already used by another status.",
+      });
+    }),
+  ),
+);

@@ -53,6 +53,7 @@ function lookupsFor(snapshot: typeof AreaSnapshot.Type, timeZone: string): ItemR
   return {
     typeName: (typeId) => (typeId === null ? null : (types.get(typeId) ?? null)),
     priorityLevels: snapshot.priorityLevels,
+    statuses: snapshot.statuses,
     priorityName: (levelId) => (levelId === null ? null : (priorities.get(levelId) ?? null)),
     itemTitle: (itemId) => findItemTitle(snapshot.items, itemId),
     timeZone,

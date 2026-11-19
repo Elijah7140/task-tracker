@@ -1,6 +1,11 @@
 import { CompletionResult, ItemEdit, NotFound, RuleViolation } from "@task-tracker/contracts";
 import { Effect } from "effect";
-import { type FakeItemNode, type FakeUrgency, recomputeAreaTree } from "./fake-area-items.js";
+import {
+  type FakeItemNode,
+  type FakeUrgency,
+  recomputeAreaTree,
+  withCompletion,
+} from "./fake-area-items.js";
 
 type CompletionResultType = typeof CompletionResult.Type;
 type ItemEditType = typeof ItemEdit.Type;
@@ -174,7 +179,10 @@ function reconcileAncestors(
   if (updates.size > 0) {
     area.nodes = mapTree(area.nodes, (node) =>
       updates.has(node.item.id)
-        ? { ...node, item: { ...node.item, completedAtUtc: updates.get(node.item.id) ?? null } }
+        ? {
+            ...node,
+            item: withCompletion(node.item, updates.get(node.item.id) ?? null, now),
+          }
         : node,
     );
   }
@@ -225,6 +233,8 @@ export function applyCreateItem(
         sortOrder: 0,
         createdAtUtc: now,
         updatedAtUtc: now,
+        statusId: null,
+        reopenStatusId: null,
         completedAtUtc: null,
         deletedAtUtc: null,
         deletionBatchId: null,
@@ -359,7 +369,7 @@ export function applySetItemCompleted(
         return node;
       }
       changes.push({ itemId: node.item.id, completedAtUtc: now });
-      return { ...node, item: { ...node.item, completedAtUtc: now, updatedAtUtc: now } };
+      return { ...node, item: withCompletion(node.item, now, now) };
     });
     reconcileAncestors(area, [located.parent?.item.id ?? null], autoComplete, now, changes);
     area.nodes = recomputeAreaTree(area.nodes, area.baseUrgencies);
@@ -380,9 +390,7 @@ export function applySetItemCompleted(
   if (located.node.item.completedAtUtc !== null) {
     changes.push({ itemId, completedAtUtc: null });
     area.nodes = mapTree(area.nodes, (node) =>
-      node.item.id === itemId
-        ? { ...node, item: { ...node.item, completedAtUtc: null, updatedAtUtc: now } }
-        : node,
+      node.item.id === itemId ? { ...node, item: withCompletion(node.item, null, now) } : node,
     );
   }
   reconcileAncestors(area, [located.parent?.item.id ?? null], autoComplete, now, changes);

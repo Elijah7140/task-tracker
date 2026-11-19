@@ -2,7 +2,7 @@ import { EntityMissing } from "@task-tracker/core";
 import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
-import { Guid } from "../storage-codecs.js";
+import { Guid, UtcTimestamp } from "../storage-codecs.js";
 import {
   ItemEditRow,
   ItemPriorityRow,
@@ -57,6 +57,12 @@ export function itemRepository(sql: SqlClient.SqlClient) {
       execute: ({ Id, ...values }) =>
         sql`UPDATE TodoItem SET ${sql.update(values)}, TicketRank = NULL
           WHERE Id = ${Id} AND ${activeRow(sql)}`,
+    }),
+    setStatus: SqlSchema.void({
+      Request: Schema.Struct({ id: Guid, statusId: Schema.NullOr(Guid), now: UtcTimestamp }),
+      execute: ({ id, statusId, now }) =>
+        sql`UPDATE TodoItem SET StatusId = ${statusId}, UpdatedAtUtc = ${now}
+          WHERE Id = ${id} AND ${activeRow(sql)}`,
     }),
     updateEdit: SqlSchema.void({
       Request: ItemEditRow,

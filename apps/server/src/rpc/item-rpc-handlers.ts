@@ -18,16 +18,23 @@ export const itemRpcHandlers = (timeZone: string) =>
           items
             .create(projectId, folderId, parentItemId, title)
             .pipe(Effect.map(projectItem), mapOperationError),
-        EditItem: ({ itemId, fields, customValues }) =>
+        EditItem: ({ itemId, fields, customValues, confirmedOpenItemIds }) =>
           Effect.sync(() => ({
             edit: parseItemEdit(fields),
             values: customValues?.map(parseFieldValueInput),
           })).pipe(
-            Effect.flatMap(({ edit, values }) => items.edit(itemId, edit, values)),
+            Effect.flatMap(({ edit, values }) =>
+              items.edit(itemId, edit, values, confirmedOpenItemIds),
+            ),
+            Effect.map(projectCompletion),
             mapOperationError,
           ),
         SetItemPriority: ({ itemId, priorityLevelId }) =>
           items.setPriority(itemId, priorityLevelId).pipe(mapOperationError),
+        SetItemStatus: ({ itemId, statusId, confirmedOpenItemIds }) =>
+          items
+            .setStatus(itemId, statusId, confirmedOpenItemIds)
+            .pipe(Effect.map(projectCompletion), mapOperationError),
         SetItemCompleted: ({ projectId, folderId, itemId, completed, confirmedOpenItemIds }) =>
           items
             .setCompleted(projectId, folderId, itemId, completed, confirmedOpenItemIds)

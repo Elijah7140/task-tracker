@@ -20,7 +20,10 @@ const itemFields = {
 };
 
 /** Replacement values for an item's built-in fields. */
-export const ItemEdit = Schema.Struct(itemFields);
+export const ItemEdit = Schema.Struct({
+  ...itemFields,
+  statusId: Schema.optionalKey(Schema.NullOr(Guid)),
+});
 
 /** An item record with floating user dates and UTC system timestamps. */
 export const Item = Schema.Struct({
@@ -32,6 +35,8 @@ export const Item = Schema.Struct({
   sortOrder: Schema.Int,
   createdAtUtc: IsoUtcInstant,
   updatedAtUtc: IsoUtcInstant,
+  statusId: Schema.NullOr(Guid),
+  reopenStatusId: Schema.NullOr(Guid),
   completedAtUtc: Schema.NullOr(IsoUtcInstant),
   deletedAtUtc: Schema.NullOr(IsoUtcInstant),
   deletionBatchId: Schema.NullOr(Guid),

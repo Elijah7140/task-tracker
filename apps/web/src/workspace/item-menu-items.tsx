@@ -11,9 +11,10 @@ import {
   SquarePen,
   Trash2,
 } from "lucide-react";
-import type { PriorityLevelProjection } from "@task-tracker/contracts";
+import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/contracts";
 import { MenuItem, MenuSeparator } from "../ui/menu.js";
 import type { ItemNode } from "./item-outline.js";
+import { ItemStatusMenu } from "./item-status-menu.js";
 import { RowLookupMenu } from "./row-lookup-menu.js";
 import type { ItemActions } from "./use-item-actions.js";
 
@@ -23,6 +24,7 @@ export interface ItemMenuItemsProps {
   readonly canIndent: boolean;
   readonly hasFolders: boolean;
   readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
+  readonly statuses: ReadonlyArray<typeof StatusProjection.Type>;
   readonly actions: ItemActions;
 }
 
@@ -32,6 +34,7 @@ export function ItemMenuItems({
   canIndent,
   hasFolders,
   priorityLevels,
+  statuses,
   actions,
 }: ItemMenuItemsProps) {
   const completed = node.item.completedAtUtc !== null;
@@ -60,6 +63,11 @@ export function ItemMenuItems({
       >
         {completed ? "Reopen" : "Complete"}
       </MenuItem>
+      <ItemStatusMenu
+        statuses={statuses}
+        statusId={node.item.statusId}
+        onChange={(statusId) => void actions.setStatus(node, statusId)}
+      />
       <MenuItem
         icon={<ListPlus size={14} />}
         onClick={() => void actions.addSubItem(node)}

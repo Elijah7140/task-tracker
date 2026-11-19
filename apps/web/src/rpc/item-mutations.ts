@@ -32,3 +32,6 @@ export const restoreItemsAtom = TaskTrackerClient.mutation("RestoreItems");
 
 /** Sets or clears only an item's priority, as the row menus do. */
 export const setItemPriorityAtom = TaskTrackerClient.mutation("SetItemPriority");
+
+/** Assigns a workflow status, using the normal completion and reopen rules. */
+export const setItemStatusAtom = TaskTrackerClient.mutation("SetItemStatus");

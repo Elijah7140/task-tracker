@@ -21,6 +21,7 @@ import type { UndoTable } from "../db/undo/undo-rows.js";
 import { checkRules } from "./check-rules.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
+import { statusOperations } from "./status-operations.js";
 import { UndoService, undoLabel } from "./undo-service.js";
 
 type Lookup = ItemType | PriorityLevel;
@@ -127,6 +128,7 @@ const make = Effect.gen(function* () {
   const itemTypes = manageLookups(sql, undo, repository.itemTypes);
   const priorities = manageLookups(sql, undo, repository.priorityLevels, priorityHistory);
   return {
+    statuses: yield* statusOperations(sql),
     itemTypes: {
       ...itemTypes,
       add: (name: string) => itemTypes.add((id, rows) => createItemType(id, name, rows)),
@@ -144,7 +146,7 @@ const make = Effect.gen(function* () {
   };
 });
 
-/** Transactional management of item types and priority levels. */
+/** Transactional management of workflow statuses, item types and priority levels. */
 export class LookupService extends Context.Service<LookupService>()(
   "@task-tracker/server/LookupService",
   { make },

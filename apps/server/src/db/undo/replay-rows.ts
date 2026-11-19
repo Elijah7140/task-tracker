@@ -13,6 +13,7 @@ import {
 } from "./undo-rows.js";
 import { verifyReplayHierarchy } from "./replay-hierarchy.js";
 import { verifyReplayPriorities } from "./replay-priorities.js";
+import { verifyReplayStatuses } from "./replay-statuses.js";
 
 /** The expected and desired versions of a row in the selected replay direction. */
 export interface ReplayRow {
@@ -25,9 +26,16 @@ const subjects: Partial<Record<UndoTable, string>> = {
   Project: "project",
   Folder: "folder",
   PriorityLevel: "priority level",
+  StatusLevel: "status",
 };
 
 const subject = (table: UndoTable) => subjects[table] ?? "item";
+
+/** Explains which kind of dependent row blocks a hard delete during replay. */
+const removalRefusal = (table: UndoTable, direction: UndoDirection) =>
+  table === "StatusLevel"
+    ? `This status is still used by an item; can't ${direction} its addition.`
+    : `Other data still depends on this ${subject(table)}; can't ${direction} its removal.`;
 
 const verifyRow = Effect.fnUntraced(function* (
   sql: SqlClient.SqlClient,
@@ -86,11 +94,7 @@ const verifyRemoval = Effect.fnUntraced(function* (
         (row) => !hasUndoKey(dependent) || !removals.has(`${dependent}:${rowKey(dependent, row)}`),
       )
     ) {
-      return yield* Effect.fail(
-        new MetadataRuleError(
-          `Other data still depends on this ${subject(table)}; can't ${direction} its removal.`,
-        ),
-      );
+      return yield* Effect.fail(new MetadataRuleError(removalRefusal(table, direction)));
     }
   }
 });
@@ -135,6 +139,7 @@ export const replayRows = Effect.fnUntraced(
       yield* writeRow(sql, row);
     }
     yield* verifyReplayHierarchy(sql, rows);
+    yield* verifyReplayStatuses(sql, rows, direction);
   },
   (effect) => effect.pipe(Effect.provideService(SqlClient.SafeIntegers, true)),
 );

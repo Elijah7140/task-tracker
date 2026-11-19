@@ -1,5 +1,5 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
-import type { PriorityLevelProjection } from "@task-tracker/contracts";
+import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/contracts";
 import { Menu } from "@base-ui/react/menu";
 import {
   CalendarClock,
@@ -19,6 +19,7 @@ import { Tooltip } from "../ui/tooltip.js";
 import { treeStyles } from "../ui/tree-styles.js";
 import { ItemMenuItems } from "./item-menu-items.js";
 import { isEmptyLevel, type ItemNode } from "./item-outline.js";
+import { ItemStatusChip } from "./item-status-chip.js";
 import { ItemTypeIcon } from "./item-type-icon.js";
 import type { DropPlacement } from "./reorder-plan.js";
 import { UrgencyBadge } from "./urgency-badge.js";
@@ -27,6 +28,7 @@ import type { ItemActions } from "./use-item-actions.js";
 /** Names and zone an item row resolves its references with. */
 export interface ItemRowLookups {
   readonly typeName: (typeId: string | null) => string | null;
+  readonly statuses: readonly (typeof StatusProjection.Type)[];
   readonly priorityName: (priorityId: string | null) => string | null;
   /** All priority levels, including archived ones, for the Set priority submenu. */
   readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
@@ -173,6 +175,16 @@ function UrgencySource({ title }: { readonly title: string }) {
   );
 }
 
+/** The name of the item's stored status, including an archived one. */
+function statusName(node: ItemNode, lookups: ItemRowLookups): string | undefined {
+  return lookups.statuses.find((status) => status.id === node.item.statusId)?.name;
+}
+
+/** Speaks the status unless it only repeats the completion state, as the seeded Completed does. */
+function spokenStatus(state: string, name: string | undefined): string | null {
+  return name === undefined || name.toLowerCase() === state.toLowerCase() ? null : name;
+}
+
 function describe(
   node: ItemNode,
   lookups: ItemRowLookups,
@@ -180,9 +192,11 @@ function describe(
   source: string | undefined,
 ) {
   const urgency = node.displayedUrgency.value;
+  const state = node.item.completedAtUtc === null ? "Open" : "Completed";
   return [
-    node.item.completedAtUtc === null ? "Open" : "Completed",
+    state,
     lookups.typeName(node.item.itemTypeId),
+    spokenStatus(state, statusName(node, lookups)),
     node.item.ticketNumber,
     lookups.priorityName(node.item.priorityLevelId),
     spokenDate,
@@ -285,6 +299,7 @@ function ItemOverflowMenu({
           canIndent={canIndent}
           hasFolders={hasFolders}
           priorityLevels={lookups.priorityLevels}
+          statuses={lookups.statuses}
           actions={actions}
         />
       </MenuContent>
@@ -353,6 +368,7 @@ export function ItemRow(props: ItemRowProps) {
           />
           <ItemTypeIcon name={lookups.typeName(node.item.itemTypeId)} />
           <ItemTitle node={node} />
+          <ItemStatusChip name={statusName(node, lookups)} />
         </div>
         <DetailCells node={node} lookups={lookups} />
         <ItemOverflowMenu {...props} />
@@ -363,6 +379,7 @@ export function ItemRow(props: ItemRowProps) {
           canIndent={canIndent}
           hasFolders={hasFolders}
           priorityLevels={lookups.priorityLevels}
+          statuses={lookups.statuses}
           actions={actions}
         />
       </ContextMenuContent>

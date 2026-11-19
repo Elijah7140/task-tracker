@@ -430,3 +430,120 @@ it.effect("Sets and clears an item's priority as one undoable step with projecte
     }),
   ),
 );
+
+it.effect("A Done status confirms descendants and an Open status reopens their ancestors", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area, create } = yield* setup;
+      const root = yield* create("Root");
+      const parent = yield* create("Parent", root.id);
+      const leaf = yield* create("Leaf", parent.id);
+      const statuses = yield* client.ListStatuses();
+      const queued = statuses.find(({ name }) => name === "Queued")!;
+      const done = statuses.find(({ name }) => name === "Completed")!;
+      const released = yield* client.AddStatus({ name: "Released", kind: "Done" });
+      yield* client.SetItemStatus({ itemId: root.id, statusId: queued.id });
+      yield* client.SetItemStatus({ itemId: parent.id, statusId: queued.id });
+
+      const prompt = yield* client.SetItemStatus({ itemId: parent.id, statusId: released.id });
+      expect(prompt).toEqual({
+        kind: "needs-confirmation",
+        openSubItemCount: 1,
+        openSubItemIds: [leaf.id],
+      });
+      const before = yield* client.LoadArea(area);
+      expect(before.items.open[0]?.children.open[0]?.item.statusId).toBe(queued.id);
+      yield* client.SetItemStatus({
+        itemId: parent.id,
+        statusId: released.id,
+        confirmedOpenItemIds: [leaf.id],
+      });
+      const completed = yield* client.LoadArea(area);
+      expect(completed.items.finished).toMatchObject([
+        {
+          item: { statusId: done.id, reopenStatusId: queued.id },
+          children: {
+            finished: [
+              {
+                item: { statusId: released.id, reopenStatusId: queued.id },
+                children: { finished: [{ item: { statusId: done.id } }] },
+              },
+            ],
+          },
+        },
+      ]);
+      expect(yield* client.SetItemStatus({ itemId: parent.id, statusId: null })).toMatchObject({
+        kind: "blocked",
+        reason: "Reopen a sub-item instead, or add a new one.",
+      });
+
+      yield* client.SetItemStatus({ itemId: leaf.id, statusId: queued.id });
+      const reopened = yield* client.LoadArea(area);
+
+      expect(reopened.items.open).toMatchObject([
+        {
+          item: { statusId: queued.id, reopenStatusId: null, completedAtUtc: null },
+          children: { open: [{ item: { statusId: queued.id, reopenStatusId: null } }] },
+        },
+      ]);
+    }),
+  ),
+);
+
+it.effect(
+  "An editor status change asks first, records one step and refuses archived statuses",
+  () =>
+    withItemRpc(
+      Effect.gen(function* () {
+        const { client, area, create } = yield* setup;
+        const parent = yield* create("Parent");
+        const child = yield* create("Child", parent.id);
+        const statuses = yield* client.ListStatuses();
+        const done = statuses.find(({ kind }) => kind === "Done")!;
+        const blocked = yield* client.AddStatus({ name: "Blocked", kind: "Open" });
+        yield* client.ArchiveStatus({ id: blocked.id });
+        const fields = {
+          title: "Renamed parent",
+          description: null,
+          ticketNumber: null,
+          itemTypeId: null,
+          priorityLevelId: null,
+          dueDate: null,
+          dueTime: null,
+          scheduledStart: null,
+          scheduledEnd: null,
+          statusId: done.id,
+        };
+
+        const prompt = yield* client.EditItem({ itemId: parent.id, fields });
+        const unchanged = yield* client.LoadArea(area);
+        const applied = yield* client.EditItem({
+          itemId: parent.id,
+          fields,
+          confirmedOpenItemIds: [child.id],
+        });
+        const history = yield* client.GetHistory();
+        const archived = yield* Effect.flip(
+          client.SetItemStatus({ itemId: child.id, statusId: blocked.id }),
+        );
+        yield* client.DeleteItem({ ...area, itemId: child.id });
+        const missing = yield* Effect.flip(
+          client.SetItemStatus({ itemId: child.id, statusId: null }),
+        );
+
+        expect(prompt).toEqual({
+          kind: "needs-confirmation",
+          openSubItemCount: 1,
+          openSubItemIds: [child.id],
+        });
+        expect(unchanged.items.open[0]?.item).toMatchObject({ title: "Parent", statusId: null });
+        expect(applied.kind).toBe("applied");
+        expect(history.undo).toBe("Set status of 'Renamed parent'");
+        expect(archived).toMatchObject({
+          _tag: "RuleViolation",
+          message: "Status is missing or archived.",
+        });
+        expect(missing).toMatchObject({ _tag: "NotFound", entity: "Item" });
+      }),
+    ),
+);

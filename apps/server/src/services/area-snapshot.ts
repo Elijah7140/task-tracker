@@ -8,6 +8,7 @@ import {
   type ItemTree,
   type ItemType,
   type PriorityLevel,
+  type StatusLevel,
   type TodoItem,
   type Urgency,
 } from "@task-tracker/core";
@@ -34,6 +35,7 @@ export interface AreaSnapshot {
   readonly items: ItemSiblings;
   readonly itemTypes: readonly ItemType[];
   readonly priorityLevels: readonly PriorityLevel[];
+  readonly statuses: readonly StatusLevel[];
   readonly settings: EffectiveSettings;
 }
 

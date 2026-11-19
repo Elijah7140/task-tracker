@@ -4,6 +4,8 @@ import { Guid } from "./guid.js";
 import { Item } from "./item.js";
 import { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
 
+import { StatusProjection } from "./status-projection.js";
+
 const urgency = Schema.Literals(["None", "Approaching", "Imminent", "Overdue"]);
 const itemNodeFields = {
   item: Item,
@@ -42,6 +44,7 @@ export const AreaSnapshot = Schema.Struct({
   items: itemSiblings,
   itemTypes: Schema.Array(ItemTypeProjection),
   priorityLevels: Schema.Array(PriorityLevelProjection),
+  statuses: Schema.Array(StatusProjection),
   settings: Schema.Struct({
     autoCompleteParents: effectiveValue(Schema.Boolean),
     urgencyYellowThreshold: effectiveValue(DurationTicks),

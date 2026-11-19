@@ -11,7 +11,9 @@ import type { LookupItem, LookupKind } from "./use-lookup-actions.js";
 /** Props for {@link LookupRow}. */
 export interface LookupRowProps {
   readonly row: LookupItem;
-  readonly kind: LookupKind;
+  readonly kind: LookupKind | "statuses";
+  /** Fixed secondary text after the name, such as a status kind. */
+  readonly detail?: string | undefined;
   readonly isFirst: boolean;
   readonly isLast: boolean;
   /** A reorder is saving. Move buttons stay focusable but ignore presses. */
@@ -22,7 +24,8 @@ export interface LookupRowProps {
   readonly onMove: (id: string, direction: -1 | 1, restoreFocus: boolean) => void;
   readonly onRename: (row: LookupItem) => void;
   readonly onArchive: (row: LookupItem) => void;
-  readonly onSetNumber: (id: string, text: string) => Promise<boolean>;
+  /** Saves a priority number. Only priority level rows show the number form. */
+  readonly onSetNumber?: ((id: string, text: string) => Promise<boolean>) | undefined;
 }
 
 /**
@@ -32,6 +35,7 @@ export interface LookupRowProps {
 export function LookupRow({
   row,
   kind,
+  detail,
   isFirst,
   isLast,
   moveBusy,
@@ -88,10 +92,15 @@ export function LookupRow({
         </button>
         {isItemType ? <ItemTypeIcon name={row.name} /> : null}
         <span className="truncate text-sm text-fg">{label}</span>
+        {detail === undefined ? null : (
+          <span data-testid="lookup-row-detail" className="shrink-0 text-xs text-fg-subtle">
+            · {detail}
+          </span>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
-        {kind === "priorityLevels" ? (
+        {kind === "priorityLevels" && onSetNumber !== undefined ? (
           <PriorityNumberForm
             label={label}
             savedNumber={row.number ?? null}

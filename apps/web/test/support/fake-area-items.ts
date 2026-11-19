@@ -15,6 +15,8 @@ export interface SeedItem {
   readonly ticketNumber?: string;
   readonly type?: "Change" | "Error" | "Discussion" | "Review";
   readonly priority?: "Critical" | "High" | "Medium" | "Low";
+  /** A seeded workflow status. Completed items default to Completed. */
+  readonly status?: FakeStatusName;
   readonly dueDate?: string;
   readonly dueTime?: string;
   readonly scheduledStart?: string;
@@ -42,7 +44,23 @@ const lookup = (name: string, index: number, kind: number) => ({
   sortOrder: index,
 });
 
-/** Seeded item types and priority levels, as the server returns them. */
+const STATUSES = [
+  ["Queued", "Open"],
+  ["In progress", "Open"],
+  ["Testing", "Open"],
+  ["Completed", "Done"],
+] as const;
+
+/** A workflow status seeded by the status migration. */
+export type FakeStatusName = (typeof STATUSES)[number][0];
+
+/** The seeded Completed status, which completion assigns in the fake. */
+export const COMPLETED_STATUS_ID = "019A0000-0000-7000-8000-000000000204";
+
+const statusId = (name: FakeStatusName) =>
+  `019A0000-0000-7000-8000-00000000020${STATUSES.findIndex(([seeded]) => seeded === name) + 1}`;
+
+/** Seeded item types, priority levels and statuses, as the server returns them. */
 export const FAKE_LOOKUPS = {
   itemTypes: TYPES.map((name, index) => ({ ...lookup(name, index, 1), iconKey: null })),
   priorityLevels: PRIORITIES.map((name, index) => ({
@@ -50,7 +68,33 @@ export const FAKE_LOOKUPS = {
     number: null,
     label: name,
   })),
+  statuses: STATUSES.map(([name, kind], sortOrder) => ({
+    id: statusId(name),
+    name,
+    kind,
+    isArchived: false,
+    sortOrder,
+  })),
 };
+
+/**
+ * Completes or reopens an item record and keeps its status in step, as the server does:
+ * completing remembers the Open status and sets Completed, and reopening restores it.
+ */
+export function withCompletion<Item extends FakeItemNode["item"]>(
+  item: Item,
+  completedAtUtc: string | null,
+  updatedAtUtc: string,
+): Item {
+  const wasDone = item.completedAtUtc !== null;
+  const status =
+    completedAtUtc === null
+      ? { statusId: wasDone ? item.reopenStatusId : item.statusId, reopenStatusId: null }
+      : wasDone
+        ? { statusId: item.statusId, reopenStatusId: item.reopenStatusId }
+        : { statusId: COMPLETED_STATUS_ID, reopenStatusId: item.statusId };
+  return { ...item, ...status, completedAtUtc, updatedAtUtc };
+}
 
 const settings = {
   autoCompleteParents: { value: true, source: "Global" },
@@ -112,6 +156,13 @@ export class FakeAreaBuilder {
       sortOrder,
       createdAtUtc: TIMESTAMP,
       updatedAtUtc: TIMESTAMP,
+      statusId:
+        seed.status !== undefined
+          ? statusId(seed.status)
+          : seed.completedAtUtc === undefined
+            ? null
+            : COMPLETED_STATUS_ID,
+      reopenStatusId: null,
       completedAtUtc: seed.completedAtUtc ?? null,
       deletedAtUtc: null,
       deletionBatchId: null,
