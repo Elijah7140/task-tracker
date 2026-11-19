@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
-import { CalendarDays, CircleCheck, House, Plus, Search, Settings, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  CircleCheck,
+  House,
+  Plus,
+  Search,
+  Settings,
+  Ticket,
+  Trash2,
+} from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
 import { Button } from "../ui/button.js";
 import { type CoveringPage, useReturnPageStore } from "../state/return-page-store.js";
@@ -119,6 +128,11 @@ export function Sidebar({ editMenu }: { readonly editMenu?: ReactNode }) {
           page="calendar"
           label="Calendar"
           icon={<CalendarDays size={15} aria-hidden="true" />}
+        />
+        <CoveringPageEntry
+          page="tickets"
+          label="Tickets"
+          icon={<Ticket size={15} aria-hidden="true" />}
         />
         <CoveringPageEntry
           page="trash"

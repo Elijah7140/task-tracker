@@ -45,6 +45,7 @@ import { FakeCalendar, calendarHandlers } from "./fake-calendar-handlers.js";
 import { FakeSearch, searchHandlers } from "./fake-search-handlers.js";
 import { searchQueryHandlers } from "./fake-search-query.js";
 import { FakeSavedSearches, savedSearchHandlers } from "./fake-saved-search-handlers.js";
+import { FakeTickets, ticketHandlers } from "./fake-ticket-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -153,6 +154,9 @@ export class FakeProjectStore {
 
   /** Scoped search overrides and link fixtures. */
   readonly search = new FakeSearch();
+
+  /** Ticket ranks and load failures for the Tickets view (§7.16). */
+  readonly tickets = new FakeTickets();
 
   /** Saved searches listed on Home and the Search page. */
   readonly savedSearches = new FakeSavedSearches(this.nextId);
@@ -366,6 +370,7 @@ export class FakeProjectStore {
       trash: this.trash.batches,
       links: this.itemLinks.state,
       savedSearches: this.savedSearches.rows,
+      ticketRanks: this.tickets.ranks,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
@@ -381,6 +386,7 @@ export class FakeProjectStore {
       trash,
       links,
       savedSearches,
+      ticketRanks,
     } = structuredClone(snapshot);
     this.statuses.rows = statuses;
     this.summaries = summaries;
@@ -392,6 +398,7 @@ export class FakeProjectStore {
     this.trash.batches = trash;
     this.itemLinks.restore(links);
     this.savedSearches.rows = savedSearches;
+    this.tickets.ranks = ticketRanks;
   };
 
   /** Returns all active area states. */
@@ -839,6 +846,7 @@ function handlers(store: FakeProjectStore) {
     ...searchHandlers(store),
     ...searchQueryHandlers(store),
     ...savedSearchHandlers(store, history.track),
+    ...ticketHandlers(store, history.track),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const before = store.recurrence.titleOf(payload.itemId);

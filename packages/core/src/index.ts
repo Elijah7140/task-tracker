@@ -204,3 +204,19 @@ export {
   nextSavedSearchSortOrder,
   repeatedSavedSearchName,
 } from "./saved-searches/saved-search-list.js";
+export {
+  compareTickets,
+  orderTickets,
+  planTicketAppend,
+  type RankedTicket,
+  type TicketRankAssignment,
+} from "./tickets/ticket-ranks.js";
+export { buildTicketSections, type TicketSection } from "./tickets/ticket-sections.js";
+export {
+  planTicketMove,
+  TICKET_ANCHOR_MOVED,
+  TICKET_NOT_OPEN,
+  TICKET_PRIORITY_INACTIVE,
+  type TicketMovePlan,
+  type TicketPosition,
+} from "./tickets/ticket-move.js";

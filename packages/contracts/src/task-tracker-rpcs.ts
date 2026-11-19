@@ -12,6 +12,7 @@ import { CalendarRpcs } from "./calendar-rpcs.js";
 import { SearchRpcs } from "./search-rpcs.js";
 import { SearchQueryRpcs } from "./search-query-rpcs.js";
 import { SavedSearchRpcs } from "./saved-search-rpcs.js";
+import { TicketRpcs } from "./ticket-rpcs.js";
 
 const ianaTimeZone = Schema.String.check(
   Schema.makeFilter((zone) => /^[a-z]/i.test(zone) && Option.isSome(DateTime.zoneMakeNamed(zone)), {
@@ -37,4 +38,5 @@ export const TaskTrackerRpcs = RpcGroup.make(
   SearchRpcs,
   SearchQueryRpcs,
   SavedSearchRpcs,
+  TicketRpcs,
 );

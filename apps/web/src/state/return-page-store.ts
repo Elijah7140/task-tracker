@@ -2,7 +2,7 @@ import type { SavedSearchProjection } from "@task-tracker/contracts";
 import { create } from "zustand";
 
 /** A screen shown over the routed page while keeping that page, and any draft, mounted. */
-export type CoveringPage = "trash" | "calendar" | "search";
+export type CoveringPage = "trash" | "calendar" | "search" | "tickets";
 
 /** A saved search that Search opens with. Each request has a new version, so Search remounts. */
 export interface SavedSearchRequest {
@@ -11,7 +11,7 @@ export interface SavedSearchRequest {
 }
 
 /**
- * Trash, Calendar and Search share one return page (§7.4, §7.6). The routed
+ * Trash, Calendar, Search and Tickets share one return page (§7.4, §7.6). The routed
  * page stays mounted behind the covering page. `stale`
  * records that a change may have altered the page behind, so returning asks
  * its unsaved-changes guard. `busy` holds Back and Escape while a change or

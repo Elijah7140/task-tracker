@@ -25,6 +25,7 @@ import { calendarRpcHandlers } from "./calendar-rpc-handlers.js";
 import { searchRpcHandlers } from "./search-rpc-handlers.js";
 import { searchQueryRpcHandlers } from "./search-query-rpc-handlers.js";
 import { savedSearchRpcHandlers } from "./saved-search-rpc-handlers.js";
+import { ticketRpcHandlers } from "./ticket-rpc-handlers.js";
 import { UndoService } from "../services/undo-service.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
@@ -70,6 +71,7 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         Effect.provide(searchRpcHandlers),
         Effect.provide(searchQueryRpcHandlers(options.timeZone)),
         Effect.provide(savedSearchRpcHandlers),
+        Effect.provide(ticketRpcHandlers),
         Effect.provide(UndoService.layer),
       );
       const host = `${RPC_HOST}:${connection.port}`;

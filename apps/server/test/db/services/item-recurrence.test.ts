@@ -46,6 +46,7 @@ interface StoredItem {
   readonly Title: string;
   readonly Description: string | null;
   readonly TicketNumber: string | null;
+  readonly TicketRank: number | null;
   readonly StatusId: string | null;
   readonly ReopenStatusId: string | null;
   readonly DueDate: string | null;
@@ -163,6 +164,8 @@ const assertCopiedTree = Effect.fnUntraced(function* (
     ScheduledStart: "2026-11-20 09:15:00",
     ScheduledEnd: "2026-11-20 10:45:00",
   });
+  // A numbered next occurrence is a new ticket at the bottom of its section (§7.16).
+  expect(next.TicketRank).not.toBeNull();
   expect(child).toMatchObject({
     Title: "Check figures",
     DueDate: "2026-11-20",

@@ -18,6 +18,7 @@ import { readEffectiveSettings } from "./effective-settings-service.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 import { saveItemRows } from "./save-item-rows.js";
+import { appendNewTickets } from "./ticket-ranks.js";
 
 /**
  * Plan and apply completion changes within the caller's item transaction. Completing
@@ -51,7 +52,8 @@ export function itemCompletionOperations(sql: SqlClient.SqlClient, timeZone: str
 
   /**
    * Persists completion changes, successor markers and the dependent rows of
-   * next occurrences. The occurrence rows must already be inserted.
+   * next occurrences, and ranks numbered occurrences as new tickets (§7.16).
+   * The occurrence rows must already be inserted.
    */
   const apply = Effect.fnUntraced(function* (
     projectId: string,
@@ -64,9 +66,14 @@ export function itemCompletionOperations(sql: SqlClient.SqlClient, timeZone: str
     for (const id of applied.successorSourceIds ?? []) {
       yield* items.markSuccessorCreated({ id, now });
     }
-    for (const copy of applied.occurrences ?? []) {
+    const occurrences = applied.occurrences ?? [];
+    for (const copy of occurrences) {
       yield* copyDependents(copy, now);
     }
+    yield* appendNewTickets(
+      sql,
+      occurrences.map(({ itemId }) => itemId),
+    );
   });
 
   /**

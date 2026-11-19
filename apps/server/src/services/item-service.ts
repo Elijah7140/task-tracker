@@ -32,6 +32,7 @@ import { itemStructureOperations } from "./item-structure-operations.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 import { saveItemRows } from "./save-item-rows.js";
+import { appendNewTickets, ticketUndoSource } from "./ticket-ranks.js";
 import { UndoService, undoLabel } from "./undo-service.js";
 
 const decodeId = Schema.decodeEffect(Guid);
@@ -174,6 +175,22 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     return undoLabel(verb, item.title);
   };
 
+  /**
+   * The rows an editor save can change. A status change can cascade through the
+   * area, and newly numbering an item ranks it and any legacy tickets (§7.16).
+   */
+  const editUndoSources = (item: TodoItem, statusChanged: boolean, numbered: boolean) => {
+    if (statusChanged) {
+      return areaUndoSources(sql, item.projectId, item.folderId);
+    }
+    const own = [
+      { table: "TodoItem", where: sql`Id = ${item.id}` },
+      { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
+      { table: "ItemLink", where: sql`ItemId = ${item.id}` },
+    ] as const;
+    return numbered ? [...own, ticketUndoSource(sql)] : own;
+  };
+
   const writeCustomValues = Effect.fnUntraced(function* (
     itemId: string,
     custom: Effect.Success<ReturnType<typeof planCustomEdit>>,
@@ -211,7 +228,8 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
    * Saves the editor's built-in fields, optional repeat rule, changed custom values,
    * optional status and, when `links` is present, the item's whole link list as one
    * undo step. A Done status completes after the other writes, so a next occurrence
-   * copies the final links and values (§7.15).
+   * copies the final links and values (§7.15). An item that gains a ticket number
+   * while open is ranked at the bottom of its section (§7.16).
    */
   const edit = Effect.fnUntraced(function* (
     id: string,
@@ -236,15 +254,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     if (result.kind !== "applied") {
       return result;
     }
+    const numbered = item.ticketNumber === null && edited.ticketNumber !== null;
     yield* undo.capture(
       editLabel(item, edited, status.changed),
-      status.changed
-        ? areaUndoSources(sql, item.projectId, item.folderId)
-        : [
-            { table: "TodoItem", where: sql`Id = ${item.id}` },
-            { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
-            { table: "ItemLink", where: sql`ItemId = ${item.id}` },
-          ],
+      editUndoSources(item, status.changed, numbered),
     );
     yield* items.updateEdit(edited);
     yield* items.saveRecurrence(edited);
@@ -256,6 +269,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     }
     if (status.plan !== null) {
       yield* applyStatus(edited, status.statusId, now, { ...status.plan, result });
+    }
+    if (numbered) {
+      yield* appendNewTickets(sql, [item.id]);
     }
     return result;
   }, undo.record);

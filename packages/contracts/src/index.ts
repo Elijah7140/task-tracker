@@ -75,3 +75,11 @@ export { ParsedSearchQuery, QueryParseError, SearchQueryChoices } from "./search
 export { SearchQueryRpcs } from "./search-query-rpcs.js";
 export { SavedSearchDefinition, SavedSearchProjection } from "./saved-search.js";
 export { SavedSearchRpcs } from "./saved-search-rpcs.js";
+export {
+  TicketBoard,
+  TicketPosition,
+  TicketProject,
+  TicketRow,
+  TicketSection,
+} from "./ticket-board.js";
+export { TicketRpcs } from "./ticket-rpcs.js";
