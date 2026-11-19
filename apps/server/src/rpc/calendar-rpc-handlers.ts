@@ -53,6 +53,7 @@ export const calendarRpcHandlers = (timeZone: string) =>
               entries: entries.map((entry) => projectCalendarEntry(entry, now, timeZone)),
             };
           }).pipe(mapOperationError),
+        RescheduleCalendarEntry: (request) => calendar.reschedule(request).pipe(mapOperationError),
         LocateCalendarItem: ({ itemId }) => calendar.locateItem(itemId).pipe(mapOperationError),
       };
     }),

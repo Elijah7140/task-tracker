@@ -71,3 +71,13 @@ export const ItemPriorityRow = Schema.Struct({
   updatedAtUtc: UtcTimestamp,
   priorityLevelId: editFields.priorityLevelId,
 }).pipe(Schema.encodeKeys(columns));
+
+/** Calendar rescheduling updates floating dates and the item's modification timestamp. */
+export const ItemDatesRow = Schema.Struct({
+  id: Guid,
+  updatedAtUtc: UtcTimestamp,
+  dueDate: editFields.dueDate,
+  dueTime: editFields.dueTime,
+  scheduledStart: editFields.scheduledStart,
+  scheduledEnd: editFields.scheduledEnd,
+}).pipe(Schema.encodeKeys(columns));

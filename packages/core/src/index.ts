@@ -124,3 +124,5 @@ export {
   type ItemSearchResults,
 } from "./search/item-query.js";
 export { validateItemQuery, type QueryValidationContext } from "./search/item-query-validator.js";
+
+export { planCalendarMove, type CalendarMoveIntent } from "./calendar/calendar-reschedule.js";

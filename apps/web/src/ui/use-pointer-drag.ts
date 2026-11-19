@@ -56,13 +56,15 @@ export function usePointerDrag() {
     }
     const { currentTarget: element, pointerId, clientX, clientY, pointerType } = press;
     let dragging = false;
+    let contextMenuMayReleaseCapture = false;
 
     const end = () => {
       running.current = null;
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
       window.removeEventListener("pointercancel", cancel, true);
-      window.removeEventListener("lostpointercapture", cancel, true);
+      window.removeEventListener("lostpointercapture", lostCapture, true);
+      window.removeEventListener("mousedown", chordDown, true);
       window.removeEventListener("mouseup", chordUp, true);
       window.removeEventListener("keydown", keyDown, true);
       window.removeEventListener("contextmenu", contextMenu, true);
@@ -77,8 +79,12 @@ export function usePointerDrag() {
       if (event.pointerId !== pointerId) {
         return;
       }
-      if ((event.buttons & 1) === 0) {
+      if ((event.buttons & 1) === 0 || (dragging && !element.hasPointerCapture(pointerId))) {
         end();
+        return;
+      }
+      contextMenuMayReleaseCapture = false;
+      if (event.button > 0) {
         return;
       }
       if (!dragging) {
@@ -93,14 +99,21 @@ export function usePointerDrag() {
       handlers.move(event);
     };
     const complete = (event: MouseEvent) => {
+      const shouldDrop = dragging && element.hasPointerCapture(pointerId);
       end();
-      if (dragging && event.button === 0) {
+      if (shouldDrop) {
         handlers.drop(event);
       }
     };
     const up = (event: PointerEvent) => {
-      if (event.pointerId === pointerId) {
+      if (event.pointerId === pointerId && event.button === 0) {
         complete(event);
+      }
+    };
+    // A secondary press during a left drag must not focus another control or open a menu.
+    const chordDown = (event: MouseEvent) => {
+      if (pointerType === "mouse" && event.button !== 0) {
+        event.preventDefault();
       }
     };
     // Mouse pointerup only fires after the final button is released.
@@ -114,6 +127,21 @@ export function usePointerDrag() {
         end();
       }
     };
+    const lostCapture = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) {
+        return;
+      }
+      // Chromium can release capture when it handles a right click, even if
+      // the context menu was prevented. Keep the original left gesture alive.
+      if (contextMenuMayReleaseCapture && (event.buttons & 1) !== 0) {
+        contextMenuMayReleaseCapture = false;
+        element.setPointerCapture(pointerId);
+        if (element.hasPointerCapture(pointerId)) {
+          return;
+        }
+      }
+      end();
+    };
     const keyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (dragging) {
@@ -124,6 +152,7 @@ export function usePointerDrag() {
       }
     };
     const contextMenu = (event: MouseEvent) => {
+      contextMenuMayReleaseCapture = dragging && pointerType === "mouse" && event.button === 2;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
@@ -132,7 +161,8 @@ export function usePointerDrag() {
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerup", up, true);
     window.addEventListener("pointercancel", cancel, true);
-    window.addEventListener("lostpointercapture", cancel, true);
+    window.addEventListener("lostpointercapture", lostCapture, true);
+    window.addEventListener("mousedown", chordDown, true);
     window.addEventListener("mouseup", chordUp, true);
     window.addEventListener("keydown", keyDown, true);
     window.addEventListener("contextmenu", contextMenu, true);

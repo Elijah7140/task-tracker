@@ -69,12 +69,14 @@ export function useCalendarActivation({ runGuards, reload }: CalendarActivationO
     };
   }, []);
 
-  const isStillShown = () =>
-    mounted.current && useReturnPageStore.getState().covering === "calendar";
+  const canActivate = () => {
+    const { covering, busy } = useReturnPageStore.getState();
+    return mounted.current && covering === "calendar" && !busy;
+  };
 
   const run = async (itemId: string) => {
     const exit = await locate({ payload: { itemId } });
-    if (!isStillShown()) {
+    if (!canActivate()) {
       return;
     }
     if (Exit.isFailure(exit)) {
@@ -82,7 +84,7 @@ export function useCalendarActivation({ runGuards, reload }: CalendarActivationO
       return;
     }
     const canLeave = await latest.current.runGuards();
-    if (canLeave && isStillShown()) {
+    if (canLeave && canActivate()) {
       await openLocatedItem(exit.value, navigate);
     }
   };

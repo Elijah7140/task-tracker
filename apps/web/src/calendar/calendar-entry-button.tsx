@@ -54,6 +54,11 @@ export function CalendarEntryButton({
       onClick={() => onActivate(occurrence)}
       title={tooltip}
       aria-label={occurrence.accessibleLabel}
+      aria-keyshortcuts={
+        occurrence.isAllDay
+          ? "Alt+ArrowLeft Alt+ArrowRight"
+          : "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+      }
       {...calendarNavProps(occurrence.day, navIndex)}
       data-testid="calendar-entry"
       data-item-id={entry.itemId}

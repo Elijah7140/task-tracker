@@ -68,3 +68,4 @@ export {
   SearchScope,
 } from "./search.js";
 export { SearchRpcs } from "./search-rpcs.js";
+export { CalendarReschedule } from "./calendar-reschedule.js";

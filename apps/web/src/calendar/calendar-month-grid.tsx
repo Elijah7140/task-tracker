@@ -2,10 +2,12 @@ import { formatDayName } from "./calendar-dates.js";
 import { CalendarEntryButton } from "./calendar-entry-button.js";
 import { calendarNavProps, handleCalendarGridKey } from "./calendar-grid-keys.js";
 import type { CalendarDay, CalendarOccurrence } from "./calendar-layout.js";
+import type { CalendarDragFeedback } from "./use-calendar-drag.js";
 import { cx } from "../ui/class-names.js";
 
 /** Props for {@link CalendarMonthGrid}. */
 export interface CalendarMonthGridProps {
+  readonly feedback: CalendarDragFeedback | null;
   readonly weekdays: ReadonlyArray<string>;
   readonly days: ReadonlyArray<CalendarDay>;
   readonly onActivate: (occurrence: CalendarOccurrence) => void;
@@ -19,6 +21,7 @@ export interface CalendarMonthGridProps {
  * between entries (see {@link handleCalendarGridKey}).
  */
 export function CalendarMonthGrid({
+  feedback,
   weekdays,
   days,
   onActivate,
@@ -51,10 +54,15 @@ export function CalendarMonthGrid({
               aria-label={day.accessibleName}
               data-testid="calendar-month-cell"
               data-date={day.date}
+              data-calendar-drop-zone="month"
+              data-drop-active={
+                (feedback?.target.type === "month" && feedback.target.date === day.date) ||
+                undefined
+              }
               data-today={day.isToday ? "true" : undefined}
               data-outside-month={day.isOutsideMonth ? "true" : undefined}
               className={cx(
-                "flex min-h-[104px] min-w-0 flex-col gap-1 p-1.5",
+                "flex min-h-[104px] min-w-0 flex-col gap-1 p-1.5 data-drop-active:ring-2 data-drop-active:ring-inset data-drop-active:ring-focus",
                 day.isOutsideMonth && "bg-sidebar/40 opacity-55",
                 day.isToday && "bg-accent-soft/45",
               )}

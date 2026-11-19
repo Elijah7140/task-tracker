@@ -4,6 +4,7 @@ import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
 import { Guid, UtcTimestamp } from "../storage-codecs.js";
 import {
+  ItemDatesRow,
   ItemEditRow,
   ItemPriorityRow,
   ItemRow,
@@ -63,6 +64,11 @@ export function itemRepository(sql: SqlClient.SqlClient) {
       execute: ({ id, statusId, now }) =>
         sql`UPDATE TodoItem SET StatusId = ${statusId}, UpdatedAtUtc = ${now}
           WHERE Id = ${id} AND ${activeRow(sql)}`,
+    }),
+    updateDates: SqlSchema.void({
+      Request: ItemDatesRow,
+      execute: ({ Id, ...values }) =>
+        sql`UPDATE TodoItem SET ${sql.update(values)} WHERE Id = ${Id} AND ${activeRow(sql)}`,
     }),
     updateEdit: SqlSchema.void({
       Request: ItemEditRow,
