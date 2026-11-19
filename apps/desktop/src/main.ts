@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { RpcConnection } from "@task-tracker/contracts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, session } from "electron";
+import { externalLinkAddress, type RpcConnection } from "@task-tracker/contracts";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
 import {
   type RendererAddress,
   registerRendererScheme,
@@ -180,7 +180,7 @@ async function openApplication() {
     servePackagedRenderer(() => connection?.port);
   }
   denyPermissions();
-  serveRpcConnection(address);
+  registerRendererHandlers(address);
   await start(address);
 }
 
@@ -192,18 +192,34 @@ function denyPermissions() {
   session.defaultSession.setPermissionCheckHandler(() => false);
 }
 
-/** Answers the preload bridge only for the main frame of the app window at the renderer page. */
-function serveRpcConnection(address: RendererAddress) {
+/** Limits native calls to the main frame of the app window at the renderer page. */
+function isRendererFrame(event: Electron.IpcMainInvokeEvent, address: RendererAddress) {
+  const frame = event.senderFrame;
+  return (
+    event.sender === window?.webContents &&
+    frame?.parent === null &&
+    frame.url.split("#")[0] === address.url
+  );
+}
+
+function registerRendererHandlers(address: RendererAddress) {
   ipcMain.handle("task-tracker:get-rpc-connection", (event) => {
-    const frame = event.senderFrame;
-    const trusted =
-      event.sender === window?.webContents &&
-      frame?.parent === null &&
-      frame.url.split("#")[0] === address.url;
-    if (!trusted) {
+    if (!isRendererFrame(event, address)) {
       throw new Error("RPC connection requested by an unexpected frame.");
     }
     return connection;
+  });
+  ipcMain.handle("task-tracker:open-external-link", async (event, value: unknown) => {
+    const link = isRendererFrame(event, address) ? externalLinkAddress(value) : undefined;
+    if (link === undefined) {
+      return false;
+    }
+    try {
+      await shell.openExternal(link);
+      return true;
+    } catch {
+      return false;
+    }
   });
 }
 

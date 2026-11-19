@@ -22,6 +22,7 @@ catalog:
   electron-builder: 26.18.0
   esbuild: 0.28.2
   lucide-react: 1.70.0
+  markdown-it: 15.0.3
   playwright: 1.65.1
   react: 19.3.1
   react-dom: 19.3.1
