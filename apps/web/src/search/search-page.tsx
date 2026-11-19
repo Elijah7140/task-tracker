@@ -12,12 +12,14 @@ import { fieldStyles } from "../ui/field-styles.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
 import { Select } from "../ui/select.js";
-import type { FilterRowEvaluation } from "./filter-row-model.js";
+import { QUERY_ERRORS_ID, QueryErrors } from "./query-errors.js";
+import { QuerySyntaxHelp } from "./query-syntax-help.js";
 import { SearchError } from "./search-error.js";
 import { SearchFilterRow } from "./search-filter-row.js";
 import { SearchResults } from "./search-results.js";
 import { currentField, useFilterRows } from "./use-filter-rows.js";
 import { useOpenSearchResult } from "./use-open-search-result.js";
+import { useSearchQuery } from "./use-search-query.js";
 import { useSearchScope } from "./use-search-scope.js";
 
 type Field = typeof SearchableField.Type;
@@ -35,12 +37,6 @@ export interface SearchPageProps {
 interface Submitted {
   readonly query: Query;
   readonly run: number;
-}
-
-function filtersOf(evaluations: ReadonlyArray<FilterRowEvaluation>) {
-  return evaluations.flatMap((evaluation) =>
-    evaluation.kind === "complete" ? [evaluation.filter] : [],
-  );
 }
 
 function useScopeFields(scope: typeof SearchScope.Type) {
@@ -128,36 +124,65 @@ function BackButton({ onBack }: { readonly onBack: () => void }) {
   );
 }
 
+interface QueryBoxProps {
+  readonly query: ReturnType<typeof useSearchQuery>;
+  readonly canSearch: boolean;
+}
+
+function QueryBox({ query, canSearch }: QueryBoxProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => inputRef.current?.focus(), []);
+  const invalid = query.errors.length > 0;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <input
+        ref={inputRef}
+        type="search"
+        value={query.text}
+        placeholder="Words, or a query like type:error priority>=high due<today"
+        aria-label="Search text"
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? QUERY_ERRORS_ID : undefined}
+        data-testid={SEARCH_INPUT_TEST_ID}
+        spellCheck={false}
+        onChange={(event) => query.type(event.target.value)}
+        className={`${fieldStyles.control} min-w-60 flex-1`}
+      />
+      <QuerySyntaxHelp />
+      <Button type="submit" variant="primary" disabled={!canSearch} data-testid="search-submit">
+        <Search size={14} aria-hidden="true" />
+        Search
+      </Button>
+    </div>
+  );
+}
+
 /**
- * Scoped search and filter builder (§7.2). It covers the page it was opened from,
- * which stays mounted with its drafts, and Back or Escape returns there. Search runs
- * when every filter row is complete and valid.
+ * Scoped search with the query box and filter builder (§7.2, §7.7). It covers the page
+ * it was opened from, which stays mounted with its drafts, and Back or Escape returns
+ * there. The box and the rows describe one query: Enter parses typed text into rows,
+ * and nothing runs while the text has errors or a row is incomplete or invalid.
  */
 export function SearchPage({ onBack, runGuards }: SearchPageProps) {
   const scope = useSearchScope();
   const { fields, error: fieldsError } = useScopeFields(scope.scope);
   const rows = useFilterRows(fields);
+  const query = useSearchQuery({ scope: scope.scope, fields, rows });
   const opening = useOpenSearchResult(runGuards);
-  const [text, setText] = useState("");
-  const [includeCompleted, setIncludeCompleted] = useState(false);
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => inputRef.current?.focus(), []);
-  const canSearch = fields !== null && rows.evaluations.every((row) => row.kind === "complete");
+  const rowsComplete = rows.evaluations.every((row) => row.kind === "complete");
+  const canSearch = fields !== null && (query.dirty || rowsComplete);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!canSearch) {
       return;
     }
     opening.clearError();
-    const query = {
-      scope: scope.scope,
-      text: text.trim() === "" ? null : text,
-      filters: filtersOf(rows.evaluations),
-      includeCompleted,
-    };
-    setSubmitted((previous) => ({ query, run: (previous?.run ?? 0) + 1 }));
+    const next = await query.submit();
+    if (next !== null) {
+      setSubmitted((previous) => ({ query: next, run: (previous?.run ?? 0) + 1 }));
+    }
   };
 
   return (
@@ -167,29 +192,15 @@ export function SearchPage({ onBack, runGuards }: SearchPageProps) {
         role="search"
         aria-label="Search items"
         className="flex flex-col gap-4"
-        onSubmit={submit}
+        onSubmit={(event) => void submit(event)}
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            ref={inputRef}
-            type="search"
-            value={text}
-            placeholder="Search title, description or ticket number…"
-            aria-label="Search text"
-            data-testid={SEARCH_INPUT_TEST_ID}
-            onChange={(event) => setText(event.target.value)}
-            className={`${fieldStyles.control} min-w-60 flex-1`}
-          />
-          <Button type="submit" variant="primary" disabled={!canSearch} data-testid="search-submit">
-            <Search size={14} aria-hidden="true" />
-            Search
-          </Button>
-        </div>
+        <QueryBox query={query} canSearch={canSearch} />
+        {query.errors.length === 0 ? null : <QueryErrors errors={query.errors} />}
         <div className="flex flex-wrap items-center gap-3">
           <ScopeControls scope={scope} />
           <Checkbox
-            checked={includeCompleted}
-            onCheckedChange={setIncludeCompleted}
+            checked={query.includeCompleted}
+            onCheckedChange={query.setIncludeCompleted}
             testId="search-include-completed"
           >
             Include completed
@@ -199,6 +210,7 @@ export function SearchPage({ onBack, runGuards }: SearchPageProps) {
       </form>
       <div className="mt-6 flex flex-col gap-4">
         {fieldsError === null ? null : <SearchError message={fieldsError} />}
+        {query.failure === null ? null : <SearchError message={query.failure} />}
         {opening.error === null ? null : <SearchError message={opening.error} />}
         {submitted === null ? null : (
           <SearchResults

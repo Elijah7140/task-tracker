@@ -1,8 +1,9 @@
-import type { SearchableField } from "@task-tracker/contracts";
+import type { FieldFilter, SearchableField } from "@task-tracker/contracts";
 import { describe, expect, it } from "vitest";
 import {
   createFilterRowDraft,
   evaluateFilterRow,
+  filterRowDraftFromFilter,
   type FilterRowDraft,
   isSameField,
   operatorLabelFor,
@@ -178,5 +179,76 @@ describe("evaluateFilterRow", () => {
       kind: "complete",
       filter: { fieldKey: "approved", operator: "equals", value: { kind: "boolean", value: true } },
     });
+  });
+});
+
+describe("filterRowDraftFromFilter", () => {
+  const high = "0190A1B2-0000-7000-8000-0000000000C2";
+  const low = "0190A1B2-0000-7000-8000-0000000000C4";
+  const choices = [
+    { id: high, label: "High", sortOrder: 1, name: "High", number: null },
+    { id: low, label: "Low", sortOrder: 3, name: "Low", number: null },
+  ];
+
+  it.each<[Field, typeof FieldFilter.Type]>([
+    [
+      title,
+      { fieldKey: "title", operator: "contains", value: { kind: "text", value: " dead lock " } },
+    ],
+    [
+      estimate,
+      { fieldKey: "estimate", operator: "greaterThan", value: { kind: "number", value: 2.5 } },
+    ],
+    [
+      estimate,
+      {
+        fieldKey: "estimate",
+        operator: "between",
+        value: { kind: "numberRange", min: -1, max: 1e21 },
+      },
+    ],
+    [due, { fieldKey: "due", operator: "lessThan", value: { kind: "date", value: "2026-11-13" } }],
+    [
+      due,
+      {
+        fieldKey: "due",
+        operator: "between",
+        value: { kind: "dateRange", min: "2026-11-01", max: "2026-11-30" },
+      },
+    ],
+    [
+      approved,
+      { fieldKey: "approved", operator: "equals", value: { kind: "boolean", value: true } },
+    ],
+    [priority, { fieldKey: "priority", operator: "notEquals", value: { kind: "choice", id: low } }],
+    [
+      priority,
+      {
+        fieldKey: "priority",
+        operator: "between",
+        value: { kind: "choiceRange", min: high, max: low },
+      },
+    ],
+    [due, { fieldKey: "due", operator: "isEmpty", value: null }],
+  ])("Builds a %s row that evaluates back to its parsed filter", (on, filter) => {
+    const draft = filterRowDraftFromFilter("parsed-1", filter, on, choices);
+
+    const evaluation = evaluateFilterRow(draft, on);
+
+    expect(draft.id).toBe("parsed-1");
+    expect(evaluation).toEqual({ kind: "complete", filter });
+  });
+
+  it("Keeps choice ranks so a rebuilt priority range is checked like a chosen one", () => {
+    const filter = {
+      fieldKey: "priority",
+      operator: "between",
+      value: { kind: "choiceRange", min: high, max: low },
+    } as const;
+
+    const draft = filterRowDraftFromFilter("parsed-1", filter, priority, choices);
+
+    expect(draft.firstChoice).toEqual({ id: high, sortOrder: 1 });
+    expect(draft.secondChoice).toEqual({ id: low, sortOrder: 3 });
   });
 });

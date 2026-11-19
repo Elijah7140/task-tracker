@@ -3,6 +3,7 @@ import type {
   FilterOperator,
   FilterValue,
   SearchableField,
+  SearchChoice,
 } from "@task-tracker/contracts";
 
 type Field = typeof SearchableField.Type;
@@ -179,4 +180,44 @@ export function evaluateFilterRow(
     return { kind: "incomplete" };
   }
   return { kind: "complete", filter: { fieldKey: field.key, operator, value } };
+}
+
+function chosen(id: string, choices: ReadonlyArray<typeof SearchChoice.Type>): ChosenChoice {
+  return { id, sortOrder: choices.find((choice) => choice.id === id)?.sortOrder ?? 0 };
+}
+
+function valuePatch(
+  value: Value,
+  choices: ReadonlyArray<typeof SearchChoice.Type>,
+): Partial<FilterRowDraft> {
+  switch (value.kind) {
+    case "text":
+    case "date":
+      return { first: value.value };
+    case "number":
+      return { first: String(value.value) };
+    case "boolean":
+      return { booleanValue: value.value };
+    case "choice":
+      return { firstChoice: chosen(value.id, choices) };
+    case "numberRange":
+    case "dateRange":
+      return { first: String(value.min), second: String(value.max) };
+    case "choiceRange":
+      return { firstChoice: chosen(value.min, choices), secondChoice: chosen(value.max, choices) };
+  }
+}
+
+/**
+ * A row that evaluates to `filter`, as the query box rebuilds the filter builder from
+ * parsed text (§7.7). `choices` gives choice ranks for priority ranges.
+ */
+export function filterRowDraftFromFilter(
+  id: string,
+  filter: Filter,
+  field: Field,
+  choices: ReadonlyArray<typeof SearchChoice.Type>,
+): FilterRowDraft {
+  const draft = { ...createFilterRowDraft(id, field), operator: filter.operator };
+  return filter.value === null ? draft : { ...draft, ...valuePatch(filter.value, choices) };
 }

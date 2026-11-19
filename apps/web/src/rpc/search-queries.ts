@@ -1,4 +1,4 @@
-import type { ItemQuery, SearchableField, SearchScope } from "@task-tracker/contracts";
+import type { FieldFilter, ItemQuery, SearchableField, SearchScope } from "@task-tracker/contracts";
 import { FIELD_CHOICES_KEY, FIELDS_KEY, fieldChoicesKey } from "./field-queries.js";
 import { HISTORY_KEY, HISTORY_REPLAY_KEY } from "./history-queries.js";
 import { ITEM_TYPES_KEY, LOOKUPS_KEY, PRIORITY_LEVELS_KEY } from "./lookup-queries.js";
@@ -47,3 +47,21 @@ export const searchResultsAtom = (query: typeof ItemQuery.Type) =>
 
 /** Resolves an active item's current project and folder when a result is opened. */
 export const locateSearchItemAtom = TaskTrackerClient.mutation("LocateSearchItem");
+
+/** Parses the query box text against the fields and choices in its scope (§7.7). */
+export const parseSearchQueryAtom = TaskTrackerClient.mutation("ParseSearchQuery");
+
+/**
+ * The canonical query text for free text and complete filter rows. Field, choice and
+ * lookup changes refresh it, so the box shows current labels (§7.7).
+ */
+export const formattedSearchQueryAtom = (
+  scope: typeof SearchScope.Type,
+  text: string | null,
+  filters: ReadonlyArray<typeof FieldFilter.Type>,
+) =>
+  TaskTrackerClient.query(
+    "FormatSearchQuery",
+    { scope, text, filters },
+    { reactivityKeys: [HISTORY_REPLAY_KEY, FIELDS_KEY, FIELD_CHOICES_KEY, LOOKUPS_KEY] },
+  );

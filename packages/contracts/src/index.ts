@@ -69,3 +69,5 @@ export {
 } from "./search.js";
 export { SearchRpcs } from "./search-rpcs.js";
 export { CalendarReschedule } from "./calendar-reschedule.js";
+export { ParsedSearchQuery, QueryParseError, SearchQueryChoices } from "./search-query.js";
+export { SearchQueryRpcs } from "./search-query-rpcs.js";
