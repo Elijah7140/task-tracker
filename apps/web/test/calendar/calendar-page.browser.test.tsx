@@ -267,6 +267,23 @@ describe("opening and leaving", () => {
 
     await expect.element(page.getByRole("heading", { name: "Billing" })).toBeVisible();
   });
+
+  it("Opens Search from Calendar and Back restores the workspace draft", async () => {
+    await openDraftWorkspace();
+
+    await userEvent.keyboard("{Control>}f{/Control}");
+    await expect
+      .element(page.getByRole("combobox", { name: "Search scope" }))
+      .toHaveTextContent("This project");
+    await expect.element(calendar()).not.toBeInTheDocument();
+    await page.getByTestId("search-back").click();
+
+    await expect.element(page.getByTestId("search-back")).not.toBeInTheDocument();
+    await expect.element(calendar()).not.toBeInTheDocument();
+    await expect
+      .element(page.getByTestId("item-editor-title"))
+      .toHaveValue("Review invoice edited");
+  });
 });
 
 describe("periods and views", () => {

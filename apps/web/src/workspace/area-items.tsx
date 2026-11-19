@@ -208,7 +208,7 @@ function AreaContent({ area, actions, quickAdd, ...props }: AreaContentProps) {
   });
 }
 
-/** Focuses a row that an item move followed into this area, once the area renders it. */
+/** Focuses a row that a move or search activation followed into this area, once rendered. */
 function useFollowedRowFocus(
   key: string,
   items: ItemSiblings,

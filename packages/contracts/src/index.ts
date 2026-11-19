@@ -54,3 +54,16 @@ export {
   CalendarUrgency,
 } from "./calendar-entry.js";
 export { CalendarRpcs } from "./calendar-rpcs.js";
+export {
+  FieldFilter,
+  FilterOperator,
+  FilterValue,
+  ItemQuery,
+  ItemSearchResult,
+  ItemSearchResults,
+  SearchableField,
+  SearchChoice,
+  SearchItemLocation,
+  SearchScope,
+} from "./search.js";
+export { SearchRpcs } from "./search-rpcs.js";

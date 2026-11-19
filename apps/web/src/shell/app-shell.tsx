@@ -1,5 +1,6 @@
 import { Outlet } from "@tanstack/react-router";
 import { useCallback, useRef } from "react";
+import { SearchPage } from "../search/search-page.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
 import { CalendarPage } from "../calendar/calendar-page.js";
 import { TrashPage } from "../trash/trash-page.js";
@@ -62,6 +63,9 @@ export function AppShell() {
             {covering === "trash" ? <TrashPage onBack={() => void goBack()} /> : null}
             {covering === "calendar" ? (
               <CalendarPage onBack={() => void goBack()} runGuards={returnGuards.runGuards} />
+            ) : null}
+            {covering === "search" ? (
+              <SearchPage onBack={() => void goBack()} runGuards={returnGuards.runGuards} />
             ) : null}
           </main>
           {history.message === null ? null : (

@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
 import { isArrayBufferView } from "node:util/types";
+import { foldSearchText } from "@task-tracker/core";
 import { Effect, Layer, Semaphore, Stream } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import { SqlClient, SqlError, Statement } from "effect/sql";
@@ -84,7 +85,12 @@ const makeClient = Effect.fnUntraced(function* (path: string) {
     sqliteEffect("open", () => new DatabaseSync(path, { enableForeignKeyConstraints: true })),
     (database) => sqliteEffect("close", () => database.close()).pipe(Effect.orDie),
   );
-  yield* sqliteEffect("configure", () => database.exec("PRAGMA busy_timeout = 5000"));
+  yield* sqliteEffect("configure", () => {
+    database.exec("PRAGMA busy_timeout = 5000");
+    database.function("tt_fold", { deterministic: true }, (value) =>
+      typeof value === "string" ? foldSearchText(value) : null,
+    );
+  });
 
   const access = SqlClient.makeSqliteAcquirers({
     connection: Effect.succeed(makeConnection(database)),

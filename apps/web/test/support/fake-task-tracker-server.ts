@@ -37,6 +37,7 @@ import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settin
 import { applySetItemStatus, FakeStatuses, statusHandlers } from "./fake-statuses.js";
 import { FakeTrash, trashHandlers } from "./fake-trash-handlers.js";
 import { FakeCalendar, calendarHandlers } from "./fake-calendar-handlers.js";
+import { FakeSearch, searchHandlers } from "./fake-search-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -142,6 +143,9 @@ export class FakeProjectStore {
 
   /** Calendar clock and failure state for Calendar tests. */
   readonly calendar = new FakeCalendar();
+
+  /** Scoped search overrides and link fixtures. */
+  readonly search = new FakeSearch();
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
@@ -755,6 +759,7 @@ function handlers(store: FakeProjectStore) {
       history.track(statuses.ReorderStatuses(payload), () => "Reorder statuses"),
     ...trashHandlers(store, history.track),
     ...calendarHandlers(store),
+    ...searchHandlers(store),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const verb = payload.fields.statusId === undefined ? "Edit" : "Set status of";

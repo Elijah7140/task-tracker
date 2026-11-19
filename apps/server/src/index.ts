@@ -10,3 +10,4 @@ export type { AreaSnapshot, ItemNode, ItemSiblings } from "./services/area-snaps
 export { FieldService } from "./services/field-service.js";
 export { SettingsService } from "./services/settings-service.js";
 export { UndoService } from "./services/undo-service.js";
+export { SearchService } from "./services/search-service.js";

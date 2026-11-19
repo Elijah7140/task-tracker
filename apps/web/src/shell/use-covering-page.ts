@@ -1,18 +1,21 @@
 import { useLocation } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef } from "react";
 import { dialogStore } from "../state/dialog-store.js";
-import { useReturnPageStore } from "../state/return-page-store.js";
+import { type CoveringPage, useReturnPageStore } from "../state/return-page-store.js";
 import type { ReturnGuard } from "./return-guards.js";
-import { useOpenCalendar } from "./use-open-calendar.js";
-import { useOpenTrash } from "./use-open-trash.js";
+import { useOpenCoveringPage } from "./use-open-covering-page.js";
 
-function isShiftShortcut(event: KeyboardEvent, key: string) {
-  return (
-    (event.ctrlKey || event.metaKey) &&
-    event.shiftKey &&
-    !event.altKey &&
-    event.key.toLowerCase() === key
-  );
+function coveringPageShortcut(event: KeyboardEvent): CoveringPage | undefined {
+  if ((!event.ctrlKey && !event.metaKey) || event.altKey) {
+    return;
+  }
+  const key = event.key.toLowerCase();
+  if (event.shiftKey) {
+    if (key === "c") return "calendar";
+    if (key === "t") return "trash";
+  } else if (key === "f") {
+    return "search";
+  }
 }
 
 function isPlainEscape(event: KeyboardEvent) {
@@ -27,23 +30,19 @@ function insideOpenPopup(target: EventTarget | undefined) {
   return popup?.closest("[data-open]") != null;
 }
 
-function useCoveringPageKeys(openTrash: () => void, openCalendar: () => void, goBack: () => void) {
-  const latest = useRef({ openTrash, openCalendar, goBack });
-  latest.current = { openTrash, openCalendar, goBack };
+function useCoveringPageKeys(open: (page: CoveringPage) => void, goBack: () => void) {
+  const latest = useRef({ open, goBack });
+  latest.current = { open, goBack };
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || dialogStore.getState().queue.length > 0) {
         return;
       }
-      if (isShiftShortcut(event, "t")) {
+      const page = coveringPageShortcut(event);
+      if (page !== undefined) {
         event.preventDefault();
         if (!event.repeat) {
-          latest.current.openTrash();
-        }
-      } else if (isShiftShortcut(event, "c")) {
-        event.preventDefault();
-        if (!event.repeat) {
-          latest.current.openCalendar();
+          latest.current.open(page);
         }
       } else if (
         isPlainEscape(event) &&
@@ -60,14 +59,12 @@ function useCoveringPageKeys(openTrash: () => void, openCalendar: () => void, go
 }
 
 /**
- * Opens and leaves covering pages such as Trash and Calendar. Ctrl+Shift+T opens
- * Trash and Ctrl+Shift+C opens Calendar. Back and Escape return unless a change
- * is running. When something changed the page behind, its unsaved-changes guard
- * is asked once and Cancel stays. Navigating elsewhere leaves the covering page.
+ * Handles keyboard shortcuts and Back for Search, Calendar and Trash. Returning
+ * waits for the covering page to finish any changes and asks the return page’s
+ * unsaved-changes guard if it needs a refresh.
  */
 export function useCoveringPage(runGuards: ReturnGuard) {
-  const openTrash = useOpenTrash();
-  const openCalendar = useOpenCalendar();
+  const open = useOpenCoveringPage();
   const href = useLocation({ select: (location) => location.href });
   const returning = useRef(false);
 
@@ -90,6 +87,6 @@ export function useCoveringPage(runGuards: ReturnGuard) {
     useReturnPageStore.getState().uncover();
   }, [href]);
 
-  useCoveringPageKeys(openTrash, openCalendar, () => void goBack());
-  return { openTrash, openCalendar, goBack };
+  useCoveringPageKeys(open, () => void goBack());
+  return { goBack };
 }

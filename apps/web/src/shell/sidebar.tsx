@@ -1,14 +1,13 @@
 import type { ReactNode } from "react";
-import { CalendarDays, CircleCheck, House, Plus, Settings, Trash2 } from "lucide-react";
+import { CalendarDays, CircleCheck, House, Plus, Search, Settings, Trash2 } from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
 import { Button } from "../ui/button.js";
-import { useReturnPageStore } from "../state/return-page-store.js";
+import { type CoveringPage, useReturnPageStore } from "../state/return-page-store.js";
 import { useCurrentArea } from "../workspace/area-route.js";
 import { SIDEBAR_ROW_CLASS, SidebarLink } from "./sidebar-link.js";
 import { SidebarProjectList } from "./sidebar-project-list.js";
 import { ThemeSwitcher } from "./theme-switcher.js";
-import { useOpenCalendar } from "./use-open-calendar.js";
-import { useOpenTrash } from "./use-open-trash.js";
+import { useOpenCoveringPage } from "./use-open-covering-page.js";
 
 function SidebarBrand({ editMenu }: { readonly editMenu?: ReactNode }) {
   return (
@@ -60,42 +59,28 @@ function SettingsLink() {
   );
 }
 
-/** Opens Calendar over the current page, which stays as the page Back returns to. */
-function CalendarEntry() {
-  const openCalendar = useOpenCalendar();
-  const shown = useReturnPageStore((state) => state.covering === "calendar");
+/** Opens a covering page and shows which one is active. */
+function CoveringPageEntry({
+  page,
+  label,
+  icon,
+}: {
+  readonly page: CoveringPage;
+  readonly label: string;
+  readonly icon: ReactNode;
+}) {
+  const open = useOpenCoveringPage();
+  const shown = useReturnPageStore((state) => state.covering === page);
   return (
     <button
       type="button"
-      onClick={openCalendar}
+      onClick={() => open(page)}
       aria-current={shown ? "page" : undefined}
-      data-testid="sidebar-calendar"
+      data-testid={`sidebar-${page}`}
       className={SIDEBAR_ROW_CLASS}
     >
-      <span className="flex size-5 shrink-0 items-center justify-center">
-        <CalendarDays size={15} aria-hidden="true" />
-      </span>
-      <span className="truncate">Calendar</span>
-    </button>
-  );
-}
-
-/** Opens Trash over the current page, which stays as the page Back returns to. */
-function TrashEntry() {
-  const openTrash = useOpenTrash();
-  const shown = useReturnPageStore((state) => state.covering === "trash");
-  return (
-    <button
-      type="button"
-      onClick={openTrash}
-      aria-current={shown ? "page" : undefined}
-      data-testid="sidebar-trash"
-      className={SIDEBAR_ROW_CLASS}
-    >
-      <span className="flex size-5 shrink-0 items-center justify-center">
-        <Trash2 size={15} aria-hidden="true" />
-      </span>
-      <span className="truncate">Trash</span>
+      <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -125,8 +110,21 @@ export function Sidebar({ editMenu }: { readonly editMenu?: ReactNode }) {
         <ProjectsSection />
       </div>
       <div className="flex flex-col gap-0.5 border-t border-line px-2 py-2">
-        <CalendarEntry />
-        <TrashEntry />
+        <CoveringPageEntry
+          page="search"
+          label="Search"
+          icon={<Search size={15} aria-hidden="true" />}
+        />
+        <CoveringPageEntry
+          page="calendar"
+          label="Calendar"
+          icon={<CalendarDays size={15} aria-hidden="true" />}
+        />
+        <CoveringPageEntry
+          page="trash"
+          label="Trash"
+          icon={<Trash2 size={15} aria-hidden="true" />}
+        />
         <SettingsLink />
       </div>
       <div className="border-t border-line p-3">

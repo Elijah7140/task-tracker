@@ -3,6 +3,8 @@ import { initialReturnPageState, useReturnPageStore } from "../../src/state/retu
 
 const state = () => useReturnPageStore.getState();
 const PROJECT = "0190A1B2-0000-7000-8000-000000000001";
+const FOLDER = "0190A1B2-0000-7000-8000-000000000002";
+const OTHER = "0190A1B2-0000-7000-8000-000000000003";
 
 describe("useReturnPageStore", () => {
   beforeEach(() => {
@@ -49,5 +51,38 @@ describe("useReturnPageStore", () => {
     state().uncover();
 
     expect(state()).toMatchObject(initialReturnPageState);
+  });
+
+  it("Records the originating project and folder when a page first covers", () => {
+    state().cover("search", PROJECT, FOLDER);
+
+    expect(state()).toMatchObject({
+      covering: "search",
+      originProjectId: PROJECT,
+      originFolderId: FOLDER,
+    });
+  });
+
+  it("Keeps the original return page and stale flag when switching covering pages", () => {
+    state().cover("trash", PROJECT, null);
+    state().markStale();
+
+    state().cover("search", OTHER, FOLDER);
+
+    expect(state()).toMatchObject({
+      covering: "search",
+      originProjectId: PROJECT,
+      originFolderId: null,
+      stale: true,
+    });
+  });
+
+  it("Stays on the current covering page while a change is running", () => {
+    state().cover("trash", PROJECT);
+    state().setBusy(true);
+
+    state().cover("search", PROJECT);
+
+    expect(state().covering).toBe("trash");
   });
 });
