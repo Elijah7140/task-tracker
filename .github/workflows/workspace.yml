@@ -20,8 +20,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vp check --deny-warnings
       - run: pnpm run build
+      - run: pnpm exec vp check --deny-warnings
       - name: Verify the Vite renderer responds
         shell: bash
         run: |
