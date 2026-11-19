@@ -20,7 +20,8 @@ desktopTest(
       await yellowAmount(page).fill("4");
       expect(await saveSettings(page).isEnabled()).toBe(true);
       await saveSettings(page).click();
-      await expect.poll(() => saveSettings(page).isDisabled()).toBe(true);
+      // The save button is also disabled while the RPC is still in flight.
+      await saveSettings(page).and(page.locator(':disabled:not([aria-busy="true"])')).waitFor();
       await page.getByTestId("sidebar-home").click();
       await page.getByRole("heading", { level: 1, name: "Projects" }).waitFor();
       await openAppSettings(page);
