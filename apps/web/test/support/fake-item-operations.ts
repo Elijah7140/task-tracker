@@ -398,12 +398,22 @@ export function applySetItemCompleted(
   return Effect.succeed({ kind: "applied", changes });
 }
 
+/** Inserts a node among siblings at `index`, or appends it when `index` is omitted. */
+function insertAt(
+  siblings: ReadonlyArray<FakeItemNode>,
+  node: FakeItemNode,
+  index: number = siblings.length,
+): Array<FakeItemNode> {
+  return [...siblings.slice(0, index), node, ...siblings.slice(index)];
+}
+
 function moveWithinArea(
   store: FakeItemStoreContext,
   area: FakeAreaState,
   projectId: string,
   itemId: string,
   newParentId: string | null,
+  index?: number,
 ): Effect.Effect<void, ItemError> {
   const located = locateNode(area.nodes, itemId);
   if (located === undefined) {
@@ -425,10 +435,12 @@ function moveWithinArea(
   };
   area.nodes = detachNode(area.nodes, itemId);
   if (newParentId === null) {
-    area.nodes = [...area.nodes, movedNode];
+    area.nodes = insertAt(area.nodes, movedNode, index);
   } else {
     area.nodes = mapTree(area.nodes, (node) =>
-      node.item.id === newParentId ? { ...node, children: [...node.children, movedNode] } : node,
+      node.item.id === newParentId
+        ? { ...node, children: insertAt(node.children, movedNode, index) }
+        : node,
     );
   }
   reconcileAncestors(
@@ -476,7 +488,69 @@ function applyOutdentItem(
   if (located.parent === null) {
     return Effect.fail(new RuleViolation({ message: "A top-level item cannot be outdented." }));
   }
-  return moveWithinArea(store, area, projectId, itemId, located.parent.item.parentItemId);
+  const grandparentId = located.parent.item.parentItemId;
+  const parentIndex = locateNode(area.nodes, located.parent.item.id)!.index;
+  return moveWithinArea(store, area, projectId, itemId, grandparentId, parentIndex + 1);
+}
+
+/** A node is finished when it and every descendant are complete (§6.2). */
+function isFinishedNode(node: FakeItemNode): boolean {
+  return node.item.completedAtUtc !== null && node.children.every(isFinishedNode);
+}
+
+/** Reorders open siblings around the target while finished siblings keep their slots. */
+function openSiblingOrder(
+  siblings: ReadonlyArray<FakeItemNode>,
+  itemId: string,
+  targetId: string,
+  after: boolean,
+): ReadonlyArray<string> {
+  const finished = new Set(siblings.filter(isFinishedNode).map((node) => node.item.id));
+  const open = siblings
+    .map((node) => node.item.id)
+    .filter((id) => id !== itemId && !finished.has(id));
+  open.splice(open.indexOf(targetId) + Number(after), 0, itemId);
+  const reordered = open.values();
+  return siblings.map((node) =>
+    finished.has(node.item.id) ? node.item.id : reordered.next().value!,
+  );
+}
+
+/** Mirrors Core `dropItem`: before, after or into a target validated against the current tree. */
+function applyDropItem(
+  store: FakeItemStoreContext,
+  area: FakeAreaState,
+  projectId: string,
+  itemId: string,
+  targetId: string,
+  position: "before" | "after" | "into",
+): Effect.Effect<void, ItemError> {
+  const source = locateNode(area.nodes, itemId);
+  const target = locateNode(area.nodes, targetId);
+  if (source === undefined || target === undefined) {
+    return Effect.fail(missingItem());
+  }
+  if (collectSubtreeIds(source.node).has(targetId)) {
+    return Effect.fail(new RuleViolation({ message: "Item move would create a cycle." }));
+  }
+  if (position === "into") {
+    return moveWithinArea(store, area, projectId, itemId, targetId);
+  }
+  if (isFinishedNode(source.node) || isFinishedNode(target.node)) {
+    return Effect.fail(
+      new RuleViolation({ message: "Finished items only accept drops into another item." }),
+    );
+  }
+  const parentId = target.parent?.item.id ?? null;
+  const after = position === "after";
+  if ((source.parent?.item.id ?? null) === parentId) {
+    return applyReorderItems(
+      area,
+      parentId,
+      openSiblingOrder(target.siblings, itemId, targetId, after),
+    );
+  }
+  return moveWithinArea(store, area, projectId, itemId, parentId, target.index + Number(after));
 }
 
 function applyReorderItems(
@@ -683,6 +757,26 @@ export function itemHandlers(
       record("MoveItem").pipe(
         Effect.andThen(store.requireArea(projectId, folderId)),
         Effect.flatMap((area) => moveWithinArea(store, area, projectId, itemId, parentItemId)),
+      ),
+
+    DropItem: ({
+      projectId,
+      folderId,
+      itemId,
+      targetItemId,
+      position,
+    }: {
+      projectId: string;
+      folderId: string | null;
+      itemId: string;
+      targetItemId: string;
+      position: "before" | "after" | "into";
+    }) =>
+      record("DropItem").pipe(
+        Effect.andThen(store.requireArea(projectId, folderId)),
+        Effect.flatMap((area) =>
+          applyDropItem(store, area, projectId, itemId, targetItemId, position),
+        ),
       ),
 
     ReorderItems: ({

@@ -13,6 +13,8 @@ export interface ItemEditorState {
   readonly custom: Readonly<Record<string, CustomFieldDraft>>;
   /** Why the last save was refused, shown in the editor until the draft changes. */
   readonly error: string | null;
+  /** An open item whose draft follows it into the area an item move navigates to. */
+  readonly carried: CarriedEditor | null;
   /** Opens an item with a fresh draft. */
   readonly open: (itemId: string) => void;
   /** Closes the editor and forgets its draft. */
@@ -30,7 +32,14 @@ export const initialItemEditorState = {
   builtIn: {},
   custom: {},
   error: null,
+  carried: null,
 } as const;
+
+/** The open item and the area key of the area an item move is carrying the editor to. */
+export interface CarriedEditor {
+  readonly itemId: string;
+  readonly areaKey: string;
+}
 
 /** The item editor's session state. */
 export const useItemEditorStore = create<ItemEditorState>()((set) => ({
@@ -50,3 +59,43 @@ export const openItemEditor = (itemId: string) => useItemEditorStore.getState().
 
 /** True while the floating editor is open. */
 export const isItemEditorOpen = () => useItemEditorStore.getState().openItemId !== null;
+
+/** True when the open editor holds typed values that have not been saved or discarded. */
+export const hasItemEditorEdits = () => {
+  const { openItemId, builtIn, custom } = useItemEditorStore.getState();
+  return openItemId !== null && (Object.keys(builtIn).length > 0 || Object.keys(custom).length > 0);
+};
+
+/** Keeps the editor open for an item while a move navigates to the item's new area. */
+export const carryItemEditor = (carried: CarriedEditor) => useItemEditorStore.setState({ carried });
+
+/** The pending carry of the open editor, if a move is taking it to another area. */
+export const carriedItemEditor = (): CarriedEditor | null => {
+  const { openItemId, carried } = useItemEditorStore.getState();
+  return carried !== null && carried.itemId === openItemId ? carried : null;
+};
+
+/** Marks a carried editor as arrived once the destination area shows its item. */
+export const settleCarriedItemEditor = (areaKey: string) => {
+  if (carriedItemEditor()?.areaKey === areaKey) {
+    useItemEditorStore.setState({ carried: null });
+  }
+};
+
+/** Closes the editor when its area closes, unless an item move is carrying it to another area. */
+export const closeItemEditorWithArea = () => {
+  if (carriedItemEditor() === null) {
+    useItemEditorStore.getState().close();
+  }
+};
+
+/**
+ * Closes an editor carried to another area when a different area opens
+ * first, as when the user navigates elsewhere before the move's area loads.
+ */
+export const dropStrayCarriedEditor = (areaKey: string) => {
+  const carried = carriedItemEditor();
+  if (carried !== null && carried.areaKey !== areaKey) {
+    useItemEditorStore.getState().close();
+  }
+};

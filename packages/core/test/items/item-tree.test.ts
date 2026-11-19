@@ -178,3 +178,49 @@ it("only reorders a complete permutation of active siblings", () => {
     ["root", 1],
   ]);
 });
+
+it("places an outdented item immediately after its former parent", () => {
+  const tree = new ItemTree(projectId, null, [
+    item("parent"),
+    item("later", { sortOrder: 1 }),
+    item("child", { parentItemId: "parent" }),
+  ]);
+
+  tree.outdent("child", now);
+
+  expect(tree.children(null).map((row) => [row.id, row.sortOrder])).toEqual([
+    ["parent", 0],
+    ["child", 1],
+    ["later", 2],
+  ]);
+});
+
+it("moves an item to an index among its new siblings and renumbers both lists", () => {
+  const tree = new ItemTree(projectId, null, [
+    item("first"),
+    item("second", { sortOrder: 1 }),
+    item("child-a", { parentItemId: "first" }),
+    item("child-b", { parentItemId: "first", sortOrder: 1 }),
+    item("child-c", { parentItemId: "first", sortOrder: 2 }),
+  ]);
+
+  tree.moveAt("child-b", null, 1, now);
+
+  expect(tree.children(null).map((row) => [row.id, row.sortOrder])).toEqual([
+    ["first", 0],
+    ["child-b", 1],
+    ["second", 2],
+  ]);
+  expect(tree.children("first").map((row) => [row.id, row.sortOrder])).toEqual([
+    ["child-a", 0],
+    ["child-c", 1],
+  ]);
+});
+
+it("rejects an index outside the destination siblings", () => {
+  const tree = new ItemTree(projectId, null, [item("first"), item("second", { sortOrder: 1 })]);
+
+  expect(() => tree.moveAt("first", null, 2, now)).toThrow(HierarchyError);
+  expect(() => tree.moveAt("first", null, -1, now)).toThrow(HierarchyError);
+  expect(tree.children(null).map((row) => row.id)).toEqual(["first", "second"]);
+});

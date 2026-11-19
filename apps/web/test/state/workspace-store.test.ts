@@ -34,4 +34,18 @@ describe("useWorkspaceStore", () => {
     expect([...useWorkspaceStore.getState().expandedItems]).toEqual(["item"]);
     expect([...useWorkspaceStore.getState().expandedCompleted]).toEqual(["area"]);
   });
+
+  it("Counts every selection change, including a return to the same item", () => {
+    const { selectItem } = useWorkspaceStore.getState();
+
+    selectItem("first");
+    const afterFirst = useWorkspaceStore.getState().itemSelectionVersion;
+    selectItem("first");
+    const unchanged = useWorkspaceStore.getState().itemSelectionVersion;
+    selectItem("second");
+    selectItem("first");
+
+    expect(unchanged).toBe(afterFirst);
+    expect(useWorkspaceStore.getState().itemSelectionVersion).toBe(afterFirst + 2);
+  });
 });

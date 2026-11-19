@@ -1,4 +1,5 @@
 import { useAtomSet } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
 import type { Exit } from "effect";
 import { reportFailure } from "../dialogs/report-failure.js";
 import { areaKey } from "../rpc/area-queries.js";
@@ -13,8 +14,10 @@ import {
 } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { choose } from "../state/dialog-store.js";
+import { carryItemEditor, useItemEditorStore } from "../state/item-editor-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { useSerialReorder } from "../ui/use-serial-reorder.js";
+import { areaTarget } from "./area-route.js";
 import { areaChoiceOptions, type Folder, ROOT_AREA_CHOICE } from "./folder-outline.js";
 import {
   departureFocusIds,
@@ -29,7 +32,8 @@ import {
   sameGroupSiblingIds,
   siblingNodesOf,
 } from "./item-outline.js";
-import { type DropPlacement, moveAmongVisible, swapWithVisibleNeighbor } from "./reorder-plan.js";
+import { swapWithVisibleNeighbor } from "./reorder-plan.js";
+import { type MoveResult, useItemMoveRunner } from "./use-item-move-runner.js";
 
 const TOP_LEVEL_CHOICE = "top-level";
 
@@ -42,6 +46,8 @@ export interface ItemStructureScope {
   readonly folders: ReadonlyArray<Folder>;
   readonly items: ItemSiblings;
   readonly onFocusItem: (request: ItemFocusRequest) => void;
+  /** Shows or clears the inline failure of a pointer drop in this area. */
+  readonly onMoveError: (message: string | null) => void;
 }
 
 /** Shows a failed item action dialog and reports whether the exit succeeded. */
@@ -73,117 +79,62 @@ export function focusAfterDeparture(scope: ItemStructureScope, node: ItemNode) {
   });
 }
 
-function useIndentAndOutdent(scope: ItemStructureScope) {
-  const indent = useAtomSet(indentItemAtom, { mode: "promiseExit" });
-  const outdent = useAtomSet(outdentItemAtom, { mode: "promiseExit" });
-  const move = useAtomSet(moveItemAtom, { mode: "promiseExit" });
-  const key = areaKey(scope.projectId, scope.folderId);
-  const structureKeys = [key, PROJECTS_KEY, HISTORY_KEY];
-
-  const indentItem = async (node: ItemNode) => {
-    const targetParent = precedingOpenSibling(scope.items, node);
-    if (targetParent === undefined) {
-      return;
-    }
-    const siblingIds = persistedSiblingOrder(siblingNodesOf(scope.items, node.item.parentItemId));
-    const index = siblingIds.indexOf(node.item.id);
-    const adjacent = index > 0 && siblingIds[index - 1] === targetParent.item.id;
-    const area = { projectId: scope.projectId, folderId: scope.folderId };
-    const exit = adjacent
-      ? await indent({
-          payload: { ...area, itemId: node.item.id },
-          reactivityKeys: structureKeys,
-        })
-      : await move({
-          payload: { ...area, itemId: node.item.id, parentItemId: targetParent.item.id },
-          reactivityKeys: structureKeys,
-        });
-    if (await reportItemFailure(exit)) {
-      expandBranch(scope.items, targetParent.item.id);
-      useWorkspaceStore.getState().selectItem(node.item.id);
-      scope.onFocusItem({ id: node.item.id, expectedParentId: targetParent.item.id });
-    }
-  };
-
-  const outdentItem = async (node: ItemNode) => {
-    if (node.item.parentItemId === null) {
-      return;
-    }
-    const parent = findItemNode(scope.items, node.item.parentItemId);
-    const grandparentId = parent?.item.parentItemId ?? null;
-    const exit = await outdent({
-      payload: { projectId: scope.projectId, folderId: scope.folderId, itemId: node.item.id },
-      reactivityKeys: structureKeys,
+/**
+ * Reveals and selects an item moved under `parentItemId` in this area, and
+ * focuses its row once the refreshed tree shows it, unless something newer
+ * took precedence while the move saved.
+ */
+export function showMovedItem(
+  scope: ItemStructureScope,
+  node: ItemNode,
+  parentItemId: string | null,
+  result: MoveResult,
+) {
+  if (!result.follow) {
+    return;
+  }
+  const store = useWorkspaceStore.getState();
+  if (parentItemId !== null) {
+    expandBranch(scope.items, parentItemId);
+  }
+  if (node.isFinished) {
+    // A finished item lands in its new level's Completed section.
+    store.setCompletedExpanded(parentItemId ?? areaKey(scope.projectId, scope.folderId), true);
+  }
+  store.selectItem(node.item.id);
+  if (result.focusRow) {
+    scope.onFocusItem({
+      id: node.item.id,
+      expectedParentId: parentItemId,
+      afterNodes: scope.items,
     });
-    if (await reportItemFailure(exit)) {
-      useWorkspaceStore.getState().selectItem(node.item.id);
-      scope.onFocusItem({ id: node.item.id, expectedParentId: grandparentId });
-    }
-  };
-
-  return { indentItem, outdentItem };
+  }
 }
 
-function useMoveItems(scope: ItemStructureScope) {
-  const move = useAtomSet(moveItemAtom, { mode: "promiseExit" });
-  const moveToArea = useAtomSet(moveItemToAreaAtom, { mode: "promiseExit" });
-
-  const moveItemParent = async (node: ItemNode) => {
-    const currentParent = node.item.parentItemId ?? TOP_LEVEL_CHOICE;
-    const options = [
-      { value: TOP_LEVEL_CHOICE, label: `${scope.areaName} (top level)` },
-      ...flattenItemNodes(scope.items).map(({ node: candidate, depth }) => ({
-        value: candidate.item.id,
-        label: candidate.item.title,
-        depth: depth + 1,
-      })),
-    ];
-    const choice = await choose({
-      title: "Move item",
-      label: "Destination",
-      options,
-      initialValue: currentParent,
-      confirmLabel: "Move",
-    });
-    if (choice === null || choice === currentParent) {
+/** Opens the area a top-level item moved to, carrying its editor and row focus along. */
+function useShowAreaMove(scope: ItemStructureScope) {
+  const navigate = useNavigate();
+  return async (node: ItemNode, targetFolderId: string | null, result: MoveResult) => {
+    if (!result.follow) {
       return;
     }
-    const parentItemId = choice === TOP_LEVEL_CHOICE ? null : choice;
-    const exit = await move({
-      payload: {
-        projectId: scope.projectId,
-        folderId: scope.folderId,
-        itemId: node.item.id,
-        parentItemId,
-      },
-      reactivityKeys: [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY],
-    });
-    if (await reportItemFailure(exit)) {
-      if (parentItemId !== null) {
-        expandBranch(scope.items, parentItemId);
-      }
-      useWorkspaceStore.getState().selectItem(node.item.id);
-      scope.onFocusItem({ id: node.item.id, expectedParentId: parentItemId });
+    const targetKey = areaKey(scope.projectId, targetFolderId);
+    if (useItemEditorStore.getState().openItemId === node.item.id) {
+      carryItemEditor({ itemId: node.item.id, areaKey: targetKey });
     }
+    const store = useWorkspaceStore.getState();
+    store.selectItem(node.item.id);
+    store.setPendingRowFocus(result.focusRow ? { itemId: node.item.id, areaKey: targetKey } : null);
+    await navigate(areaTarget(scope.projectId, targetFolderId));
   };
+}
 
-  const moveItemToArea = async (node: ItemNode) => {
-    if (node.item.parentItemId !== null) {
-      return;
-    }
-    const currentArea = scope.folderId ?? ROOT_AREA_CHOICE;
-    const choice = await choose({
-      title: "Move to area",
-      label: "Destination area",
-      options: areaChoiceOptions(scope.projectName, scope.folders),
-      initialValue: currentArea,
-      confirmLabel: "Move",
-    });
-    if (choice === null || choice === currentArea) {
-      return;
-    }
-    const targetFolderId = choice === ROOT_AREA_CHOICE ? null : choice;
-    const exit = await moveToArea({
+/** Moves a top-level item to another area of the project and follows it there. */
+export function useMoveToArea(scope: ItemStructureScope) {
+  const moveToArea = useAtomSet(moveItemToAreaAtom, { mode: "promiseExit" });
+  const showAreaMove = useShowAreaMove(scope);
+  return (node: ItemNode, targetFolderId: string | null) =>
+    moveToArea({
       payload: {
         projectId: scope.projectId,
         sourceFolderId: scope.folderId,
@@ -192,13 +143,146 @@ function useMoveItems(scope: ItemStructureScope) {
       },
       reactivityKeys: [
         HISTORY_KEY,
+        PROJECTS_KEY,
         areaKey(scope.projectId, scope.folderId),
         areaKey(scope.projectId, targetFolderId),
       ],
-    });
-    if (await reportItemFailure(exit)) {
-      focusAfterDeparture(scope, node);
+    }).then((exit) => ({
+      exit,
+      show: (result: MoveResult) => showAreaMove(node, targetFolderId, result),
+    }));
+}
+
+function useIndentAndOutdent(scope: ItemStructureScope) {
+  const indent = useAtomSet(indentItemAtom, { mode: "promiseExit" });
+  const outdent = useAtomSet(outdentItemAtom, { mode: "promiseExit" });
+  const move = useAtomSet(moveItemAtom, { mode: "promiseExit" });
+  const run = useItemMoveRunner();
+  const structureKeys = [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY, HISTORY_KEY];
+  const area = { projectId: scope.projectId, folderId: scope.folderId };
+
+  /** Indents with IndentItem when the target is the adjacent sibling, else reparents under it. */
+  const saveIndent = (node: ItemNode, targetParent: ItemNode) => {
+    const siblingIds = persistedSiblingOrder(siblingNodesOf(scope.items, node.item.parentItemId));
+    const index = siblingIds.indexOf(node.item.id);
+    const adjacent = index > 0 && siblingIds[index - 1] === targetParent.item.id;
+    const itemId = node.item.id;
+    return adjacent
+      ? indent({ payload: { ...area, itemId }, reactivityKeys: structureKeys })
+      : move({
+          payload: { ...area, itemId, parentItemId: targetParent.item.id },
+          reactivityKeys: structureKeys,
+        });
+  };
+
+  const indentItem = async (node: ItemNode) => {
+    const targetParent = precedingOpenSibling(scope.items, node);
+    if (targetParent === undefined) {
+      return;
     }
+    await run({
+      itemId: node.item.id,
+      save: () => saveIndent(node, targetParent),
+      onSaved: (result) => showMovedItem(scope, node, targetParent.item.id, result),
+      onFailed: reportItemFailure,
+    });
+  };
+
+  const outdentItem = async (node: ItemNode) => {
+    if (node.item.parentItemId === null) {
+      return;
+    }
+    const grandparentId = findItemNode(scope.items, node.item.parentItemId)?.item.parentItemId;
+    await run({
+      itemId: node.item.id,
+      save: () =>
+        outdent({ payload: { ...area, itemId: node.item.id }, reactivityKeys: structureKeys }),
+      onSaved: (result) => showMovedItem(scope, node, grandparentId ?? null, result),
+      onFailed: reportItemFailure,
+    });
+  };
+
+  return { indentItem, outdentItem };
+}
+
+function chooseParent(scope: ItemStructureScope, node: ItemNode) {
+  const options = [
+    { value: TOP_LEVEL_CHOICE, label: `${scope.areaName} (top level)` },
+    ...flattenItemNodes(scope.items).map(({ node: candidate, depth }) => ({
+      value: candidate.item.id,
+      label: candidate.item.title,
+      depth: depth + 1,
+    })),
+  ];
+  return choose({
+    title: "Move item",
+    label: "Destination",
+    options,
+    initialValue: node.item.parentItemId ?? TOP_LEVEL_CHOICE,
+    confirmLabel: "Move",
+  });
+}
+
+function chooseArea(scope: ItemStructureScope) {
+  return choose({
+    title: "Move to area",
+    label: "Destination area",
+    options: areaChoiceOptions(scope.projectName, scope.folders),
+    initialValue: scope.folderId ?? ROOT_AREA_CHOICE,
+    confirmLabel: "Move",
+  });
+}
+
+function useMoveItems(scope: ItemStructureScope) {
+  const move = useAtomSet(moveItemAtom, { mode: "promiseExit" });
+  const moveToArea = useMoveToArea(scope);
+  const run = useItemMoveRunner();
+
+  const moveItemParent = async (node: ItemNode) => {
+    let parentItemId: string | null = null;
+    await run({
+      itemId: node.item.id,
+      save: async () => {
+        const choice = await chooseParent(scope, node);
+        if (choice === null || choice === (node.item.parentItemId ?? TOP_LEVEL_CHOICE)) {
+          return null;
+        }
+        parentItemId = choice === TOP_LEVEL_CHOICE ? null : choice;
+        return move({
+          payload: {
+            projectId: scope.projectId,
+            folderId: scope.folderId,
+            itemId: node.item.id,
+            parentItemId,
+          },
+          reactivityKeys: [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY],
+        });
+      },
+      onSaved: (result) => showMovedItem(scope, node, parentItemId, result),
+      onFailed: reportItemFailure,
+    });
+  };
+
+  /** Ctrl+Shift+L and the row menu: picks an area, then moves the whole branch there. */
+  const moveItemToArea = async (node: ItemNode) => {
+    if (node.item.parentItemId !== null) {
+      return;
+    }
+    let show: ((result: MoveResult) => Promise<void>) | undefined;
+    await run({
+      itemId: node.item.id,
+      save: async () => {
+        const choice = await chooseArea(scope);
+        if (choice === null || choice === (scope.folderId ?? ROOT_AREA_CHOICE)) {
+          return null;
+        }
+        const moved = await moveToArea(node, choice === ROOT_AREA_CHOICE ? null : choice);
+        show = moved.show;
+        return moved.exit;
+      },
+      onSaved: (result) => show?.(result),
+      onFailed: reportItemFailure,
+    });
   };
 
   return { moveItemParent, moveItemToArea };
@@ -240,26 +324,13 @@ function useReorderItems(scope: ItemStructureScope) {
       return applyOrder(nodes, parentItemId, node.item.id, order);
     });
 
-  const reorderByDrop = (
-    parentItemId: string | null,
-    sourceId: string,
-    targetId: string,
-    placement: DropPlacement,
-  ) =>
-    serial.run((nodes) => {
-      const siblings = siblingNodesOf(nodes, parentItemId);
-      const allIds = persistedSiblingOrder(siblings);
-      const visibleIds = siblings.open.map((sibling) => sibling.item.id);
-      const order = moveAmongVisible(allIds, visibleIds, sourceId, targetId, placement);
-      return applyOrder(nodes, parentItemId, sourceId, order);
-    });
-
-  return { reorderByOffset, reorderByDrop };
+  return { reorderByOffset };
 }
 
 /**
  * Indent, outdent, reparent, area-move and sibling-reorder flows for items.
- * Preserves expansion and row focus across tree structural changes.
+ * Moves run one at a time behind the editor guard and preserve expansion and
+ * row focus across tree structural changes.
  */
 export function useItemStructureActions(scope: ItemStructureScope) {
   return {

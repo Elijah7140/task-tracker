@@ -8,7 +8,7 @@ import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure
 import { urgencyRefreshAtom } from "../rpc/urgency-refresh.js";
 import { ItemEditor } from "../editor/item-editor.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
-import { useItemEditorStore } from "../state/item-editor-store.js";
+import { closeItemEditorWithArea, dropStrayCarriedEditor } from "../state/item-editor-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import type { Folder } from "./folder-outline.js";
 import {
@@ -16,6 +16,7 @@ import {
   findItemNode,
   findItemTitle,
   isEmptyLevel,
+  type ItemFocusRequest,
   type ItemSiblings,
 } from "./item-outline.js";
 import type { ItemRowLookups } from "./item-row.js";
@@ -163,6 +164,7 @@ function useAreaFocus(items: ItemSiblings, loaded: boolean, focusQuickAddOnLoad:
 }
 
 interface AreaContentProps {
+  readonly folderId: string | null;
   readonly area: AsyncResult.AsyncResult<typeof AreaSnapshot.Type, RpcFailure>;
   readonly areaName: string;
   readonly sectionKey: string;
@@ -193,6 +195,7 @@ function AreaContent({ area, actions, quickAdd, ...props }: AreaContentProps) {
       ) : (
         <ItemTree
           label={`Items in ${props.areaName}`}
+          folderId={props.folderId}
           nodes={value.items}
           sectionKey={props.sectionKey}
           lookups={lookupsFor(value, props.timeZone)}
@@ -202,6 +205,46 @@ function AreaContent({ area, actions, quickAdd, ...props }: AreaContentProps) {
         />
       ),
   });
+}
+
+/** Focuses a row that an item move followed into this area, once the area renders it. */
+function useFollowedRowFocus(
+  key: string,
+  items: ItemSiblings,
+  onFocusItem: (request: ItemFocusRequest) => void,
+) {
+  const pending = useWorkspaceStore((state) => state.pendingRowFocus);
+  useEffect(() => {
+    if (pending === null || pending.areaKey !== key) {
+      return;
+    }
+    const node = findItemNode(items, pending.itemId);
+    if (node === undefined) {
+      return;
+    }
+    const store = useWorkspaceStore.getState();
+    store.setPendingRowFocus(null);
+    if (node.isFinished) {
+      store.setCompletedExpanded(key, true);
+    }
+    onFocusItem({ id: node.item.id });
+  }, [pending, key, items, onFocusItem]);
+}
+
+/** The inline failure of the last pointer drop in this area (§7.5). */
+function MoveError({ message }: { readonly message: string | null }) {
+  if (message === null) {
+    return null;
+  }
+  return (
+    <p
+      role="alert"
+      data-testid="item-move-error"
+      className="mb-2 rounded-control bg-danger-soft px-3 py-2 text-[13px] text-danger"
+    >
+      {message}
+    </p>
+  );
 }
 
 /** Loads an area and keeps its server urgency fresh with a once-a-minute reload. */
@@ -228,14 +271,22 @@ export function AreaItems(props: AreaItemsProps) {
   const items = loaded ? area.value.items : EMPTY_SIBLINGS;
   const focus = useAreaFocus(items, loaded, focusQuickAddOnLoad);
   const [deletedBatch, setDeletedBatch] = useState<DeletedItemNotice | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const actions = useItemActions({
     ...props,
     items,
     onFocusItem: focus.onFocusItem,
     onDeleted: setDeletedBatch,
+    onMoveError: setMoveError,
   });
+  useFollowedRowFocus(key, items, focus.onFocusItem);
   const banner = useUndoBannerHandlers(deletedBatch, setDeletedBatch, actions.restoreBatch, focus);
-  useWorkspaceShortcuts({ quickAddRef: focus.quickAddRef, items, addSubItem: actions.addSubItem });
+  useWorkspaceShortcuts({
+    quickAddRef: focus.quickAddRef,
+    items,
+    addSubItem: actions.addSubItem,
+    moveItemToArea: actions.moveItemToArea,
+  });
 
   const { quickAddRef } = focus;
   const observedDeletion = useRef<string | null>(null);
@@ -264,8 +315,11 @@ export function AreaItems(props: AreaItemsProps) {
     }
   }, [loaded, items, deletedBatch, banner]);
 
-  // The editor belongs to this area; leaving the area closes it.
-  useEffect(() => () => useItemEditorStore.getState().close(), []);
+  // The editor belongs to this area; leaving the area closes it unless a move carries it along.
+  useEffect(() => {
+    dropStrayCarriedEditor(key);
+    return () => closeItemEditorWithArea();
+  }, [key]);
 
   const handleQuickAdd = async (title: string) => {
     const waitForNonEmpty = isEmptyLevel(items);
@@ -278,11 +332,13 @@ export function AreaItems(props: AreaItemsProps) {
 
   return (
     <>
+      <MoveError message={moveError} />
       <div ref={focus.containerRef} className="contents">
         {leavingMissingFolder ? (
           <AreaSkeleton />
         ) : (
           <AreaContent
+            folderId={folderId}
             area={area}
             areaName={props.areaName}
             sectionKey={key}

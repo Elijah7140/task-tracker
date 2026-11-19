@@ -1,10 +1,5 @@
-import {
-  type PointerEvent as ReactPointerEvent,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from "react";
+import { usePointerDrag } from "./use-pointer-drag.js";
 
 /** Drop placement relative to a hovered row during pointer drag. */
 export type DropEdge = "before" | "after" | null;
@@ -78,36 +73,24 @@ export function usePointerReorder({
 }: PointerReorderOptions): PointerReorder {
   const [drag, setDrag] = useState<DragState | null>(null);
 
-  useEffect(() => {
-    if (drag === null) {
-      return;
-    }
-    const rowAt = (event: PointerEvent) =>
-      findRowIdAtY(listRef.current, rowAttribute, event.clientY);
-    const handleMove = (event: PointerEvent) =>
-      setDrag((current) => (current === null ? null : { ...current, overId: rowAt(event) }));
-    const handleUp = (event: PointerEvent) => {
-      const targetId = rowAt(event);
-      setDrag(null);
-      if (targetId !== null && targetId !== drag.draggedId) {
-        onDrop(drag.draggedId, targetId);
-      }
-    };
-    const handleCancel = () => setDrag(null);
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-    window.addEventListener("pointercancel", handleCancel);
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-      window.removeEventListener("pointercancel", handleCancel);
-    };
-  }, [drag, listRef, rowAttribute, onDrop]);
+  const start = usePointerDrag();
+  const latest = useRef(onDrop);
+  latest.current = onDrop;
 
-  const startDrag = useCallback((id: string, event: ReactPointerEvent<HTMLElement>) => {
-    event.preventDefault();
-    setDrag({ draggedId: id, overId: id });
-  }, []);
+  const startDrag = (id: string, event: ReactPointerEvent<HTMLElement>) => {
+    const rowAt = (pointer: MouseEvent) =>
+      findRowIdAtY(listRef.current, rowAttribute, pointer.clientY);
+    start(event, {
+      move: (pointer) => setDrag({ draggedId: id, overId: rowAt(pointer) }),
+      drop: (pointer) => {
+        const targetId = rowAt(pointer);
+        if (targetId !== null && targetId !== id) {
+          latest.current(id, targetId);
+        }
+      },
+      end: () => setDrag(null),
+    });
+  };
 
   return {
     draggedId: drag?.draggedId ?? null,

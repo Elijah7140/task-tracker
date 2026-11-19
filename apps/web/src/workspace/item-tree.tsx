@@ -45,7 +45,7 @@ interface TreeContext {
   readonly onSelect: (itemId: string) => void;
   readonly onExpandedChange: (nodeId: string, expanded: boolean) => void;
   readonly onMenuFor: (id: string | null) => void;
-  readonly onStartDrag: (node: ItemNode, event: PointerEvent<HTMLButtonElement>) => void;
+  readonly onStartDrag: (node: ItemNode, event: PointerEvent<HTMLElement>) => void;
 }
 
 /** Calls `onFocus` only for the tree item itself, not for nested items. */
@@ -162,7 +162,8 @@ function ItemBranch({
   const hasChildren = !isEmptyLevel(node.children);
   const expanded = hasChildren && context.expandedItems.has(id);
   const selected = context.selectedItemId === id;
-  const dropIndicator = context.dragState?.targetId === id ? context.dragState.placement : null;
+  const target = context.dragState?.target;
+  const dropIndicator = target?.kind === "row" && target.id === id ? target.position : null;
   return (
     <li
       role="treeitem"
@@ -185,7 +186,7 @@ function ItemBranch({
         menuOpen={context.menuFor === id}
         canIndent={canIndentNode(context.allNodes, node)}
         hasFolders={context.hasFolders}
-        dragging={context.dragState?.sourceId === id && context.dragState.targetId !== null}
+        dragging={context.dragState?.sourceId === id}
         dropIndicator={dropIndicator}
         lookups={context.lookups}
         actions={context.actions}
@@ -266,7 +267,31 @@ function handleTabKey(node: ItemNode, event: KeyboardEvent<HTMLElement>, context
   return true;
 }
 
-/** Alt+Up/Down reorders and Shift+F10 opens the actions menu. */
+/**
+ * Alt+Right indents under the previous sibling and Alt+Left places a sub-item
+ * after its parent (§7.5). The keys do nothing when that move is impossible.
+ */
+function handleAltIndentKey(
+  node: ItemNode,
+  event: KeyboardEvent<HTMLElement>,
+  context: RowKeyContext,
+) {
+  if (event.key === "ArrowRight") {
+    if (canIndentNode(context.allNodes, node)) {
+      void context.actions.indentItem(node);
+    }
+    return true;
+  }
+  if (event.key === "ArrowLeft") {
+    if (node.item.parentItemId !== null) {
+      void context.actions.outdentItem(node);
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Alt+Up/Down reorders, Alt+Left/Right outdents and indents, and Shift+F10 opens the actions menu. */
 function handleModifiedKey(
   node: ItemNode,
   event: KeyboardEvent<HTMLElement>,
@@ -274,6 +299,9 @@ function handleModifiedKey(
 ) {
   if (onlyModifier(event, "altKey") && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
     void context.actions.reorderByOffset(node, event.key === "ArrowUp" ? -1 : 1);
+    return true;
+  }
+  if (onlyModifier(event, "altKey") && handleAltIndentKey(node, event, context)) {
     return true;
   }
   if (onlyModifier(event, "shiftKey") && event.key === "F10") {
@@ -337,9 +365,24 @@ function itemKeyHandler(
   };
 }
 
+/** Marks where a promoted sub-item lands: after the area's last open top-level row. */
+function RootEndIndicator() {
+  return (
+    <li role="none" aria-hidden="true" className="relative h-0">
+      <span
+        data-testid="drop-indicator"
+        data-placement="root-end"
+        className="pointer-events-none absolute -top-px right-2 left-2 h-0.5 rounded-full bg-accent"
+      />
+    </li>
+  );
+}
+
 /** Props for {@link ItemTree}. */
 export interface ItemTreeProps {
   readonly label: string;
+  /** The area's folder, or null for the project root, so drops onto it are ignored. */
+  readonly folderId: string | null;
   readonly nodes: ItemSiblings;
   /** Keys the area's Completed section, so its expansion is per area. */
   readonly sectionKey: string;
@@ -382,8 +425,9 @@ function useTreeContext(
   const roving = useTreeRovingFocus(nodes, props.sectionKey, store);
   const drag = useItemDrag({
     treeRef,
-    onDrop: (parentItemId, sourceId, targetId, placement) =>
-      void actions.reorderByDrop(parentItemId, sourceId, targetId, placement),
+    folderId: props.folderId,
+    nodes,
+    onDrop: (source, target) => void actions.dropItem(source, target),
   });
   const context: TreeContext = {
     allNodes: nodes,
@@ -407,23 +451,34 @@ function useTreeContext(
     onMenuFor: menu.setMenuFor,
     onStartDrag: drag.startDrag,
   };
-  return { context, expandedCompleted: store.expandedCompleted, onExpandedChange };
+  return {
+    context,
+    expandedCompleted: store.expandedCompleted,
+    onExpandedChange,
+    dropAtRootEnd: drag.dragState?.target?.kind === "root-end",
+  };
 }
 
 /**
  * An area's items as an ARIA tree: open items first, quick-add at the end of
  * the open list, then a collapsed "Completed (n)" section, newest-completed
  * first. Selection follows focus. Supports WAI-ARIA tree keys, Enter (edit), Space/F2/Delete,
- * Alt+Up/Down reorder, Tab/Shift+Tab indent/outdent and pointer drag reorder.
+ * Alt+Up/Down reorder, Tab/Shift+Tab and Alt+Right/Left indent/outdent, and
+ * pointer drags before, after or into rows, to the end of the top level, or
+ * onto a sidebar area (§7.5).
  */
 export function ItemTree(props: ItemTreeProps) {
   const { label, nodes, sectionKey, quickAdd } = props;
   const treeRef = useRef<HTMLUListElement>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const { context, expandedCompleted, onExpandedChange } = useTreeContext(props, treeRef, {
-    menuFor,
-    setMenuFor,
-  });
+  const { context, expandedCompleted, onExpandedChange, dropAtRootEnd } = useTreeContext(
+    props,
+    treeRef,
+    {
+      menuFor,
+      setMenuFor,
+    },
+  );
   const rowKeys = { allNodes: nodes, actions: props.actions, onMenuFor: setMenuFor };
   const onItemKey = itemKeyHandler(rowKeys, expandedCompleted, onExpandedChange);
   const { open, finished } = nodes;
@@ -440,6 +495,7 @@ export function ItemTree(props: ItemTreeProps) {
       {open.map((node) => (
         <ItemBranch key={node.item.id} node={node} depth={0} context={context} />
       ))}
+      {dropAtRootEnd ? <RootEndIndicator /> : null}
       {quickAdd === undefined ? null : <li role="none">{quickAdd}</li>}
       {finished.length === 0 ? null : (
         <CompletedBranch

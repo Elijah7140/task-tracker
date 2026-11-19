@@ -1,6 +1,6 @@
 import { useAtomSet } from "@effect/atom-react";
 import { Exit } from "effect";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { requestCompletion } from "../dialogs/request-completion.js";
 import { areaKey } from "../rpc/area-queries.js";
 import { itemFieldValuesKey } from "../rpc/field-queries.js";
@@ -14,6 +14,7 @@ import { dialogStore, resolveDraft } from "../state/dialog-store.js";
 import { useItemEditorStore } from "../state/item-editor-store.js";
 import type { ItemNode } from "../workspace/item-outline.js";
 import { type EditorDraftStatus, FIX_FIELDS_MESSAGE } from "./editor-draft.js";
+import { registerEditorDraftGuard } from "./editor-draft-guard.js";
 
 /** The open item and area an editor session saves to. */
 export interface ItemEditorSessionScope {
@@ -112,6 +113,22 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
     });
     return resolved;
   });
+
+  /** Resolves the draft for a request from outside the editor, such as an item move. */
+  const resolveForMove = async (): Promise<boolean> => {
+    if (busy.current || dialogStore.getState().queue.length > 0) {
+      return false;
+    }
+    busy.current = true;
+    try {
+      return await resolveChanges();
+    } finally {
+      busy.current = false;
+    }
+  };
+  const latestResolve = useRef(resolveForMove);
+  latestResolve.current = resolveForMove;
+  useEffect(() => registerEditorDraftGuard(() => latestResolve.current()), []);
 
   const saveAndClose = async () => {
     if (busy.current) {

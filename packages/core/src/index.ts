@@ -5,6 +5,7 @@ export type { TodoItem } from "./items/todo-item.js";
 export type { Folder } from "./projects/folder.js";
 export { FolderTree } from "./projects/folder-tree.js";
 export type { Project } from "./projects/project.js";
+export { dropItem } from "./items/drop-item.js";
 export * as CompletionService from "./completion/completion-service.js";
 export type {
   AppliedCompletion,

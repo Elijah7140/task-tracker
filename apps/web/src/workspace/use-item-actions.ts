@@ -23,6 +23,7 @@ import {
   reportItemFailure,
   useItemStructureActions,
 } from "./use-item-structure-actions.js";
+import { useItemDropActions } from "./use-item-drop-actions.js";
 import { useSetItemStatus } from "./use-set-item-status.js";
 import { useSingleRunPerItem } from "./use-single-run-per-item.js";
 
@@ -286,7 +287,7 @@ export function useItemActions(scope: ItemActionScope) {
     moveItemParent: once("moveItemParent", structure.moveItemParent),
     moveItemToArea: once("moveItemToArea", structure.moveItemToArea),
     reorderByOffset: structure.reorderByOffset,
-    reorderByDrop: structure.reorderByDrop,
+    dropItem: useItemDropActions(scope),
   };
 }
 

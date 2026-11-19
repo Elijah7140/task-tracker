@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { initialItemEditorState, useItemEditorStore } from "../../src/state/item-editor-store.js";
+import {
+  carryItemEditor,
+  closeItemEditorWithArea,
+  dropStrayCarriedEditor,
+  hasItemEditorEdits,
+  initialItemEditorState,
+  settleCarriedItemEditor,
+  useItemEditorStore,
+} from "../../src/state/item-editor-store.js";
 
 const FIRST = "0190A1B2-0000-7000-8000-000000000001";
 const SECOND = "0190A1B2-0000-7000-8000-000000000002";
@@ -66,6 +74,49 @@ describe("useItemEditorStore", () => {
     setBuiltIn("title", "Typed");
 
     close();
+
+    expect(useItemEditorStore.getState()).toMatchObject(initialItemEditorState);
+  });
+
+  it("Reports edits only while the open draft holds typed values", () => {
+    const { open, setBuiltIn, discard } = useItemEditorStore.getState();
+
+    open(FIRST);
+    const clean = hasItemEditorEdits();
+    setBuiltIn("title", "Typed");
+    const typed = hasItemEditorEdits();
+    discard();
+
+    expect(clean).toBe(false);
+    expect(typed).toBe(true);
+    expect(hasItemEditorEdits()).toBe(false);
+  });
+
+  it("Keeps a carried draft open across area closes until its destination shows it", () => {
+    const { open, setBuiltIn } = useItemEditorStore.getState();
+    open(FIRST);
+    setBuiltIn("title", "Typed");
+
+    carryItemEditor({ itemId: FIRST, areaKey: "destination" });
+    closeItemEditorWithArea();
+    dropStrayCarriedEditor("destination");
+    settleCarriedItemEditor("destination");
+    const arrived = useItemEditorStore.getState();
+    closeItemEditorWithArea();
+
+    expect(arrived).toMatchObject({
+      openItemId: FIRST,
+      builtIn: { title: "Typed" },
+      carried: null,
+    });
+    expect(useItemEditorStore.getState().openItemId).toBeNull();
+  });
+
+  it("Closes a carried editor when another area opens first", () => {
+    useItemEditorStore.getState().open(SECOND);
+    carryItemEditor({ itemId: SECOND, areaKey: "destination" });
+
+    dropStrayCarriedEditor("elsewhere");
 
     expect(useItemEditorStore.getState()).toMatchObject(initialItemEditorState);
   });

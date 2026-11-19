@@ -670,7 +670,7 @@ it.effect("Reparenting the last open child reconciles both sides of a shared anc
       yield* complete(done.id);
       yield* complete(destination.id);
 
-      yield* items.move(id, null, open.id, destination.id);
+      yield* items.drop(id, null, open.id, destination.id, "into");
       const saved = yield* snapshot();
 
       expect(saved.items.open).toMatchObject([
@@ -1032,6 +1032,116 @@ it.effect("Setting the current priority or an archived one saves nothing", () =>
       expect(refusal.message).toBe("Priority is missing or archived.");
       expect(yield* readItems()).toEqual(before);
       expect(yield* undo.status()).toEqual(history);
+    }),
+  ),
+);
+
+it.effect("A drop promotes a child at the target and renumbers both sibling lists", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { id, root, child, items, snapshot } = yield* setup;
+      const first = yield* root("First");
+      const second = yield* root("Second");
+      yield* root("Third");
+      yield* child(first.id, "Child A");
+      const source = yield* child(first.id, "Child B");
+      yield* child(first.id, "Child C");
+      yield* child(source.id, "Grandchild");
+
+      yield* items.drop(id, null, source.id, second.id, "before");
+      const { items: saved } = yield* snapshot();
+
+      expect(saved.open.map(({ item }) => [item.title, item.parentItemId, item.sortOrder])).toEqual(
+        [
+          ["First", null, 0],
+          ["Child B", null, 1],
+          ["Second", null, 2],
+          ["Third", null, 3],
+        ],
+      );
+      expect(saved.open[0]?.children.open.map(({ item }) => [item.title, item.sortOrder])).toEqual([
+        ["Child A", 0],
+        ["Child C", 1],
+      ]);
+      expect(titles(saved.open[1]!.children.open)).toEqual(["Grandchild"]);
+    }),
+  ),
+);
+
+it.effect("Self and descendant drops leave nothing for the next successful move to save", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { id, root, child, items, snapshot } = yield* setup;
+      const parent = yield* root("Parent");
+      const descendant = yield* child(parent.id, "Child");
+      const other = yield* root("Other");
+
+      for (const [target, position] of [
+        [parent, "before"],
+        [descendant, "into"],
+        [descendant, "after"],
+      ] as const) {
+        const failure = yield* Effect.flip(items.drop(id, null, parent.id, target.id, position));
+        expect(failure.message).toMatch(/cycle/i);
+      }
+      yield* items.drop(id, null, other.id, parent.id, "before");
+      const { items: saved } = yield* snapshot();
+
+      expect(titles(saved.open)).toEqual(["Other", "Parent"]);
+      expect(titles(saved.open[1]!.children.open)).toEqual(["Child"]);
+    }),
+  ),
+);
+
+it.effect("Finished branches accept into drops but reject both insertion edges", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { id, root, child, items, snapshot, complete } = yield* setup;
+      const open = yield* root("Open");
+      const done = yield* root("Done");
+      const older = yield* child(done.id, "Earlier child");
+      const alsoDone = yield* root("Also done");
+      yield* complete(older.id);
+      yield* complete(alsoDone.id);
+
+      for (const position of ["before", "after"] as const) {
+        for (const [source, target] of [
+          [done, open],
+          [open, done],
+          [done, alsoDone],
+        ] as const) {
+          const failure = yield* Effect.flip(items.drop(id, null, source.id, target.id, position));
+          expect(failure.message).toMatch(/finished/i);
+        }
+      }
+      yield* items.drop(id, null, open.id, done.id, "into");
+      yield* items.drop(id, null, alsoDone.id, done.id, "into");
+      const { items: saved } = yield* snapshot();
+
+      expect(saved.open).toMatchObject([{ item: { title: "Done", completedAtUtc: null } }]);
+      expect(titles(saved.open[0]!.children.open)).toEqual(["Open"]);
+      expect(
+        saved.open[0]?.children.finished.map(({ item }) => [item.title, item.sortOrder]),
+      ).toEqual([
+        ["Earlier child", 0],
+        ["Also done", 2],
+      ]);
+    }),
+  ),
+);
+
+it.effect("Outdent inserts immediately after the parent", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { id, root, child, items, snapshot } = yield* setup;
+      const parent = yield* root("Parent");
+      yield* root("Later");
+      const source = yield* child(parent.id, "Child");
+
+      yield* items.outdent(id, null, source.id);
+      const { items: saved } = yield* snapshot();
+
+      expect(titles(saved.open)).toEqual(["Parent", "Child", "Later"]);
     }),
   ),
 );

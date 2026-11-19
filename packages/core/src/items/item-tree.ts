@@ -81,13 +81,28 @@ export class ItemTree {
     this.move(id, previous.id, now);
   }
 
-  /** Move an item to the sibling group containing its parent. */
+  /** Place an item at an index among the destination siblings, excluding the moved item. */
+  moveAt(id: string, parentId: string | null, index: number, now: Temporal.Instant): void {
+    const siblings = this.children(parentId)
+      .map((sibling) => sibling.id)
+      .filter((key) => key !== id);
+    if (!Number.isInteger(index) || index < 0 || index > siblings.length) {
+      throw new HierarchyError("Item position is outside its siblings.");
+    }
+    siblings.splice(index, 0, id);
+    this.move(id, parentId, now);
+    this.reorder(parentId, siblings, now);
+  }
+
+  /** Move an item immediately after its parent. */
   outdent(id: string, now: Temporal.Instant): void {
     const parentId = this.get(id).parentItemId;
     if (parentId === null) {
       throw new HierarchyError("A top-level item cannot be outdented.");
     }
-    this.move(id, this.get(parentId).parentItemId, now);
+    const grandparentId = this.get(parentId).parentItemId;
+    const index = this.children(grandparentId).findIndex((sibling) => sibling.id === parentId);
+    this.moveAt(id, grandparentId, index + 1, now);
   }
 
   /** Move a root and every descendant, including deleted rows, to another area in the project. */

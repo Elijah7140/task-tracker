@@ -18,6 +18,9 @@ export const outdentItemAtom = TaskTrackerClient.mutation("OutdentItem");
 /** Moves an item under another parent in the same area, or to the area root. */
 export const moveItemAtom = TaskTrackerClient.mutation("MoveItem");
 
+/** Places an item before, after or inside a target row, validated against the current tree. */
+export const dropItemAtom = TaskTrackerClient.mutation("DropItem");
+
 /** Sets the explicit sibling order under one parent in an area. */
 export const reorderItemsAtom = TaskTrackerClient.mutation("ReorderItems");
 
