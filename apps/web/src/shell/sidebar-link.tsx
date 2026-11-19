@@ -1,10 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import type { AreaTarget } from "../workspace/area-route.js";
 
 /** A route the sidebar can link to. */
-export type SidebarTarget =
-  | { readonly to: "/" }
-  | { readonly to: "/projects/$projectId"; readonly params: { readonly projectId: string } };
+export type SidebarTarget = { readonly to: "/" } | AreaTarget;
 
 /** Props for {@link SidebarLink}. */
 export interface SidebarLinkProps {

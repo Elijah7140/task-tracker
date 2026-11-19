@@ -1,4 +1,5 @@
 import { useActiveDialog } from "../state/dialog-store.js";
+import { ChoiceDialog } from "./choice-dialog.js";
 import { ConfirmDialog } from "./confirm-dialog.js";
 import { MessageDialog } from "./message-dialog.js";
 import { PromptDialog } from "./prompt-dialog.js";
@@ -13,6 +14,8 @@ export function DialogHost() {
       return <ConfirmDialog key={request.id} id={request.id} options={request.options} />;
     case "prompt":
       return <PromptDialog key={request.id} id={request.id} options={request.options} />;
+    case "choose":
+      return <ChoiceDialog key={request.id} id={request.id} options={request.options} />;
     case "message":
       return <MessageDialog key={request.id} id={request.id} options={request.options} />;
   }

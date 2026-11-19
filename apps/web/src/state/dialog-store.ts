@@ -17,6 +17,23 @@ export interface PromptOptions {
   readonly confirmLabel?: string | undefined;
 }
 
+/** One option of a choice dialog. `depth` indents it, for example a folder in a tree. */
+export interface ChoiceOption {
+  readonly value: string;
+  readonly label: string;
+  readonly depth?: number | undefined;
+}
+
+/** A single choice from a list, such as a destination folder. */
+export interface ChooseOptions {
+  readonly title: string;
+  /** The accessible name of the option list. */
+  readonly label: string;
+  readonly options: ReadonlyArray<ChoiceOption>;
+  readonly initialValue?: string | undefined;
+  readonly confirmLabel?: string | undefined;
+}
+
 /** An acknowledgement-only notice, such as a rejected action. */
 export interface MessageOptions {
   readonly title: string;
@@ -35,6 +52,7 @@ interface Pending<Kind extends string, Options, Result> {
 export type DialogRequest =
   | Pending<"confirm", ConfirmOptions, boolean>
   | Pending<"prompt", PromptOptions, string | null>
+  | Pending<"choose", ChooseOptions, string | null>
   | Pending<"message", MessageOptions, undefined>;
 
 /** Pending dialogs and the actions that open and settle them. */
@@ -43,6 +61,7 @@ export interface DialogState {
   readonly nextId: number;
   readonly confirm: (options: ConfirmOptions) => Promise<boolean>;
   readonly prompt: (options: PromptOptions) => Promise<string | null>;
+  readonly choose: (options: ChooseOptions) => Promise<string | null>;
   readonly notify: (options: MessageOptions) => Promise<undefined>;
   readonly settle: (id: number, result: boolean | string | null | undefined) => void;
 }
@@ -72,6 +91,8 @@ export function createDialogStore() {
         new Promise((resolve) => push({ kind: "confirm", options, title: options.title, resolve })),
       prompt: (options) =>
         new Promise((resolve) => push({ kind: "prompt", options, title: options.title, resolve })),
+      choose: (options) =>
+        new Promise((resolve) => push({ kind: "choose", options, title: options.title, resolve })),
       notify: (options) =>
         new Promise((resolve) => push({ kind: "message", options, title: options.title, resolve })),
       settle: (id, result) => {
@@ -91,6 +112,7 @@ function settleRequest(request: DialogRequest, result: boolean | string | null |
     case "confirm":
       return request.resolve(result === true);
     case "prompt":
+    case "choose":
       return request.resolve(typeof result === "string" ? result : null);
     case "message":
       return request.resolve(undefined);
@@ -105,6 +127,9 @@ export const confirm = (options: ConfirmOptions) => dialogStore.getState().confi
 
 /** Asks for one line of text and resolves with it, or null when cancelled. */
 export const prompt = (options: PromptOptions) => dialogStore.getState().prompt(options);
+
+/** Asks for one option from a list and resolves with its value, or null when cancelled. */
+export const choose = (options: ChooseOptions) => dialogStore.getState().choose(options);
 
 /** Shows a notice and resolves when the user dismisses it. */
 export const notify = (options: MessageOptions) => dialogStore.getState().notify(options);

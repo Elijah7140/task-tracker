@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
-import { confirm, notify, prompt } from "../../src/state/dialog-store.js";
+import { choose, confirm, notify, prompt } from "../../src/state/dialog-store.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
@@ -10,6 +10,20 @@ const deleteProject = {
   confirmLabel: "Delete",
   tone: "danger",
 } as const;
+
+const moveFolder = {
+  title: "Move Tables",
+  label: "Destination",
+  options: [
+    { value: "root", label: "Billing DB" },
+    { value: "dbo", label: "dbo", depth: 1 },
+    { value: "tables", label: "Tables", depth: 2 },
+    { value: "views", label: "Views", depth: 2 },
+    { value: "reporting", label: "Reporting", depth: 1 },
+  ],
+  initialValue: "dbo",
+  confirmLabel: "Move",
+};
 
 const renameProject = {
   title: "Rename project",
@@ -79,6 +93,40 @@ describe("DialogHost", () => {
     await expect.element(page.getByRole("alertdialog", { name: "Second notice" })).toBeVisible();
   });
 
+  it("Starts a choice on the initial option and confirms the clicked one", async () => {
+    await renderApp();
+    const answer = choose(moveFolder);
+    await expect.element(page.getByRole("radio", { name: "dbo" })).toHaveFocus();
+
+    await page.getByRole("radio", { name: "Reporting" }).click();
+    await page.getByTestId("choice-dialog-submit").click();
+
+    await expect(answer).resolves.toBe("reporting");
+  });
+
+  it("Indents choices by depth", async () => {
+    await renderApp();
+    void choose(moveFolder);
+
+    const root = page.getByRole("radio", { name: "Billing DB" });
+    const nested = page.getByRole("radio", { name: "Tables" });
+
+    await expect.element(nested).toBeVisible();
+    expect(nested.element().getBoundingClientRect().left).toBeGreaterThan(
+      root.element().getBoundingClientRect().left,
+    );
+  });
+
+  it("Resolves a choice with null when Escape cancels it", async () => {
+    await renderApp();
+    const answer = choose(moveFolder);
+    await expect.element(page.getByRole("radio", { name: "dbo" })).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowDown}{Escape}");
+
+    await expect(answer).resolves.toBeNull();
+  });
+
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed delete confirmation baseline", async () => {
       await renderApp({ projects: [{ name: "Billing DB", openCount: 3, overdueCount: 1 }] });
@@ -102,6 +150,18 @@ describe("DialogHost", () => {
       await expect
         .element(page.getByTestId("app-shell"))
         .toMatchScreenshot(`prompt-dialog-${theme}`);
+    });
+
+    it("Matches the reviewed choice dialog baseline", async () => {
+      await renderApp({ projects: [{ name: "Billing DB", openCount: 3, overdueCount: 1 }] });
+      void choose(moveFolder);
+      await expect.element(page.getByRole("radio", { name: "dbo" })).toHaveFocus();
+
+      await settleTheme(theme);
+
+      await expect
+        .element(page.getByTestId("app-shell"))
+        .toMatchScreenshot(`choice-dialog-${theme}`);
     });
   });
 });

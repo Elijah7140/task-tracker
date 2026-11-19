@@ -1,4 +1,4 @@
-import { OperationFailed, RuleViolation } from "@task-tracker/contracts";
+import { ItemHierarchyError, OperationFailed, RuleViolation } from "@task-tracker/contracts";
 import { Cause } from "effect";
 import { RpcClientError } from "effect/rpc";
 import { describe, expect, it } from "vitest";
@@ -25,6 +25,16 @@ describe("describeRpcFailure", () => {
     const message = describeRpcFailure(cause);
 
     expect(message).toBe("The operation could not be completed.");
+  });
+
+  it("Shows the server's message for an item hierarchy failure", () => {
+    const cause = Cause.fail(
+      new ItemHierarchyError({ message: "Area folder is missing or belongs to another project." }),
+    );
+
+    const message = describeRpcFailure(cause);
+
+    expect(message).toBe("Area folder is missing or belongs to another project.");
   });
 
   it("Explains a lost connection for a transport failure", () => {

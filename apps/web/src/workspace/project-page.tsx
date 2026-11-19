@@ -1,68 +1,100 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
-import { Link, useParams } from "@tanstack/react-router";
-import { ChevronRight, FolderTree } from "lucide-react";
+import type { ProjectWorkspace } from "@task-tracker/contracts";
+import { Navigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/reactivity";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { projectWorkspaceAtom } from "../rpc/project-queries.js";
+import { serverInfoAtom } from "../rpc/server-info-query.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
+import { AreaItems } from "./area-items.js";
+import { areaTarget, useCurrentArea } from "./area-route.js";
 import { useUnavailableProjectRedirect } from "./use-unavailable-project-redirect.js";
+import { WorkspaceBreadcrumbs } from "./workspace-breadcrumbs.js";
 
-function Breadcrumb({ name }: { readonly name: string }) {
+interface WorkspaceAreaProps {
+  readonly workspace: typeof ProjectWorkspace.Type;
+  readonly folderId: string | null;
+  readonly timeZone: string;
+}
+
+/**
+ * The open area's header and items. A folder that is no longer in the
+ * snapshot, such as one deleted elsewhere, falls back to the project root as
+ * the legacy workspace did.
+ */
+function WorkspaceArea({ workspace, folderId, timeZone }: WorkspaceAreaProps) {
+  const folder = workspace.folders.find((candidate) => candidate.id === folderId);
+  if (folderId !== null && folder === undefined) {
+    return <Navigate {...areaTarget(workspace.projectId, null)} replace />;
+  }
+  const areaName = folder?.name ?? workspace.name;
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-[13px] text-fg-subtle">
-      <Link
-        to="/"
-        data-testid="breadcrumb-projects"
-        className="rounded-[0.25rem] px-1 hover:bg-hover hover:text-fg"
-      >
-        Projects
-      </Link>
-      <ChevronRight size={13} aria-hidden="true" />
-      <span className="px-1 text-fg-muted">{name}</span>
-    </nav>
+    <PageContainer>
+      <PageHeader
+        title={areaName}
+        eyebrow={
+          <WorkspaceBreadcrumbs
+            projectId={workspace.projectId}
+            projectName={workspace.name}
+            folders={workspace.folders}
+            folderId={folderId}
+          />
+        }
+      />
+      <AreaItems
+        key={folderId ?? "root"}
+        projectId={workspace.projectId}
+        folderId={folderId}
+        areaName={areaName}
+        timeZone={timeZone}
+      />
+    </PageContainer>
   );
 }
 
-function WorkspacePlaceholder() {
+function ProjectLoadFailure(props: { readonly message: string; readonly onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-line-strong px-6 py-16 text-center text-fg-muted">
-      <FolderTree size={20} aria-hidden="true" />
-      <p>Folders and items for this project appear here.</p>
-    </div>
+    <PageContainer>
+      <LoadFailure {...props} testId="project-load-failure" />
+    </PageContainer>
   );
 }
 
 /**
- * The project route. It loads the workspace snapshot and returns home when the
- * project is gone. The workspace screen replaces the placeholder body.
+ * The project workspace route for the root and folder areas. It loads the
+ * navigation snapshot and the server's time zone, and returns home when the
+ * project is gone.
  */
 export function ProjectPage() {
-  const { projectId } = useParams({ from: "/projects/$projectId" });
+  const { projectId = "", folderId } = useCurrentArea();
   const atom = projectWorkspaceAtom(projectId);
   const workspace = useAtomValue(atom);
+  const serverInfo = useAtomValue(serverInfoAtom);
   const refresh = useAtomRefresh(atom);
+  const refreshServerInfo = useAtomRefresh(serverInfoAtom);
   const redirecting = useUnavailableProjectRedirect(workspace);
 
-  if (redirecting || AsyncResult.isInitial(workspace)) {
+  if (redirecting || AsyncResult.isInitial(workspace) || AsyncResult.isInitial(serverInfo)) {
     return <PageContainer>{null}</PageContainer>;
   }
   if (AsyncResult.isFailure(workspace)) {
-    const message = describeRpcFailure(workspace.cause);
+    return <ProjectLoadFailure message={describeRpcFailure(workspace.cause)} onRetry={refresh} />;
+  }
+  if (AsyncResult.isFailure(serverInfo)) {
     return (
-      <PageContainer>
-        <LoadFailure message={message} onRetry={refresh} testId="project-load-failure" />
-      </PageContainer>
+      <ProjectLoadFailure
+        message={describeRpcFailure(serverInfo.cause)}
+        onRetry={refreshServerInfo}
+      />
     );
   }
   return (
-    <PageContainer>
-      <PageHeader
-        title={workspace.value.name}
-        eyebrow={<Breadcrumb name={workspace.value.name} />}
-      />
-      <WorkspacePlaceholder />
-    </PageContainer>
+    <WorkspaceArea
+      workspace={workspace.value}
+      folderId={folderId}
+      timeZone={serverInfo.value.timeZone}
+    />
   );
 }
