@@ -1,14 +1,19 @@
 import { request as nodeRequest, type IncomingMessage } from "node:http";
 import { expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { rpcUrl } from "@task-tracker/contracts";
 import { makeRpcClient } from "../../../web/src/rpc-client.js";
+import { sqliteLayer } from "../../src/db/sqlite.js";
 import { LoopbackRpc, loopbackRpcLayer } from "../../src/rpc/loopback-rpc.js";
 
 const rendererOrigin = "http://127.0.0.1:5173";
 const timeZone = "America/New_York";
-const withRpc = Effect.provide(loopbackRpcLayer({ rendererOrigin, timeZone }));
+const testRpcLayer = (origin: string) =>
+  loopbackRpcLayer({ rendererOrigin: origin, timeZone }).pipe(
+    Layer.provide(sqliteLayer(":memory:")),
+  );
+const withRpc = Effect.provide(testRpcLayer(rendererOrigin));
 
 // A browser supplies Origin itself. Node fetch needs it on the real request in this test.
 const rendererFetch: typeof fetch = (input, init) => {
@@ -101,9 +106,7 @@ it.effect(
   "Issues a fresh credential on each launch and rejects a previous launch's credential",
   () =>
     Effect.gen(function* () {
-      const previous = yield* LoopbackRpc.pipe(
-        Effect.provide(loopbackRpcLayer({ rendererOrigin, timeZone })),
-      );
+      const previous = yield* LoopbackRpc.pipe(Effect.provide(testRpcLayer(rendererOrigin)));
       const current = yield* LoopbackRpc;
 
       const response = yield* httpRequest(rpcUrl(current), {
@@ -164,7 +167,7 @@ it.effect.each(["*", "null", `${rendererOrigin}/`])(
   "Rejects an invalid renderer origin configuration of %s",
   (origin) =>
     Effect.gen(function* () {
-      const server = loopbackRpcLayer({ rendererOrigin: origin, timeZone });
+      const server = testRpcLayer(origin);
 
       const startup = yield* LoopbackRpc.pipe(Effect.provide(server), Effect.result);
 
