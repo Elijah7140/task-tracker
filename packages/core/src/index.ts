@@ -67,3 +67,6 @@ export {
   type UrgencyNode,
 } from "./urgency/urgency-calculator.js";
 export { UrgencyThresholds } from "./urgency/urgency-thresholds.js";
+export { createProject, renameProject, reorderProjects } from "./projects/project.js";
+export { createFolder, renameFolder } from "./projects/folder.js";
+export { summarizeProject, type ProjectSummary } from "./projects/project-summary.js";
