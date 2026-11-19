@@ -1,3 +1,5 @@
+import { ContextMenu } from "@base-ui/react/context-menu";
+import { Menu } from "@base-ui/react/menu";
 import {
   CalendarClock,
   CalendarDays,
@@ -5,15 +7,21 @@ import {
   Circle,
   CircleCheck,
   CornerDownRight,
+  Ellipsis,
+  GripVertical,
 } from "lucide-react";
-import type { MouseEvent } from "react";
+import type { MouseEvent, PointerEvent } from "react";
 import { deadlineLabel, formatInstantDate } from "../format/item-dates.js";
 import { cx } from "../ui/class-names.js";
+import { ContextMenuContent, MenuContent } from "../ui/menu.js";
 import { Tooltip } from "../ui/tooltip.js";
 import { treeStyles } from "../ui/tree-styles.js";
+import { ItemMenuItems } from "./item-menu-items.js";
 import type { ItemNode } from "./item-outline.js";
 import { ItemTypeIcon } from "./item-type-icon.js";
+import type { DropPlacement } from "./reorder-plan.js";
 import { UrgencyBadge } from "./urgency-badge.js";
+import type { ItemActions } from "./use-item-actions.js";
 
 /** Names and zone an item row resolves its references with. */
 export interface ItemRowLookups {
@@ -29,14 +37,47 @@ export interface ItemRowProps {
   readonly depth: number;
   readonly expanded: boolean;
   readonly selected: boolean;
+  readonly menuOpen: boolean;
+  readonly canIndent: boolean;
+  readonly hasFolders: boolean;
+  readonly dragging: boolean;
+  readonly dropIndicator: DropPlacement | null;
   readonly lookups: ItemRowLookups;
+  readonly actions: ItemActions;
   readonly onSelect: () => void;
   readonly onExpandedChange: (expanded: boolean) => void;
+  readonly onMenuOpenChange: (open: boolean) => void;
+  readonly onStartDrag: (event: PointerEvent<HTMLButtonElement>) => void;
 }
 
 /** Shared column layout so detail columns align at every nesting level. */
 export const ITEM_ROW_COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_10.5rem_8rem] items-center gap-3";
+  "grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_10.5rem_8rem_1.75rem] items-center gap-3";
+
+function DragHandle({
+  node,
+  onStartDrag,
+}: {
+  readonly node: ItemNode;
+  readonly onStartDrag: (event: PointerEvent<HTMLButtonElement>) => void;
+}) {
+  if (node.isFinished) {
+    return <span className="w-4 shrink-0" aria-hidden="true" />;
+  }
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-label={`Reorder ${node.item.title}`}
+      data-testid="item-drag-handle"
+      onPointerDown={onStartDrag}
+      onClick={(event) => event.stopPropagation()}
+      className="grid h-5 w-4 shrink-0 cursor-grab place-items-center rounded-[0.3125rem] text-fg-subtle opacity-0 group-hover/row:opacity-100 hover:bg-pressed hover:text-fg active:cursor-grabbing"
+    >
+      <GripVertical size={13} aria-hidden="true" />
+    </button>
+  );
+}
 
 function ExpandToggle({
   node,
@@ -62,20 +103,34 @@ function ExpandToggle({
   );
 }
 
-function CompletionMark({ completed }: { readonly completed: boolean }) {
+function CompletionMark({
+  title,
+  completed,
+  onToggle,
+}: {
+  readonly title: string;
+  readonly completed: boolean;
+  readonly onToggle: () => void;
+}) {
   const Icon = completed ? CircleCheck : Circle;
   return (
-    <span
-      aria-hidden="true"
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-label={completed ? `Reopen ${title}` : `Complete ${title}`}
       data-testid="item-completion"
       data-completed={completed}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
       className={cx(
-        "grid size-5 shrink-0 place-items-center",
-        completed ? "text-accent" : "text-line-strong",
+        "grid size-5 shrink-0 cursor-default place-items-center rounded-full transition-colors hover:bg-pressed",
+        completed ? "text-accent" : "text-line-strong hover:text-fg-muted",
       )}
     >
-      <Icon size={16} strokeWidth={completed ? 2.25 : 1.75} />
-    </span>
+      <Icon size={16} strokeWidth={completed ? 2.25 : 1.75} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -198,35 +253,113 @@ function DetailCells({ node, lookups }: Pick<ItemRowProps, "node" | "lookups">) 
   );
 }
 
+function ItemOverflowMenu({
+  node,
+  menuOpen,
+  canIndent,
+  hasFolders,
+  actions,
+  onMenuOpenChange,
+}: Pick<
+  ItemRowProps,
+  "node" | "menuOpen" | "canIndent" | "hasFolders" | "actions" | "onMenuOpenChange"
+>) {
+  return (
+    <Menu.Root open={menuOpen} onOpenChange={onMenuOpenChange}>
+      <Menu.Trigger
+        tabIndex={-1}
+        aria-label={`Actions for ${node.item.title}`}
+        data-testid="item-menu"
+        onClick={(event) => event.stopPropagation()}
+        className="grid size-6 shrink-0 cursor-default place-items-center justify-self-end rounded-[0.3125rem] text-fg-subtle opacity-0 group-hover/row:opacity-100 hover:bg-pressed hover:text-fg data-popup-open:opacity-100"
+      >
+        <Ellipsis size={14} aria-hidden="true" />
+      </Menu.Trigger>
+      <MenuContent testId="item-menu-popup">
+        <ItemMenuItems
+          node={node}
+          canIndent={canIndent}
+          hasFolders={hasFolders}
+          actions={actions}
+        />
+      </MenuContent>
+    </Menu.Root>
+  );
+}
+
 /**
- * One item's row: expand chevron, completion mark, type, title, ticket,
- * priority, due or scheduled date and urgency with sub-item attribution.
- * Overdue titles are bold and completed titles are struck through.
+ * One item's row: drag handle, expand chevron, completion button, type, title,
+ * ticket, priority, due or scheduled date, urgency with sub-item attribution,
+ * and overflow/context actions.
  */
 export function ItemRow(props: ItemRowProps) {
-  const { node, depth, expanded, selected, lookups, onSelect, onExpandedChange } = props;
+  const {
+    node,
+    depth,
+    expanded,
+    selected,
+    canIndent,
+    hasFolders,
+    dragging,
+    dropIndicator,
+    lookups,
+    actions,
+    onSelect,
+    onExpandedChange,
+    onStartDrag,
+  } = props;
+  const dragParent = node.isFinished ? undefined : (node.item.parentItemId ?? "root");
   return (
-    <div
-      data-tree-row=""
-      data-testid="item-row"
-      onClick={onSelect}
-      className={cx(
-        ITEM_ROW_COLUMNS,
-        "h-9 cursor-default rounded-control pr-2 transition-colors",
-        selected ? "bg-accent-soft" : "hover:bg-hover",
-        node.isFinished && "text-fg-muted",
-      )}
-    >
-      <div
-        className="flex min-w-0 items-center gap-1.5"
-        style={{ paddingLeft: `${0.25 + depth * 1.5}rem` }}
+    <ContextMenu.Root>
+      <ContextMenu.Trigger
+        data-tree-row=""
+        data-testid="item-row"
+        data-item-row-id={node.item.id}
+        data-drag-parent={dragParent}
+        onClick={onSelect}
+        className={cx(
+          ITEM_ROW_COLUMNS,
+          "group/row relative h-9 cursor-default rounded-control pr-2 transition-colors",
+          selected ? "bg-accent-soft" : "hover:bg-hover",
+          node.isFinished && "text-fg-muted",
+          dragging && "opacity-50",
+        )}
       >
-        <ExpandToggle node={node} expanded={expanded} onExpandedChange={onExpandedChange} />
-        <CompletionMark completed={node.item.completedAtUtc !== null} />
-        <ItemTypeIcon name={lookups.typeName(node.item.itemTypeId)} />
-        <ItemTitle node={node} />
-      </div>
-      <DetailCells node={node} lookups={lookups} />
-    </div>
+        {dropIndicator === null ? null : (
+          <span
+            aria-hidden="true"
+            data-testid="drop-indicator"
+            className={cx(
+              "pointer-events-none absolute right-2 left-2 h-0.5 rounded-full bg-accent",
+              dropIndicator === "before" ? "top-0" : "bottom-0",
+            )}
+          />
+        )}
+        <div
+          className="flex min-w-0 items-center gap-1.5"
+          style={{ paddingLeft: `${0.25 + depth * 1.5}rem` }}
+        >
+          <DragHandle node={node} onStartDrag={onStartDrag} />
+          <ExpandToggle node={node} expanded={expanded} onExpandedChange={onExpandedChange} />
+          <CompletionMark
+            title={node.item.title}
+            completed={node.item.completedAtUtc !== null}
+            onToggle={() => void actions.toggleComplete(node)}
+          />
+          <ItemTypeIcon name={lookups.typeName(node.item.itemTypeId)} />
+          <ItemTitle node={node} />
+        </div>
+        <DetailCells node={node} lookups={lookups} />
+        <ItemOverflowMenu {...props} />
+      </ContextMenu.Trigger>
+      <ContextMenuContent testId="item-context-menu">
+        <ItemMenuItems
+          node={node}
+          canIndent={canIndent}
+          hasFolders={hasFolders}
+          actions={actions}
+        />
+      </ContextMenuContent>
+    </ContextMenu.Root>
   );
 }
