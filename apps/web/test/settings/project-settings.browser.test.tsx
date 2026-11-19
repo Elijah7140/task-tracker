@@ -173,6 +173,66 @@ describe("ProjectSettingsPage", () => {
     );
   });
 
+  it("Clears only its own row on Reset and saves no other unsaved override draft", async () => {
+    const { store, projectId } = await openProjectSettings({
+      configure: (appStore) => {
+        const id = appStore.summaries[0]!.project.id;
+        appStore.settingsAndLookups.setProjectOverrides(id, {
+          urgencyYellowThreshold: daysTicks(5),
+          urgencyRedThreshold: String(30n * TICKS_PER_HOUR),
+        });
+      },
+    });
+
+    await redAmount().fill("40");
+    await autoOverride().click();
+    await yellowReset().click();
+
+    await expect.element(yellowOverride()).not.toBeChecked();
+    await expect.element(yellowAmount()).toHaveValue("3");
+    await expect.element(redOverride()).toBeChecked();
+    await expect.element(redAmount()).toHaveValue("40");
+    await expect.element(autoOverride()).toBeChecked();
+    const effective = store.settingsAndLookups.getEffective(projectId);
+    expect(effective.urgencyYellowThreshold).toEqual({ value: daysTicks(5), source: "Project" });
+    expect(effective.urgencyRedThreshold).toEqual({
+      value: String(30n * TICKS_PER_HOUR),
+      source: "Project",
+    });
+    expect(effective.autoCompleteParents.source).toBe("Global");
+  });
+
+  it("Saves nothing when confirmed auto-complete enable fails threshold validation on the server", async () => {
+    const { store, projectId } = await openProjectSettings({
+      configure: (appStore) => {
+        const id = appStore.summaries[0]!.project.id;
+        appStore.settingsAndLookups.setProjectOverrides(id, { autoCompleteParents: false });
+        appStore.settingsAndLookups.setDisagreements(id, {
+          parentIdsToReopen: ["0190A1B2-0000-7000-8000-000000000920"],
+        });
+      },
+    });
+    store.settingsAndLookups.setGlobalSettings({ urgencyYellowThreshold: daysTicks(1) });
+
+    await autoValue().click();
+    await redOverride().click();
+    await redAmount().fill("48");
+    await saveButton().click();
+
+    const dialog = page.getByRole("alertdialog", { name: "Turn on auto-complete" });
+    await expect.element(dialog).toBeVisible();
+    await page.getByTestId("confirm-dialog-confirm").click();
+
+    await expect
+      .element(page.getByTestId("project-settings-error"))
+      .toHaveTextContent("Red threshold must be nonnegative and no greater than yellow.");
+    await expect.element(saveButton()).toBeEnabled();
+    const effective = store.settingsAndLookups.getEffective(projectId);
+    expect(effective.autoCompleteParents).toEqual({ value: false, source: "Project" });
+    expect(effective.urgencyRedThreshold.source).toBe("Global");
+    expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
+  });
+
   it("Disables saving when an override leaves red greater than yellow", async () => {
     const { store, projectId } = await openProjectSettings();
 

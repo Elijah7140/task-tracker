@@ -375,6 +375,51 @@ it.effect("Confirmation revalidates thresholds against newly written overrides",
   }).pipe(withServices, withSchema),
 );
 
+it.effect(
+  "Confirmed global auto-complete enable with invalid thresholds against a project override persists nothing",
+  () =>
+    Effect.gen(function* () {
+      const settings = yield* SettingsService;
+      const { project, parent } = yield* setupReconciliation;
+      yield* settings.setProjectOverride(project.id, urgencyYellowThreshold, 2n * day);
+      const preview = yield* settings.previewGlobalAutoComplete();
+
+      const failure = yield* Effect.flip(settings.saveGlobal(true, 4n * day, 72n * hour, preview));
+
+      expect(failure.message).toBe(
+        "Project 'Billing DB' overrides the yellow threshold to 2 days, so the red threshold can't exceed it.",
+      );
+      expect(yield* settings.getGlobal(autoCompleteParents)).toBe(false);
+      expect(yield* settings.getGlobal(urgencyYellowThreshold)).toBe(3n * day);
+      expect(yield* settings.getGlobal(urgencyRedThreshold)).toBe(day);
+      expect(yield* readCompletedAt(project.id, parent.id)).not.toBeNull();
+    }).pipe(withServices, withSchema),
+);
+
+it.effect(
+  "Confirmed project auto-complete enable with invalid thresholds against global yellow persists nothing",
+  () =>
+    Effect.gen(function* () {
+      const projects = yield* ProjectService;
+      const settings = yield* SettingsService;
+      const project = yield* projects.create("Billing DB");
+      yield* settings.setProjectOverride(project.id, autoCompleteParents, false);
+      const { parent } = yield* completedParentWithOpenChild(project.id);
+      yield* settings.setGlobal(urgencyYellowThreshold, day);
+      const preview = yield* settings.previewProjectAutoComplete(project.id);
+
+      const failure = yield* Effect.flip(
+        settings.saveProject(project.id, true, null, 48n * hour, preview),
+      );
+
+      expect(failure.message).toBe("Red threshold must be nonnegative and no greater than yellow.");
+      const effective = yield* settings.getEffective(project.id);
+      expect(effective.autoCompleteParents).toEqual({ value: false, source: "Project" });
+      expect(effective.urgencyRedThreshold).toEqual({ value: day, source: "Global" });
+      expect(yield* readCompletedAt(project.id, parent.id)).not.toBeNull();
+    }).pipe(withServices, withSchema),
+);
+
 it.effect("A failed reconciliation rolls back all setting and completion writes", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
