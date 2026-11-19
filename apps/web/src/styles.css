@@ -11,6 +11,11 @@
  * on-danger reach 4.5:1 on their fills. control-outline (checkbox, radio and icon
  * outlines) reaches 3:1. line and line-strong are decorative separators. Use accent
  * for fills and borders and accent-text for accent-coloured text.
+ *
+ * Text inputs and selects keep the light line-strong border on purpose (owner
+ * decision): it matches comparable desktop tools, and the focus ring marks the
+ * active field. This is below WCAG 1.4.11's 3:1, so switch them to control-outline
+ * if that requirement is adopted later.
  */
 :root {
   color-scheme: light;
