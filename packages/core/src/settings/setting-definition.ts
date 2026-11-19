@@ -1,3 +1,4 @@
+import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import type { SettingCodec } from "./setting-codec.js";
 
 /** Declares a setting's storage key, default, override policy and codec. */
@@ -30,5 +31,13 @@ export class SettingDefinition<T> {
   /** Encode a value for storage. */
   format(value: T): string {
     return this.codec.format(value);
+  }
+
+  /** Encode an override only when this definition permits project values. */
+  formatOverride(value: T): string {
+    if (!this.projectOverridable) {
+      throw new MetadataRuleError("This setting cannot be overridden.");
+    }
+    return this.format(value);
   }
 }

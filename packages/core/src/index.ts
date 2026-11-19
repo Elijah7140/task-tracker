@@ -72,3 +72,10 @@ export { createFolder, renameFolder } from "./projects/folder.js";
 export { summarizeProject, type ProjectSummary } from "./projects/project-summary.js";
 export { createItem } from "./items/todo-item.js";
 export { editItem, type ItemEdit } from "./items/item-edit.js";
+export { validateThresholds } from "./settings/settings-rules.js";
+export {
+  describeReconciliation,
+  needsReconciliationConfirmation,
+  type ReconciliationApproval,
+  type SettingsReconciliationPreview,
+} from "./completion/reconciliation-preview.js";

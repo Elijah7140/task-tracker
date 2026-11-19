@@ -7,21 +7,15 @@ import { settingsRepository } from "../db/repositories/settings-repository.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
 import { checkRules } from "./hierarchy-rules.js";
 
-/** Reconcile active areas after restore while the caller still owns the write transaction. */
-export function projectCompletionReconciler(sql: SqlClient.SqlClient) {
+/** Plan and persist reconciliation in the caller's transaction. */
+export function projectCompletionOperations(sql: SqlClient.SqlClient) {
   const folders = folderRepository(sql);
   const items = projectItemRepository(sql);
-  const settings = settingsRepository(sql);
 
-  return Effect.fnUntraced(function* (projectId: string, now: Temporal.Instant) {
-    const effective = yield* readEffectiveSettings(settings, projectId);
-    if (!effective.autoCompleteParents.value) {
-      return;
-    }
-
+  const plan = Effect.fnUntraced(function* (projectId: string, now: Temporal.Instant) {
     const folderRows = yield* folders.listAll(projectId);
     const itemRows = yield* items.listActive(projectId);
-    const changes = yield* checkRules(() => {
+    return yield* checkRules(() => {
       const folderTree = new FolderTree(projectId, folderRows);
       const trashed = new Set(
         folderRows.filter((folder) => folder.deletedAtUtc !== null).map((folder) => folder.id),
@@ -35,8 +29,23 @@ export function projectCompletionReconciler(sql: SqlClient.SqlClient) {
             .changes,
       );
     });
-    yield* Effect.forEach(changes, (change) => items.setCompletion({ ...change, projectId, now }), {
-      discard: true,
-    });
+  });
+
+  return { plan, apply: items.setCompletion };
+}
+
+/** Reconcile active areas after restore if their project has automatic completion enabled. */
+export function projectCompletionReconciler(sql: SqlClient.SqlClient) {
+  const settings = settingsRepository(sql);
+  const { plan, apply } = projectCompletionOperations(sql);
+
+  return Effect.fnUntraced(function* (projectId: string, now: Temporal.Instant) {
+    const effective = yield* readEffectiveSettings(settings, projectId);
+    if (effective.autoCompleteParents.value) {
+      const changes = yield* plan(projectId, now);
+      yield* Effect.forEach(changes, (change) => apply({ ...change, projectId, now }), {
+        discard: true,
+      });
+    }
   });
 }
