@@ -1,7 +1,11 @@
-import type { CSSProperties } from "react";
+import { ContextMenu } from "@base-ui/react/context-menu";
+import type { CSSProperties, HTMLAttributes, KeyboardEvent } from "react";
 import { calendarNavProps } from "./calendar-grid-keys.js";
+import { CalendarEntryMenu } from "./calendar-entry-menu.js";
 import type { CalendarOccurrence } from "./calendar-layout.js";
 import { cx } from "../ui/class-names.js";
+import { isContextMenuKey } from "../ui/keyboard-shortcut.js";
+import { openContextMenuAt } from "../ui/open-context-menu.js";
 
 /** Props for {@link CalendarEntryButton}. */
 export interface CalendarEntryButtonProps {
@@ -22,17 +26,43 @@ const URGENCY_TONES = {
     "border-urgency-overdue/45 bg-urgency-overdue-soft text-urgency-overdue hover:brightness-95",
 } as const;
 
+/** The Menu key and Shift+F10 open the entry's row menu (§8). */
+function openMenuFromKeyboard(event: KeyboardEvent<HTMLElement>) {
+  if (isContextMenuKey(event)) {
+    event.preventDefault();
+    openContextMenuAt(event.currentTarget);
+  }
+}
+
+/** The props a context menu trigger gives the element it renders. */
+type TriggerProps = HTMLAttributes<HTMLElement>;
+
 /**
  * One interactive calendar entry button in Month cells, the Week all-day row,
  * or the Week time grid. Urgency is always shown with a text label in addition
  * to color, overdue titles are bold, and short time blocks stay on one line (§7.4).
+ * Right-click, the Menu key or Shift+F10 open its row menu.
  */
-export function CalendarEntryButton({
+export function CalendarEntryButton(props: CalendarEntryButtonProps) {
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger
+        render={(triggerProps: TriggerProps) => (
+          <EntryButton {...props} triggerProps={triggerProps} />
+        )}
+      />
+      <CalendarEntryMenu entry={props.occurrence.entry} />
+    </ContextMenu.Root>
+  );
+}
+
+function EntryButton({
   occurrence,
   variant,
   navIndex,
   onActivate,
-}: CalendarEntryButtonProps) {
+  triggerProps,
+}: CalendarEntryButtonProps & { readonly triggerProps: TriggerProps }) {
   const { entry, isCompact, label, monthLabel, tooltip } = occurrence;
   const hasUrgency = entry.urgency !== "None";
   const isOverdue = entry.urgency === "Overdue";
@@ -50,8 +80,10 @@ export function CalendarEntryButton({
 
   return (
     <button
+      {...triggerProps}
       type="button"
       onClick={() => onActivate(occurrence)}
+      onKeyDown={openMenuFromKeyboard}
       title={tooltip}
       aria-label={occurrence.accessibleLabel}
       aria-keyshortcuts={

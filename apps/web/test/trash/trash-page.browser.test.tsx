@@ -298,3 +298,69 @@ it.each(THEMES)(
     await expect.element(shell).toMatchScreenshot(`trash-empty-${theme}`);
   },
 );
+
+async function openThreeBatches() {
+  const app = await renderApp({
+    projects: [{ name: "Billing" }],
+    configure(store) {
+      const id = store.summaries[0]!.project.id;
+      store.trash.add(trashBatch(1, id, "Oldest"));
+      store.trash.add(trashBatch(2, id, "Middle"));
+      store.trash.add(trashBatch(3, id, "Newest"));
+    },
+  });
+  await shortcut();
+  await expect.element(batch("Oldest")).toBeVisible();
+  return app;
+}
+
+it("Focuses the next row after a restore or purge, else the list", async () => {
+  await openThreeBatches();
+  const list = page.getByTestId("trash-list");
+
+  await batch("Middle").getByRole("button", { name: "Restore" }).click();
+  await expect.element(batch("Middle")).not.toBeInTheDocument();
+  await expect.element(batch("Oldest")).toHaveFocus();
+  await purge("Oldest").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete permanently" }).click();
+  await expect.element(batch("Oldest")).not.toBeInTheDocument();
+  await expect.element(list).toHaveFocus();
+  await batch("Newest").getByRole("button", { name: "Restore" }).click();
+
+  await expect.element(page.getByText("The trash is empty.")).toBeVisible();
+  await expect.element(list).toHaveFocus();
+});
+
+it("Keeps focus on the row while its change runs or after its confirmation is cancelled", async () => {
+  const { store } = await openThreeBatches();
+  const restore = batch("Middle").getByRole("button", { name: "Restore" });
+  (restore.element() as HTMLElement).focus();
+
+  const release = store.hold("RestoreTrashBatch");
+  await userEvent.keyboard("{Enter}");
+  try {
+    await expect.element(restore).toBeDisabled();
+    await expect.element(batch("Middle")).toHaveFocus();
+  } finally {
+    release();
+  }
+  await expect.element(batch("Oldest")).toHaveFocus();
+  (purge("Newest").element() as HTMLElement).focus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(page.getByRole("alertdialog")).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+
+  await expect.element(page.getByRole("alertdialog")).not.toBeInTheDocument();
+  await expect.element(batch("Newest")).toHaveFocus();
+});
+
+it("Keeps focus in Trash while Empty trash runs", async () => {
+  await openThreeBatches();
+  (empty().element() as HTMLElement).focus();
+
+  await userEvent.keyboard("{Enter}");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Empty trash" }).click();
+
+  await expect.element(page.getByText("The trash is empty.")).toBeVisible();
+  await expect.element(page.getByTestId("trash-list")).toHaveFocus();
+});

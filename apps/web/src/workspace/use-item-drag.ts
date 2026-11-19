@@ -43,7 +43,7 @@ interface ItemDragOptions {
 
 /** Row and card controls that keep their own click and never start a drag. */
 const NON_DRAG_CONTROLS =
-  "button:not([data-testid='item-drag-handle']), [data-testid='item-toggle'], [data-testid='completed-section-toggle']";
+  "button, [data-testid='item-toggle'], [data-testid='completed-section-toggle']";
 
 /**
  * Splits a target into thirds along its flow axis: first third inserts before,

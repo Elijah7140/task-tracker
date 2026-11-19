@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { dialogStore } from "../state/dialog-store.js";
+import { findShortcut } from "../ui/keyboard-shortcut.js";
 
 /** Period and view commands that Calendar binds to keys. */
 export interface CalendarKeyCommands {
@@ -16,27 +17,20 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
 }
 
-function isViewShortcut(event: KeyboardEvent) {
-  return (event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey;
-}
-
-function hasModifier(event: KeyboardEvent) {
-  return event.ctrlKey || event.metaKey || event.altKey || event.shiftKey;
-}
+const CALENDAR_SHORTCUTS = {
+  showMonth: { key: "m", ctrl: true, shift: true },
+  showWeek: { key: "w", ctrl: true, shift: true },
+  previous: { key: "PageUp" },
+  next: { key: "PageDown" },
+} as const;
 
 function commandFor(event: KeyboardEvent, commands: CalendarKeyCommands) {
-  if (isViewShortcut(event)) {
-    const key = event.key.toLowerCase();
-    return key === "m" ? commands.showMonth : key === "w" ? commands.showWeek : undefined;
-  }
-  if (hasModifier(event) || isEditableTarget(event.target)) {
+  const shortcut = findShortcut(event, CALENDAR_SHORTCUTS);
+  if (shortcut === undefined) {
     return undefined;
   }
-  return event.key === "PageUp"
-    ? commands.previous
-    : event.key === "PageDown"
-      ? commands.next
-      : undefined;
+  const changesPeriod = shortcut === "previous" || shortcut === "next";
+  return changesPeriod && isEditableTarget(event.target) ? undefined : commands[shortcut];
 }
 
 /**

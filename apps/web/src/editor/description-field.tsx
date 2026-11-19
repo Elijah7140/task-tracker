@@ -1,13 +1,18 @@
 import { Field } from "@base-ui/react/field";
 import { Tabs } from "@base-ui/react/tabs";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { fieldStyles } from "../ui/field-styles.js";
 import { MarkdownPreview } from "./markdown-preview.js";
 
 const tabClass =
   "rounded-control px-2.5 py-1 text-[13px] font-medium text-fg-muted outline-none hover:bg-hover focus-visible:ring-3 focus-visible:ring-focus data-active:bg-surface data-active:text-fg data-active:shadow-card";
 
-/** Edits the Markdown source or shows its read-only preview in the current editor session. */
+type DescriptionView = "edit" | "preview";
+
+/**
+ * Edits the Markdown source or shows its read-only preview in the current
+ * editor session. The label names the text box only while it is mounted.
+ */
 export function DescriptionField({
   value,
   onChange,
@@ -16,12 +21,21 @@ export function DescriptionField({
   readonly onChange: (value: string) => void;
 }) {
   const inputId = useId();
+  const [view, setView] = useState<DescriptionView>("edit");
   return (
-    <Tabs.Root defaultValue="edit" className="min-w-0">
+    <Tabs.Root
+      value={view}
+      onValueChange={(next: DescriptionView) => setView(next)}
+      className="min-w-0"
+    >
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <label htmlFor={inputId} className={fieldStyles.label}>
-          Description
-        </label>
+        {view === "edit" ? (
+          <label htmlFor={inputId} className={fieldStyles.label}>
+            Description
+          </label>
+        ) : (
+          <span className={fieldStyles.label}>Description</span>
+        )}
         <Tabs.List
           aria-label="Description view"
           className="flex gap-0.5 rounded-control bg-sidebar p-0.5"

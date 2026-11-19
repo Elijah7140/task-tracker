@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { HOUR_HEIGHT, MORNING_OFFSET } from "../../src/calendar/calendar-metrics.js";
+import { FAKE_LOOKUPS } from "../support/fake-area-items.js";
 import type { SeedProject } from "../support/fake-task-tracker-server.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
@@ -690,6 +691,104 @@ describe("entry activation", () => {
 
     await expect.element(item("Pay vendor")).toHaveAttribute("aria-selected", "true");
     expect(store.calls.filter((call) => call === "LocateCalendarItem")).toHaveLength(1);
+  });
+});
+
+describe("focus", () => {
+  it("Focuses the first entry after PageDown or PageUp, else Previous or Next", async () => {
+    await openFromHome();
+    await focusEntry("Late cutoff");
+
+    await userEvent.keyboard("{PageDown}");
+    await expect.element(title()).toHaveTextContent("December 2026");
+    await expect.element(page.getByTestId("calendar-next")).toHaveFocus();
+    await userEvent.keyboard("{PageUp}");
+    await expect.element(title()).toHaveTextContent("November 2026");
+    await expect.element(entry("Audit ledger")).toHaveFocus();
+    await userEvent.keyboard("{PageUp}");
+
+    await expect.element(title()).toHaveTextContent("October 2026");
+    await expect.element(page.getByTestId("calendar-previous")).toHaveFocus();
+  });
+
+  it("Focuses the opened day's first entry after +N more", async () => {
+    await openFromHome();
+    const moreButton = more("Friday, November 20, 2026");
+    (moreButton.element() as HTMLElement).focus();
+
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(page.getByTestId("calendar-week-grid")).toBeVisible();
+    await expect.element(entry("Stand-up")).toHaveFocus();
+  });
+});
+
+describe("row menu", () => {
+  const choice = (name: string) => page.getByRole("menuitemradio", { name, exact: true });
+
+  async function setStatusByPointer(name: string, status: string) {
+    await entry(name).first().click({ button: "right" });
+    await page.getByTestId("item-menu-set-status").click();
+    await choice(status).click();
+  }
+
+  it("Sets the status from the pointer menu and shows the reloaded value checked", async () => {
+    const { store } = await openFromHome();
+    const loads = store.calls.filter((call) => call === "LoadCalendar").length;
+
+    await setStatusByPointer("Rotate keys", "Testing");
+
+    await expect
+      .poll(() => store.calls.filter((call) => call === "LoadCalendar").length)
+      .toBeGreaterThan(loads);
+    const operations = store.summaries[1]!.project.id;
+    expect(store.findItemByTitle(operations, null, "Rotate keys")?.item.statusId).not.toBeNull();
+    await entry("Rotate keys").first().click({ button: "right" });
+    await page.getByTestId("item-menu-set-status").click();
+    await expect.element(choice("Testing")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it.each([
+    ["Shift+F10", "{Shift>}{F10}{/Shift}"],
+    ["the Menu key", "{ContextMenu}"],
+  ])("Sets the priority from the keyboard menu opened with %s", async (_label, keys) => {
+    const { store } = await openFromHome();
+    // A pointer left over the menu's position would highlight a row on hover.
+    await userEvent.hover(title());
+    await focusEntry("Rotate keys");
+
+    await userEvent.keyboard(keys);
+    const menu = page.getByTestId("calendar-entry-menu");
+    await expect.element(menu).toBeVisible();
+    await expect.poll(() => menu.element().contains(document.activeElement)).toBe(true);
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(page.getByTestId("item-menu-set-status")).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(page.getByTestId("item-menu-set-priority")).toHaveFocus();
+    await userEvent.keyboard("{ArrowRight}");
+    await expect.element(choice("None")).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(choice("Critical")).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(choice("High")).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(menu).not.toBeInTheDocument();
+    const operations = store.summaries[1]!.project.id;
+    await expect
+      .poll(() => store.findItemByTitle(operations, null, "Rotate keys")?.item.priorityLevelId)
+      .toBe(FAKE_LOOKUPS.priorityLevels.find((level) => level.label === "High")?.id);
+    await expect.element(entry("Rotate keys")).toHaveFocus();
+  });
+
+  it("Marks the page behind out of date so Back asks about its draft", async () => {
+    await openDraftWorkspace();
+
+    await setStatusByPointer("Pay vendor", "Testing");
+    await expect.element(page.getByTestId("calendar-entry-menu")).not.toBeInTheDocument();
+    await page.getByTestId("calendar-back").click();
+
+    await expect.element(draftPrompt()).toBeVisible();
   });
 });
 

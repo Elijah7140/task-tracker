@@ -75,8 +75,8 @@ desktopTest(
 
       await parent.getByTestId("item-title").first().click({ button: "right" });
       await page.getByTestId("item-context-menu").getByRole("menuitem", { name: "Rename" }).click();
-      await expectFocused(page.getByRole("textbox", { name: "Title" }));
-      await page.getByRole("textbox", { name: "Title" }).fill("Renamed parent");
+      await expectFocused(page.getByRole("textbox", { name: "Title", exact: true }));
+      await page.getByRole("textbox", { name: "Title", exact: true }).fill("Renamed parent");
       await page.keyboard.press("Enter");
       await itemRow(page, AREA, "Renamed parent").waitFor();
     });

@@ -1,28 +1,18 @@
-import { useLocation } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef } from "react";
 import { dialogStore } from "../state/dialog-store.js";
 import { type CoveringPage, useReturnPageStore } from "../state/return-page-store.js";
+import { findShortcut, matchesShortcut, type Shortcut } from "../ui/keyboard-shortcut.js";
 import type { ReturnGuard } from "./return-guards.js";
 import { useOpenCoveringPage } from "./use-open-covering-page.js";
+import { useReturnFocus } from "./use-return-focus.js";
 
-function coveringPageShortcut(event: KeyboardEvent): CoveringPage | undefined {
-  if ((!event.ctrlKey && !event.metaKey) || event.altKey) {
-    return;
-  }
-  const key = event.key.toLowerCase();
-  if (event.shiftKey) {
-    if (key === "c") return "calendar";
-    if (key === "t") return "trash";
-  } else if (key === "f") {
-    return "search";
-  }
-}
+const COVERING_PAGE_SHORTCUTS: Readonly<Record<CoveringPage, Shortcut>> = {
+  calendar: { key: "c", ctrl: true, shift: true },
+  trash: { key: "t", ctrl: true, shift: true },
+  search: { key: "f", ctrl: true },
+};
 
-function isPlainEscape(event: KeyboardEvent) {
-  return (
-    event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
-  );
-}
+const coveringPageShortcut = (event: KeyboardEvent) => findShortcut(event, COVERING_PAGE_SHORTCUTS);
 
 /** An open list or menu popup handles its own Escape. A closed one can keep focus until it unmounts. */
 function insideOpenPopup(target: EventTarget | undefined) {
@@ -45,7 +35,7 @@ function useCoveringPageKeys(open: (page: CoveringPage) => void, goBack: () => v
           latest.current.open(page);
         }
       } else if (
-        isPlainEscape(event) &&
+        matchesShortcut(event, { key: "Escape" }) &&
         useReturnPageStore.getState().covering !== null &&
         !insideOpenPopup(event.composedPath()[0])
       ) {
@@ -61,12 +51,14 @@ function useCoveringPageKeys(open: (page: CoveringPage) => void, goBack: () => v
 /**
  * Handles keyboard shortcuts and Back for Search, Calendar and Trash. Returning
  * waits for the covering page to finish any changes and asks the return page’s
- * unsaved-changes guard if it needs a refresh.
+ * unsaved-changes guard if it needs a refresh, then puts focus back where it
+ * was. Only the user's navigation closes a covering page: a redirect of the
+ * page behind it, such as after undoing a folder's creation, happens underneath.
  */
 export function useCoveringPage(runGuards: ReturnGuard) {
   const open = useOpenCoveringPage();
-  const href = useLocation({ select: (location) => location.href });
   const returning = useRef(false);
+  const restoreFocusAfterReturn = useReturnFocus();
 
   const goBack = useCallback(async () => {
     const { busy, covering, stale } = useReturnPageStore.getState();
@@ -76,16 +68,13 @@ export function useCoveringPage(runGuards: ReturnGuard) {
     returning.current = true;
     try {
       if (!stale || (await runGuards())) {
+        restoreFocusAfterReturn();
         useReturnPageStore.getState().uncover();
       }
     } finally {
       returning.current = false;
     }
-  }, [runGuards]);
-
-  useEffect(() => {
-    useReturnPageStore.getState().uncover();
-  }, [href]);
+  }, [runGuards, restoreFocusAfterReturn]);
 
   useCoveringPageKeys(open, () => void goBack());
   return { goBack };

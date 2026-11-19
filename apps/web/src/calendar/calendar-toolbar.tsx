@@ -1,7 +1,9 @@
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { useRef } from "react";
 import { Button } from "../ui/button.js";
 import { Checkbox } from "../ui/checkbox.js";
 import { Select } from "../ui/select.js";
+import { useFocusOnMount } from "../ui/use-focus-on-mount.js";
 
 /** Calendar view mode. */
 export type CalendarViewMode = "month" | "week";
@@ -29,7 +31,10 @@ export interface CalendarToolbarProps {
   readonly onIncludeCompletedChange: (checked: boolean) => void;
 }
 
-/** Header and period, view, scope, and completion controls for Calendar (§7.4). */
+/**
+ * Header and period, view, scope, and completion controls for Calendar (§7.4).
+ * The title takes focus when Calendar opens.
+ */
 export function CalendarToolbar({
   title,
   mode,
@@ -43,6 +48,8 @@ export function CalendarToolbar({
   onScopeChange,
   onIncludeCompletedChange,
 }: CalendarToolbarProps) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useFocusOnMount(titleRef);
   return (
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -56,7 +63,12 @@ export function CalendarToolbar({
           <ArrowLeft size={14} aria-hidden="true" />
           Back
         </Button>
-        <h1 data-testid="calendar-title" className="text-xl font-semibold tracking-tight">
+        <h1
+          ref={titleRef}
+          tabIndex={-1}
+          data-testid="calendar-title"
+          className="text-xl font-semibold tracking-tight outline-none"
+        >
           {title}
         </h1>
       </div>

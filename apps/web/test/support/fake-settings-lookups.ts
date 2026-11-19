@@ -83,9 +83,10 @@ const BUILT_IN_TYPES: ReadonlyArray<ItemType> = [
   },
 ];
 
+/** The seeded levels, with the IDs that seeded items use (`FAKE_LOOKUPS`), as on the real server. */
 const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
   {
-    id: "019A0000-0000-7000-8000-000000000101",
+    id: "019A0000-0000-7000-8000-000000002000",
     name: "Critical",
     number: null,
     label: "Critical",
@@ -95,7 +96,7 @@ const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
     sortOrder: 0,
   },
   {
-    id: "019A0000-0000-7000-8000-000000000102",
+    id: "019A0000-0000-7000-8000-000000002001",
     name: "High",
     number: null,
     label: "High",
@@ -105,7 +106,7 @@ const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
     sortOrder: 1,
   },
   {
-    id: "019A0000-0000-7000-8000-000000000103",
+    id: "019A0000-0000-7000-8000-000000002002",
     name: "Medium",
     number: null,
     label: "Medium",
@@ -115,7 +116,7 @@ const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
     sortOrder: 2,
   },
   {
-    id: "019A0000-0000-7000-8000-000000000104",
+    id: "019A0000-0000-7000-8000-000000002003",
     name: "Low",
     number: null,
     label: "Low",

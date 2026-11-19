@@ -17,6 +17,9 @@ import { trashEntries, trashKindLabel } from "./trash-row-labels.js";
 type Batch = typeof TrashBatch.Type;
 type ChangeExit = Exit.Exit<unknown, RpcFailure>;
 
+/** Whether a Trash change ran, was cancelled at its confirmation, or was ignored while another ran. */
+export type TrashChangeOutcome = "finished" | "cancelled" | "ignored";
+
 function purgeMessage(batch: Batch) {
   const kind = trashKindLabel(batch.kind).toLowerCase();
   const earlier =
@@ -51,18 +54,24 @@ export function useTrashActions({ projectId, batches, reload }: TrashActionScope
   const latest = useRef({ projectId, batches, reload });
   latest.current = { projectId, batches, reload };
 
-  const exclusively = async (work: () => Promise<ChangeExit | undefined>) => {
+  const exclusively = async (
+    work: () => Promise<ChangeExit | undefined>,
+  ): Promise<TrashChangeOutcome> => {
     if (running.current) {
-      return;
+      return "ignored";
     }
     running.current = true;
     useReturnPageStore.getState().setBusy(true);
     try {
       const exit = await work();
-      if (exit !== undefined && Exit.isFailure(exit)) {
+      if (exit === undefined) {
+        return "cancelled";
+      }
+      if (Exit.isFailure(exit)) {
         setError(describeRpcFailure(exit.cause));
         latest.current.reload();
       }
+      return "finished";
     } finally {
       running.current = false;
       useReturnPageStore.getState().setBusy(false);

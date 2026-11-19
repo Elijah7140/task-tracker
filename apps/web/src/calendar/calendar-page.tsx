@@ -12,6 +12,7 @@ import { dialogStore } from "../state/dialog-store.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { formatIsoDateInZone, weekdayHeaders } from "./calendar-dates.js";
+import { CalendarEntryMenuContext } from "./calendar-entry-menu.js";
 import { buildCalendarDays, type CalendarDay } from "./calendar-layout.js";
 import { calendarStep } from "./calendar-move-keys.js";
 import { CalendarMonthGrid } from "./calendar-month-grid.js";
@@ -19,6 +20,8 @@ import { type CalendarScope, CalendarToolbar } from "./calendar-toolbar.js";
 import { CalendarWeekGrid } from "./calendar-week-grid.js";
 import { useCalendarActivation } from "./use-calendar-activation.js";
 import { useCalendarDrag } from "./use-calendar-drag.js";
+import { useCalendarEntryActions } from "./use-calendar-entry-actions.js";
+import { useCalendarFocus } from "./use-calendar-focus.js";
 import { useCalendarKeys } from "./use-calendar-keys.js";
 import { useCalendarReschedule } from "./use-calendar-reschedule.js";
 import { useCalendarPeriod } from "./use-calendar-period.js";
@@ -80,6 +83,15 @@ function entryAt(target: EventTarget, days: ReadonlyArray<CalendarDay>) {
   return occurrence === undefined ? undefined : { button, occurrence };
 }
 
+/**
+ * A key the page itself should handle: not already handled, no dialog open, and
+ * pressed inside the page rather than in a portaled entry menu.
+ */
+function isPageKey(event: KeyboardEvent, page: HTMLElement | null) {
+  const insidePage = event.target instanceof Node && page?.contains(event.target) === true;
+  return insidePage && !event.defaultPrevented && dialogStore.getState().queue.length === 0;
+}
+
 function isEscape(event: KeyboardEvent) {
   return (
     event.key === "Escape" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
@@ -114,19 +126,15 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     setLoadedToday(snapshot.today);
   }
 
-  useCalendarKeys({
-    previous: period.previous,
-    next: period.next,
-    showMonth: () => period.show("month"),
-    showWeek: () => period.show("week"),
-  });
-
   const entries = snapshot?.entries ?? [];
   const days = useMemo(
     () => buildCalendarDays(period.range.fromDate, period.dayCount, period.anchor, today, entries),
     [period.range.fromDate, period.dayCount, period.anchor, today, entries],
   );
+  const dates = useMemo(() => days.map((day) => day.date), [days]);
   const root = useRef<HTMLDivElement>(null);
+  const requestFocus = useCalendarFocus(root, result, dates);
+  const entryActions = useCalendarEntryActions();
   const reschedule = useCalendarReschedule({
     root,
     snapshot,
@@ -143,9 +151,23 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     activation.clearError();
     reschedule.clearError();
   };
+
+  useCalendarKeys({
+    previous: () => {
+      period.previous();
+      requestFocus({ kind: "period", fallbackTestId: "calendar-previous" });
+    },
+    next: () => {
+      period.next();
+      requestFocus({ kind: "period", fallbackTestId: "calendar-next" });
+    },
+    showMonth: () => period.show("month"),
+    showWeek: () => period.show("week"),
+  });
+
   const goBack = () => void reschedule.afterMoves(onBack);
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.defaultPrevented || dialogStore.getState().queue.length > 0) {
+    if (!isPageKey(event, root.current)) {
       return;
     }
     if (isEscape(event) && useReturnPageStore.getState().busy) {
@@ -171,6 +193,10 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
       reschedule.clearError();
       void activation.activate(occurrence);
     }
+  };
+  const openDayInWeek = (date: string) => {
+    period.openDayInWeek(date);
+    requestFocus({ kind: "day", date });
   };
   const error = reschedule.error ?? activation.error;
 
@@ -209,28 +235,30 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
         }}
       />
       {error === null ? null : <CalendarError message={error} />}
-      {AsyncResult.isFailure(result) ? (
-        <LoadFailure
-          message={describeRpcFailure(result.cause)}
-          onRetry={reload}
-          testId="calendar-load-failure"
-        />
-      ) : period.mode === "month" ? (
-        <CalendarMonthGrid
-          weekdays={weekdays}
-          days={days}
-          feedback={drag.feedback}
-          onActivate={onActivate}
-          onOpenDayInWeek={period.openDayInWeek}
-        />
-      ) : (
-        <CalendarWeekGrid
-          days={days}
-          feedback={drag.feedback}
-          scrollTrigger={period.weekScrollTrigger}
-          onActivate={onActivate}
-        />
-      )}
+      <CalendarEntryMenuContext.Provider value={entryActions}>
+        {AsyncResult.isFailure(result) ? (
+          <LoadFailure
+            message={describeRpcFailure(result.cause)}
+            onRetry={reload}
+            testId="calendar-load-failure"
+          />
+        ) : period.mode === "month" ? (
+          <CalendarMonthGrid
+            weekdays={weekdays}
+            days={days}
+            feedback={drag.feedback}
+            onActivate={onActivate}
+            onOpenDayInWeek={openDayInWeek}
+          />
+        ) : (
+          <CalendarWeekGrid
+            days={days}
+            feedback={drag.feedback}
+            scrollTrigger={period.weekScrollTrigger}
+            onActivate={onActivate}
+          />
+        )}
+      </CalendarEntryMenuContext.Provider>
     </div>
   );
 }

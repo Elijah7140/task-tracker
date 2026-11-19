@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { trashBatch } from "../support/fake-trash-handlers.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
@@ -393,6 +394,35 @@ describe("ProjectSettingsPage", () => {
     expect(store.settingsAndLookups.getEffective(projectId).autoCompleteParents.source).toBe(
       "Global",
     );
+  });
+
+  it("Asks about unsaved overrides when returning from Trash after a change there", async () => {
+    await openProjectSettings({
+      configure(store) {
+        store.trash.add(trashBatch(1, store.summaries[0]!.project.id, "Old note"));
+      },
+    });
+    await autoOverride().click();
+    await page.getByTestId("sidebar-trash").click();
+    await page
+      .getByRole("article", { name: "Old note" })
+      .getByRole("button", { name: "Restore" })
+      .click();
+    await expect.element(page.getByText("The trash is empty.")).toBeVisible();
+    const discardDialog = page.getByRole("alertdialog", { name: "Discard unsaved settings?" });
+
+    await page.getByTestId("trash-back").click();
+    await expect.element(discardDialog).toBeVisible();
+    await discardDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect.element(page.getByRole("heading", { name: "Trash", exact: true })).toBeVisible();
+    await page.getByTestId("trash-back").click();
+    await discardDialog.getByRole("button", { name: "Discard" }).click();
+
+    await expect
+      .element(page.getByRole("heading", { level: 1, name: "Project Settings" }))
+      .toBeVisible();
+    await expect.element(autoOverride()).not.toBeChecked();
+    await expect.element(saveButton()).toBeDisabled();
   });
 
   it("Offers only Discard and Cancel for unsaved overrides, as legacy Back did", async () => {

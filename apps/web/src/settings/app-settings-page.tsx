@@ -54,7 +54,11 @@ function SettingsSkeleton() {
  */
 export function AppSettingsPage() {
   const [dirty, setDirty] = useState(false);
-  useUnsavedSettingsGuard(dirty, "Your changes to the global defaults haven't been saved.");
+  const [draftVersion, setDraftVersion] = useState(0);
+  useUnsavedSettingsGuard(dirty, "Your changes to the global defaults haven't been saved.", () => {
+    setDirty(false);
+    setDraftVersion((version) => version + 1);
+  });
 
   const globalSettings = useAtomValue(globalSettingsAtom);
   const itemTypes = useAtomValue(itemTypesAtom);
@@ -102,7 +106,11 @@ export function AppSettingsPage() {
         <SettingsSkeleton />
       ) : (
         <div className="flex flex-col gap-6">
-          <GlobalDefaultsCard initial={globalSettings.value} onDirtyChange={setDirty} />
+          <GlobalDefaultsCard
+            key={draftVersion}
+            initial={globalSettings.value}
+            onDirtyChange={setDirty}
+          />
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
             <LookupListCard kind="itemTypes" rows={itemTypes.value} />
             <LookupListCard kind="priorityLevels" rows={priorityLevels.value} />

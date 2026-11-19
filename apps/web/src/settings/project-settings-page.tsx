@@ -60,9 +60,14 @@ function SettingsBreadcrumbs({
 export function ProjectSettingsPage() {
   const { projectId = "" } = useCurrentArea();
   const [dirty, setDirty] = useState(false);
+  const [draftVersion, setDraftVersion] = useState(0);
   const { bypass } = useUnsavedSettingsGuard(
     dirty,
     "Your changes to this project's settings haven't been saved.",
+    () => {
+      setDirty(false);
+      setDraftVersion((version) => version + 1);
+    },
   );
   const navigate = useNavigate();
   const refreshProjects = useAtomRefresh(projectSummariesAtom);
@@ -162,7 +167,7 @@ export function ProjectSettingsPage() {
       />
       <div className="flex flex-col gap-6">
         <ProjectOverridesCard
-          key={workspace.value.projectId}
+          key={`${workspace.value.projectId}:${draftVersion}`}
           projectId={workspace.value.projectId}
           globalDefaults={globalSettings.value}
           initial={projectSettings.value}

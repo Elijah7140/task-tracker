@@ -440,3 +440,16 @@ for (const theme of THEMES) {
     await expect.element(folder()).not.toHaveAttribute("data-drop-active");
   });
 }
+
+it("Shows the sub-item drag grip as decoration only, so the keyboard moves rows instead", async () => {
+  await openWorkspace();
+
+  const grip = row("Child").getByTestId("item-drag-handle").first();
+
+  await expect.element(grip).toHaveAttribute("aria-hidden", "true");
+  expect(grip.element().tagName).not.toBe("BUTTON");
+  expect(grip.element().hasAttribute("tabindex")).toBe(false);
+  await expect
+    .element(page.getByRole("button", { name: "Move Child", exact: true }))
+    .not.toBeInTheDocument();
+});

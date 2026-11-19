@@ -1,6 +1,7 @@
 import type {} from "@vitest/browser-playwright";
 import { expect, it, onTestFinished } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
+import { useReturnPageStore } from "../../src/state/return-page-store.js";
 import type { SeedProject } from "../support/fake-task-tracker-server.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 import { renderApp } from "../support/render-app.js";
@@ -641,15 +642,48 @@ it("A pointer drop does not focus the moved entry", async () => {
   await expect.element(entry("Review")).not.toHaveFocus();
 });
 
-it("Leaving the route during a save drops waiting steps and calendar focus recovery", async () => {
-  const { store, projectId, history } = await openCalendar();
+it("Opens the row menu on a moved entry, and Escape closes only the menu", async () => {
+  await openCalendar();
+  focus("Audit");
+  await pressAlt("{ArrowRight}");
+  await expect.element(entry("Audit")).toHaveAttribute("data-date", "2026-11-17");
+  await expect.element(entry("Audit")).toHaveFocus();
+
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+  await expect.element(page.getByTestId("calendar-entry-menu")).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+
+  await expect.element(page.getByTestId("calendar-entry-menu")).not.toBeInTheDocument();
+  await expect.element(calendar()).toBeVisible();
+  await expect.element(entry("Audit")).toHaveFocus();
+});
+
+it("Does not drag an entry pressed with the right button to open its menu", async () => {
+  const { store } = await openCalendar();
+
+  await entry("Audit").click({ button: "right" });
+  await expect.element(page.getByTestId("calendar-entry-menu")).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+
+  expect(store.calls).not.toContain(moveTag);
+  await expect.element(entry("Audit")).toHaveAttribute("data-date", "2026-11-16");
+  await expect.element(calendar()).not.toHaveAttribute("data-dragging");
+});
+
+/**
+ * Back, sidebar links and other covering pages wait for a running save, and a
+ * redirect of the page behind keeps Calendar shown, so only teardown can hide
+ * it mid-save. Hiding it directly stands in for that.
+ */
+it("Hiding Calendar during a save drops waiting steps and calendar focus recovery", async () => {
+  const { store } = await openCalendar(defaultItems, true);
   focus("Audit");
   const release = store.hold(moveTag);
   onTestFinished(release);
 
   await pressAlt("{ArrowRight>3/}");
   await expect.poll(() => store.calls.filter((tag) => tag === moveTag)).toHaveLength(1);
-  history.push(`/projects/${projectId}`);
+  useReturnPageStore.getState().uncover();
   await expect.element(calendar()).not.toBeInTheDocument();
   const loads = store.calls.filter((tag) => tag === "LoadCalendar").length;
   release();

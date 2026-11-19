@@ -4,7 +4,10 @@ import { Button } from "../ui/button.js";
 import { MenuContent, MenuItem } from "../ui/menu.js";
 import type { useHistoryActions } from "./use-history-actions.js";
 
-/** The Edit menu exposes the two named history actions from any page. */
+const UNDO_SHORTCUT = { label: "Ctrl+Z", keys: "Control+Z" };
+const REDO_SHORTCUT = { label: "Ctrl+Y", keys: "Control+Y Control+Shift+Z" };
+
+/** The Edit menu exposes the two named history actions and their shortcuts from any page. */
 export function EditMenu({ undo, redo, busy, apply }: ReturnType<typeof useHistoryActions>) {
   return (
     <Menu.Root>
@@ -20,6 +23,7 @@ export function EditMenu({ undo, redo, busy, apply }: ReturnType<typeof useHisto
           disabled={busy || undo === null}
           onClick={() => void apply("undo")}
           testId="history-undo"
+          shortcut={UNDO_SHORTCUT}
         >
           {undo === null ? "Undo" : `Undo: ${undo}`}
         </MenuItem>
@@ -28,6 +32,7 @@ export function EditMenu({ undo, redo, busy, apply }: ReturnType<typeof useHisto
           disabled={busy || redo === null}
           onClick={() => void apply("redo")}
           testId="history-redo"
+          shortcut={REDO_SHORTCUT}
         >
           {redo === null ? "Redo" : `Redo: ${redo}`}
         </MenuItem>

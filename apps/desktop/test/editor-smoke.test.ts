@@ -97,7 +97,7 @@ desktopTest(
       await addItem(page, SMOKE_PROJECT, "Original title");
 
       const editor = await openItemEditor(page, original(page));
-      await editor.getByRole("textbox", { name: "Title" }).fill("Updated title");
+      await editor.getByRole("textbox", { name: "Title", exact: true }).fill("Updated title");
       await saveItemEditor(editor);
 
       await updated(page).waitFor();

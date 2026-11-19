@@ -13,6 +13,7 @@ import {
 import { dialogStore, notify } from "../state/dialog-store.js";
 import { isItemEditorOpen } from "../state/item-editor-store.js";
 import { markReturnPageStale, useReturnPageStore } from "../state/return-page-store.js";
+import { findShortcut } from "../ui/keyboard-shortcut.js";
 
 type Direction = "undo" | "redo";
 
@@ -31,25 +32,24 @@ function acceptsTextEditing(target: EventTarget | undefined) {
   );
 }
 
+const HISTORY_SHORTCUTS = {
+  undo: { key: "z", ctrl: true },
+  redoWithShift: { key: "z", ctrl: true, shift: true },
+  redo: { key: "y", ctrl: true },
+} as const;
+
+const SHORTCUT_DIRECTIONS: Readonly<Record<keyof typeof HISTORY_SHORTCUTS, Direction>> = {
+  undo: "undo",
+  redoWithShift: "redo",
+  redo: "redo",
+};
+
 function shortcutDirection(event: KeyboardEvent): Direction | undefined {
-  if (
-    event.defaultPrevented ||
-    event.isComposing ||
-    event.altKey ||
-    !(event.ctrlKey || event.metaKey)
-  ) {
+  if (event.defaultPrevented || event.isComposing || acceptsTextEditing(event.composedPath()[0])) {
     return;
   }
-  if (acceptsTextEditing(event.composedPath()[0])) {
-    return;
-  }
-  const key = event.key.toLowerCase();
-  if (key === "z") {
-    return event.shiftKey ? "redo" : "undo";
-  }
-  if (key === "y" && !event.shiftKey) {
-    return "redo";
-  }
+  const shortcut = findShortcut(event, HISTORY_SHORTCUTS);
+  return shortcut === undefined ? undefined : SHORTCUT_DIRECTIONS[shortcut];
 }
 
 function useHistoryKeys(apply: (direction: Direction) => Promise<void>) {

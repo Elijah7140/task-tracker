@@ -9,6 +9,7 @@ import {
   trashKindLabel,
   trashLocation,
 } from "./trash-row-labels.js";
+import { TRASH_ROW_ATTRIBUTE } from "./use-trash-focus.js";
 
 type Batch = typeof TrashBatch.Type;
 
@@ -66,8 +67,10 @@ export function TrashBatchRow({ batch, busy, onRestore, onPurge }: TrashBatchRow
   return (
     <article
       aria-label={batch.title}
+      tabIndex={-1}
       data-testid="trash-batch"
-      className="flex items-center gap-4 rounded-card border border-line bg-surface px-5 py-4 shadow-card"
+      {...{ [TRASH_ROW_ATTRIBUTE]: batch.batchId }}
+      className="flex items-center gap-4 rounded-card border border-line bg-surface px-5 py-4 shadow-card outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
       <span className="grid size-5 shrink-0 place-items-center self-start pt-1">
         <KindIcon batch={batch} />

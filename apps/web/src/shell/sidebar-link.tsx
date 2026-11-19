@@ -2,15 +2,12 @@ import { Link } from "@tanstack/react-router";
 import type { MouseEvent, ReactNode } from "react";
 import { cx } from "../ui/class-names.js";
 import type { AppSettingsSearch } from "../app/router.js";
-import { useReturnPageStore } from "../state/return-page-store.js";
+import { leaveCoveringPageForNavigation, useReturnPageStore } from "../state/return-page-store.js";
 import type { AreaTarget } from "../workspace/area-route.js";
 
 function leaveCoveringPage(event: MouseEvent<HTMLAnchorElement>) {
-  const { busy, uncover } = useReturnPageStore.getState();
-  if (busy) {
+  if (!leaveCoveringPageForNavigation()) {
     event.preventDefault();
-  } else {
-    uncover();
   }
 }
 
