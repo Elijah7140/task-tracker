@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import type { MessageBoxOptions } from "electron";
 import { _electron, type ElectronApplication } from "playwright";
 import { expect, test } from "vitest";
+import { isRunning, mainPid, serverChildren, serverPid } from "./support/desktop-processes.js";
 
 const output = fileURLToPath(new URL("../dist/package", import.meta.url));
 const executable =
@@ -30,56 +31,14 @@ const desktopTest = test.extend<{ desktop: DesktopFixture }>({
   },
 });
 
-function launch(desktop: DesktopFixture) {
+function launch(desktop: DesktopFixture, args: readonly string[] = []) {
   return _electron.launch({
     executablePath: executable,
-    args: [`--user-data-dir=${desktop.profile}`],
+    args: [`--user-data-dir=${desktop.profile}`, ...args],
     env: { ...process.env, TASKTRACKER_DB_PATH: desktop.database },
     chromiumSandbox: true,
     timeout: 10_000,
   });
-}
-
-/** Lists child processes of `parent` whose command line names the bundled server. */
-function serverChildren(parent: number) {
-  const lines =
-    process.platform === "win32"
-      ? execFileSync(
-          "powershell.exe",
-          [
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            `Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${parent}' | Where-Object { $_.CommandLine -match 'server[.]mjs' } | Select-Object -ExpandProperty ProcessId`,
-          ],
-          { encoding: "utf8" },
-        ).split("\n")
-      : execFileSync("ps", ["-o", "pid=,args=", "--ppid", String(parent)], { encoding: "utf8" })
-          .split("\n")
-          .filter((line) => line.includes("server.mjs"));
-  return lines
-    .map((line) => Number.parseInt(line.trim(), 10))
-    .filter((pid) => Number.isInteger(pid));
-}
-
-function serverPid(application: ElectronApplication) {
-  const [pid] = serverChildren(application.process().pid ?? 0);
-  if (pid === undefined) {
-    throw new Error("Could not find the running RPC server.");
-  }
-  return pid;
-}
-
-function isRunning(pid: number) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ESRCH") {
-      return false;
-    }
-    throw error;
-  }
 }
 
 interface DialogState {
@@ -123,12 +82,7 @@ function lockedUnrecognizedDatabase(path: string) {
   const database = new DatabaseSync(path);
   database.exec("CREATE TABLE Unexpected (Id INTEGER)");
   database.exec("BEGIN EXCLUSIVE");
-  return {
-    release: () => {
-      database.exec("COMMIT");
-      database.close();
-    },
-  };
+  return database;
 }
 
 /** Reports whether the window's live renderer shows the empty home screen. */
@@ -153,11 +107,11 @@ desktopTest(
   "Shows a startup failure when the first launch finds an unrecognized schema",
   async ({ desktop }) => {
     // The server's busy timeout holds startup on the lock until the dialog is observed.
-    const lock = lockedUnrecognizedDatabase(desktop.database);
+    using lock = lockedUnrecognizedDatabase(desktop.database);
     const application = await launch(desktop);
     try {
       const dialogs = await observeDialogs(application);
-      lock.release();
+      lock.exec("COMMIT");
 
       await expect.poll(dialogs.read, { timeout: 10_000 }).toMatchObject([
         {
@@ -181,14 +135,17 @@ desktopTest(
   "Stops the server through the parent pipe when Electron main is killed",
   async ({ desktop }) => {
     const application = await launch(desktop);
-    const page = await application.firstWindow({ timeout: 10_000 });
-    await page.getByTestId("empty-home-create").waitFor();
-    const server = serverPid(application);
+    try {
+      const page = await application.firstWindow({ timeout: 10_000 });
+      await page.getByTestId("empty-home-create").waitFor();
+      const server = await serverPid(application);
 
-    process.kill(application.process().pid ?? 0, "SIGKILL");
+      process.kill(await mainPid(application), "SIGKILL");
 
-    await expect.poll(() => isRunning(server), { timeout: 10_000 }).toBe(false);
-    await application.close().catch(() => {});
+      await expect.poll(() => isRunning(server), { timeout: 10_000 }).toBe(false);
+    } finally {
+      await application.close().catch(() => {});
+    }
   },
 );
 
@@ -201,7 +158,7 @@ desktopTest(
       await page.getByTestId("empty-home-create").waitFor();
       const dialogs = await observeDialogs(application);
 
-      process.kill(serverPid(application), "SIGKILL");
+      process.kill(await serverPid(application), "SIGKILL");
 
       await expect.poll(dialogs.read).toMatchObject([{ buttons: ["Restart", "Quit"] }]);
       expect(new URL(page.url()).protocol).toBe("data:");
@@ -220,12 +177,17 @@ desktopTest(
 desktopTest(
   "Offers to reload the window after the renderer process is gone",
   async ({ desktop }) => {
-    const application = await launch(desktop);
+    // Windows VMs with the Basic Display Adapter can stall renderer exit detection
+    // on the GPU path. Exercise the crash and reload with software rendering.
+    const application = await launch(
+      desktop,
+      process.platform === "win32" ? ["--disable-gpu"] : [],
+    );
     try {
       const page = await application.firstWindow({ timeout: 10_000 });
       await page.getByTestId("empty-home-create").waitFor();
       const dialogs = await observeDialogs(application);
-      const server = serverPid(application);
+      const server = await serverPid(application);
 
       await application.evaluate(({ BrowserWindow }) => {
         BrowserWindow.getAllWindows()[0]?.webContents.forcefullyCrashRenderer();
@@ -238,7 +200,7 @@ desktopTest(
 
       // Playwright keeps a crashed page closed, so read the reloaded page from main.
       await expect.poll(() => rendererShowsHome(application), { timeout: 10_000 }).toBe(true);
-      expect(serverPid(application)).toBe(server);
+      expect(await serverPid(application)).toBe(server);
     } finally {
       await application.close();
     }
@@ -287,10 +249,10 @@ desktopTest.skipIf(process.platform === "win32")(
   "Relaunches when a second instance starts while the app is quitting",
   async ({ desktop }) => {
     const application = await launch(desktop);
-    const original = application.process().pid ?? 0;
+    const original = await mainPid(application);
     const page = await application.firstWindow({ timeout: 10_000 });
     await page.getByTestId("empty-home-create").waitFor();
-    const server = serverPid(application);
+    const server = await serverPid(application);
     let relaunched: number | undefined;
     try {
       process.kill(server, "SIGSTOP");

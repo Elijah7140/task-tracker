@@ -1,4 +1,4 @@
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
 import { chmod, copyFile, rm, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -15,43 +15,7 @@ import {
   launch,
   phase3Fixture,
 } from "./support/desktop-app.js";
-
-function serverPid(application: ElectronApplication) {
-  const parent = application.process().pid;
-  const children =
-    process.platform === "win32"
-      ? execFileSync(
-          "powershell.exe",
-          [
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            `Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${parent}' | Where-Object { $_.CommandLine -match 'server[.]mjs' } | Select-Object -ExpandProperty ProcessId`,
-          ],
-          { encoding: "utf8" },
-        )
-      : execFileSync("ps", ["-o", "pid=,args=", "--ppid", String(parent)], { encoding: "utf8" })
-          .split("\n")
-          .filter((line) => line.includes("server.mjs"))
-          .join("\n");
-  const pid = Number.parseInt(children.trim(), 10);
-  if (!Number.isInteger(pid)) {
-    throw new Error("Could not find the running RPC server.");
-  }
-  return pid;
-}
-
-function isRunning(pid: number) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ESRCH") {
-      return false;
-    }
-    throw error;
-  }
-}
+import { isRunning, serverPid } from "./support/desktop-processes.js";
 
 /** Starts another instance against the same profile and returns its exit code and signal. */
 async function runSecondInstance(desktop: DesktopFixture) {
@@ -91,10 +55,10 @@ desktopTest(
       await page.keyboard.type("Packaged project");
       await page.keyboard.press("Enter");
       await page.getByRole("article", { name: "Packaged project" }).waitFor();
-      child = serverPid(application);
+      child = await serverPid(application);
 
       expect(await runSecondInstance(desktop)).toEqual([0, null]);
-      expect(serverPid(application)).toBe(child);
+      expect(await serverPid(application)).toBe(child);
       expect(new URL(page.url()).search).toBe("");
       expect(await nodeGlobals(page)).toEqual({ require: false, process: false });
       if (process.platform === "win32") {
@@ -155,7 +119,7 @@ desktopTest(
       const page = await firstWindow(application);
       await page.getByTestId("empty-home-create").waitFor();
       const dialogs = await observeDialogs(application);
-      const originalServer = serverPid(application);
+      const originalServer = await serverPid(application);
 
       process.kill(originalServer, "SIGKILL");
 
@@ -166,7 +130,7 @@ desktopTest(
       await dialogs.restart();
       await reload;
       await page.getByTestId("empty-home-create").waitFor();
-      expect(serverPid(application)).not.toBe(originalServer);
+      expect(await serverPid(application)).not.toBe(originalServer);
     } finally {
       await application.close();
     }
@@ -223,7 +187,7 @@ desktopTest.for(startupFailures)(
       const page = await firstWindow(application);
       await page.getByTestId("empty-home-create").waitFor();
       const dialogs = await observeDialogs(application);
-      process.kill(serverPid(application), "SIGKILL");
+      process.kill(await serverPid(application), "SIGKILL");
       await expect.poll(dialogs.read, { timeout: 10_000 }).toHaveLength(1);
       const restoreAccess = await prepare(desktop.database);
 

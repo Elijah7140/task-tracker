@@ -49,7 +49,8 @@ input. Desktop smoke uses the packaged Electron executable and isolated database
 
 ## Snapshots
 
-Each row has light and dark Linux Chromium baselines from the 1440×900 browser viewport.
+Each row has light and dark Linux and Windows Chromium baselines from the 1440×900
+browser viewport.
 Home, workspace and app settings also have reviewed full-shell 1920×1080 images
 named with `-1080p-`. The workspace uses seeded open items and an expanded Completed
 section in both sizes. The existing snapshot files were preserved.
@@ -104,6 +105,6 @@ Workflow numbers follow the declaration order in the legacy
 | --- | --- |
 | Linux baselines | Six new 1920×1080 images reviewed in light and dark. |
 | Linux packaged smoke | 20 tests passed on each of three consecutive runs under Xvfb. |
-| Windows baselines | **TODO** — Generate and review the light and dark baselines on Windows at 1440×900 and enable and review the 1920×1080 cases on Windows. |
-| Windows packaged smoke | **TODO** — Package and run the desktop suite on Windows, including the Phase 3 fixture. Record the result against the accepted revision. |
+| Windows baselines | Regenerated and reviewed all 48 Windows Chromium images against Linux at `fe975de`. The set covers 42 captures from the 1440×900 viewport and six full-shell 1920×1080 captures in light and dark. Layout and theme colours matched, with expected text antialiasing and native date-control differences. The full Windows suite passed all 801 tests. |
+| Windows packaged smoke | Built the NSIS installer and unpacked app on Windows 11 x64 at `fe975de`. At `3a50532`, three consecutive runs each passed all 19 Windows-applicable tests, including the disposable Phase 3 EF fixture, single instance, startup failures and crash recovery. The Linux `SIGSTOP` case was skipped. The renderer-crash test used software rendering because this VM's Basic Display Adapter stalled renderer exit notification. All seven `assets/icon.ico` frames matched the app and installer resources. The installer payload launched with the release fuses, including ASAR integrity, started the server under `ELECTRON_RUN_AS_NODE` and stopped it on quit. |
 | Owner demo sign-off | **TODO** — Record owner approval of the demo, baselines, feature parity and data continuity before WP24. |

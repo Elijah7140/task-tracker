@@ -133,6 +133,7 @@ describe("DialogHost", () => {
     await renderApp();
     const answer = prompt(newProject);
     await expect.element(promptError()).toHaveTextContent("Enter a name.");
+    await expect.element(promptInput()).toHaveFocus();
 
     await userEvent.keyboard("  Data warehouse  {Enter}");
 
@@ -211,6 +212,7 @@ describe("DialogHost", () => {
     it("Matches the reviewed name prompt baseline", async () => {
       await renderApp({ projects: [{ name: "Billing DB", openCount: 3, overdueCount: 1 }] });
       void prompt({ title: "New project", label: "Project name", confirmLabel: "Create" });
+      await expect.element(promptInput()).toHaveFocus();
       await userEvent.keyboard("Data warehouse");
 
       await settleTheme(theme);
