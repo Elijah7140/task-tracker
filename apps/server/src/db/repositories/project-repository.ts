@@ -39,6 +39,11 @@ export function projectRepository(sql: SqlClient.SqlClient) {
 
   return {
     listActive: () => listActive(undefined),
+    listAll: SqlSchema.findAll({
+      Request: Schema.Void,
+      Result: row,
+      execute: () => sql`SELECT * FROM Project ORDER BY SortOrder, rowid`,
+    }),
     requireActive: (id: string) =>
       findActive(id).pipe(
         Effect.flatMap(
@@ -48,6 +53,7 @@ export function projectRepository(sql: SqlClient.SqlClient) {
           }),
         ),
       ),
+    findActive,
     findDeletedBatch,
     insert: SqlSchema.void({
       Request: row,

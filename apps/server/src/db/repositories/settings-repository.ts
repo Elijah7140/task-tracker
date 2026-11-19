@@ -6,7 +6,7 @@ const row = Schema.Struct({ Key: Schema.String, Value: Schema.String });
 const toMap = (rows: readonly (typeof row.Type)[]) =>
   new Map(rows.map(({ Key, Value }) => [Key, Value]));
 
-/** Reads legacy setting text on the caller's transaction. */
+/** Reads and writes legacy setting text on the caller's transaction. */
 export function settingsRepository(sql: SqlClient.SqlClient) {
   const global = SqlSchema.findAll({
     Request: Schema.Void,
@@ -21,5 +21,22 @@ export function settingsRepository(sql: SqlClient.SqlClient) {
   return {
     global: () => global(undefined).pipe(Effect.map(toMap)),
     project: (projectId: string) => project(projectId).pipe(Effect.map(toMap)),
+    setGlobal: SqlSchema.void({
+      Request: row,
+      execute: ({ Key, Value }) => sql`INSERT INTO GlobalSetting (Key, Value)
+        VALUES (${Key}, ${Value}) ON CONFLICT (Key) DO UPDATE SET Value = excluded.Value`,
+    }),
+    setProject: SqlSchema.void({
+      Request: Schema.Struct({
+        ProjectId: Guid,
+        Key: Schema.String,
+        Value: Schema.NullOr(Schema.String),
+      }),
+      execute: ({ ProjectId, Key, Value }) =>
+        Value === null
+          ? sql`DELETE FROM ProjectSetting WHERE ProjectId = ${ProjectId} AND Key = ${Key}`
+          : sql`INSERT INTO ProjectSetting (ProjectId, Key, Value) VALUES (${ProjectId}, ${Key}, ${Value})
+            ON CONFLICT (ProjectId, Key) DO UPDATE SET Value = excluded.Value`,
+    }),
   };
 }
