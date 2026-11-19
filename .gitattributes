@@ -2,9 +2,6 @@
 # core.autocrlf=true would otherwise rewrite every file to CRLF.
 * text=auto eol=lf
 
-# The legacy Windows manifest is stored with CRLF; keep it byte for byte.
-*.manifest -text
-
 *.png binary
 *.ico binary
 *.db binary

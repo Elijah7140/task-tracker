@@ -25,19 +25,6 @@ Linux, run the Electron runtime check with `xvfb-run -a` after building.
 Once desktop packaging lands, run `pnpm run package:desktop` before
 `pnpm run test:desktop`.
 
-## Legacy .NET (until WP24 removes it)
-
-On Linux, load the development environment first.
-
-```sh
-. scripts/dev-env.sh
-dotnet build
-dotnet test
-dotnet format TaskTracker.slnx --verify-no-changes
-```
-
-The legacy build must finish with zero warnings.
-
 ## Code
 
 - Follow §4. Server depends on Core and contracts. Web depends on contracts and

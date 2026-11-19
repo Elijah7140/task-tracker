@@ -1,4 +1,4 @@
-name: Workspace CI
+name: CI
 
 on:
   push:
@@ -20,6 +20,12 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install Chromium and Linux browser dependencies
+        if: runner.os == 'Linux'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Chromium on Windows
+        if: runner.os == 'Windows'
+        run: pnpm exec playwright install chromium
       - run: pnpm run build
       - run: pnpm exec vp check --deny-warnings
       - name: Verify the Vite renderer responds
@@ -30,12 +36,6 @@ jobs:
           trap 'kill "$dev_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 \
             --output /dev/null http://127.0.0.1:5173/
-      - name: Install Chromium and Linux browser dependencies
-        if: runner.os == 'Linux'
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Install Chromium on Windows
-        if: runner.os == 'Windows'
-        run: pnpm exec playwright install chromium
       - run: pnpm exec vp test run
       - name: Run SQLite tests under the Electron runtime
         run: pnpm run test:server-db:electron

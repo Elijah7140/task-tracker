@@ -72,8 +72,8 @@ section in both sizes. The existing snapshot files were preserved.
 
 ## Packaged desktop smoke
 
-Workflow numbers follow the declaration order in the legacy
-[SmokeTests.cs](../tests/TaskTracker.App.Desktop.SmokeTests/SmokeTests.cs).
+Workflow numbers follow the declaration order in
+`tests/TaskTracker.App.Desktop.SmokeTests/SmokeTests.cs` at `158a00f`, before cutover.
 
 | Legacy workflow | TypeScript evidence |
 | --- | --- |
@@ -108,3 +108,4 @@ Workflow numbers follow the declaration order in the legacy
 | Windows baselines | Regenerated and reviewed all 48 Windows Chromium images against Linux at `fe975de`. The set covers 42 captures from the 1440×900 viewport and six full-shell 1920×1080 captures in light and dark. Layout and theme colours matched, with expected text antialiasing and native date-control differences. The full Windows suite passed all 801 tests. |
 | Windows packaged smoke | Built the NSIS installer and unpacked app on Windows 11 x64 at `fe975de`. At `3a50532`, three consecutive runs each passed all 19 Windows-applicable tests, including the disposable Phase 3 EF fixture, single instance, startup failures and crash recovery. The Linux `SIGSTOP` case was skipped. The renderer-crash test used software rendering because this VM's Basic Display Adapter stalled renderer exit notification. All seven `assets/icon.ico` frames matched the app and installer resources. The installer payload launched with the release fuses, including ASAR integrity, started the server under `ELECTRON_RUN_AS_NODE` and stopped it on quit. |
 | Owner demo sign-off | Approved by the owner on 2026-11-19 against `158a00f`: demo, baselines, feature parity, data continuity and the accepted UI deviations above. WP24 may proceed. |
+| WP24 cutover | Complete. Linux acceptance passed with the TypeScript-only build, including 801 workspace tests, 124 SQLite tests under Electron, and 20 packaged smoke tests under Xvfb. Both EF fixture files were retained. Windows verification for the cutover tree is covered by CI. |

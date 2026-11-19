@@ -1,9 +1,9 @@
 # EF compatibility fixtures
 
-Both SQLite files contain only synthetic data. The generator uses the legacy
+Both SQLite files contain only synthetic data. The WP6 generator used the legacy
 `TaskTrackerDbContext` and Microsoft.Data.Sqlite provider bindings with fixed GUIDs,
-dates and sample text. The generator vacuums both files to remove transient
-SQLite records. Each test opens a disposable copy.
+dates and sample text. It vacuumed both files to remove transient SQLite records.
+Each test opens a disposable copy.
 
 | File                | EF migrations applied                                       |
 | ------------------- | ----------------------------------------------------------- |
@@ -16,11 +16,5 @@ deletion batch, a renamed seed, an archived lookup, and settings encoded as
 earlier file and adds all five custom-value types, including an archived field
 and an archived choice.
 
-From the repository root, load `. scripts/dev-env.sh` on Linux and run:
-
-```sh
-dotnet test --project tests/TaskTracker.Infrastructure.Tests --filter FullyQualifiedName~GenerateEfFixtures
-```
-
-This runs `EfFixtureTests.GenerateEfFixtures` and replaces both files here.
-Unfiltered infrastructure tests generate their files in a temporary directory.
+The generator was removed at cutover. [WP6 in the migration record](../../../../../docs/MIGRATION.md#wp6--ef-fixture-compatibility-and-startup)
+records the original generation command.

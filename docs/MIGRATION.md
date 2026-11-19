@@ -1,31 +1,26 @@
 # Stack migration
 
-[Revision 6](PLAN.md) defines the product and the target architecture. The migration
-ships Phases 0–3 behavior, including custom fields, with the React design in §8.
-Search, Calendar and Tickets follow the roadmap. Keep the .NET implementation and
-its five test projects available until WP24 removes them.
+**Status: complete.** [Revision 6](PLAN.md) defines the product and the current
+architecture. The TypeScript release carries forward Phases 0–3 behavior,
+including custom fields, with the React design in §8. Search, Calendar and Tickets
+follow the roadmap.
 
-For each package, port the relevant tests first. Run them against the new boundary
-and see them fail before porting or adding the implementation. Use the C# tests as
-behavior specifications. Port UI intent and outcomes, and capture new baselines
-for the React design. Add coverage where a new boundary introduces failure modes.
-Legacy source paths are under `src/`. Unqualified filenames refer to files in the
-legacy projects.
+The work packages below record the migration plan and its acceptance gates.
+Legacy paths and commands refer to the pre-cutover tree at `0a84e9d`. Legacy
+source paths are relative to `src/`, and unqualified filenames refer to files in
+the legacy projects.
 
-Run the root commands below for every WP, in addition to its acceptance commands.
-The names used with `--project` are Vitest projects. WP1 establishes their naming
-and the common runner. Enable each project as its first suite lands. Run browser
-commands after `pnpm exec playwright install chromium` (provide Chromium OS
-dependencies on Linux CI). Maintain the Windows and Linux CI gates as suites land.
+The migration used C# tests as behavior specifications. Each package called for
+porting the relevant tests before implementation, retaining UI intent and
+outcomes, and capturing new baselines for the React design. The packages used
+these shared build and static checks in addition to their acceptance commands:
 
 ```sh
-pnpm exec vp check
 pnpm run build
+pnpm exec vp check --deny-warnings
 ```
 
-Legacy verification on Linux uses `. scripts/dev-env.sh` first. Use `dotnet test
---project <project-path>` for focused legacy runs and the Windows machine for
-legacy UI Automation smoke.
+See the [README](../README.md) for current build and smoke commands.
 
 ## Order and parallel work
 
@@ -348,7 +343,7 @@ handlers. Exercise them through RPC against real SQLite. Each group passes
   Owner approves the changed baselines and signs off on feature and data parity.
 - **Dependencies** — WP20, WP21, WP22.
 
-## WP24 — Cut over and remove .NET
+## WP24 — Cut over and remove .NET (complete)
 
 - **Goal** — Leave TypeScript as the single build and release path after sign-off.
 - **Inputs** — Accepted WP23 evidence, legacy `src/`, five `tests/TaskTracker.*`
@@ -357,9 +352,10 @@ handlers. Exercise them through RPC against real SQLite. Each group passes
 - **Outputs** — Remove the .NET code, test projects, fixture generator and tooling.
   Retain the EF fixture files and provenance. Update CI and build instructions to
   use the TypeScript stack. The server continues to adopt and read legacy files.
-- **Acceptance** — On clean environments without .NET, run
+- **Acceptance** — On Windows and Linux with the TypeScript toolchain, run
   `pnpm install --frozen-lockfile`, `pnpm exec playwright install chromium`,
-  `pnpm exec vp check`, `pnpm run build` and
-  `pnpm exec vp test run` on Windows and Linux. Run `pnpm run package:desktop`
-  and `pnpm run test:desktop` on Windows against the final tree.
+  `pnpm run build`, `pnpm exec vp check --deny-warnings`,
+  `pnpm exec vp test run` and `pnpm run test:server-db:electron`.
+  Run `pnpm run package:desktop` and `pnpm run test:desktop` on both platforms.
+  On headless Linux, run desktop smoke under Xvfb.
 - **Dependencies** — WP23.

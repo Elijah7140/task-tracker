@@ -1,6 +1,6 @@
 # Task Tracker — Project Plan
 
-Status: **Revision 6 — stack pivot planned** · Owner: Elijah Harris · PM: Claude
+Status: **Revision 6 — TypeScript cutover complete** · Owner: Elijah Harris · PM: Claude
 
 ## 1. Goal
 
@@ -267,7 +267,7 @@ Soft delete, so a Trash/restore view can be added without schema change.
 - Resolve DST gaps to the transition boundary with `getTimeZoneTransition`
   (e.g. 02:30 → 03:00), preserving legacy `FloatingTime` behavior. For a repeated
   time, use the earlier instant. A date-only deadline uses local 23:59:59.9999999.
-  Port `FloatingTimeTests` exactly.
+  Keep regression coverage for these cases.
 - If sync is ever added, we add a `TimeZoneId` column and convert; the field names do not change.
 
 ## 6. Business rules
@@ -366,8 +366,8 @@ tooltip naming it, so the user knows the parent's own deadline isn't the cause.
   subtree (invariant 3). Moving between projects is out of scope for v1; if added later
   it must handle project-scoped custom fields.
 - Sub-items cannot be moved to another area on their own. They can be re-parented
-  within the same tree via indent/outdent. The legacy `ItemService` already supports
-  these operations. The React UI adds them on focused rows (§8).
+  within the same tree via indent/outdent. The React UI exposes these operations on
+  focused rows (§8).
 - Folders move within the same project only (invariant 1).
 
 ### 6.5 Settings: global and per project
@@ -525,9 +525,9 @@ Phase 4.
 ## 9. Delivery phases
 
 The .NET implementation completed Phases 0–2 (the original v1) and Phase 3 (custom
-fields). It remains the behavior reference through the pivot. Each pivot phase
-ends with a working build, passing applicable §11.1 checks and a short owner demo.
-[Migration work packages](MIGRATION.md) define the execution order and gates.
+fields). It served as the behavior reference for the completed TypeScript pivot.
+The owner approved the replacement in [the parity record](PARITY.md).
+[Migration work packages](MIGRATION.md) record the execution order and gates.
 
 | Phase | Deliverable | Exit criteria |
 |-------|-------------|---------------|
@@ -600,7 +600,7 @@ ends with a working build, passing applicable §11.1 checks and a short owner de
 | RPC integration | `@effect/vitest` | Schema validation, message round trips, errors and write/confirmation behavior with real SQLite | Every phase once RPC lands, CI on both OSes |
 | Web behavior | Vitest and `@vitest/browser-playwright` | Controller state, mounted React components and real browser input for focus, shortcuts, gestures, click paths and dialogs | Every phase once web work lands, CI on both OSes |
 | Visual baselines | Playwright screenshots in Chromium | Approved key screens and dialogs in light and dark. Review changes before updating images | With browser tests on both OSes |
-| Desktop smoke | Playwright Electron | Launch the packaged app, navigate, perform 5–10 core workflows and verify persistence after restart | Windows before phase sign-off once Electron lands |
+| Desktop smoke | Playwright Electron | Launch the packaged app, navigate, perform 5–10 core workflows and verify persistence after restart | CI on Windows and Linux |
 | Owner review | Hands-on demo | Check the phase's deliverable and review changed baselines | End of each phase, before merge |
 
 - A new shortcut, gesture or dialog ships with a simulated-input browser test.
@@ -614,8 +614,8 @@ ends with a working build, passing applicable §11.1 checks and a short owner de
 
 ### 11.2 Commands
 
-The workspace scaffold establishes these root commands with Node 26 and pnpm 12.
-Enable type-aware checking and type diagnostics in the Vite+ config. Build and
+Run these root commands with Node 26 and pnpm 12.
+Vite+ enables type-aware checking and type diagnostics. Build and
 static checks must finish with zero warnings.
 [Vite+ check](https://www.viteplus.dev/guide/check)
 
@@ -632,7 +632,8 @@ pnpm run test:desktop
 
 `build` builds the workspace in dependency order. `package:desktop` produces the
 current platform's electron-builder output and unpacked executable. `test:desktop`
-runs Playwright smoke against that executable.
+runs Playwright smoke against that executable. On headless Linux, source
+`scripts/dev-env.sh` for user-local GTK and run `xvfb-run -a pnpm run test:desktop`.
 
 ## 12. Owner decisions
 

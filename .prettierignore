@@ -1,8 +1,2 @@
-# The workspace formatter covers TypeScript tooling. Legacy configuration and
-# existing project documents use their own formatting.
-.github/workflows/ci.yml
+# Project documents use their own formatting.
 docs/
-dotnet-tools.json
-global.json
-/src/
-/tests/
