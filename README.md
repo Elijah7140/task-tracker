@@ -23,8 +23,8 @@ source `scripts/dev-env.sh` first. Set `TASKTRACKER_DB_PATH` to develop against 
 isolated SQLite file.
 
 ```sh
-pnpm exec vp check --deny-warnings
 pnpm run build
+pnpm exec vp check --deny-warnings
 pnpm exec playwright install chromium
 pnpm exec vp test run --project core
 pnpm run check:electron

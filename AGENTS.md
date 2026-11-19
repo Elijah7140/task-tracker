@@ -11,8 +11,8 @@ Run from the workspace root.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm exec vp check --deny-warnings
 pnpm run build
+pnpm exec vp check --deny-warnings
 pnpm exec playwright install chromium
 pnpm exec vp test run
 pnpm exec vp test run --project core
