@@ -335,6 +335,27 @@ describe("ProjectSettingsPage", () => {
     );
   });
 
+  it("Offers only Discard and Cancel for unsaved overrides, as legacy Back did", async () => {
+    const { store, history, projectId } = await openProjectSettings();
+    const discardDialog = page.getByRole("alertdialog", { name: "Discard unsaved settings?" });
+    await autoOverride().click();
+
+    await backButton().click();
+    await expect.element(discardDialog).toBeVisible();
+    expect(discardDialog.getByRole("button").elements()).toHaveLength(2);
+    await discardDialog.getByRole("button", { name: "Cancel" }).click();
+
+    await expect.element(discardDialog).not.toBeInTheDocument();
+    await expect.element(autoOverride()).toBeChecked();
+    expect(history.location.pathname).toBe(`/projects/${projectId}/settings`);
+
+    await backButton().click();
+    await discardDialog.getByRole("button", { name: "Discard" }).click();
+
+    await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
+    expect(store.calls).not.toContain("SaveProjectSettings");
+  });
+
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed project settings baseline", async () => {
       await openProjectSettings({

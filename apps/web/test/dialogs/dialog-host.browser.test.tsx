@@ -25,6 +25,11 @@ const moveFolder = {
   confirmLabel: "Move",
 };
 
+const projectUnavailable = {
+  title: "Project unavailable",
+  message: "Project is missing or deleted.",
+};
+
 const renameProject = {
   title: "Rename project",
   label: "Project name",
@@ -127,6 +132,17 @@ describe("DialogHost", () => {
     await expect(answer).resolves.toBeNull();
   });
 
+  it.each(["Enter", "Escape"])("Dismisses a message with %s", async (key) => {
+    await renderApp();
+    const dismissed = notify(projectUnavailable);
+    await expect.element(page.getByTestId("message-dialog-ok")).toHaveFocus();
+
+    await userEvent.keyboard(`{${key}}`);
+
+    await expect(dismissed).resolves.toBeUndefined();
+    await expect.element(page.getByTestId("message-dialog")).not.toBeInTheDocument();
+  });
+
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed delete confirmation baseline", async () => {
       await renderApp({ projects: [{ name: "Billing DB", openCount: 3, overdueCount: 1 }] });
@@ -162,6 +178,18 @@ describe("DialogHost", () => {
       await expect
         .element(page.getByTestId("app-shell"))
         .toMatchScreenshot(`choice-dialog-${theme}`);
+    });
+
+    it("Matches the reviewed message baseline", async () => {
+      await renderApp({ projects: [{ name: "Billing DB", openCount: 3, overdueCount: 1 }] });
+      void notify(projectUnavailable);
+      await expect.element(page.getByTestId("message-dialog-ok")).toHaveFocus();
+
+      await settleTheme(theme);
+
+      await expect
+        .element(page.getByTestId("app-shell"))
+        .toMatchScreenshot(`message-dialog-${theme}`);
     });
   });
 });

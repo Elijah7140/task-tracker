@@ -86,6 +86,25 @@ describe("ProjectPage", () => {
       .toHaveAttribute("aria-current", "page");
   });
 
+  it("Focuses quick-add when a project opens but not when moving between its folders", async () => {
+    await renderApp({ projects: [BILLING_PROJECT, { name: "Website" }] });
+    const quickAdd = page.getByTestId("quick-add-input");
+    const dbo = page.getByRole("treeitem", { name: "dbo", exact: true });
+
+    await page.getByRole("article", { name: "Billing DB" }).click();
+    await expect.element(quickAdd).toHaveFocus();
+
+    await dbo.getByTestId("folder-row").first().click();
+    await expect.element(page.getByRole("heading", { level: 1, name: "dbo" })).toBeVisible();
+    await expect.element(quickAdd).not.toHaveFocus();
+    await expect.element(dbo).toHaveFocus();
+
+    await page.getByTestId("sidebar-project-link").nth(1).click();
+
+    await expect.element(page.getByTestId("empty-area")).toBeVisible();
+    await expect.element(quickAdd).toHaveFocus();
+  });
+
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed workspace baseline", async () => {
       const { store, history } = await renderApp({
@@ -125,6 +144,8 @@ describe("ProjectPage", () => {
       const projectId = store.summaries[0]?.project.id ?? "";
       history.push(`/projects/${projectId}/folders/${store.folderNamed("Views").id}`);
       await expect.element(page.getByTestId("empty-area")).toBeVisible();
+      await expect.element(page.getByTestId("quick-add-input")).toHaveFocus();
+      (document.activeElement as HTMLElement | null)?.blur();
 
       await settleTheme(theme);
 

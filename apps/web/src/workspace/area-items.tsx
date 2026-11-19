@@ -25,6 +25,16 @@ export interface AreaItemsProps {
   readonly areaName: string;
   readonly folders: ReadonlyArray<Folder>;
   readonly timeZone: string;
+  /** Focuses quick-add once the area loads, as when a project opens (legacy workspace). */
+  readonly focusQuickAddOnLoad?: boolean | undefined;
+}
+
+/** A request to focus quick-add once it is rendered. */
+interface QuickAddFocusRequest {
+  /** Waits until the list has items, as after the first quick-add in an empty area. */
+  readonly waitForNonEmpty: boolean;
+  /** Drops the request if the user moves focus away from this element first. */
+  readonly unlessFocusLeaves?: Element | null;
 }
 
 function lookupsFor(snapshot: typeof AreaSnapshot.Type, timeZone: string): ItemRowLookups {
@@ -77,6 +87,7 @@ export function AreaItems({
   areaName,
   folders,
   timeZone,
+  focusQuickAddOnLoad = false,
 }: AreaItemsProps) {
   const atom = areaAtom(projectId, folderId);
   const area = useAtomValue(atom);
@@ -86,11 +97,15 @@ export function AreaItems({
 
   const quickAddRef = useRef<HTMLInputElement>(null);
   const [pendingFocus, setPendingFocus] = useState<ItemFocusRequest | null>(null);
-  const [pendingQuickAddFocus, setPendingQuickAddFocus] = useState<{
-    readonly waitForNonEmpty: boolean;
-  } | null>(null);
+  const [pendingQuickAddFocus, setPendingQuickAddFocus] = useState<QuickAddFocusRequest | null>(
+    () =>
+      focusQuickAddOnLoad
+        ? { waitForNonEmpty: false, unlessFocusLeaves: document.activeElement }
+        : null,
+  );
   const [deletedBatch, setDeletedBatch] = useState<DeletedItemNotice | null>(null);
-  const items = AsyncResult.isSuccess(area) ? area.value.items : [];
+  const loaded = AsyncResult.isSuccess(area);
+  const items = loaded ? area.value.items : [];
 
   const clearPendingFocus = useCallback(() => setPendingFocus(null), []);
   const actions = useItemActions({
@@ -116,11 +131,15 @@ export function AreaItems({
     ) {
       return;
     }
-    if (quickAddRef.current !== null) {
-      quickAddRef.current.focus();
-      setPendingQuickAddFocus(null);
+    if (quickAddRef.current === null) {
+      return;
     }
-  }, [pendingQuickAddFocus, items.length]);
+    const { unlessFocusLeaves } = pendingQuickAddFocus;
+    if (unlessFocusLeaves === undefined || document.activeElement === unlessFocusLeaves) {
+      quickAddRef.current.focus();
+    }
+    setPendingQuickAddFocus(null);
+  }, [pendingQuickAddFocus, items.length, loaded]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
