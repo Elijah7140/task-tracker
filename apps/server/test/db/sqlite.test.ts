@@ -88,3 +88,25 @@ it.effect("Rolls back a failed commit before reusing the connection", () =>
     expect(yield* sql.withTransaction(sql`SELECT * FROM ProjectSetting`)).toEqual([]);
   }).pipe(withSchema),
 );
+
+it.effect("A queued writer acquires the transaction lease after the first writer releases it", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const release = yield* Deferred.make<void>();
+    const first = yield* sql
+      .withTransaction(Deferred.await(release))
+      .pipe(Effect.forkChild({ startImmediately: true }));
+
+    const second = yield* sql
+      .withTransaction(sql`INSERT INTO GlobalSetting VALUES ('queued', 'committed')`)
+      .pipe(Effect.forkChild({ startImmediately: true }));
+    expect(second.pollUnsafe()).toBeUndefined();
+    yield* Deferred.succeed(release, undefined);
+    yield* Fiber.join(first);
+    yield* Fiber.join(second);
+
+    expect(
+      yield* sql.withTransaction(sql`SELECT Value FROM GlobalSetting WHERE Key = 'queued'`.values),
+    ).toEqual([["committed"]]);
+  }).pipe(withSchema),
+);

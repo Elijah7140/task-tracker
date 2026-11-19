@@ -4,13 +4,17 @@ import {
   editItem,
   FolderTree,
   ItemTree,
+  planFieldValueEdits,
   type AppliedCompletion,
+  type FieldValueInput,
   type ItemEdit,
   type TodoItem,
 } from "@task-tracker/core";
 import { Context, Effect, Layer, Schema } from "effect";
 import { SqlClient } from "effect/sql";
+import { fieldRepository } from "../db/repositories/field-repository.js";
 import { folderRepository } from "../db/repositories/folder-repository.js";
+import { itemFieldValueRepository } from "../db/repositories/item-field-value-repository.js";
 import { itemRepository } from "../db/repositories/item-repository.js";
 import { lookupRepository } from "../db/repositories/lookup-repository.js";
 import { projectItemRepository } from "../db/repositories/project-item-repository.js";
@@ -28,11 +32,19 @@ const decodeIds = Schema.decodeEffect(Schema.Array(Guid));
 const decodeOptionalIds = Schema.decodeEffect(Schema.UndefinedOr(Schema.Array(Guid)));
 const decodeNullableId = Schema.decodeEffect(Schema.NullOr(Guid));
 
+const normalizeFieldIds = Effect.fnUntraced(function* (input: FieldValueInput) {
+  const fieldDefinitionId = yield* decodeId(input.fieldDefinitionId);
+  const choiceId = yield* decodeNullableId(input.choiceId ?? null);
+  return { ...input, fieldDefinitionId, choiceId };
+});
+
 const make = Effect.fnUntraced(function* (timeZone: string) {
   const sql = yield* SqlClient.SqlClient;
   const projects = projectRepository(sql);
   const folders = folderRepository(sql);
   const items = itemRepository(sql);
+  const fields = fieldRepository(sql);
+  const itemValues = itemFieldValueRepository(sql);
   const projectItems = projectItemRepository(sql);
   const lookups = lookupRepository(sql);
   const settings = settingsRepository(sql);
@@ -121,15 +133,49 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     });
   }, sql.withTransaction);
 
-  const edit = Effect.fnUntraced(function* (id: string, fields: ItemEdit) {
+  const planCustomEdit = Effect.fnUntraced(function* (
+    item: TodoItem,
+    customValues: readonly FieldValueInput[],
+  ) {
+    const inputs = yield* Effect.forEach(customValues, normalizeFieldIds);
+    const definitions = yield* fields.definitions.list();
+    const choiceIds = new Set(
+      inputs.flatMap(({ choiceId }) => (choiceId === null ? [] : [choiceId])),
+    );
+    const choices = choiceIds.size === 0 ? [] : yield* fields.choices.findByIds([...choiceIds]);
+    const existing = yield* itemValues.list(item.id);
+    return yield* checkRules(() =>
+      planFieldValueEdits(item.id, item.projectId, definitions, choices, existing, inputs),
+    );
+  });
+
+  const edit = Effect.fnUntraced(function* (
+    id: string,
+    values: ItemEdit,
+    customValues: readonly FieldValueInput[] = [],
+  ) {
     const item = yield* items.requireActive(id);
     const now = yield* operationTime;
-    const itemTypeId = yield* decodeNullableId(fields.itemTypeId);
-    const priorityLevelId = yield* decodeNullableId(fields.priorityLevelId);
+    const itemTypeId = yield* decodeNullableId(values.itemTypeId);
+    const priorityLevelId = yield* decodeNullableId(values.priorityLevelId);
     const edited = yield* checkRules(() =>
-      editItem(item, { ...fields, itemTypeId, priorityLevelId }, now),
+      editItem(item, { ...values, itemTypeId, priorityLevelId }, now),
     );
+    // The connection lease serializes this snapshot and write with definition mutations.
+    const custom =
+      customValues.length === 0 ? undefined : yield* planCustomEdit(item, customValues);
     yield* items.updateEdit(edited);
+    if (custom) {
+      for (const fieldDefinitionId of custom.removals) {
+        yield* itemValues.remove({ itemId: item.id, fieldDefinitionId });
+      }
+      yield* Effect.forEach(custom.upserts, itemValues.upsert, { discard: true });
+    }
+  }, sql.withTransaction);
+
+  const loadFieldValues = Effect.fnUntraced(function* (id: string) {
+    const item = yield* items.requireActive(id);
+    return yield* itemValues.list(item.id);
   }, sql.withTransaction);
 
   const setCompleted = Effect.fnUntraced(function* (
@@ -287,6 +333,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     delete: deleteItem,
     restore,
     loadArea,
+    loadFieldValues,
   };
 });
 
