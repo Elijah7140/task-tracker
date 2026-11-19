@@ -40,7 +40,7 @@ function WorkspaceArea({ workspace, folderId, timeZone }: WorkspaceAreaProps) {
   }
   const areaName = folder?.name ?? workspace.name;
   return (
-    <PageContainer>
+    <PageContainer wide>
       <PageHeader
         title={areaName}
         eyebrow={

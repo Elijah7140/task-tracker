@@ -260,5 +260,6 @@ export function itemStructureOperations(
     delete: deleteItem,
     restore,
     loadAreaTree,
+    saveStructure,
   };
 }

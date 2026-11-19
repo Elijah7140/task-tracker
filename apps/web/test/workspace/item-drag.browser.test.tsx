@@ -21,6 +21,12 @@ const project: SeedProject = {
   ],
 };
 
+/** No row drop and no card move was sent. */
+function expectNoDrop(calls: ReadonlyArray<string>) {
+  expect(calls).not.toContain("DropItem");
+  expect(calls).not.toContain("MoveItemToPriorityGroup");
+}
+
 async function openWorkspace(seed = project) {
   const app = await renderApp({ projects: [seed] });
   const projectId = app.store.summaries[0]!.project.id;
@@ -29,12 +35,26 @@ async function openWorkspace(seed = project) {
   return { ...app, projectId, destination: app.store.folders[0]?.id };
 }
 
-function point(element: Element, vertical = 0.5) {
+/** Cards take drops along their width on the header line; sub-item rows along their height. */
+const CARD_HEADER_OFFSET = 16;
+
+const isCard = (element: Element) => element.getAttribute("data-item-card") === "true";
+
+/** A drop position inside the target, `fraction` of the way along its flow axis (§7.17). */
+function positionIn(element: Element, fraction: number) {
+  const rect = element.getBoundingClientRect();
+  return isCard(element)
+    ? { x: rect.width * fraction, y: CARD_HEADER_OFFSET }
+    : { x: rect.width / 2, y: rect.height * fraction };
+}
+
+function point(element: Element, fraction = 0.5) {
   const rect = element.getBoundingClientRect();
   const frame = window.frameElement?.getBoundingClientRect();
+  const position = positionIn(element, fraction);
   return {
-    x: Math.round((frame?.left ?? 0) + rect.left + rect.width / 2),
-    y: Math.round((frame?.top ?? 0) + rect.top + rect.height * vertical),
+    x: Math.round((frame?.left ?? 0) + rect.left + position.x),
+    y: Math.round((frame?.top ?? 0) + rect.top + position.y),
   };
 }
 
@@ -56,13 +76,13 @@ async function beginDrag(source: Element, target: Point) {
   await mouse("mouseMoved", target, 1);
 }
 
-const drop = (source: string, target: string, vertical = 0.5) =>
-  userEvent.dragAndDrop(surface(source), surface(target), {
-    targetPosition: {
-      x: 180,
-      y: Math.floor(surface(target).element().getBoundingClientRect().height * vertical),
-    },
+const drop = (source: string, target: string, fraction = 0.5) => {
+  const { x, y } = positionIn(surface(target).element(), fraction);
+  return userEvent.dragAndDrop(surface(source), surface(target), {
+    sourcePosition: positionIn(surface(source).element(), 0.5),
+    targetPosition: { x: Math.floor(x), y: Math.floor(y) },
   });
+};
 
 it("A row press with less than four pixels of horizontal movement still selects the row", async () => {
   const { store } = await openWorkspace();
@@ -72,7 +92,7 @@ it("A row press with less than four pixels of horizontal movement still selects 
   await mouse("mouseReleased", { ...from, x: from.x + 3 }, 0, "left");
 
   await expect.element(row("Second")).toHaveAttribute("aria-selected", "true");
-  expect(store.calls).not.toContain("DropItem");
+  expectNoDrop(store.calls);
 });
 
 it("An extra mouse button on a row cannot start a drag from empty space", async () => {
@@ -89,7 +109,7 @@ it("An extra mouse button on a row cannot start a drag from empty space", async 
   await mouse("mouseReleased", target, 0, "left");
 
   await expect.element(page.getByTestId("drop-indicator")).not.toBeInTheDocument();
-  expect(store.calls).not.toContain("DropItem");
+  expectNoDrop(store.calls);
 });
 
 it("An extra button leaves the original source active and Escape cancels the gesture", async () => {
@@ -109,7 +129,7 @@ it("An extra button leaves the original source active and Escape cancels the ges
 
   await expect.element(surface("Second")).not.toHaveAttribute("data-dragging");
   await expect.element(page.getByTestId("drop-indicator")).not.toBeInTheDocument();
-  expect(store.calls).not.toContain("DropItem");
+  expectNoDrop(store.calls);
 });
 
 it("Rows scrolled out above the viewport cannot receive drops", async () => {
@@ -130,7 +150,7 @@ it("Rows scrolled out above the viewport cannot receive drops", async () => {
   await mouse("mouseReleased", above, 0, "left");
 
   expect(main.scrollTop).toBeGreaterThan(20);
-  expect(store.calls).not.toContain("DropItem");
+  expectNoDrop(store.calls);
 });
 
 it("Drops at either edge of a finished row have no effect, but into reopens it", async () => {
@@ -145,7 +165,7 @@ it("Drops at either edge of a finished row have no effect, but into reopens it",
   await expect.element(page.getByTestId("drop-indicator")).not.toBeInTheDocument();
   await mouse("mouseReleased", before, 0, "left");
   await drop("Done", "Open", 0.85);
-  expect(store.calls).not.toContain("DropItem");
+  expectNoDrop(store.calls);
 
   await drop("Open", "Done");
 
@@ -172,12 +192,12 @@ it("A completed source moved into an open row remains visible and focused", asyn
 
 it("A descendant is an invalid target and a child can be promoted between roots", async () => {
   const { store, projectId } = await openWorkspace();
-  await row("First").getByTestId("item-toggle").first().click();
 
   await drop("First", "Child");
   await drop("First", "Child", 0.85);
-  expect(store.calls).not.toContain("DropItem");
+  expectNoDrop(store.calls);
   await drop("Child", "Second", 0.15);
+  await expect.poll(() => store.calls).toContain("MoveItemToPriorityGroup");
 
   await expect.element(row("Child")).toHaveAttribute("aria-level", "1");
   await expect.element(row("Child")).toHaveFocus();
@@ -186,7 +206,6 @@ it("A descendant is an invalid target and a child can be promoted between roots"
 
 it("Folder drops move an entire root branch, while sub-items cannot drop on folders", async () => {
   const { store, projectId, destination } = await openWorkspace();
-  await row("First").getByTestId("item-toggle").first().click();
 
   await userEvent.dragAndDrop(surface("Child"), folder());
   expect(store.calls).not.toContain("MoveItemToArea");
@@ -206,7 +225,6 @@ it("Folder drops move an entire root branch, while sub-items cannot drop on fold
 
 it("A sub-item dropped below the tree moves to the end of the top level", async () => {
   const { store, projectId } = await openWorkspace();
-  await row("First").getByTestId("item-toggle").first().click();
   const tree = page.getByRole("tree", { name: "Items in Project" }).element();
   const below = {
     ...point(surface("Child").element()),
@@ -243,7 +261,6 @@ it("Ctrl+Shift+L moves the selected top-level item to the chosen area and follow
 
 it("Ctrl+Shift+L does nothing for a selected sub-item", async () => {
   const { store } = await openWorkspace();
-  await row("First").getByTestId("item-toggle").first().click();
   row("Child").element().focus();
 
   await userEvent.keyboard("{Control>}{Shift>}l{/Shift}{/Control}");
@@ -357,7 +374,8 @@ it.each([false, true])(
     await expect
       .poll(() => store.areaSiblingTitles(projectId, null))
       .toEqual(["First", "Third", "Second"]);
-    await expect.element(row(returns ? "Second" : "First")).toHaveFocus();
+    // Up from the Second card reaches the last row inside the First card.
+    await expect.element(row(returns ? "Second" : "Child")).toHaveFocus();
     await expect.element(row("Second")).toHaveAttribute("aria-selected", String(returns));
   },
 );

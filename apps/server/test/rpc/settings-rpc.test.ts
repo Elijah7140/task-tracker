@@ -10,6 +10,7 @@ const disabledDefaults = {
   autoCompleteParents: false,
   urgencyYellowThreshold: days(3),
   urgencyRedThreshold: days(1),
+  workspaceCardColumns: 4,
 };
 const inherit = {
   autoCompleteParents: null,
@@ -52,6 +53,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         autoCompleteParents: false,
         urgencyYellowThreshold: days(4),
         urgencyRedThreshold: hours(30),
+        workspaceCardColumns: 6,
       };
 
       const result = yield* client.SaveGlobalSettings({ settings });
@@ -61,6 +63,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         autoCompleteParents: true,
         urgencyYellowThreshold: "2592000000000",
         urgencyRedThreshold: "864000000000",
+        workspaceCardColumns: 4,
       });
       expect(result).toEqual({ kind: "applied" });
       expect(saved).toEqual(settings);
@@ -68,6 +71,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         { Key: "autoCompleteParents", Value: "false" },
         { Key: "urgencyRedThreshold", Value: "P1DT6H" },
         { Key: "urgencyYellowThreshold", Value: "P4D" },
+        { Key: "workspaceCardColumns", Value: "6" },
       ]);
     }),
   ),
@@ -220,6 +224,7 @@ it.effect("Names the project whose override conflicts with a global threshold", 
             autoCompleteParents: true,
             urgencyYellowThreshold: days(1),
             urgencyRedThreshold: hours(12),
+            workspaceCardColumns: 4,
           },
         }),
       );

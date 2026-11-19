@@ -50,7 +50,7 @@ async function fillCustomFields(page: Page, editor: Locator) {
   await editor.getByLabel("Effort", { exact: true }).fill("12.5");
   await editor.getByLabel("Review date", { exact: true }).fill("2026-11-20");
   await pick(page, editor.getByRole("combobox", { name: "Approved" }), "Yes");
-  await pick(page, editor.getByRole("combobox", { name: "Status" }), "Ready");
+  await pick(page, editor.getByRole("combobox", { name: "Status", exact: true }), "Ready");
 }
 
 desktopTest(
@@ -80,7 +80,7 @@ desktopTest(
       );
       expect(await editor.getByRole("combobox", { name: "Approved" }).innerText()).toBe("Yes");
       await expect
-        .poll(() => editor.getByRole("combobox", { name: "Status" }).innerText())
+        .poll(() => editor.getByRole("combobox", { name: "Status", exact: true }).innerText())
         .toBe("Ready");
     });
   },

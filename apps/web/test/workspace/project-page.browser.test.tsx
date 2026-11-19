@@ -114,11 +114,6 @@ describe("ProjectPage", () => {
       history.push(`/projects/${projectId}/folders/${store.folderNamed("Tables").id}`);
       const items = page.getByRole("tree", { name: "Items in Tables" });
       await items
-        .getByRole("treeitem", { name: "Add index to Invoice.CustomerId" })
-        .getByTestId("item-toggle")
-        .first()
-        .click();
-      await items
         .getByRole("treeitem", { name: "Completed (2)" })
         .getByTestId("completed-section-toggle")
         .first()

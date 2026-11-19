@@ -1534,6 +1534,18 @@ below were made while building it and are listed for review.
   section the card swaps with its neighbour. At a section edge it enters the neighbouring
   section: at the end of the section above, or at the start of the section below, taking that
   section's priority. On a sub-item or a completed card, Alt+↑/↓ still reorders siblings.
+- **Implementation decisions.**
+  - A move that keeps a top-level card in its own section is an ordinary sibling drop
+    beside the target card, so finished items keep their saved slots (§6.4). Entering
+    another section, a header drop and sub-item promotion use one combined move and
+    priority write. Both are one undo step.
+  - Archived sections accept moves only from their own cards; Alt+↑/↓ steps over other
+    archived sections. Because empty sections are hidden, a card that empties its section
+    cannot step back into it.
+  - Cards are expanded tree items: their sub-item rows always show, Right moves to the first
+    sub-item and Left does not collapse a card. Each section's cards form a group named by
+    its header. Sub-item rows put the ticket, priority and date on a second line.
+  - The repeat marker joins the card header when recurring items land (§7.11).
 - **Tests.** Core: the move operation on real SQLite, including undo, sub-item promotion and
   an archived level. React: the section order (with a 1, 7, 2 numbering), the drop and step
   mapping, header drops and the setting. Headless: the grid layout, card and header drags, and

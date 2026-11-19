@@ -31,6 +31,16 @@ async function openRoot(
   return { ...app, projectId };
 }
 
+/** A top-level item's card surface, and its header, where a press starts a card drag (§7.17). */
+const card = (name: string) => row(name).getByTestId("item-row").first();
+const cardHeader = (name: string) => row(name).getByTestId("item-card-header").first();
+
+/** A point on a card's header line, `fraction` of the way across it. */
+function besideCard(name: string, fraction: number) {
+  const { width } = card(name).element().getBoundingClientRect();
+  return { x: Math.floor(width * fraction), y: 16 };
+}
+
 async function focusRow(name: string) {
   row(name).element().focus();
   await expect.element(row(name)).toHaveFocus();
@@ -359,7 +369,6 @@ describe("Item actions and reorder", () => {
     await page.getByTestId("item-undo-button").click();
 
     await expect.element(row("Parent")).toBeVisible();
-    await row("Parent").getByTestId("item-toggle").first().click();
     await expect.element(row("Child")).toBeVisible();
 
     await focusRow("Parent");
@@ -376,7 +385,7 @@ describe("Item actions and reorder", () => {
   it("Opens item actions via right-click context menu and Shift+F10", async () => {
     await openRoot([{ name: "Billing DB", items: [{ title: "Task" }] }]);
 
-    await row("Task").getByTestId("item-row").first().click({ button: "right" });
+    await row("Task").getByTestId("item-title").first().click({ button: "right" });
     await expect.element(page.getByTestId("item-context-menu")).toBeVisible();
     await userEvent.keyboard("{Escape}");
     await expect.element(page.getByTestId("item-context-menu")).not.toBeInTheDocument();
@@ -400,11 +409,6 @@ describe("Item actions and reorder", () => {
     const viewsTree = page.getByRole("tree", { name: "Items in Views" });
     await expect.element(viewsTree.getByRole("treeitem", { name: PARENT })).toBeVisible();
 
-    await viewsTree
-      .getByRole("treeitem", { name: PARENT })
-      .getByTestId("item-toggle")
-      .first()
-      .click();
     await viewsTree
       .getByRole("treeitem", { name: "Check query plan before/after" })
       .getByTestId("item-menu")
@@ -538,8 +542,9 @@ describe("Item actions and reorder", () => {
     await expect
       .poll(() => store.areaSiblingTitles(projectId, null))
       .toEqual(["First", "Finished", "Last"]);
+    // Wait for the reload that restores focus to First before moving focus elsewhere.
+    await expect.poll(() => rendersBefore("First", "Last")).toBe(true);
 
-    await row("First").getByTestId("item-toggle").first().click();
     await focusRow("Sub B");
     await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
 
@@ -548,7 +553,7 @@ describe("Item actions and reorder", () => {
     expect(store.areaSiblingTitles(projectId, null, first.item.id)).toEqual(["Sub B", "Sub A"]);
   });
 
-  it("Reorders open siblings downward and upward via pointer drag while preserving finished slots", async () => {
+  it("Reorders open cards and sub-items via pointer drag while preserving finished slots", async () => {
     const { store, projectId } = await openRoot([
       {
         name: "Billing DB",
@@ -561,28 +566,23 @@ describe("Item actions and reorder", () => {
       },
     ]);
 
-    await userEvent.dragAndDrop(
-      row("Alpha").getByTestId("item-drag-handle").first(),
-      row("Gamma").getByTestId("item-row").first(),
-      { targetPosition: { x: 180, y: 30 } },
-    );
+    await userEvent.dragAndDrop(cardHeader("Alpha"), card("Gamma"), {
+      targetPosition: besideCard("Gamma", 0.85),
+    });
 
     expect(store.areaSiblingTitles(projectId, null)).toEqual(["Beta", "Done", "Gamma", "Alpha"]);
 
-    await userEvent.dragAndDrop(
-      row("Gamma").getByTestId("item-drag-handle").first(),
-      row("Beta").getByTestId("item-row").first(),
-      { targetPosition: { x: 180, y: 5 } },
-    );
+    await userEvent.dragAndDrop(cardHeader("Gamma"), card("Beta"), {
+      targetPosition: besideCard("Beta", 0.15),
+    });
 
     expect(store.areaSiblingTitles(projectId, null)).toEqual(["Gamma", "Done", "Beta", "Alpha"]);
 
-    await row("Alpha").getByTestId("item-toggle").first().click();
-    await userEvent.dragAndDrop(
-      row("Child 1").getByTestId("item-drag-handle").first(),
-      row("Child 2").getByTestId("item-row").first(),
-      { targetPosition: { x: 180, y: 30 } },
-    );
+    const childRow = row("Child 2").getByTestId("item-row").first();
+    const { width, height } = childRow.element().getBoundingClientRect();
+    await userEvent.dragAndDrop(row("Child 1").getByTestId("item-drag-handle").first(), childRow, {
+      targetPosition: { x: Math.floor(width / 2), y: Math.floor(height * 0.85) },
+    });
 
     const alpha = store.findItemByTitle(projectId, null, "Alpha")!;
     expect(store.areaSiblingTitles(projectId, null, alpha.item.id)).toEqual(["Child 2", "Child 1"]);
@@ -616,7 +616,6 @@ describe("Item actions and reorder", () => {
         items: [{ title: "Parent", children: [{ title: "Only child" }] }],
       },
     ]);
-    await row("Parent").getByTestId("item-toggle").first().click();
     await focusRow("Only child");
 
     await userEvent.keyboard(" ");
@@ -688,7 +687,6 @@ describe("Item actions and reorder", () => {
     await openRoot([
       { name: "Billing DB", items: [{ title: "Parent", children: [{ title: "Child" }] }] },
     ]);
-    await row("Parent").getByTestId("item-toggle").first().click();
     await focusRow("Child");
 
     await userEvent.keyboard("{Delete}");
@@ -784,7 +782,6 @@ describe("Item actions and reorder", () => {
 
     it("Matches the reviewed blocked reopen notice baseline", async () => {
       await openRoot([BILLING_PROJECT]);
-      await row(PARENT).getByTestId("item-toggle").first().click();
       await focusRow("Check query plan before/after");
       await userEvent.keyboard(" ");
       await expect.element(row(PARENT)).not.toBeInTheDocument();

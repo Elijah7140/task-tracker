@@ -89,7 +89,7 @@ it("Defaults to the originating folder's project and can widen the scope", async
 
 it("Restores through RPC and refreshes the original workspace while retaining selection", async () => {
   const { store } = await openWorkspace();
-  await item("Current task").getByTestId("item-row").click();
+  await item("Current task").getByTestId("item-title").first().click();
   await page.getByTestId("sidebar-trash").click();
   await expect.element(batch("Reconcile invoice")).toBeVisible();
 
@@ -120,7 +120,7 @@ it("Restores through RPC and refreshes the original workspace while retaining se
 
 it("Keeps a dirty editor while Trash is open and prompts once on the way back after restore", async () => {
   await openWorkspace();
-  await item("Current task").getByTestId("item-row").click();
+  await item("Current task").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Enter}");
   const title = page.getByTestId("item-editor-title");
   await title.fill("Draft task");

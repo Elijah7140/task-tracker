@@ -122,7 +122,7 @@ it("Opens Calendar from Search and Back restores the originating folder and draf
   await openProject("Billing");
   await openFolder("Invoices");
   const returnPath = history.location.pathname;
-  await item("Audit Q4").getByTestId("item-row").click();
+  await item("Audit Q4").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Enter}");
   await page.getByTestId("item-editor-title").fill("Audit Q4 draft");
   await ctrlF();
@@ -253,7 +253,7 @@ it("Searches text with Enter and shows each result's ticket, location, priority 
 it("Opens a result in its current folder with its parent expanded, after asking about a draft", async () => {
   const { store } = await openApp();
   await openProject("Billing");
-  await item("Root invoice").getByTestId("item-row").click();
+  await item("Root invoice").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Enter}");
   await page.getByTestId("item-editor-title").fill("Unsaved title");
   await ctrlF();
@@ -339,7 +339,7 @@ it("Shows a field list failure and never searches while fields are unavailable",
 it("Refreshes shown results when undo changes an item behind Search", async () => {
   await openApp();
   await openProject("Billing");
-  await item("Root invoice").getByTestId("item-row").click();
+  await item("Root invoice").getByTestId("item-title").first().click();
   await userEvent.keyboard("{F2}");
   await userEvent.keyboard("Renamed invoice{Enter}");
   await expect.element(item("Renamed invoice")).toBeVisible();

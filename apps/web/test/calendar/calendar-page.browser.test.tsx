@@ -165,7 +165,7 @@ async function openWeek(projects = LAYOUT_PROJECTS) {
 async function openDraftWorkspace() {
   const app = await renderApp({ projects: DRAFT_PROJECTS });
   await page.getByRole("article", { name: "Billing" }).click();
-  await item("Review invoice").getByTestId("item-row").click();
+  await item("Review invoice").getByTestId("item-title").first().click();
   await userEvent.keyboard("{Enter}");
   await page.getByTestId("item-editor-title").fill("Review invoice edited");
   await shortcut("c");

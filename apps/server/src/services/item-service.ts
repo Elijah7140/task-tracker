@@ -46,7 +46,11 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   const settings = settingsRepository(sql);
 
   const completion = itemCompletionOperations(sql);
-  const { loadAreaTree, ...structure } = itemStructureOperations(sql, completion, undo);
+  const { loadAreaTree, saveStructure, ...structure } = itemStructureOperations(
+    sql,
+    completion,
+    undo,
+  );
 
   const planCustomEdit = Effect.fnUntraced(function* (
     item: TodoItem,
@@ -181,23 +185,68 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     return status.result;
   }, undo.record);
 
+  const requireActivePriority = Effect.fnUntraced(function* (priorityLevelId: string | null) {
+    if (priorityLevelId === null) {
+      return;
+    }
+    const levels = yield* lookups.priorityLevels.list();
+    if (!levels.some((level) => level.id === priorityLevelId && !level.isArchived)) {
+      return yield* Effect.fail(new MetadataRuleError("Priority is missing or archived."));
+    }
+  });
+
   const setPriority = Effect.fnUntraced(function* (id: string, priorityId: string | null) {
     const item = yield* items.requireActive(id);
     const priorityLevelId = yield* decodeNullableId(priorityId);
     if (item.priorityLevelId === priorityLevelId) {
       return;
     }
-    if (priorityLevelId !== null) {
-      const levels = yield* lookups.priorityLevels.list();
-      if (!levels.some((level) => level.id === priorityLevelId && !level.isArchived)) {
-        return yield* Effect.fail(new MetadataRuleError("Priority is missing or archived."));
-      }
-    }
+    yield* requireActivePriority(priorityLevelId);
     const now = yield* operationTime;
     yield* undo.capture(undoLabel("Set priority of", item.title), [
       { table: "TodoItem", where: sql`Id = ${item.id}` },
     ]);
     yield* items.updatePriority({ id: item.id, updatedAtUtc: now, priorityLevelId });
+  }, undo.record);
+
+  /**
+   * Moves an item to the area's top level at `index` among the other top-level items and assigns
+   * `priorityId` in one undoable transaction (§7.17). Promotes sub-items, reconciles parent
+   * completion, and clears `TicketRank` when the priority changes.
+   */
+  const moveToPriorityGroup = Effect.fnUntraced(function* (
+    projectId: string,
+    folderId: string | null,
+    id: string,
+    priorityId: string | null,
+    index: number,
+  ) {
+    const key = yield* decodeId(id);
+    const priorityLevelId = yield* decodeNullableId(priorityId);
+    const tree = yield* loadAreaTree(projectId, folderId);
+    const original = new Map(tree.allRows.map((row) => [row.id, row]));
+    const now = yield* operationTime;
+    const item = yield* checkRules(() => tree.get(key));
+    const priorityChanged = item.priorityLevelId !== priorityLevelId;
+    if (priorityChanged) {
+      yield* requireActivePriority(priorityLevelId);
+    }
+    yield* checkRules(() => tree.moveAt(key, null, index, now));
+    const applied = yield* completion.planReconciliation(tree, [item.parentItemId, null], now);
+    const label = priorityChanged
+      ? undoLabel("Set priority of", item.title)
+      : undoLabel("Move", item.title);
+    yield* undo.capture(label, [
+      {
+        table: "TodoItem",
+        where: sql`ProjectId = ${tree.projectId} AND FolderId IS ${tree.folderId}`,
+      },
+    ]);
+    yield* saveStructure(tree, original);
+    yield* completion.apply(tree.projectId, now, applied);
+    if (priorityChanged) {
+      yield* items.updatePriority({ id: key, updatedAtUtc: now, priorityLevelId });
+    }
   }, undo.record);
 
   const loadFieldValues = Effect.fnUntraced(function* (id: string) {
@@ -248,6 +297,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     edit,
     setCompleted,
     setPriority,
+    moveToPriorityGroup,
     setStatus,
     loadArea,
     loadFieldValues,

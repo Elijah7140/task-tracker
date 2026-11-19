@@ -28,6 +28,7 @@ import {
   applyEditItem,
   applyCreateItem,
   applyDeleteItem,
+  applyMoveItemToPriorityGroup,
   applySetItemCompleted,
   applySetItemPriority,
   type FakeAreaState,
@@ -466,6 +467,13 @@ export class FakeProjectStore {
           itemTypes: [...snapshot.itemTypes, ...this.extraLookups.itemTypes],
           priorityLevels: [...snapshot.priorityLevels, ...this.extraLookups.priorityLevels],
           statuses: this.statuses.ordered(),
+          settings: {
+            ...snapshot.settings,
+            workspaceCardColumns: {
+              value: this.settingsAndLookups.globalSettings.workspaceCardColumns,
+              source: "Global" as const,
+            },
+          },
         };
       }),
     );
@@ -714,6 +722,10 @@ function handlers(store: FakeProjectStore) {
     CreateItem: (payload) =>
       history.track(item.CreateItem(payload), ({ title }) => `Create '${title}'`),
     ReorderItems: (payload) => history.track(item.ReorderItems(payload), () => "Reorder items"),
+    DropItem: (payload) => {
+      const title = itemTitle(payload.itemId);
+      return history.track(item.DropItem(payload), () => `Move '${title}'`);
+    },
     DeleteItem: (payload) => {
       const title = itemTitle(payload.itemId);
       return history.track(item.DeleteItem(payload), () => `Delete '${title}'`);
@@ -740,6 +752,22 @@ function handlers(store: FakeProjectStore) {
         ),
         () => `Set priority of '${itemTitle(itemId)}'`,
       ),
+    MoveItemToPriorityGroup: ({ projectId, folderId, itemId, priorityLevelId, index }) =>
+      history
+        .track(
+          record("MoveItemToPriorityGroup").pipe(
+            Effect.andThen(store.requireArea(projectId, folderId)),
+            Effect.flatMap((area) =>
+              applyMoveItemToPriorityGroup(store, area, projectId, itemId, priorityLevelId, index, [
+                ...FAKE_LOOKUPS.priorityLevels,
+                ...store.extraLookups.priorityLevels,
+              ]),
+            ),
+          ),
+          ({ title, priorityChanged }) =>
+            priorityChanged ? `Set priority of '${title}'` : `Move '${title}'`,
+        )
+        .pipe(Effect.asVoid),
     ...statuses,
     SetItemStatus: (payload) => {
       const title = itemTitle(payload.itemId);

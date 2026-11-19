@@ -23,6 +23,7 @@ export { AreaSnapshot } from "./area-snapshot.js";
 export { Item, ItemEdit } from "./item.js";
 export { ItemRpcs } from "./item-rpcs.js";
 export { CompletionResult } from "./completion-result.js";
+export { CardColumns } from "./card-columns.js";
 export { DurationTicks } from "./duration-ticks.js";
 export { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
 export { LookupRpcs } from "./lookup-rpcs.js";

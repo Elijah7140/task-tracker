@@ -31,13 +31,12 @@ async function fixtureHash() {
     .digest("hex");
 }
 
-/** Opens the fixture's nested folder and shows its completed parent and sub-items. */
+/** Opens the fixture's nested folder and shows its completed parent card and sub-items. */
 async function openFixtureItems(page: Page, parentTitle: string) {
   await openProject(page, PROJECT);
   await folderRow(page, PROJECT, AREA).getByTestId("folder-row").first().click();
   await expandCompleted(itemTree(page, AREA), "Completed (1)");
   const parent = itemRow(page, AREA, parentTitle);
-  await parent.getByTestId("item-toggle").first().click();
   await expandCompleted(parent, "1 completed");
   return parent;
 }
@@ -50,7 +49,7 @@ async function expectFixtureValues(editor: Locator, estimate: string) {
   expect(await editor.getByLabel("Review date", { exact: true }).inputValue()).toBe("2026-12-08");
   expect(await editor.getByRole("combobox", { name: "Reviewed" }).innerText()).toBe("No");
   await expect
-    .poll(() => editor.getByRole("combobox", { name: "Status" }).innerText())
+    .poll(() => editor.getByRole("combobox", { name: "Status", exact: true }).innerText())
     .toBe("Retired option (archived)");
 }
 
@@ -74,7 +73,7 @@ desktopTest(
       await editor.getByLabel("Estimate", { exact: true }).fill("17.25");
       await saveItemEditor(editor);
 
-      await parent.getByTestId("item-row").first().click({ button: "right" });
+      await parent.getByTestId("item-title").first().click({ button: "right" });
       await page.getByTestId("item-context-menu").getByRole("menuitem", { name: "Rename" }).click();
       await expectFocused(page.getByRole("textbox", { name: "Title" }));
       await page.getByRole("textbox", { name: "Title" }).fill("Renamed parent");

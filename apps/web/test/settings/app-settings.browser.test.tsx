@@ -15,6 +15,7 @@ const yellowUnit = () => page.getByTestId("global-yellow-unit");
 const redAmount = () => page.getByTestId("global-red-amount");
 const redUnit = () => page.getByTestId("global-red-unit");
 const saveButton = () => page.getByTestId("save-global-settings");
+const cardColumns = () => page.getByRole("combobox", { name: "Cards per row" });
 const backButton = () => page.getByTestId("app-settings-back");
 const appSettingsHeading = () => page.getByRole("heading", { level: 1, name: "App Settings" });
 
@@ -69,7 +70,24 @@ describe("AppSettingsPage", () => {
       autoCompleteParents: true,
       urgencyYellowThreshold: daysTicks(4),
       urgencyRedThreshold: hoursTicks(30),
+      workspaceCardColumns: 4,
     });
+  });
+
+  it("Chooses Cards per row from the keyboard and saves it with the other defaults", async () => {
+    const { store } = await openAppSettings();
+    await expect.element(cardColumns()).toHaveTextContent("4");
+
+    cardColumns().element().focus();
+    await userEvent.keyboard("{Enter}");
+    await page.getByRole("option", { name: "6", exact: true }).click();
+    await expect.element(cardColumns()).toHaveTextContent("6");
+    await expect.element(saveButton()).toBeEnabled();
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.workspaceCardColumns).toBe(6);
+    expect(store.settingsAndLookups.globalSettings.urgencyYellowThreshold).toBe(daysTicks(3));
   });
 
   it("Updates validation and persisted ticks when changing a threshold unit", async () => {
@@ -225,6 +243,7 @@ describe("AppSettingsPage", () => {
       autoCompleteParents: true,
       urgencyYellowThreshold: daysTicks(3),
       urgencyRedThreshold: hoursTicks(24),
+      workspaceCardColumns: 4,
     });
   });
 
@@ -246,6 +265,9 @@ describe("AppSettingsPage", () => {
     await autoCompleteBox().click();
     await yellowAmount().fill("4");
     await redAmount().fill("72");
+    await cardColumns().click();
+    await page.getByRole("option", { name: "6", exact: true }).click();
+    await expect.element(cardColumns()).toHaveTextContent("6");
     await saveButton().click();
 
     const dialog = page.getByRole("alertdialog", { name: "Turn on auto-complete" });
@@ -262,6 +284,7 @@ describe("AppSettingsPage", () => {
       autoCompleteParents: false,
       urgencyYellowThreshold: daysTicks(3),
       urgencyRedThreshold: hoursTicks(24),
+      workspaceCardColumns: 4,
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });
