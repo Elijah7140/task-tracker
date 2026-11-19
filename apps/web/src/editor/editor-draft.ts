@@ -1,4 +1,4 @@
-import type { FieldValueInput, Item, ItemEdit } from "@task-tracker/contracts";
+import type { FieldValueInput, Item, ItemEdit, ItemLinkInput } from "@task-tracker/contracts";
 import {
   currentDraft,
   type CustomFieldDraft,
@@ -8,6 +8,12 @@ import {
 } from "./custom-field-drafts.js";
 import type { EditorField } from "./editor-fields.js";
 import { type BuiltInOverrides, isBuiltInDraftChanged, itemEdit } from "./item-draft.js";
+import {
+  EMPTY_LINK_DRAFT,
+  type LinkDraft,
+  linkDraftStatus,
+  type StoredLink,
+} from "./link-draft.js";
 
 /** Everything the editor holds for one item, typed and stored. */
 export interface EditorDraftInput {
@@ -16,6 +22,10 @@ export interface EditorDraftInput {
   readonly custom: Readonly<Record<string, CustomFieldDraft>>;
   /** The active custom fields, or null while they load. */
   readonly activeFields: ReadonlyArray<EditorField> | null;
+  /** The Links section's draft; absent means untouched. */
+  readonly links?: LinkDraft;
+  /** The stored links, or null (the default) while they load. */
+  readonly storedLinks?: ReadonlyArray<StoredLink> | null;
 }
 
 /** Whether the draft can be saved and what saving it sends. */
@@ -26,6 +36,10 @@ export interface EditorDraftStatus {
   readonly fields: typeof ItemEdit.Type;
   /** Only the active custom fields whose draft differs from the stored value. */
   readonly customValues: ReadonlyArray<typeof FieldValueInput.Type>;
+  /** The whole replacement link list when it changed, including text left in the boxes. */
+  readonly links: ReadonlyArray<typeof ItemLinkInput.Type> | undefined;
+  /** Why text left in the link boxes cannot be added, which refuses the save. */
+  readonly linkEntryProblem: string | null;
 }
 
 /** Shown when a save is attempted while a custom value cannot be parsed. */
@@ -50,10 +64,13 @@ export function editorDraftStatus(input: EditorDraftInput): EditorDraftStatus {
   const changed = typedFields(input).filter(({ field, draft }) =>
     isDraftChanged(field.definition, draft, field.stored),
   );
+  const links = linkDraftStatus(input.storedLinks ?? null, input.links ?? EMPTY_LINK_DRAFT);
   return {
-    dirty: isBuiltInDraftChanged(input.item, input.builtIn) || changed.length > 0,
+    dirty: isBuiltInDraftChanged(input.item, input.builtIn) || changed.length > 0 || links.dirty,
     valid: changed.every(({ draft }) => draftError(draft) === null),
     fields: itemEdit(input.item, input.builtIn),
     customValues: changed.map(({ field, draft }) => draftInput(field.definition, draft)),
+    links: links.links,
+    linkEntryProblem: links.entryProblem,
   };
 }

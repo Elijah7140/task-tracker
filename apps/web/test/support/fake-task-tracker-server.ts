@@ -4,6 +4,7 @@ import {
   type FolderProjection,
   type FieldValueInput,
   type ItemEdit,
+  type ItemLinkInput,
   NotFound,
   RuleViolation,
   TaskTrackerRpcs,
@@ -24,6 +25,7 @@ import {
 import { customFieldHandlers } from "./fake-custom-field-handlers.js";
 import { fakeHistory } from "./fake-history-handlers.js";
 import { FakeCustomFields } from "./fake-custom-fields.js";
+import { FakeItemLinks, itemLinkHandlers } from "./fake-item-links.js";
 import {
   applyEditItem,
   applyCreateItem,
@@ -146,6 +148,9 @@ export class FakeProjectStore {
 
   /** Scoped search overrides and link fixtures. */
   readonly search = new FakeSearch();
+
+  /** Item links saved by the editor, which also feed the search `link` field. */
+  readonly itemLinks = new FakeItemLinks(this.nextId, this.search.linksByItemId);
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
@@ -348,6 +353,7 @@ export class FakeProjectStore {
       priorityLevels: this.settingsAndLookups.priorityLevels,
       statuses: this.statuses.rows,
       trash: this.trash.batches,
+      links: this.itemLinks.state,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
@@ -361,6 +367,7 @@ export class FakeProjectStore {
       priorityLevels,
       statuses,
       trash,
+      links,
     } = structuredClone(snapshot);
     this.statuses.rows = statuses;
     this.summaries = summaries;
@@ -370,6 +377,7 @@ export class FakeProjectStore {
     this.customFields.restoreValues(values);
     this.settingsAndLookups.priorityLevels = priorityLevels;
     this.trash.batches = trash;
+    this.itemLinks.restore(links);
   };
 
   /** Returns all active area states. */
@@ -568,8 +576,8 @@ function folderHandlers(store: FakeProjectStore, record: (tag: string) => Effect
 }
 
 /**
- * EditItem with custom values and an optional status. Built-in fields and every
- * custom value are validated before anything changes, and a status that needs
+ * EditItem with custom values, links and an optional status. Built-in fields,
+ * every custom value and the link list are validated before anything changes, and a status that needs
  * confirmation or is blocked stores nothing, so a refused edit stores nothing.
  */
 function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effect.Effect<unknown>) {
@@ -577,17 +585,27 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
     itemId,
     fields: { statusId, ...fields },
     customValues = [],
+    links,
     confirmedOpenItemIds,
   }: {
     itemId: string;
     fields: typeof ItemEdit.Type;
     customValues?: ReadonlyArray<typeof FieldValueInput.Type>;
+    links?: ReadonlyArray<typeof ItemLinkInput.Type>;
     confirmedOpenItemIds?: ReadonlyArray<string>;
   }) => {
     const before = store.captureUndoState();
     return record("EditItem").pipe(
       Effect.andThen(store.itemProject(itemId)),
       Effect.andThen((projectId) => store.customFields.planEdit(itemId, projectId, customValues)),
+      Effect.flatMap((commitValues) =>
+        store.itemLinks.planEdit(itemId, links).pipe(
+          Effect.map((commitLinks) => () => {
+            commitValues();
+            commitLinks();
+          }),
+        ),
+      ),
       Effect.flatMap((commit) =>
         (statusId === undefined
           ? Effect.succeed<typeof CompletionResult.Type>({ kind: "applied", changes: [] })
@@ -728,6 +746,7 @@ function handlers(store: FakeProjectStore) {
     },
     ...trackedPriorityHandlers(store, history.track),
     ...customFieldHandlers(store, record),
+    ...itemLinkHandlers(store, record),
     SetItemPriority: ({ itemId, priorityLevelId }) =>
       history.track(
         record("SetItemPriority").pipe(

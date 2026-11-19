@@ -547,3 +547,63 @@ it.effect(
       }),
     ),
 );
+
+it.effect("Saves, reorders and reads item links through the renderer client", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, create } = yield* setup;
+      const item = yield* create("Linked");
+      const fields = {
+        title: "Linked",
+        description: null,
+        ticketNumber: null,
+        itemTypeId: null,
+        priorityLevelId: null,
+        dueDate: null,
+        dueTime: null,
+        scheduledStart: null,
+        scheduledEnd: null,
+      };
+      const itemId = item.id.toLowerCase();
+      yield* client.EditItem({
+        itemId,
+        fields,
+        links: [
+          { id: null, url: " https://a.example ", title: " Aye " },
+          { id: null, url: "mailto:team@example.com", title: null },
+        ],
+      });
+      const saved = yield* client.LoadItemLinks({ itemId });
+
+      yield* client.EditItem({
+        itemId,
+        fields,
+        links: saved
+          .toReversed()
+          .map(({ id, url, title }) => ({ id: id.toLowerCase(), url, title })),
+      });
+      const reordered = yield* client.LoadItemLinks({ itemId });
+      const invalid = yield* Effect.flip(
+        client.EditItem({ itemId, fields, links: [{ id: null, url: "file:///x", title: null }] }),
+      );
+      const missing = yield* Effect.flip(
+        client.LoadItemLinks({ itemId: "019A0000-0000-7000-8000-000000000FFF" }),
+      );
+
+      expect(saved).toMatchObject([
+        { url: "https://a.example", title: "Aye", sortOrder: 0 },
+        { url: "mailto:team@example.com", title: null, sortOrder: 1 },
+      ]);
+      expect(reordered).toEqual([
+        { ...saved[1], sortOrder: 0 },
+        { ...saved[0], sortOrder: 1 },
+      ]);
+      expect(invalid).toMatchObject({
+        _tag: "RuleViolation",
+        message: "A link must be a full http, https or mailto address.",
+      });
+      expect(missing).toMatchObject({ _tag: "NotFound", entity: "Item" });
+      expect(yield* client.LoadItemLinks({ itemId })).toEqual(reordered);
+    }),
+  ),
+);

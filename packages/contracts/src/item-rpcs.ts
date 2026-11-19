@@ -5,6 +5,7 @@ import { CompletionResult } from "./completion-result.js";
 import { FieldValueInput, ItemFieldValue } from "./field-value.js";
 import { Guid } from "./guid.js";
 import { Item, ItemEdit } from "./item.js";
+import { ItemLink, ItemLinkInput } from "./item-link.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
 
 const area = { projectId: Guid, folderId: Schema.NullOr(Guid) };
@@ -25,6 +26,8 @@ export const ItemRpcs = RpcGroup.make(
       itemId: Guid,
       fields: ItemEdit,
       customValues: Schema.optionalKey(Schema.Array(FieldValueInput)),
+      /** Replaces the item's whole link list when present; omitted keeps the stored links. */
+      links: Schema.optionalKey(Schema.Array(ItemLinkInput)),
       confirmedOpenItemIds: approval,
     },
     success: CompletionResult,
@@ -77,6 +80,11 @@ export const ItemRpcs = RpcGroup.make(
   Rpc.make("LoadItemFieldValues", {
     payload: { itemId: Guid },
     success: Schema.Array(ItemFieldValue),
+    error: RpcOperationError,
+  }),
+  Rpc.make("LoadItemLinks", {
+    payload: { itemId: Guid },
+    success: Schema.Array(ItemLink),
     error: RpcOperationError,
   }),
 );

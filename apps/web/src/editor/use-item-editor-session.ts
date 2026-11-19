@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { requestCompletion } from "../dialogs/request-completion.js";
 import { areaKey } from "../rpc/area-queries.js";
 import { itemFieldValuesKey } from "../rpc/field-queries.js";
+import { itemLinksKey } from "../rpc/item-link-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { editItemAtom } from "../rpc/item-mutations.js";
@@ -14,6 +15,7 @@ import { dialogStore, resolveDraft } from "../state/dialog-store.js";
 import { useItemEditorStore } from "../state/item-editor-store.js";
 import type { ItemNode } from "../workspace/item-outline.js";
 import { type EditorDraftStatus, FIX_FIELDS_MESSAGE } from "./editor-draft.js";
+import { FIX_LINK_MESSAGE } from "./link-draft.js";
 import { registerEditorDraftGuard } from "./editor-draft-guard.js";
 
 /** The open item and area an editor session saves to. */
@@ -38,15 +40,22 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
 
   const save = async (): Promise<boolean> => {
     const { projectId, folderId, node, status } = latest.current;
-    const { setError, discard } = useItemEditorStore.getState();
+    const { setError, discard, updateLinks } = useItemEditorStore.getState();
     if (!status.valid) {
       setError(FIX_FIELDS_MESSAGE);
+      return false;
+    }
+    const { linkEntryProblem } = status;
+    if (linkEntryProblem !== null) {
+      updateLinks((links) => ({ ...links, error: linkEntryProblem }));
+      setError(FIX_LINK_MESSAGE);
       return false;
     }
     const payload = {
       itemId: node.item.id,
       fields: status.fields,
       customValues: status.customValues,
+      ...(status.links === undefined ? {} : { links: status.links }),
     };
     const exit = await requestCompletion((approval) =>
       edit({
@@ -56,6 +65,7 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
           areaKey(projectId, folderId),
           PROJECTS_KEY,
           itemFieldValuesKey(node.item.id),
+          itemLinksKey(node.item.id),
         ],
       }),
     );

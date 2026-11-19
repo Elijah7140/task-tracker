@@ -16,8 +16,10 @@ import { PropertyFields, TitleFields } from "./built-in-fields.js";
 import { CustomFieldsSection } from "./custom-fields-section.js";
 import { editorDraftStatus } from "./editor-draft.js";
 import { draftTexts } from "./item-draft.js";
+import { LinksSection } from "./links-section.js";
 import { SubItemsSection } from "./sub-items-section.js";
 import { useEditorFields } from "./use-editor-fields.js";
+import { useItemLinks } from "./use-item-links.js";
 import { useItemEditorSession } from "./use-item-editor-session.js";
 
 type Snapshot = typeof AreaSnapshot.Type;
@@ -129,11 +131,14 @@ function EditorContent({
 }) {
   const store = useItemEditorStore();
   const fields = useEditorFields(snapshot.projectId, node.item.id);
+  const links = useItemLinks(node.item.id);
   const status = editorDraftStatus({
     item: node.item,
     builtIn: store.builtIn,
     custom: store.custom,
     activeFields: fields.status === "ready" ? fields.list.active : null,
+    links: store.links,
+    storedLinks: links.status === "ready" ? links.links : null,
   });
   const session = useItemEditorSession({
     projectId: snapshot.projectId,
@@ -156,6 +161,7 @@ function EditorContent({
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem]">
         <div className="flex min-h-0 flex-col gap-6 overflow-y-auto px-6 pt-5 pb-6">
           <TitleFields texts={texts} onChange={store.setBuiltIn} titleRef={titleRef} />
+          <LinksSection state={links} draft={store.links} onChange={store.updateLinks} />
           <SubItemsSection
             node={node}
             onOpen={openItem}
@@ -190,8 +196,8 @@ function EditorContent({
 }
 
 /**
- * The floating item editor (§8): built-in metadata grouped compactly, custom
- * fields, and sub-items. Escape, Cancel and the close button ask about unsaved
+ * The floating item editor (§8): built-in metadata grouped compactly, links,
+ * custom fields, and sub-items. Escape, Cancel and the close button ask about unsaved
  * changes first; Save stores the draft and closes; Discard changes restores
  * the stored values. Typed values live in the editor store, so they survive
  * loads, area refreshes and a cancelled question. A covering page such as

@@ -3,6 +3,7 @@ import { Effect, Layer } from "effect";
 import { ItemService } from "../services/item-service.js";
 import { parseItemEdit, projectArea, projectCompletion, projectItem } from "./item-projection.js";
 import { parseFieldValueInput, projectItemFieldValue } from "./field-value-projection.js";
+import { projectItemLink } from "./item-link-projection.js";
 
 import { mapOperationError } from "./map-operation-error.js";
 
@@ -18,13 +19,13 @@ export const itemRpcHandlers = (timeZone: string) =>
           items
             .create(projectId, folderId, parentItemId, title)
             .pipe(Effect.map(projectItem), mapOperationError),
-        EditItem: ({ itemId, fields, customValues, confirmedOpenItemIds }) =>
+        EditItem: ({ itemId, fields, customValues, links, confirmedOpenItemIds }) =>
           Effect.sync(() => ({
             edit: parseItemEdit(fields),
             values: customValues?.map(parseFieldValueInput),
           })).pipe(
             Effect.flatMap(({ edit, values }) =>
-              items.edit(itemId, edit, values, confirmedOpenItemIds),
+              items.edit(itemId, edit, values, confirmedOpenItemIds, links),
             ),
             Effect.map(projectCompletion),
             mapOperationError,
@@ -60,6 +61,11 @@ export const itemRpcHandlers = (timeZone: string) =>
         LoadItemFieldValues: ({ itemId }) =>
           items.loadFieldValues(itemId).pipe(
             Effect.map((values) => values.map(projectItemFieldValue)),
+            mapOperationError,
+          ),
+        LoadItemLinks: ({ itemId }) =>
+          items.loadLinks(itemId).pipe(
+            Effect.map((links) => links.map(projectItemLink)),
             mapOperationError,
           ),
       });

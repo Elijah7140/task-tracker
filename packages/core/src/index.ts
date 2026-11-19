@@ -76,6 +76,9 @@ export { createFolder, renameFolder } from "./projects/folder.js";
 export { summarizeProject, type ProjectSummary } from "./projects/project-summary.js";
 export { createItem } from "./items/todo-item.js";
 export { editItem, type ItemEdit } from "./items/item-edit.js";
+export type { ItemLink, ItemLinkInput } from "./items/item-link.js";
+export { planItemLinkEdits, type ItemLinkEdits } from "./items/item-link-edits.js";
+export * as LinkPolicy from "./items/link-policy.js";
 export { validateThresholds } from "./settings/settings-rules.js";
 export {
   describeReconciliation,
