@@ -85,3 +85,4 @@ export {
 export { UndoHistory, type UndoDirection } from "./undo/undo-history.js";
 export * from "./lookups/status-level.js";
 export * from "./items/item-status.js";
+export { TrashProject, type TrashBatch } from "./trash/trash-project.js";

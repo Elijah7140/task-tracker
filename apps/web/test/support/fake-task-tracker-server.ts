@@ -35,6 +35,7 @@ import {
 } from "./fake-item-operations.js";
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
 import { applySetItemStatus, FakeStatuses, statusHandlers } from "./fake-statuses.js";
+import { FakeTrash, trashHandlers } from "./fake-trash-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -113,6 +114,11 @@ export class FakeProjectStore {
     return () => release();
   }
 
+  /** Lets later calls of `tag` through while a call already held keeps waiting for its release. */
+  stopHolding(tag: string) {
+    this.holds.delete(tag);
+  }
+
   /** Records a call and waits while a test holds that RPC. */
   record = (tag: string) =>
     Effect.sync(() => this.calls.push(tag)).pipe(
@@ -129,6 +135,9 @@ export class FakeProjectStore {
 
   /** Workflow statuses shared by App Settings, row menus, the editor and area snapshots. */
   readonly statuses = new FakeStatuses();
+
+  /** Deletion batches listed by Trash. */
+  readonly trash = new FakeTrash();
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
@@ -330,12 +339,21 @@ export class FakeProjectStore {
       values: this.customFields.values,
       priorityLevels: this.settingsAndLookups.priorityLevels,
       statuses: this.statuses.rows,
+      trash: this.trash.batches,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
   restoreUndoState = (snapshot: ReturnType<FakeProjectStore["captureUndoState"]>) => {
-    const { summaries, folders, areas, autoCompleteByProject, values, priorityLevels, statuses } =
-      structuredClone(snapshot);
+    const {
+      summaries,
+      folders,
+      areas,
+      autoCompleteByProject,
+      values,
+      priorityLevels,
+      statuses,
+      trash,
+    } = structuredClone(snapshot);
     this.statuses.rows = statuses;
     this.summaries = summaries;
     this.folders = folders;
@@ -343,6 +361,7 @@ export class FakeProjectStore {
     this.autoCompleteByProject = autoCompleteByProject;
     this.customFields.restoreValues(values);
     this.settingsAndLookups.priorityLevels = priorityLevels;
+    this.trash.batches = trash;
   };
 
   /** Returns all active area states. */
@@ -730,6 +749,7 @@ function handlers(store: FakeProjectStore) {
       history.track(statuses.RestoreStatus(payload), () => "Restore status"),
     ReorderStatuses: (payload) =>
       history.track(statuses.ReorderStatuses(payload), () => "Reorder statuses"),
+    ...trashHandlers(store, history.track),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const verb = payload.fields.statusId === undefined ? "Edit" : "Set status of";

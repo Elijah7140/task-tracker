@@ -37,3 +37,13 @@ it("uses the specified local time for an explicit due time", () => {
 
   expect(actual.toString()).toBe("2026-03-08T19:00:00Z");
 });
+
+it("reads an instant as the wall-clock time of the supplied zone, keeping fractions", () => {
+  const instant = Temporal.Instant.from("2026-11-13T12:00:00.1234567Z");
+
+  const johannesburg = FloatingTime.toFloating(instant, "Africa/Johannesburg");
+  const newYork = FloatingTime.toFloating(instant, "America/New_York");
+
+  expect(johannesburg.toString()).toBe("2026-11-13T14:00:00.1234567");
+  expect(newYork.toString()).toBe("2026-11-13T07:00:00.1234567");
+});

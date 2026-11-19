@@ -13,11 +13,13 @@ export interface ConfirmDialogProps {
 
 /**
  * The shared yes/no dialog for project, workspace and settings flows. Focus
- * starts on the confirm button, so Enter confirms and Escape cancels.
+ * starts on the confirm button, so Enter confirms and Escape cancels, unless
+ * the question makes Cancel the default.
  */
 export function ConfirmDialog({ id, options }: ConfirmDialogProps) {
   const lifecycle = useDialogLifecycle<boolean>(id, false);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   return (
     <AlertDialog.Root
@@ -29,7 +31,7 @@ export function ConfirmDialog({ id, options }: ConfirmDialogProps) {
         <AlertDialog.Backdrop className={dialogStyles.backdrop} />
         <AlertDialog.Popup
           className={dialogStyles.popup}
-          initialFocus={confirmRef}
+          initialFocus={options.cancelIsDefault === true ? cancelRef : confirmRef}
           data-testid="confirm-dialog"
         >
           <div className={dialogStyles.header}>
@@ -39,7 +41,11 @@ export function ConfirmDialog({ id, options }: ConfirmDialogProps) {
             </AlertDialog.Description>
           </div>
           <div className={dialogStyles.footer}>
-            <Button onClick={() => lifecycle.close(false)} data-testid="confirm-dialog-cancel">
+            <Button
+              ref={cancelRef}
+              onClick={() => lifecycle.close(false)}
+              data-testid="confirm-dialog-cancel"
+            >
               Cancel
             </Button>
             <Button

@@ -1,12 +1,17 @@
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
-/** A yes/no question. `danger` styles the confirm button for destructive actions. */
+/**
+ * A yes/no question. `danger` styles the confirm button for destructive actions.
+ * `cancelIsDefault` focuses Cancel for irreversible actions, so Enter and Escape
+ * both cancel and only a click on the confirm button proceeds.
+ */
 export interface ConfirmOptions {
   readonly title: string;
   readonly message: string;
   readonly confirmLabel?: string | undefined;
   readonly tone?: "default" | "danger" | undefined;
+  readonly cancelIsDefault?: boolean | undefined;
 }
 
 /** Client-side rules for a prompt: the trimmed value must be 1 to `maxLength` characters. */

@@ -44,3 +44,5 @@ export { FieldRpcs } from "./field-rpcs.js";
 export { externalLinkAddress } from "./external-link-address.js";
 export { HistoryRpcs, HistoryStatus } from "./history-rpcs.js";
 export { StatusKind, StatusProjection } from "./status-projection.js";
+export { TrashBatch, TrashNodeKind } from "./trash-batch.js";
+export { TrashRpcs } from "./trash-rpcs.js";

@@ -23,3 +23,8 @@ export function dueToUtc(
 ): Temporal.Instant {
   return toUtc(date.toPlainDateTime(time ?? endOfDay), timeZone);
 }
+
+/** The wall-clock reading of a UTC instant in the supplied zone, such as a deletion time to show. */
+export function toFloating(instant: Temporal.Instant, timeZone: string): Temporal.PlainDateTime {
+  return instant.toZonedDateTimeISO(timeZone).toPlainDateTime();
+}

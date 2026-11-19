@@ -40,14 +40,18 @@ export function projectItemRepository(sql: SqlClient.SqlClient) {
         CompletedAtUtc = ${completedAtUtc}, UpdatedAtUtc = ${now}
         WHERE Id = ${itemId} AND ProjectId = ${projectId} AND ${activeRow(sql)}`,
   });
-
-  return {
-    listActive: SqlSchema.findAll({
+  const list = (includeDeleted: boolean) =>
+    SqlSchema.findAll({
       Request: Guid,
       Result: ItemRow,
-      execute: (projectId) =>
-        sql`SELECT ${itemRowColumns} FROM TodoItem WHERE ProjectId = ${projectId} AND ${activeRow(sql)}`,
-    }),
+      execute: (
+        projectId,
+      ) => sql`SELECT ${itemRowColumns} FROM TodoItem WHERE ProjectId = ${projectId}
+      ${includeDeleted ? sql` ` : sql`AND ${activeRow(sql)}`}`,
+    });
+  return {
+    listActive: list(false),
+    listAll: list(true),
     deleteForProject: deleteBatch(false),
     deleteForFolderBatch: deleteBatch(true),
     restoreBatch: SqlSchema.void({
