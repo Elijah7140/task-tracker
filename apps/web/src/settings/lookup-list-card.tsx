@@ -36,7 +36,8 @@ function lookupLabels(kind: LookupKind) {
   };
 }
 
-function ArchivedRows({
+/** Archived rows of a lookup list, each with a Restore button. */
+export function ArchivedRows({
   archived,
   listLabel,
   onRestore,

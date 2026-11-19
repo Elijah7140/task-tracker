@@ -9,6 +9,7 @@ import { RpcOperationError } from "./rpc-operation-error.js";
 
 const area = { projectId: Guid, folderId: Schema.NullOr(Guid) };
 const areaItem = { ...area, itemId: Guid };
+const approval = Schema.optionalKey(Schema.Array(Guid));
 const parentItemId = Schema.NullOr(Guid);
 
 /** Read and edit the items in a project area. */
@@ -24,14 +25,21 @@ export const ItemRpcs = RpcGroup.make(
       itemId: Guid,
       fields: ItemEdit,
       customValues: Schema.optionalKey(Schema.Array(FieldValueInput)),
+      confirmedOpenItemIds: approval,
     },
+    success: CompletionResult,
+    error: RpcOperationError,
+  }),
+  Rpc.make("SetItemStatus", {
+    payload: { itemId: Guid, statusId: Schema.NullOr(Guid), confirmedOpenItemIds: approval },
+    success: CompletionResult,
     error: RpcOperationError,
   }),
   Rpc.make("SetItemCompleted", {
     payload: {
       ...areaItem,
       completed: Schema.Boolean,
-      confirmedOpenItemIds: Schema.optionalKey(Schema.Array(Guid)),
+      confirmedOpenItemIds: approval,
     },
     success: CompletionResult,
     error: RpcOperationError,

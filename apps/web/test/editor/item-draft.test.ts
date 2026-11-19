@@ -29,6 +29,8 @@ const ITEM: ItemRecord = {
   sortOrder: 0,
   createdAtUtc: "2026-11-13T12:00:00Z",
   updatedAtUtc: "2026-11-13T12:00:00Z",
+  statusId: null,
+  reopenStatusId: null,
   completedAtUtc: null,
   deletedAtUtc: null,
   deletionBatchId: null,
@@ -58,6 +60,7 @@ describe("storedTexts", () => {
       priorityLevelId: PRIORITY_ID,
       dueDate: "2026-11-20",
       dueTime: "17:00",
+      statusId: "",
       scheduledStart: "2026-11-19T09:30",
       scheduledEnd: "",
     });
@@ -117,6 +120,16 @@ describe("itemEdit", () => {
       dueTime: "08:15",
       scheduledEnd: "2026-11-19T10:00",
     });
+  });
+
+  it("Sends a status only when it changed, and None as no status", () => {
+    const unchanged = itemEdit(ITEM, { statusId: "" });
+    const chosen = itemEdit(ITEM, { statusId: TYPE_ID });
+    const cleared = itemEdit({ ...ITEM, statusId: TYPE_ID }, { statusId: "" });
+
+    expect(unchanged).not.toHaveProperty("statusId");
+    expect(chosen).toEqual({ ...STORED_EDIT, statusId: TYPE_ID });
+    expect(cleared).toEqual({ ...STORED_EDIT, statusId: null });
   });
 
   it("Clears the type and priority when None is chosen", () => {

@@ -1,6 +1,7 @@
 import { useAtomSet } from "@effect/atom-react";
 import { Exit } from "effect";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
+import { requestCompletion } from "../dialogs/request-completion.js";
 import { areaKey } from "../rpc/area-queries.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
 import {
@@ -21,6 +22,7 @@ import {
   reportItemFailure,
   useItemStructureActions,
 } from "./use-item-structure-actions.js";
+import { useSetItemStatus } from "./use-set-item-status.js";
 import { useSingleRunPerItem } from "./use-single-run-per-item.js";
 
 /** Info for the undo banner shown after deleting an item subtree. */
@@ -139,79 +141,35 @@ function useRenameItem(scope: ItemActionScope) {
   };
 }
 
-function confirmationMessage(count: number, refreshed: boolean): string {
-  const noun = count === 1 ? "sub-item" : "sub-items";
-  return refreshed
-    ? `Open sub-items changed. Also complete ${count} open ${noun}?`
-    : `Also complete ${count} open ${noun}?`;
-}
-
-/** The outcome of one SetItemCompleted request, after any notice it needs. */
-type CompletionStep =
-  | { readonly kind: "done"; readonly applied: boolean }
-  | {
-      readonly kind: "confirm";
-      readonly openSubItemIds: ReadonlyArray<string>;
-      readonly count: number;
-    };
-
-function useSetCompletedStep(scope: ItemActionScope) {
+/** Completes or reopens an item and returns focus after an applied change. */
+function useToggleComplete(scope: ItemActionScope) {
   const setCompleted = useAtomSet(setItemCompletedAtom, { mode: "promiseExit" });
   const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
 
-  return async (
-    node: ItemNode,
-    confirmedOpenItemIds: ReadonlyArray<string> | undefined,
-  ): Promise<CompletionStep> => {
+  return async (node: ItemNode) => {
     const base = {
       projectId: scope.projectId,
       folderId: scope.folderId,
       itemId: node.item.id,
       completed: node.item.completedAtUtc === null,
     };
-    const payload = confirmedOpenItemIds === undefined ? base : { ...base, confirmedOpenItemIds };
-    const exit = await setCompleted({ payload, reactivityKeys: keys });
-    if (!(await reportItemFailure(exit)) || !Exit.isSuccess(exit)) {
-      return { kind: "done", applied: false };
+    const exit = await requestCompletion((approval) =>
+      setCompleted({
+        payload: approval === undefined ? base : { ...base, confirmedOpenItemIds: approval },
+        reactivityKeys: keys,
+      }),
+    );
+    if (exit === undefined || !(await reportItemFailure(exit)) || !Exit.isSuccess(exit)) {
+      return;
     }
-    const result = exit.value;
-    if (result.kind === "blocked") {
-      await notify({ title: "Cannot reopen item", message: result.reason });
-    }
-    return result.kind === "needs-confirmation"
-      ? { kind: "confirm", openSubItemIds: result.openSubItemIds, count: result.openSubItemCount }
-      : { kind: "done", applied: result.kind === "applied" };
-  };
-}
-
-/**
- * Completes or reopens an item, asking before completing open sub-items and
- * asking again if they changed meanwhile. Focus then follows the item or, when
- * it left the open list, moves to a neighbouring row.
- */
-function useToggleComplete(scope: ItemActionScope) {
-  const step = useSetCompletedStep(scope);
-
-  return async (node: ItemNode) => {
-    let confirmedOpenItemIds: ReadonlyArray<string> | undefined;
-    for (;;) {
-      const outcome = await step(node, confirmedOpenItemIds);
-      if (outcome.kind === "done") {
-        if (outcome.applied) {
-          const fallbackIds = departureFocusIds(scope.items, node);
-          scope.onFocusItem({ id: node.item.id, afterNodes: scope.items, fallbackIds });
-        }
-        return;
-      }
-      const approved = await confirm({
-        title: "Complete sub-items",
-        message: confirmationMessage(outcome.count, confirmedOpenItemIds !== undefined),
-        confirmLabel: "Complete",
+    if (exit.value.kind === "blocked") {
+      await notify({ title: "Cannot reopen item", message: exit.value.reason });
+    } else if (exit.value.kind === "applied") {
+      scope.onFocusItem({
+        id: node.item.id,
+        afterNodes: scope.items,
+        fallbackIds: departureFocusIds(scope.items, node),
       });
-      if (!approved) {
-        return;
-      }
-      confirmedOpenItemIds = outcome.openSubItemIds;
     }
   };
 }
@@ -284,12 +242,22 @@ export function useItemActions(scope: ItemActionScope) {
   const { quickAdd, addSubItem } = useCreateItemActions(scope);
   const { deleteItem, restoreBatch } = useDeleteAndRestore(scope);
   const structure = useItemStructureActions(scope);
+  const setStatus = useSetItemStatus();
   return {
     editItem: openEditor,
     quickAdd,
     addSubItem: once("addSubItem", addSubItem),
     renameItem: once("renameItem", useRenameItem(scope)),
     toggleComplete: once("toggleComplete", useToggleComplete(scope)),
+    setStatus: once("setStatus", async (node: ItemNode, statusId: string | null) => {
+      if (await setStatus(node.item, statusId)) {
+        scope.onFocusItem({
+          id: node.item.id,
+          afterNodes: scope.items,
+          fallbackIds: departureFocusIds(scope.items, node),
+        });
+      }
+    }),
     deleteItem: once("deleteItem", deleteItem),
     restoreBatch,
     indentItem: once("indentItem", structure.indentItem),

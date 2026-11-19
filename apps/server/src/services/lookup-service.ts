@@ -18,6 +18,7 @@ import { Guid } from "../db/storage-codecs.js";
 import { checkRules } from "./check-rules.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
+import { statusOperations } from "./status-operations.js";
 
 type Lookup = ItemType | PriorityLevel;
 type StorageError = SqlError | Schema.SchemaError;
@@ -76,12 +77,13 @@ const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const repository = lookupRepository(sql);
   return {
+    statuses: yield* statusOperations(sql),
     itemTypes: manageLookups(sql, repository.itemTypes, createItemType),
     priorityLevels: manageLookups(sql, repository.priorityLevels, createPriorityLevel),
   };
 });
 
-/** Transactional management of item types and priority levels. */
+/** Transactional management of workflow statuses, item types and priority levels. */
 export class LookupService extends Context.Service<LookupService>()(
   "@task-tracker/server/LookupService",
   { make },

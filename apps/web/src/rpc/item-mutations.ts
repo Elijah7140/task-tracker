@@ -29,3 +29,6 @@ export const deleteItemAtom = TaskTrackerClient.mutation("DeleteItem");
 
 /** Restores an item deletion batch in an area. */
 export const restoreItemsAtom = TaskTrackerClient.mutation("RestoreItems");
+
+/** Assigns a workflow status, using the normal completion and reopen rules. */
+export const setItemStatusAtom = TaskTrackerClient.mutation("SetItemStatus");

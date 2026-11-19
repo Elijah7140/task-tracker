@@ -13,7 +13,7 @@ export type ItemEdit = Pick<
   | "dueTime"
   | "scheduledStart"
   | "scheduledEnd"
->;
+> & { readonly statusId?: string | null };
 
 /** Validate a replacement of built-in item fields, preserving structure and completion. */
 export function editItem(item: TodoItem, edit: ItemEdit, now: Temporal.Instant): TodoItem {

@@ -1,5 +1,6 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { Menu } from "@base-ui/react/menu";
+import { Check, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { cx } from "./class-names.js";
 
@@ -76,4 +77,58 @@ export function MenuItem({
 /** A thin divider separating groups of menu actions. */
 export function MenuSeparator() {
   return <Menu.Separator className="my-1 h-px bg-line" />;
+}
+
+const submenuRowClass =
+  "flex h-8 cursor-default items-center gap-2 rounded-[0.375rem] px-2 text-sm outline-none select-none data-highlighted:bg-hover";
+
+/** A nested menu with the same surface and input behavior as its parent. */
+export function Submenu({
+  children,
+  label,
+  icon,
+  testId,
+}: MenuContentProps & { readonly label: string; readonly icon: ReactNode }) {
+  return (
+    <Menu.SubmenuRoot>
+      <Menu.SubmenuTrigger
+        data-testid={testId}
+        className={cx(submenuRowClass, "data-popup-open:bg-hover")}
+      >
+        <span className="flex size-4 items-center justify-center opacity-80">{icon}</span>
+        {label}
+        <ChevronRight size={14} aria-hidden="true" className="ml-auto text-fg-muted" />
+      </Menu.SubmenuTrigger>
+      <Menu.Portal>
+        <Menu.Positioner side="right" align="start" sideOffset={4} className="z-50 outline-none">
+          <Menu.Popup className={popupClass}>{children}</Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.SubmenuRoot>
+  );
+}
+
+/** A checked menu row controlled by the persisted value, including during confirmation. */
+export function CheckedMenuItem({
+  checked,
+  children,
+  onClick,
+  testId,
+}: Pick<MenuItemProps, "children" | "onClick" | "testId"> & { readonly checked: boolean }) {
+  return (
+    <Menu.CheckboxItem
+      checked={checked}
+      closeOnClick
+      onClick={onClick}
+      data-testid={testId}
+      className={submenuRowClass}
+    >
+      <span className="grid size-4 place-items-center text-accent-text">
+        <Menu.CheckboxItemIndicator>
+          <Check size={14} aria-hidden="true" />
+        </Menu.CheckboxItemIndicator>
+      </span>
+      {children}
+    </Menu.CheckboxItem>
+  );
 }

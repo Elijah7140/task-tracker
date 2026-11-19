@@ -2,7 +2,7 @@ import { EntityMissing } from "@task-tracker/core";
 import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
-import { Guid } from "../storage-codecs.js";
+import { Guid, UtcTimestamp } from "../storage-codecs.js";
 import { ItemEditRow, ItemRow, itemRowColumns, ItemStructureRow } from "./item-row.js";
 
 const area = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
@@ -45,6 +45,12 @@ export function itemRepository(sql: SqlClient.SqlClient) {
       Request: ItemStructureRow,
       execute: ({ Id, ProjectId, ...values }) => sql`UPDATE TodoItem SET ${sql.update(values)}
         WHERE Id = ${Id} AND ProjectId = ${ProjectId}`,
+    }),
+    setStatus: SqlSchema.void({
+      Request: Schema.Struct({ id: Guid, statusId: Schema.NullOr(Guid), now: UtcTimestamp }),
+      execute: ({ id, statusId, now }) =>
+        sql`UPDATE TodoItem SET StatusId = ${statusId}, UpdatedAtUtc = ${now}
+          WHERE Id = ${id} AND ${activeRow(sql)}`,
     }),
     updateEdit: SqlSchema.void({
       Request: ItemEditRow,

@@ -1,3 +1,4 @@
+import type { StatusProjection } from "@task-tracker/contracts";
 import {
   CircleCheck,
   CornerDownRight,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { MenuItem, MenuSeparator } from "../ui/menu.js";
 import type { ItemNode } from "./item-outline.js";
+import { ItemStatusMenu } from "./item-status-menu.js";
 import type { ItemActions } from "./use-item-actions.js";
 
 /** Props for {@link ItemMenuItems}. */
@@ -19,11 +21,18 @@ export interface ItemMenuItemsProps {
   readonly node: ItemNode;
   readonly canIndent: boolean;
   readonly hasFolders: boolean;
+  readonly statuses: readonly (typeof StatusProjection.Type)[];
   readonly actions: ItemActions;
 }
 
 /** Item actions shared by an item row's overflow menu and context menu. */
-export function ItemMenuItems({ node, canIndent, hasFolders, actions }: ItemMenuItemsProps) {
+export function ItemMenuItems({
+  node,
+  canIndent,
+  hasFolders,
+  statuses,
+  actions,
+}: ItemMenuItemsProps) {
   const completed = node.item.completedAtUtc !== null;
   return (
     <>
@@ -42,6 +51,11 @@ export function ItemMenuItems({ node, canIndent, hasFolders, actions }: ItemMenu
       >
         {completed ? "Reopen" : "Complete"}
       </MenuItem>
+      <ItemStatusMenu
+        statuses={statuses}
+        statusId={node.item.statusId}
+        onChange={(statusId) => void actions.setStatus(node, statusId)}
+      />
       <MenuItem
         icon={<ListPlus size={14} />}
         onClick={() => void actions.addSubItem(node)}

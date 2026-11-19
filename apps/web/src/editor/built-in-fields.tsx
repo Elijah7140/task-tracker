@@ -19,6 +19,7 @@ export interface BuiltInFieldsProps {
   readonly texts: BuiltInTexts;
   readonly itemTypes: Snapshot["itemTypes"];
   readonly priorityLevels: Snapshot["priorityLevels"];
+  readonly statuses: Snapshot["statuses"];
   readonly titleRef: Ref<HTMLInputElement>;
   readonly onChange: (key: BuiltInKey, value: string) => void;
 }
@@ -86,6 +87,7 @@ function DetailsGroup({
   texts,
   itemTypes,
   priorityLevels,
+  statuses,
   onChange,
 }: Omit<BuiltInFieldsProps, "titleRef">) {
   return (
@@ -104,6 +106,13 @@ function DetailsGroup({
           options={lookupOptions(priorityLevels, item.priorityLevelId)}
           testId="item-editor-priority"
           onValueChange={(value) => onChange("priorityLevelId", value)}
+        />
+        <LookupSelect
+          label="Workflow status"
+          value={texts.statusId}
+          options={lookupOptions(statuses, item.statusId)}
+          testId="item-editor-status"
+          onValueChange={(value) => onChange("statusId", value)}
         />
         <EditorField label="Ticket number">
           <Input

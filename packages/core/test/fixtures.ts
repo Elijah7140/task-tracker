@@ -19,6 +19,8 @@ export function item(id: string, overrides: Partial<TodoItem> = {}): TodoItem {
     dueTime: null,
     scheduledStart: null,
     scheduledEnd: null,
+    statusId: null,
+    reopenStatusId: null,
     completedAtUtc: null,
     sortOrder: 0,
     createdAtUtc: earlier,

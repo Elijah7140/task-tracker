@@ -164,6 +164,7 @@ function EditorContent({
             texts={texts}
             itemTypes={snapshot.itemTypes}
             priorityLevels={snapshot.priorityLevels}
+            statuses={snapshot.statuses}
             onChange={store.setBuiltIn}
           />
           <CustomFieldsSection state={fields} drafts={store.custom} onChange={store.setCustom} />

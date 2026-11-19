@@ -33,6 +33,8 @@ const columns = {
   dueTime: "DueTime",
   scheduledStart: "ScheduledStart",
   scheduledEnd: "ScheduledEnd",
+  statusId: "StatusId",
+  reopenStatusId: "ReopenStatusId",
   completedAtUtc: "CompletedAtUtc",
 } as const;
 
@@ -44,6 +46,8 @@ export const ItemRow = Schema.Struct({
   ...trackedFields,
   ...structureFields,
   ...editFields,
+  statusId: Schema.NullOr(Guid),
+  reopenStatusId: Schema.NullOr(Guid),
   completedAtUtc: Schema.NullOr(UtcTimestamp),
 }).pipe(Schema.encodeKeys(columns));
 

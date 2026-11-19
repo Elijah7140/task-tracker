@@ -6,6 +6,7 @@ import { useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { itemTypesAtom, priorityLevelsAtom } from "../rpc/lookup-queries.js";
 import { globalSettingsAtom } from "../rpc/settings-queries.js";
+import { statusesAtom } from "../rpc/status-queries.js";
 import { buttonClassName } from "../ui/button.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
@@ -14,6 +15,7 @@ import { FieldManagerCard } from "./field-manager-card.js";
 import { areaTarget } from "../workspace/area-route.js";
 import { GlobalDefaultsCard } from "./global-defaults-card.js";
 import { LookupListCard } from "./lookup-list-card.js";
+import { StatusListCard } from "./status-list-card.js";
 import { useUnsavedSettingsGuard } from "./use-unsaved-settings-guard.js";
 
 const appSettingsRoute = getRouteApi("/settings");
@@ -48,7 +50,7 @@ function SettingsSkeleton() {
 
 /**
  * The App Settings route (`/settings`): global completion and urgency defaults,
- * editable item type and priority level lists and the global custom fields.
+ * editable item type, priority level and status lists and the global custom fields.
  */
 export function AppSettingsPage() {
   const [dirty, setDirty] = useState(false);
@@ -57,9 +59,11 @@ export function AppSettingsPage() {
   const globalSettings = useAtomValue(globalSettingsAtom);
   const itemTypes = useAtomValue(itemTypesAtom);
   const priorityLevels = useAtomValue(priorityLevelsAtom);
+  const statuses = useAtomValue(statusesAtom);
   const refreshGlobal = useAtomRefresh(globalSettingsAtom);
   const refreshTypes = useAtomRefresh(itemTypesAtom);
   const refreshLevels = useAtomRefresh(priorityLevelsAtom);
+  const refreshStatuses = useAtomRefresh(statusesAtom);
 
   const failure = AsyncResult.isFailure(globalSettings)
     ? globalSettings
@@ -67,12 +71,15 @@ export function AppSettingsPage() {
       ? itemTypes
       : AsyncResult.isFailure(priorityLevels)
         ? priorityLevels
-        : undefined;
+        : AsyncResult.isFailure(statuses)
+          ? statuses
+          : undefined;
 
   const retryAll = () => {
     refreshGlobal();
     refreshTypes();
     refreshLevels();
+    refreshStatuses();
   };
 
   return (
@@ -90,7 +97,8 @@ export function AppSettingsPage() {
         />
       ) : !AsyncResult.isSuccess(globalSettings) ||
         !AsyncResult.isSuccess(itemTypes) ||
-        !AsyncResult.isSuccess(priorityLevels) ? (
+        !AsyncResult.isSuccess(priorityLevels) ||
+        !AsyncResult.isSuccess(statuses) ? (
         <SettingsSkeleton />
       ) : (
         <div className="flex flex-col gap-6">
@@ -98,6 +106,7 @@ export function AppSettingsPage() {
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
             <LookupListCard kind="itemTypes" rows={itemTypes.value} />
             <LookupListCard kind="priorityLevels" rows={priorityLevels.value} />
+            <StatusListCard rows={statuses.value} />
           </div>
           <FieldManagerCard projectId={null} />
         </div>

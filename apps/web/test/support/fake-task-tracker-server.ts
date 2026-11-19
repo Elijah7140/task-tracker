@@ -1,5 +1,6 @@
 import {
   type AreaSnapshot,
+  type CompletionResult,
   type FolderProjection,
   type FieldValueInput,
   type ItemEdit,
@@ -31,6 +32,7 @@ import {
   itemHandlers,
 } from "./fake-item-operations.js";
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
+import { applySetItemStatus, FakeStatuses, statusHandlers } from "./fake-statuses.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -122,6 +124,9 @@ export class FakeProjectStore {
   };
 
   readonly settingsAndLookups = new FakeSettingsAndLookups(this.nextId);
+
+  /** Workflow statuses shared by App Settings, row menus, the editor and area snapshots. */
+  readonly statuses = new FakeStatuses();
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
@@ -321,11 +326,14 @@ export class FakeProjectStore {
       areas: this.areas,
       autoCompleteByProject: this.autoCompleteByProject,
       values: this.customFields.values,
+      statuses: this.statuses.rows,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
   restoreUndoState = (snapshot: ReturnType<FakeProjectStore["captureUndoState"]>) => {
-    const { summaries, folders, areas, autoCompleteByProject, values } = structuredClone(snapshot);
+    const { summaries, folders, areas, autoCompleteByProject, values, statuses } =
+      structuredClone(snapshot);
+    this.statuses.rows = statuses;
     this.summaries = summaries;
     this.folders = folders;
     this.areas = areas;
@@ -426,6 +434,7 @@ export class FakeProjectStore {
           ...snapshot,
           itemTypes: [...snapshot.itemTypes, ...this.extraLookups.itemTypes],
           priorityLevels: [...snapshot.priorityLevels, ...this.extraLookups.priorityLevels],
+          statuses: this.statuses.ordered(),
         };
       }),
     );
@@ -528,25 +537,44 @@ function folderHandlers(store: FakeProjectStore, record: (tag: string) => Effect
 }
 
 /**
- * EditItem with custom values. Built-in fields and every custom value are
- * validated before anything changes, so a refused edit stores nothing.
+ * EditItem with custom values and an optional status. Built-in fields and every
+ * custom value are validated before anything changes, and a status that needs
+ * confirmation or is blocked stores nothing, so a refused edit stores nothing.
  */
 function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effect.Effect<unknown>) {
   return ({
     itemId,
-    fields,
+    fields: { statusId, ...fields },
     customValues = [],
+    confirmedOpenItemIds,
   }: {
     itemId: string;
     fields: typeof ItemEdit.Type;
     customValues?: ReadonlyArray<typeof FieldValueInput.Type>;
-  }) =>
-    record("EditItem").pipe(
+    confirmedOpenItemIds?: ReadonlyArray<string>;
+  }) => {
+    const before = store.captureUndoState();
+    return record("EditItem").pipe(
       Effect.andThen(store.itemProject(itemId)),
       Effect.andThen((projectId) => store.customFields.planEdit(itemId, projectId, customValues)),
-      Effect.tap(() => applyEditItem(store, itemId, fields)),
-      Effect.map((commit) => commit()),
+      Effect.flatMap((commit) =>
+        (statusId === undefined
+          ? Effect.succeed<typeof CompletionResult.Type>({ kind: "applied", changes: [] })
+          : applySetItemStatus(store, itemId, statusId, confirmedOpenItemIds)
+        ).pipe(Effect.map((result) => ({ commit, result }))),
+      ),
+      Effect.tap(({ result }) =>
+        result.kind === "applied" ? applyEditItem(store, itemId, fields) : Effect.void,
+      ),
+      Effect.map(({ commit, result }) => {
+        if (result.kind === "applied") {
+          commit();
+        }
+        return result;
+      }),
+      Effect.tapError(() => Effect.sync(() => store.restoreUndoState(before))),
     );
+  };
 }
 
 function handlers(store: FakeProjectStore) {
@@ -555,6 +583,7 @@ function handlers(store: FakeProjectStore) {
   const item = itemHandlers(store, record);
   const editItem = editItemHandler(store, record);
   const folder = folderHandlers(store, record);
+  const statuses = statusHandlers(store, record);
   const itemTitle = (id: string): string | undefined => {
     const find = (nodes: ReadonlyArray<FakeItemNode>): string | undefined => {
       for (const node of nodes) {
@@ -643,8 +672,30 @@ function handlers(store: FakeProjectStore) {
     },
     ...settingsAndLookupHandlers(store, record),
     ...customFieldHandlers(store, record),
-    EditItem: (payload) =>
-      history.track(editItem(payload), () => `Edit '${payload.fields.title.trim()}'`),
+    ...statuses,
+    SetItemStatus: (payload) => {
+      const title = itemTitle(payload.itemId);
+      return history.track(statuses.SetItemStatus(payload), (result) =>
+        result.kind === "applied" ? `Set status of '${title}'` : null,
+      );
+    },
+    AddStatus: (payload) =>
+      history.track(statuses.AddStatus(payload), ({ name }) => `Add status '${name}'`),
+    RenameStatus: (payload) =>
+      history.track(statuses.RenameStatus(payload), () => `Rename status '${payload.name.trim()}'`),
+    ArchiveStatus: (payload) =>
+      history.track(statuses.ArchiveStatus(payload), () => "Archive status"),
+    RestoreStatus: (payload) =>
+      history.track(statuses.RestoreStatus(payload), () => "Restore status"),
+    ReorderStatuses: (payload) =>
+      history.track(statuses.ReorderStatuses(payload), () => "Reorder statuses"),
+    EditItem: (payload) => {
+      const title = payload.fields.title.trim();
+      const verb = payload.fields.statusId === undefined ? "Edit" : "Set status of";
+      return history.track(editItem(payload), (result) =>
+        result.kind === "applied" ? `${verb} '${title}'` : null,
+      );
+    },
   });
 }
 

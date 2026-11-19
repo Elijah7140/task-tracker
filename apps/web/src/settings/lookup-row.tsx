@@ -10,7 +10,9 @@ import type { LookupItem, LookupKind } from "./use-lookup-actions.js";
 /** Props for {@link LookupRow}. */
 export interface LookupRowProps {
   readonly row: LookupItem;
-  readonly kind: LookupKind;
+  readonly kind: LookupKind | "statuses";
+  /** Fixed secondary text after the name, such as a status kind. */
+  readonly detail?: string | undefined;
   readonly isFirst: boolean;
   readonly isLast: boolean;
   /** A reorder is saving. Move buttons stay focusable but ignore presses. */
@@ -30,6 +32,7 @@ export interface LookupRowProps {
 export function LookupRow({
   row,
   kind,
+  detail,
   isFirst,
   isLast,
   moveBusy,
@@ -84,6 +87,11 @@ export function LookupRow({
         </button>
         {isItemType ? <ItemTypeIcon name={row.name} /> : null}
         <span className="truncate text-sm text-fg">{row.name}</span>
+        {detail === undefined ? null : (
+          <span data-testid="lookup-row-detail" className="shrink-0 text-xs text-fg-subtle">
+            · {detail}
+          </span>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">

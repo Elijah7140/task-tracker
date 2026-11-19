@@ -1,6 +1,8 @@
 import {
   editItem,
   planFieldValueEdits,
+  planStatusChange,
+  type AppliedCompletion,
   type FieldValueInput,
   type ItemEdit,
   type TodoItem,
@@ -11,6 +13,7 @@ import { fieldRepository } from "../db/repositories/field-repository.js";
 import { itemFieldValueRepository } from "../db/repositories/item-field-value-repository.js";
 import { itemRepository } from "../db/repositories/item-repository.js";
 import { lookupRepository } from "../db/repositories/lookup-repository.js";
+import { statusRepository } from "../db/repositories/status-repository.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
 import { Guid } from "../db/storage-codecs.js";
 import { projectAreaItems, type AreaSnapshot } from "./area-snapshot.js";
@@ -38,6 +41,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   const fields = fieldRepository(sql);
   const itemValues = itemFieldValueRepository(sql);
   const lookups = lookupRepository(sql);
+  const statuses = statusRepository(sql);
   const settings = settingsRepository(sql);
 
   const completion = itemCompletionOperations(sql);
@@ -59,10 +63,93 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     );
   });
 
+  const planStatus = Effect.fnUntraced(function* (
+    item: TodoItem,
+    statusId: string | null,
+    now: Temporal.Instant,
+    confirmedOpenItemIds?: readonly string[],
+  ) {
+    const tree = yield* loadAreaTree(item.projectId, item.folderId);
+    const effective = yield* readEffectiveSettings(settings, item.projectId);
+    const available = yield* statuses.list();
+    const approval = yield* decodeOptionalIds(confirmedOpenItemIds);
+    return yield* checkRules(() =>
+      planStatusChange(
+        tree,
+        item.id,
+        statusId,
+        available,
+        effective.autoCompleteParents.value,
+        now,
+        approval,
+      ),
+    );
+  });
+
+  const areaRows = (item: TodoItem) => ({
+    table: "TodoItem" as const,
+    where: sql`ProjectId = ${item.projectId} AND FolderId IS ${item.folderId}`,
+  });
+
+  const applyStatus = Effect.fnUntraced(function* (
+    item: TodoItem,
+    statusId: string | null,
+    now: Temporal.Instant,
+    result: AppliedCompletion,
+  ) {
+    yield* completion.apply(item.projectId, now, result);
+    yield* items.setStatus({ id: item.id, statusId, now });
+  });
+
+  const setStatus = Effect.fnUntraced(function* (
+    id: string,
+    selection: string | null,
+    confirmedOpenItemIds?: readonly string[],
+  ) {
+    const item = yield* items.requireActive(id);
+    const statusId = yield* decodeNullableId(selection);
+    if (item.statusId === statusId) {
+      return { kind: "applied", changes: [] } satisfies AppliedCompletion;
+    }
+    const now = yield* operationTime;
+    const result = yield* planStatus(item, statusId, now, confirmedOpenItemIds);
+    if (result.kind === "applied") {
+      yield* undo.capture(undoLabel("Set status of", item.title), [areaRows(item)]);
+      yield* applyStatus(item, statusId, now, result);
+    }
+    return result;
+  }, undo.record);
+
+  /** Plans an editor status selection. An omitted or unchanged status plans no completion. */
+  const planEditStatus = Effect.fnUntraced(function* (
+    item: TodoItem,
+    selection: string | null | undefined,
+    now: Temporal.Instant,
+    confirmedOpenItemIds?: readonly string[],
+  ) {
+    const statusId = selection === undefined ? item.statusId : yield* decodeNullableId(selection);
+    const changed = statusId !== item.statusId;
+    const result = changed
+      ? yield* planStatus(item, statusId, now, confirmedOpenItemIds)
+      : ({ kind: "applied", changes: [] } satisfies AppliedCompletion);
+    return { statusId, changed, result };
+  });
+
+  const writeCustomValues = Effect.fnUntraced(function* (
+    itemId: string,
+    custom: Effect.Success<ReturnType<typeof planCustomEdit>>,
+  ) {
+    for (const fieldDefinitionId of custom.removals) {
+      yield* itemValues.remove({ itemId, fieldDefinitionId });
+    }
+    yield* Effect.forEach(custom.upserts, itemValues.upsert, { discard: true });
+  });
+
   const edit = Effect.fnUntraced(function* (
     id: string,
     values: ItemEdit,
     customValues: readonly FieldValueInput[] = [],
+    confirmedOpenItemIds?: readonly string[],
   ) {
     const item = yield* items.requireActive(id);
     const now = yield* operationTime;
@@ -74,17 +161,23 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     // The connection lease serializes this snapshot and write with definition mutations.
     const custom =
       customValues.length === 0 ? undefined : yield* planCustomEdit(item, customValues);
-    yield* undo.capture(undoLabel("Edit", edited.title), [
-      { table: "TodoItem", where: sql`Id = ${item.id}` },
+    const status = yield* planEditStatus(item, values.statusId, now, confirmedOpenItemIds);
+    if (status.result.kind !== "applied") {
+      return status.result;
+    }
+    // A save that changes the status is labelled as a status change (§7.15).
+    yield* undo.capture(undoLabel(status.changed ? "Set status of" : "Edit", edited.title), [
+      status.changed ? areaRows(item) : { table: "TodoItem", where: sql`Id = ${item.id}` },
       { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
     ]);
+    if (status.changed) {
+      yield* applyStatus(item, status.statusId, now, status.result);
+    }
     yield* items.updateEdit(edited);
     if (custom) {
-      for (const fieldDefinitionId of custom.removals) {
-        yield* itemValues.remove({ itemId: item.id, fieldDefinitionId });
-      }
-      yield* Effect.forEach(custom.upserts, itemValues.upsert, { discard: true });
+      yield* writeCustomValues(item.id, custom);
     }
+    return status.result;
   }, undo.record);
 
   const loadFieldValues = Effect.fnUntraced(function* (id: string) {
@@ -125,6 +218,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
       items: projectAreaItems(tree, effective, now, timeZone),
       itemTypes,
       priorityLevels,
+      statuses: yield* statuses.list(),
       settings: effective,
     } satisfies AreaSnapshot;
   }, sql.withTransaction);
@@ -133,6 +227,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     ...structure,
     edit,
     setCompleted,
+    setStatus,
     loadArea,
     loadFieldValues,
   };

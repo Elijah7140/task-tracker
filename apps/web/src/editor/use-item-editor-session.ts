@@ -1,6 +1,7 @@
 import { useAtomSet } from "@effect/atom-react";
 import { Exit } from "effect";
 import { useRef } from "react";
+import { requestCompletion } from "../dialogs/request-completion.js";
 import { areaKey } from "../rpc/area-queries.js";
 import { itemFieldValuesKey } from "../rpc/field-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
@@ -40,17 +41,31 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       setError(FIX_FIELDS_MESSAGE);
       return false;
     }
-    const exit = await edit({
-      payload: { itemId: node.item.id, fields: status.fields, customValues: status.customValues },
-      reactivityKeys: [
-        HISTORY_KEY,
-        areaKey(projectId, folderId),
-        PROJECTS_KEY,
-        itemFieldValuesKey(node.item.id),
-      ],
-    });
+    const payload = {
+      itemId: node.item.id,
+      fields: status.fields,
+      customValues: status.customValues,
+    };
+    const exit = await requestCompletion((approval) =>
+      edit({
+        payload: approval === undefined ? payload : { ...payload, confirmedOpenItemIds: approval },
+        reactivityKeys: [
+          HISTORY_KEY,
+          areaKey(projectId, folderId),
+          PROJECTS_KEY,
+          itemFieldValuesKey(node.item.id),
+        ],
+      }),
+    );
+    if (exit === undefined) {
+      return false;
+    }
     if (Exit.isFailure(exit)) {
       setError(describeRpcFailure(exit.cause));
+      return false;
+    }
+    if (exit.value.kind === "blocked") {
+      setError(exit.value.reason);
       return false;
     }
     discard();

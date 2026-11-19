@@ -1,12 +1,17 @@
-import { Schema } from "effect";
+import { completionStatus } from "@task-tracker/core";
+import { Effect, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
 import { Guid, UtcTimestamp } from "../storage-codecs.js";
+import { itemRepository } from "./item-repository.js";
+import { statusRepository } from "./status-repository.js";
 import { ItemRow, itemRowColumns } from "./item-row.js";
 import { projectBatch } from "./row-fields.js";
 
 /** Item reads, cascades and completion updates needed by project and folder operations. */
 export function projectItemRepository(sql: SqlClient.SqlClient) {
+  const items = itemRepository(sql);
+  const statuses = statusRepository(sql);
   const deleteBatch = (folderBatchOnly: boolean) =>
     SqlSchema.void({
       Request: projectBatch,
@@ -21,6 +26,21 @@ export function projectItemRepository(sql: SqlClient.SqlClient) {
           : sql` `
       }`,
     });
+  const writeCompletion = SqlSchema.void({
+    Request: Schema.Struct({
+      itemId: Guid,
+      projectId: Guid,
+      completedAtUtc: Schema.NullOr(UtcTimestamp),
+      statusId: Schema.NullOr(Guid),
+      reopenStatusId: Schema.NullOr(Guid),
+      now: UtcTimestamp,
+    }),
+    execute: ({ itemId, projectId, completedAtUtc, statusId, reopenStatusId, now }) =>
+      sql`UPDATE TodoItem SET StatusId = ${statusId}, ReopenStatusId = ${reopenStatusId},
+        CompletedAtUtc = ${completedAtUtc}, UpdatedAtUtc = ${now}
+        WHERE Id = ${itemId} AND ProjectId = ${projectId} AND ${activeRow(sql)}`,
+  });
+
   return {
     listActive: SqlSchema.findAll({
       Request: Guid,
@@ -36,26 +56,19 @@ export function projectItemRepository(sql: SqlClient.SqlClient) {
         UpdatedAtUtc = ${now}, DeletionBatchId = NULL
         WHERE ProjectId = ${projectId} AND DeletionBatchId = ${batchId} AND DeletedAtUtc IS NOT NULL`,
     }),
-    setCompletion: SqlSchema.void({
-      Request: Schema.Struct({
-        itemId: Guid,
-        projectId: Guid,
-        completedAtUtc: Schema.NullOr(UtcTimestamp),
-        now: UtcTimestamp,
-      }),
-      execute: ({ itemId, projectId, completedAtUtc, now }) => sql`UPDATE TodoItem
-        SET StatusId = CASE
-          WHEN ${completedAtUtc} IS NOT NULL AND CompletedAtUtc IS NULL THEN (
-            SELECT Id FROM StatusLevel WHERE Kind = 1 AND IsArchived = 0 ORDER BY SortOrder, Id LIMIT 1
-          )
-          WHEN ${completedAtUtc} IS NULL AND CompletedAtUtc IS NOT NULL THEN ReopenStatusId
-          ELSE StatusId END,
-        ReopenStatusId = CASE
-          WHEN ${completedAtUtc} IS NULL THEN NULL
-          WHEN CompletedAtUtc IS NULL THEN StatusId
-          ELSE ReopenStatusId END,
-        CompletedAtUtc = ${completedAtUtc}, UpdatedAtUtc = ${now}
-        WHERE Id = ${itemId} AND ProjectId = ${projectId} AND ${activeRow(sql)}`,
+    setCompletion: Effect.fnUntraced(function* (change: {
+      itemId: string;
+      projectId: string;
+      completedAtUtc: Temporal.Instant | null;
+      now: Temporal.Instant;
+    }) {
+      const item = yield* items.requireActive(change.itemId);
+      const firstDone =
+        change.completedAtUtc !== null && item.completedAtUtc === null
+          ? yield* statuses.firstDone()
+          : null;
+      const references = completionStatus(item, change.completedAtUtc, firstDone);
+      yield* writeCompletion({ ...change, ...references });
     }),
   };
 }
