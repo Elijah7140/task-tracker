@@ -5,6 +5,7 @@ import type {
   TodoItem,
 } from "@task-tracker/core";
 import type { AreaSnapshot as DomainAreaSnapshot, ItemNode } from "../services/area-snapshot.js";
+import { projectEffectiveSettings } from "./settings-projection.js";
 
 /** Parse the schema-validated floating strings for the domain without resolving a time zone. */
 export function parseItemEdit(fields: typeof ItemEdit.Type): DomainItemEdit {
@@ -42,21 +43,10 @@ function projectItemNode(node: ItemNode): WireItemNode {
 
 /** Convert an area's item tree and resolved settings to JSON-safe values. */
 export function projectArea(snapshot: DomainAreaSnapshot): typeof AreaSnapshot.Type {
-  const { autoCompleteParents, urgencyYellowThreshold, urgencyRedThreshold } = snapshot.settings;
   return {
     ...snapshot,
     items: snapshot.items.map(projectItemNode),
-    settings: {
-      autoCompleteParents,
-      urgencyYellowThreshold: {
-        ...urgencyYellowThreshold,
-        value: urgencyYellowThreshold.value.toString(),
-      },
-      urgencyRedThreshold: {
-        ...urgencyRedThreshold,
-        value: urgencyRedThreshold.value.toString(),
-      },
-    },
+    settings: projectEffectiveSettings(snapshot.settings),
   };
 }
 

@@ -427,3 +427,33 @@ it.effect("Fractional durations written to overrides retain their XmlConvert tex
     });
   }).pipe(withServices, withSchema),
 );
+
+it.effect("Global settings read every stored value and default the rest in one snapshot", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    yield* settings.setGlobal(urgencyRedThreshold, 12n * hour);
+
+    const global = yield* settings.getGlobalSettings();
+
+    expect(global).toEqual({
+      autoCompleteParents: { value: true, source: "Global" },
+      urgencyYellowThreshold: { value: 3n * day, source: "Global" },
+      urgencyRedThreshold: { value: 12n * hour, source: "Global" },
+    });
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("Effective settings and project previews identify a deleted project", () =>
+  Effect.gen(function* () {
+    const projects = yield* ProjectService;
+    const settings = yield* SettingsService;
+    const project = yield* projects.create("Project");
+    yield* projects.delete(project.id);
+
+    const read = yield* Effect.flip(settings.getEffective(project.id));
+    const preview = yield* Effect.flip(settings.previewProjectAutoComplete(project.id));
+
+    expect(read).toMatchObject({ entity: "Project" });
+    expect(preview).toMatchObject({ entity: "Project" });
+  }).pipe(withServices, withSchema),
+);

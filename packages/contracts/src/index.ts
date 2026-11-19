@@ -23,3 +23,13 @@ export { AreaSnapshot } from "./area-snapshot.js";
 export { Item, ItemEdit } from "./item.js";
 export { ItemRpcs } from "./item-rpcs.js";
 export { CompletionResult } from "./completion-result.js";
+export { DurationTicks } from "./duration-ticks.js";
+export { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
+export { LookupRpcs } from "./lookup-rpcs.js";
+export { GlobalSettings, ProjectSettingOverrides, ProjectSettings } from "./settings.js";
+export {
+  ReconciliationApproval,
+  SettingsReconciliationPreview,
+  SettingsSaveResult,
+} from "./settings-save-result.js";
+export { SettingsRpcs } from "./settings-rpcs.js";
