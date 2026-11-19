@@ -38,6 +38,7 @@ export default defineConfig({
           include: [
             "apps/desktop/test/renderer.test.ts",
             "apps/desktop/test/server-process.test.ts",
+            "apps/desktop/test/scripts/**/*.test.ts",
           ],
         },
       },

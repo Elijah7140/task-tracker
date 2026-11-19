@@ -4,14 +4,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron, type ElectronApplication, type Page } from "playwright";
 import { test } from "vitest";
+import { unpackedExecutable as executable } from "../../scripts/package-paths.ts";
 
-const output = fileURLToPath(new URL("../../dist/package", import.meta.url));
-
-/** The unpacked executable that `pnpm run package:desktop` produces for this platform. */
-export const executable =
-  process.platform === "win32"
-    ? join(output, "win-unpacked", "task-tracker.exe")
-    : join(output, "linux-unpacked", "task-tracker");
+export { executable };
 
 /** The Phase 3 EF fixture. Tests copy it and never open the original. */
 export const phase3Fixture = fileURLToPath(

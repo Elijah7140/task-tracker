@@ -1,13 +1,6 @@
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
 import { expect, test } from "vitest";
-
-const output = fileURLToPath(new URL("../dist/package", import.meta.url));
-const executable =
-  process.platform === "win32"
-    ? join(output, "win-unpacked", "task-tracker.exe")
-    : join(output, "linux-unpacked", "task-tracker");
+import { unpackedExecutable as executable } from "../scripts/package-paths.ts";
 
 // The fuse wire stores ASCII "1" and "0"; the package does not export its FuseState enum.
 const FuseState = { ENABLE: "1".charCodeAt(0), DISABLE: "0".charCodeAt(0) };

@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.ref_type == 'tag' && !github.event.deleted
+    strategy:
+      matrix:
+        include:
+          - target: win-x64
+            runner: ${{ vars.CI_WINDOWS_SELF_HOSTED == 'true' && '["self-hosted", "windows", "x64"]' || '"windows-latest"' }}
+          - target: linux-x64
+            runner: ${{ vars.CI_LINUX_SELF_HOSTED == 'true' && '["self-hosted", "linux", "x64"]' || '"ubuntu-latest"' }}
+          - target: mac-arm64
+            runner: '"macos-15"'
+    name: Package ${{ matrix.target }}
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Linux browser and Electron dependencies
+        if: runner.os == 'Linux'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build the tagged package
+        shell: bash
+        run: pnpm run package:desktop "$GITHUB_REF_NAME"
+      - name: Run packaged desktop smoke on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sandbox=apps/desktop/dist/package/linux-unpacked/chrome-sandbox
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+          xvfb-run -a pnpm run test:desktop
+      - name: Run packaged desktop smoke on Windows and macOS
+        if: runner.os != 'Linux'
+        run: pnpm run test:desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: apps/desktop/dist/package/release/
+          if-no-files-found: error
+          overwrite: true
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      # Download each native build's verified payload into its own directory.
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-win-x64
+          path: release-bundles/win-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-linux-x64
+          path: release-bundles/linux-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-mac-arm64
+          path: release-bundles/mac-arm64
+      - name: Verify the release assembly
+        run: node apps/desktop/scripts/publish-release.ts "$GITHUB_REF_NAME" release-bundles
+      - name: Upload and publish the verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node apps/desktop/scripts/publish-release.ts "$GITHUB_REF_NAME" release-bundles --publish

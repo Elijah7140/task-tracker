@@ -63,9 +63,75 @@ unpacked build. When installing or rebuilding, keep the database and backups
 outside the install or build directory. Defaults are `%LocalAppData%/TaskTracker`
 on Windows and `~/.local/share/TaskTracker` on Linux (or absolute `XDG_DATA_HOME`).
 
-The tagged .NET release instructions are at `legacy-final:README.md`. The
-Electron release pipeline, in-app updates and start-with-system are tracked in
-[WP41 and WP42](docs/MIGRATION.md#wp41--installers-and-release-publishing).
+## Install a release
+
+Download the package for your system from the repository's **Releases** page.
+Windows packages are unsigned and macOS packages are ad-hoc signed without
+notarization. Only approve an OS prompt for a release you obtained from this
+repository.
+
+- **Windows x64.** Run `task-tracker-<version>-win-x64.exe`. The per-user
+  installer creates Start menu and desktop shortcuts. If SmartScreen prompts,
+  use **More info → Run anyway**.
+- **Linux x64.** Make `task-tracker-<version>-linux-x64.AppImage` executable
+  with `chmod +x` and run it. If mounting fails, install your distribution's
+  FUSE 2 compatibility library or launch with `APPIMAGE_EXTRACT_AND_RUN=1`.
+- **macOS Apple silicon.** Open `task-tracker-<version>-mac-arm64.dmg` and
+  drag **Task Tracker** to Applications, or unzip the app and move it there.
+  If Gatekeeper blocks the first launch, try opening the app and then use
+  **System Settings → Privacy & Security → Open Anyway**.
+
+To uninstall, use **Settings → Apps → Installed apps → Task Tracker → Uninstall**
+on Windows, delete the AppImage on Linux, or move **Task Tracker.app** to the
+Trash on macOS. The database and its backups live in a separate directory.
+
+| System  | Default data directory                                                                |
+| ------- | ------------------------------------------------------------------------------------- |
+| Windows | `%LocalAppData%/TaskTracker`                                                          |
+| Linux   | `~/.local/share/TaskTracker` or `$XDG_DATA_HOME/TaskTracker` if that base is absolute |
+| macOS   | `~/Library/Application Support/TaskTracker`                                           |
+
+Keep custom `TASKTRACKER_DB_PATH` files and their backups outside the installed
+app, AppImage, and package output directories. The first launch backs up a
+recognized database before migrating it. In-app updating and start-with-system
+are tracked in [WP42](docs/MIGRATION.md#wp42--updates-about-and-start-with-system).
+
+## Verify a release
+
+Build on native Windows x64, Linux x64, and macOS arm64 using the same version
+tag and revision. A local build can use an example tag without creating it.
+
+```sh
+pnpm run package:desktop v0.2.0-rc.1
+pnpm run test:desktop
+```
+
+On Linux, source `scripts/dev-env.sh` before packaging and use
+`xvfb-run -a pnpm run test:desktop` on a headless machine. Copy
+`apps/desktop/dist/package/release/` from each build into a directory named
+`win-x64`, `linux-x64`, or `mac-arm64` under one common parent. Verify the
+complete assembly locally.
+
+```sh
+node apps/desktop/scripts/publish-release.ts v0.2.0-rc.1 release-bundles
+```
+
+This dry run checks that every installer, archive, blockmap and update
+metadata file matches its native build checksum. Pushing a valid `v*` tag
+starts the [release workflow](.github/workflows/release.yml). It packages and
+smoke-tests before uploading the verified files to one draft and checking the
+uploaded digests. A retry replaces a leftover draft and leaves a published
+release intact. Prereleases use `beta*.yml` and GitHub's prerelease flag.
+Stable releases use `latest*.yml`. See [CI setup](docs/CI.md) for runner selection.
+
+For the Windows installer acceptance check, use a disposable standard user.
+Put a copy of the supported legacy database in the default data directory
+before launching the app. Install without elevation, verify the shortcuts,
+then launch and confirm the legacy data appears and a readable pre-migration
+backup is present. Close the app, record hashes of the database and backup,
+uninstall via Settings, and compare both hashes. Reinstall and verify the same
+data opens. On Linux and macOS, repeat the data checks while replacing or
+removing the AppImage or app bundle.
 
 ## Workspace layout
 

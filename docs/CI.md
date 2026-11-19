@@ -10,8 +10,13 @@ minutes. Run the local gate for each OS without an enabled runner.
 | `workspace.yml` → `workspace-build.yml`, Windows | `self-hosted, windows, x64` | Push to `main` or pull request when `CI_WINDOWS_SELF_HOSTED` is `true` |
 | Manual CI on GitHub-hosted runners | GitHub (billed) | From **Actions → CI → Run workflow**, with **Use GitHub-hosted runners** selected |
 
-Unset variables skip the corresponding jobs. The Electron tagged release workflow
-is planned in [§7.13](PLAN.md#713-installers-and-releases).
+Unset variables skip the corresponding PR and main jobs. A push of a valid
+`v*` release tag runs [Release](../.github/workflows/release.yml) separately.
+Release packaging uses enabled self-hosted Windows and Linux runners, with
+GitHub-hosted runners for platforms without configured runners. macOS packaging
+uses a GitHub-hosted Apple silicon runner, and release assembly runs on
+GitHub-hosted Linux. These jobs can use billed minutes. See
+[release verification](../README.md#verify-a-release) for the local dry run.
 
 ## Local gate
 

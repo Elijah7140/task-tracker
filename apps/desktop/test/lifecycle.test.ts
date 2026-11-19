@@ -4,17 +4,11 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
 import type { MessageBoxOptions } from "electron";
 import { _electron, type ElectronApplication } from "playwright";
 import { expect, test } from "vitest";
+import { unpackedExecutable as executable } from "../scripts/package-paths.ts";
 import { isRunning, mainPid, serverChildren, serverPid } from "./support/desktop-processes.js";
-
-const output = fileURLToPath(new URL("../dist/package", import.meta.url));
-const executable =
-  process.platform === "win32"
-    ? join(output, "win-unpacked", "task-tracker.exe")
-    : join(output, "linux-unpacked", "task-tracker");
 
 interface DesktopFixture {
   readonly database: string;
@@ -229,7 +223,7 @@ desktopTest(
 
 /** Finds Electron main processes for `profile` other than `excluded`. */
 function otherMainProcesses(profile: string, excluded: number) {
-  return execFileSync("ps", ["-eo", "pid=,args="], { encoding: "utf8" })
+  return execFileSync("ps", ["-axww", "-o", "pid=,command="], { encoding: "utf8" })
     .split("\n")
     .filter((line) => line.includes(`--user-data-dir=${profile}`) && !line.includes("--type="))
     .map((line) => Number.parseInt(line.trim(), 10))
