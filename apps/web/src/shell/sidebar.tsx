@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
-import { CircleCheck, House, Plus, Settings } from "lucide-react";
+import { CircleCheck, House, Plus, Settings, Trash2 } from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
 import { Button } from "../ui/button.js";
+import { useReturnPageStore } from "../state/return-page-store.js";
 import { useCurrentArea } from "../workspace/area-route.js";
-import { SidebarLink } from "./sidebar-link.js";
+import { SIDEBAR_ROW_CLASS, SidebarLink } from "./sidebar-link.js";
 import { SidebarProjectList } from "./sidebar-project-list.js";
 import { ThemeSwitcher } from "./theme-switcher.js";
+import { useOpenTrash } from "./use-open-trash.js";
 
 function SidebarBrand({ editMenu }: { readonly editMenu?: ReactNode }) {
   return (
@@ -57,6 +59,26 @@ function SettingsLink() {
   );
 }
 
+/** Opens Trash over the current page, which stays as the page Back returns to. */
+function TrashEntry() {
+  const openTrash = useOpenTrash();
+  const shown = useReturnPageStore((state) => state.covering === "trash");
+  return (
+    <button
+      type="button"
+      onClick={openTrash}
+      aria-current={shown ? "page" : undefined}
+      data-testid="sidebar-trash"
+      className={SIDEBAR_ROW_CLASS}
+    >
+      <span className="flex size-5 shrink-0 items-center justify-center">
+        <Trash2 size={15} aria-hidden="true" />
+      </span>
+      <span className="truncate">Trash</span>
+    </button>
+  );
+}
+
 /**
  * The app's navigation sidebar. The open project's folder tree nests under its
  * project link. Later screens add sections (settings) between the project list
@@ -81,7 +103,8 @@ export function Sidebar({ editMenu }: { readonly editMenu?: ReactNode }) {
         </SidebarLink>
         <ProjectsSection />
       </div>
-      <div className="border-t border-line px-2 py-2">
+      <div className="flex flex-col gap-0.5 border-t border-line px-2 py-2">
+        <TrashEntry />
         <SettingsLink />
       </div>
       <div className="border-t border-line p-3">

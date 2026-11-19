@@ -12,6 +12,7 @@ import {
 } from "../rpc/history-queries.js";
 import { dialogStore, notify } from "../state/dialog-store.js";
 import { isItemEditorOpen } from "../state/item-editor-store.js";
+import { markReturnPageStale, useReturnPageStore } from "../state/return-page-store.js";
 
 type Direction = "undo" | "redo";
 
@@ -77,7 +78,8 @@ interface Outcome {
 export function useHistoryActions(blockedReason: () => string | undefined) {
   const location = useLocation();
   const page = location.pathname;
-  const inWorkspace = page.startsWith("/projects/") && !page.endsWith("/settings");
+  const covered = useReturnPageStore((state) => state.covering !== null);
+  const inWorkspace = page.startsWith("/projects/") && !page.endsWith("/settings") && !covered;
   const query = useAtomValue(historyStatusAtom);
   const history = AsyncResult.isSuccess(query) ? query.value : undefined;
   const replay = useAtomSet(applyHistoryAtom, { mode: "promiseExit" });
@@ -87,7 +89,7 @@ export function useHistoryActions(blockedReason: () => string | undefined) {
 
   useEffect(() => {
     setOutcome(null);
-  }, [page]);
+  }, [page, covered]);
 
   const showRefusal = (message: string) => {
     if (inWorkspace && !isItemEditorOpen()) {
@@ -118,6 +120,9 @@ export function useHistoryActions(blockedReason: () => string | undefined) {
         reactivityKeys: [HISTORY_KEY, HISTORY_REPLAY_KEY],
       });
       if (Exit.isSuccess(exit)) {
+        if (exit.value !== null) {
+          markReturnPageStale();
+        }
         if (exit.value !== null && inWorkspace) {
           const { label, revision } = exit.value;
           setOutcome({

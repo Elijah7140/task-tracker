@@ -81,3 +81,4 @@ export {
   type SettingsReconciliationPreview,
 } from "./completion/reconciliation-preview.js";
 export { UndoHistory, type UndoDirection } from "./undo/undo-history.js";
+export { TrashProject, type TrashBatch } from "./trash/trash-project.js";

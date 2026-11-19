@@ -3,6 +3,7 @@ import type { AreaSnapshot } from "@task-tracker/contracts";
 import { CornerLeftUp, X } from "lucide-react";
 import { type RefObject, useEffect, useRef } from "react";
 import { useItemEditorStore } from "../state/item-editor-store.js";
+import { useReturnPageStore } from "../state/return-page-store.js";
 import { Button } from "../ui/button.js";
 import { findItemNode, type ItemNode } from "../workspace/item-outline.js";
 import { PropertyFields, TitleFields } from "./built-in-fields.js";
@@ -186,10 +187,12 @@ function EditorContent({
  * fields, and sub-items. Escape, Cancel and the close button ask about unsaved
  * changes first; Save stores the draft and closes; Discard changes restores
  * the stored values. Typed values live in the editor store, so they survive
- * loads, area refreshes and a cancelled question.
+ * loads, area refreshes and a cancelled question. A covering page such as
+ * Trash hides the editor but keeps it mounted, so its draft and guards stay.
  */
 export function ItemEditor({ snapshot, onAddSubItem }: ItemEditorProps) {
   const openItemId = useItemEditorStore((state) => state.openItemId);
+  const covered = useReturnPageStore((state) => state.covering !== null);
   const node = openItemId === null ? undefined : findItemNode(snapshot.items, openItemId);
   const lastNode = useRef<ItemNode | undefined>(undefined);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -208,14 +211,14 @@ export function ItemEditor({ snapshot, onAddSubItem }: ItemEditorProps) {
   const shown = node ?? lastNode.current;
   return (
     <Dialog.Root
-      open={node !== undefined}
+      open={node !== undefined && !covered}
       onOpenChange={(open) => {
         if (!open) {
           closeRequest.current();
         }
       }}
     >
-      <Dialog.Portal>
+      <Dialog.Portal keepMounted={node !== undefined}>
         <Dialog.Backdrop className={backdropClass} />
         <Dialog.Popup className={popupClass} initialFocus={titleRef} data-testid="item-editor">
           {shown === undefined ? null : (

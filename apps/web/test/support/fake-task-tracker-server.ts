@@ -31,6 +31,7 @@ import {
   itemHandlers,
 } from "./fake-item-operations.js";
 import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
+import { FakeTrash, trashHandlers } from "./fake-trash-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -109,6 +110,11 @@ export class FakeProjectStore {
     return () => release();
   }
 
+  /** Lets later calls of `tag` through while a call already held keeps waiting for its release. */
+  stopHolding(tag: string) {
+    this.holds.delete(tag);
+  }
+
   /** Records a call and waits while a test holds that RPC. */
   record = (tag: string) =>
     Effect.sync(() => this.calls.push(tag)).pipe(
@@ -122,6 +128,9 @@ export class FakeProjectStore {
   };
 
   readonly settingsAndLookups = new FakeSettingsAndLookups(this.nextId);
+
+  /** Deletion batches listed by Trash. */
+  readonly trash = new FakeTrash();
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
@@ -321,16 +330,19 @@ export class FakeProjectStore {
       areas: this.areas,
       autoCompleteByProject: this.autoCompleteByProject,
       values: this.customFields.values,
+      trash: this.trash.batches,
     });
 
   /** Applies a captured state while keeping the fake clock and ID generator monotonic. */
   restoreUndoState = (snapshot: ReturnType<FakeProjectStore["captureUndoState"]>) => {
-    const { summaries, folders, areas, autoCompleteByProject, values } = structuredClone(snapshot);
+    const { summaries, folders, areas, autoCompleteByProject, values, trash } =
+      structuredClone(snapshot);
     this.summaries = summaries;
     this.folders = folders;
     this.areas = areas;
     this.autoCompleteByProject = autoCompleteByProject;
     this.customFields.restoreValues(values);
+    this.trash.batches = trash;
   };
 
   /** Returns all active area states. */
@@ -643,6 +655,7 @@ function handlers(store: FakeProjectStore) {
     },
     ...settingsAndLookupHandlers(store, record),
     ...customFieldHandlers(store, record),
+    ...trashHandlers(store, history.track),
     EditItem: (payload) =>
       history.track(editItem(payload), () => `Edit '${payload.fields.title.trim()}'`),
   });

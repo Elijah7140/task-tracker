@@ -44,6 +44,25 @@ export function projectRepository(sql: SqlClient.SqlClient) {
       Result: row,
       execute: () => sql`SELECT * FROM Project ORDER BY SortOrder, rowid`,
     }),
+    listWithDeletions: SqlSchema.findAll({
+      Request: Schema.NullOr(Guid),
+      Result: row,
+      execute: (projectId) => sql`SELECT project.* FROM Project AS project
+        WHERE (${projectId} IS NULL OR project.Id = ${projectId}) AND (
+          project.DeletedAtUtc IS NOT NULL OR
+          EXISTS (SELECT 1 FROM Folder WHERE ProjectId = project.Id AND DeletedAtUtc IS NOT NULL) OR
+          EXISTS (SELECT 1 FROM TodoItem WHERE ProjectId = project.Id AND DeletedAtUtc IS NOT NULL)
+        ) ORDER BY project.rowid`,
+    }),
+    findWithBatch: SqlSchema.findOneOption({
+      Request: Guid,
+      Result: row,
+      execute: (batchId) => sql`SELECT project.* FROM Project AS project WHERE project.Id IN (
+        SELECT Id FROM Project WHERE DeletionBatchId = ${batchId} AND DeletedAtUtc IS NOT NULL
+        UNION SELECT ProjectId FROM Folder WHERE DeletionBatchId = ${batchId} AND DeletedAtUtc IS NOT NULL
+        UNION SELECT ProjectId FROM TodoItem WHERE DeletionBatchId = ${batchId} AND DeletedAtUtc IS NOT NULL
+      )`,
+    }),
     requireActive: (id: string) =>
       findActive(id).pipe(
         Effect.flatMap(

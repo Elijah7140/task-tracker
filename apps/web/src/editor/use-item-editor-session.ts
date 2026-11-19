@@ -7,6 +7,7 @@ import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { editItemAtom } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
+import { useReturnGuard } from "../shell/return-guards.js";
 import { useUndoBlocker } from "../shell/undo-blockers.js";
 import { dialogStore, resolveDraft } from "../state/dialog-store.js";
 import { useItemEditorStore } from "../state/item-editor-store.js";
@@ -88,6 +89,14 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       busy.current = false;
     }
   };
+
+  useReturnGuard(async () => {
+    let resolved = false;
+    await guarded(() => {
+      resolved = true;
+    });
+    return resolved;
+  });
 
   const saveAndClose = async () => {
     if (busy.current) {
