@@ -19,9 +19,9 @@ import { treeStyles } from "../ui/tree-styles.js";
 import { ItemMenuItems } from "./item-menu-items.js";
 import { isEmptyLevel, type ItemNode } from "./item-outline.js";
 import { ItemTypeIcon } from "./item-type-icon.js";
-import type { DropPlacement } from "./reorder-plan.js";
 import { UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
+import type { ItemDropPosition } from "./use-item-drag.js";
 
 /** Names and zone an item row resolves its references with. */
 export interface ItemRowLookups {
@@ -41,41 +41,64 @@ export interface ItemRowProps {
   readonly canIndent: boolean;
   readonly hasFolders: boolean;
   readonly dragging: boolean;
-  readonly dropIndicator: DropPlacement | null;
+  /** Drop feedback while this row is the target of an item drag. */
+  readonly dropIndicator: ItemDropPosition | null;
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
   readonly onSelect: () => void;
   readonly onExpandedChange: (expanded: boolean) => void;
   readonly onMenuOpenChange: (open: boolean) => void;
-  readonly onStartDrag: (event: PointerEvent<HTMLButtonElement>) => void;
+  /** A left-button press anywhere on the row that may become a drag (§7.5). */
+  readonly onStartDrag: (event: PointerEvent<HTMLElement>) => void;
 }
 
 /** Shared column layout so detail columns align at every nesting level. */
 export const ITEM_ROW_COLUMNS =
   "grid grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_10.5rem_8rem_1.75rem] items-center gap-3";
 
-function DragHandle({
-  node,
-  onStartDrag,
-}: {
-  readonly node: ItemNode;
-  readonly onStartDrag: (event: PointerEvent<HTMLButtonElement>) => void;
-}) {
-  if (node.isFinished) {
-    return <span className="w-4 shrink-0" aria-hidden="true" />;
-  }
+/** The grip shown on hover. The whole row starts a drag; the grip only signals it. */
+function DragHandle({ node }: { readonly node: ItemNode }) {
   return (
     <button
       type="button"
       tabIndex={-1}
-      aria-label={`Reorder ${node.item.title}`}
+      aria-label={`Move ${node.item.title}`}
       data-testid="item-drag-handle"
-      onPointerDown={onStartDrag}
       onClick={(event) => event.stopPropagation()}
       className="grid h-5 w-4 shrink-0 cursor-grab place-items-center rounded-[0.3125rem] text-fg-subtle opacity-0 group-hover/row:opacity-100 hover:bg-pressed hover:text-fg active:cursor-grabbing"
     >
       <GripVertical size={13} aria-hidden="true" />
     </button>
+  );
+}
+
+/** An insertion edge before or after the row, or the "Make sub-item" label for an into drop. */
+function DropFeedback({ position }: { readonly position: ItemDropPosition | null }) {
+  if (position === null) {
+    return null;
+  }
+  if (position === "into") {
+    return (
+      <span
+        aria-hidden="true"
+        data-testid="drop-indicator"
+        data-placement="into"
+        className="pointer-events-none absolute top-1/2 right-10 -translate-y-1/2 rounded-full bg-accent px-2 py-0.5 text-[11px] leading-4 font-medium text-on-accent"
+      >
+        Make sub-item
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="drop-indicator"
+      data-placement={position}
+      className={cx(
+        "pointer-events-none absolute right-2 left-2 h-0.5 rounded-full bg-accent",
+        position === "before" ? "top-0" : "bottom-0",
+      )}
+    />
   );
 }
 
@@ -308,38 +331,34 @@ export function ItemRow(props: ItemRowProps) {
     onExpandedChange,
     onStartDrag,
   } = props;
-  const dragParent = node.isFinished ? undefined : (node.item.parentItemId ?? "root");
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger
         data-tree-row=""
         data-testid="item-row"
         data-item-row-id={node.item.id}
-        data-drag-parent={dragParent}
+        data-dragging={dragging ? "true" : undefined}
+        data-drop-into={dropIndicator === "into" ? "true" : undefined}
         onClick={onSelect}
+        onPointerDown={onStartDrag}
         className={cx(
           ITEM_ROW_COLUMNS,
           "group/row relative h-9 cursor-default rounded-control pr-2 transition-colors",
-          selected ? "bg-accent-soft" : "hover:bg-hover",
+          dropIndicator === "into"
+            ? "bg-accent/15 ring-1 ring-accent/60 ring-inset"
+            : selected
+              ? "bg-accent-soft"
+              : "hover:bg-hover",
           node.isFinished && "text-fg-muted",
           dragging && "opacity-50",
         )}
       >
-        {dropIndicator === null ? null : (
-          <span
-            aria-hidden="true"
-            data-testid="drop-indicator"
-            className={cx(
-              "pointer-events-none absolute right-2 left-2 h-0.5 rounded-full bg-accent",
-              dropIndicator === "before" ? "top-0" : "bottom-0",
-            )}
-          />
-        )}
+        <DropFeedback position={dropIndicator} />
         <div
           className="flex min-w-0 items-center gap-1.5"
           style={{ paddingLeft: `${0.25 + depth * 1.5}rem` }}
         >
-          <DragHandle node={node} onStartDrag={onStartDrag} />
+          <DragHandle node={node} />
           <ExpandToggle node={node} expanded={expanded} onExpandedChange={onExpandedChange} />
           <CompletionMark
             title={node.item.title}

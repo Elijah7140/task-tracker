@@ -2,7 +2,13 @@ import { Dialog } from "@base-ui/react/dialog";
 import type { AreaSnapshot } from "@task-tracker/contracts";
 import { CornerLeftUp, X } from "lucide-react";
 import { type RefObject, useEffect, useRef } from "react";
-import { useItemEditorStore } from "../state/item-editor-store.js";
+import {
+  carriedItemEditor,
+  settleCarriedItemEditor,
+  useItemEditorStore,
+} from "../state/item-editor-store.js";
+import { areaKey } from "../rpc/area-queries.js";
+import { useWorkspaceStore } from "../state/workspace-store.js";
 import { Button } from "../ui/button.js";
 import { findItemNode, type ItemNode } from "../workspace/item-outline.js";
 import { PropertyFields, TitleFields } from "./built-in-fields.js";
@@ -198,12 +204,19 @@ export function ItemEditor({ snapshot, onAddSubItem }: ItemEditorProps) {
     lastNode.current = node;
   }
 
+  // A saving move may still carry the editor to the item's new area (§7.5).
+  const moveSaving = useWorkspaceStore((state) => state.itemMoveSaving);
+  const key = areaKey(snapshot.projectId, snapshot.folderId);
   useEffect(() => {
+    if (node !== undefined) {
+      settleCarriedItemEditor(key);
+      return;
+    }
     // The open item was deleted or moved away, so there is nothing left to edit.
-    if (openItemId !== null && node === undefined) {
+    if (openItemId !== null && !moveSaving && carriedItemEditor() === null) {
       useItemEditorStore.getState().close();
     }
-  }, [openItemId, node]);
+  }, [openItemId, node, moveSaving, key]);
 
   const shown = node ?? lastNode.current;
   return (

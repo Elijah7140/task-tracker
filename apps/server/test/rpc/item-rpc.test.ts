@@ -191,8 +191,8 @@ it.effect("Moves, indents, outdents and reorders items while reconciling complet
         item: { id: parent.id, completedAtUtc: null },
         children: { open: [{ item: { id: child.id, parentItemId: parent.id } }] },
       });
-      expect(outdented.items.open[2]).toMatchObject({
-        item: { id: child.id, parentItemId: null, sortOrder: 2 },
+      expect(outdented.items.open[1]).toMatchObject({
+        item: { id: child.id, parentItemId: null, sortOrder: 1 },
       });
       expect(reordered.items.open).toMatchObject([
         {

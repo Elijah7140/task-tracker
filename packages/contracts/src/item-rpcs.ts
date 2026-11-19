@@ -39,6 +39,14 @@ export const ItemRpcs = RpcGroup.make(
   Rpc.make("IndentItem", { payload: areaItem, error: RpcOperationError }),
   Rpc.make("OutdentItem", { payload: areaItem, error: RpcOperationError }),
   Rpc.make("MoveItem", { payload: { ...areaItem, parentItemId }, error: RpcOperationError }),
+  Rpc.make("DropItem", {
+    payload: {
+      ...areaItem,
+      targetItemId: Guid,
+      position: Schema.Literals(["before", "after", "into"]),
+    },
+    error: RpcOperationError,
+  }),
   Rpc.make("ReorderItems", {
     payload: { ...area, parentItemId, itemIds: Schema.Array(Guid) },
     error: RpcOperationError,

@@ -1,155 +1,173 @@
+import { type PointerEvent, type RefObject, useRef, useState } from "react";
+import { useWorkspaceStore } from "../state/workspace-store.js";
+import { usePointerDrag } from "../ui/use-pointer-drag.js";
 import {
-  type PointerEvent as ReactPointerEvent,
-  type RefObject,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import type { ItemNode } from "./item-outline.js";
-import { type DropPlacement, resolveDropTarget, type SiblingRowRect } from "./reorder-plan.js";
+  findItemNode,
+  itemAncestorIds,
+  type ItemNode,
+  type ItemSiblings,
+  siblingNodesOf,
+} from "./item-outline.js";
+import { moveAmongVisible } from "./reorder-plan.js";
 
-/** Minimum vertical pointer travel in CSS pixels before a drag starts. */
-const DRAG_THRESHOLD_PX = 4;
+/** Row drop positions along the tree's vertical axis. */
+export type ItemDropPosition = "before" | "after" | "into";
 
-/** Current sibling drag preview shown on the tree rows. */
+/** Workspace drop intent resolved against a visible row, area or the end of the tree. */
+export type ItemDrop =
+  | { readonly kind: "row"; readonly id: string; readonly position: ItemDropPosition }
+  | { readonly kind: "area"; readonly folderId: string | null }
+  | { readonly kind: "root-end" };
+
+/** Current drag preview shown on item rows. */
 export interface ActiveItemDrag {
   readonly sourceId: string;
-  readonly parentItemId: string | null;
-  readonly targetId: string | null;
-  readonly placement: DropPlacement | null;
+  readonly target: ItemDrop | null;
 }
 
 /** Options for {@link useItemDrag}. */
-export interface UseItemDragOptions {
+interface ItemDragOptions {
   readonly treeRef: RefObject<HTMLUListElement | null>;
-  readonly onDrop: (
-    parentItemId: string | null,
-    sourceId: string,
-    targetId: string,
-    placement: DropPlacement,
-  ) => void;
+  /** The open area, so a drop onto its own sidebar entry is ignored. */
+  readonly folderId: string | null;
+  /** The area snapshot the drop is validated against before it is sent. */
+  readonly nodes: ItemSiblings;
+  readonly onDrop: (source: ItemNode, target: ItemDrop) => void;
 }
 
-function collectSiblingRects(
-  tree: HTMLUListElement | null,
-  parentItemId: string | null,
-): ReadonlyArray<SiblingRowRect> {
-  if (tree === null) {
-    return [];
+/** Row controls that keep their own click and never start a drag. */
+const NON_DRAG_CONTROLS =
+  "button:not([data-testid='item-drag-handle']), [data-testid='item-toggle']";
+
+/**
+ * Splits a row into thirds along the direction items flow: the top third
+ * inserts before, the middle third makes a sub-item and the bottom third
+ * inserts after (§7.5).
+ */
+function positionAcross(offset: number, length: number): ItemDropPosition {
+  if (offset < length / 3) {
+    return "before";
   }
-  const key = parentItemId ?? "root";
-  const rows = tree.querySelectorAll<HTMLElement>(`[data-drag-parent="${key}"]`);
-  const rects: Array<SiblingRowRect> = [];
-  for (const row of rows) {
-    const id = row.dataset["itemRowId"];
-    if (id !== undefined) {
-      const { top, height } = row.getBoundingClientRect();
-      rects.push({ id, top, height });
-    }
-  }
-  return rects;
+  return offset > (length * 2) / 3 ? "after" : "into";
 }
 
-interface DragSessionInput {
-  readonly sourceId: string;
-  readonly parentItemId: string | null;
-  readonly originY: number;
-  readonly treeRef: RefObject<HTMLUListElement | null>;
-  readonly setDragState: (next: ActiveItemDrag | null) => void;
-  readonly onComplete: (drop: ReturnType<typeof resolveDropTarget>) => void;
-}
-
-function beginDragSession({
-  sourceId,
-  parentItemId,
-  originY,
-  treeRef,
-  setDragState,
-  onComplete,
-}: DragSessionInput): () => void {
-  let active = false;
-  let latestTarget: ReturnType<typeof resolveDropTarget> = null;
-
-  const updateTarget = (clientY: number) => {
-    if (!active && Math.abs(clientY - originY) < DRAG_THRESHOLD_PX) {
-      return;
-    }
-    active = true;
-    latestTarget = resolveDropTarget(
-      collectSiblingRects(treeRef.current, parentItemId),
-      sourceId,
-      clientY,
-    );
-    setDragState({
-      sourceId,
-      parentItemId,
-      targetId: latestTarget?.targetId ?? null,
-      placement: latestTarget?.placement ?? null,
-    });
-  };
-
-  const cleanup = () => {
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    window.removeEventListener("pointercancel", onCancel);
-    window.removeEventListener("keydown", onKeyDown);
-    setDragState(null);
-  };
-
-  const onMove = (event: PointerEvent) => updateTarget(event.clientY);
-  const onUp = (event: PointerEvent) => {
-    updateTarget(event.clientY);
-    const drop = active ? latestTarget : null;
-    cleanup();
-    onComplete(drop);
-  };
-  const onCancel = () => cleanup();
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      cleanup();
-    }
-  };
-
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onUp);
-  window.addEventListener("pointercancel", onCancel);
-  window.addEventListener("keydown", onKeyDown);
-  return cleanup;
+/** True when an edge drop among the same open siblings would leave their order unchanged. */
+function isUnchangedOrder(
+  nodes: ItemSiblings,
+  source: ItemNode,
+  targetId: string,
+  position: "before" | "after",
+) {
+  const open = siblingNodesOf(nodes, source.item.parentItemId).open.map(({ item }) => item.id);
+  return moveAmongVisible(open, open, source.item.id, targetId, position) === null;
 }
 
 /**
- * Pointer-based sibling reorder hook. Tracks movement on `window` once the
- * pointer crosses {@link DRAG_THRESHOLD_PX}, resolves the drop target among
- * open siblings sharing `parentItemId`, and cancels cleanly on Escape or unmount.
+ * Resolves a row under the pointer. Self and descendant targets are rejected,
+ * and so are insertion edges involving a finished row, which is ordered by
+ * completion time rather than by drag (§6.2).
  */
-export function useItemDrag({ treeRef, onDrop }: UseItemDragOptions) {
+function rowTarget(nodes: ItemSiblings, source: ItemNode, row: HTMLElement, clientY: number) {
+  const id = row.dataset["itemRowId"]!;
+  const target = findItemNode(nodes, id);
+  if (!target || id === source.item.id || itemAncestorIds(nodes, id).includes(source.item.id)) {
+    return null;
+  }
+  const { top, height } = row.getBoundingClientRect();
+  const position = positionAcross(clientY - top, height);
+  if (position === "into") {
+    return { kind: "row", id, position } as const;
+  }
+  if (source.isFinished || target.isFinished) {
+    return null;
+  }
+  const sameParent = source.item.parentItemId === target.item.parentItemId;
+  return sameParent && isUnchangedOrder(nodes, source, id, position)
+    ? null
+    : ({ kind: "row", id, position } as const);
+}
+
+/** A sidebar area under the pointer accepts top-level items from another area. */
+function areaTarget(
+  options: ItemDragOptions,
+  source: ItemNode,
+  area: HTMLElement,
+): ItemDrop | null {
+  if (source.item.parentItemId !== null) {
+    return null;
+  }
+  const folderId = area.dataset["itemDropArea"] || null;
+  return folderId === options.folderId ? null : { kind: "area", folderId };
+}
+
+/** Empty workspace below the tree promotes a sub-item to the end of the top level. */
+function isBelowTree(tree: HTMLElement, hit: Element | null, clientY: number) {
+  return (
+    hit?.closest("main") === tree.closest("main") && clientY >= tree.getBoundingClientRect().bottom
+  );
+}
+
+function targetAt(options: ItemDragOptions, source: ItemNode, event: MouseEvent): ItemDrop | null {
+  const tree = options.treeRef.current;
+  if (tree === null) {
+    return null;
+  }
+  // Hit-testing respects the scroll viewport and clipping, even while the source has capture.
+  const hit = document.elementFromPoint(event.clientX, event.clientY);
+  const row = hit?.closest<HTMLElement>("[data-item-row-id]");
+  if (row && tree.contains(row)) {
+    return rowTarget(options.nodes, source, row, event.clientY);
+  }
+  const area = hit?.closest<HTMLElement>("[data-item-drop-area]");
+  if (area) {
+    return areaTarget(options, source, area);
+  }
+  const promotes = source.item.parentItemId !== null && isBelowTree(tree, hit, event.clientY);
+  return promotes ? { kind: "root-end" } : null;
+}
+
+/**
+ * Translates the shared pointer gesture into workspace drop intents (§7.5). A
+ * left press on a row becomes a drag at 4 pixels; Escape or capture loss
+ * cancels it, and another button press leaves the original source active.
+ * The latest snapshot validates each target, the
+ * server validates the drop again, and the hovered sidebar area is published
+ * for its highlight.
+ */
+export function useItemDrag(options: ItemDragOptions) {
   const [dragState, setDragState] = useState<ActiveItemDrag | null>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
-  const onDropRef = useRef(onDrop);
-  onDropRef.current = onDrop;
+  const start = usePointerDrag();
+  const latest = useRef(options);
+  latest.current = options;
+  const setItemDropArea = useWorkspaceStore((state) => state.setItemDropArea);
 
-  useEffect(() => () => cleanupRef.current?.(), []);
-
-  const startDrag = (node: ItemNode, event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0 || node.isFinished) {
+  const startDrag = (node: ItemNode, event: PointerEvent<HTMLElement>) => {
+    if ((event.target as Element).closest(NON_DRAG_CONTROLS)) {
       return;
     }
-    event.preventDefault();
-    event.stopPropagation();
-    cleanupRef.current?.();
-    const { id: sourceId, parentItemId } = node.item;
-    cleanupRef.current = beginDragSession({
-      sourceId,
-      parentItemId,
-      originY: event.clientY,
-      treeRef,
-      setDragState,
-      onComplete: (drop) => {
-        cleanupRef.current = null;
-        if (drop !== null) {
-          onDropRef.current(parentItemId, sourceId, drop.targetId, drop.placement);
+    const sourceId = node.item.id;
+    const locate = (pointer: MouseEvent) => {
+      const source = findItemNode(latest.current.nodes, sourceId);
+      return source === undefined
+        ? null
+        : { source, target: targetAt(latest.current, source, pointer) };
+    };
+    start(event, {
+      focusOnPress: true,
+      move: (pointer) => {
+        const target = locate(pointer)?.target ?? null;
+        setDragState({ sourceId, target });
+        setItemDropArea(target?.kind === "area" ? { folderId: target.folderId } : null);
+      },
+      drop: (pointer) => {
+        const result = locate(pointer);
+        if (result?.target) {
+          latest.current.onDrop(result.source, result.target);
         }
+      },
+      end: () => {
+        setDragState(null);
+        setItemDropArea(null);
       },
     });
   };

@@ -397,11 +397,6 @@ describe("Item actions and reorder", () => {
     await dialog.getByRole("radio", { name: "Views" }).click();
     await dialog.getByRole("button", { name: "Move" }).click();
 
-    await expect.element(row(PARENT)).not.toBeInTheDocument();
-    await page
-      .getByRole("treeitem", { name: "Views", exact: true })
-      .getByTestId("folder-row")
-      .click();
     const viewsTree = page.getByRole("tree", { name: "Items in Views" });
     await expect.element(viewsTree.getByRole("treeitem", { name: PARENT })).toBeVisible();
 
@@ -509,9 +504,10 @@ describe("Item actions and reorder", () => {
     await focusRow("Open C");
     await userEvent.keyboard("{Tab}");
 
+    // Outdent placed Open C straight after Open A, which the server no longer has.
     await expect
       .element(page.getByRole("alertdialog", { name: "Item action failed" }))
-      .toHaveAccessibleDescription("Item is missing or deleted.");
+      .toHaveAccessibleDescription("The first sibling cannot be indented.");
   });
 
   it("Reorders top-level and nested open siblings with Alt+Up/Down while keeping finished slots", async () => {
@@ -568,6 +564,7 @@ describe("Item actions and reorder", () => {
     await userEvent.dragAndDrop(
       row("Alpha").getByTestId("item-drag-handle").first(),
       row("Gamma").getByTestId("item-row").first(),
+      { targetPosition: { x: 180, y: 30 } },
     );
 
     expect(store.areaSiblingTitles(projectId, null)).toEqual(["Beta", "Done", "Gamma", "Alpha"]);
@@ -575,6 +572,7 @@ describe("Item actions and reorder", () => {
     await userEvent.dragAndDrop(
       row("Gamma").getByTestId("item-drag-handle").first(),
       row("Beta").getByTestId("item-row").first(),
+      { targetPosition: { x: 180, y: 5 } },
     );
 
     expect(store.areaSiblingTitles(projectId, null)).toEqual(["Gamma", "Done", "Beta", "Alpha"]);
@@ -583,6 +581,7 @@ describe("Item actions and reorder", () => {
     await userEvent.dragAndDrop(
       row("Child 1").getByTestId("item-drag-handle").first(),
       row("Child 2").getByTestId("item-row").first(),
+      { targetPosition: { x: 180, y: 30 } },
     );
 
     const alpha = store.findItemByTitle(projectId, null, "Alpha")!;
@@ -699,7 +698,7 @@ describe("Item actions and reorder", () => {
     await expect.element(row("Parent")).toHaveFocus();
   });
 
-  it("Focuses the next sibling after moving an item to another area", async () => {
+  it("Follows an item moved to another area and focuses its row there", async () => {
     await openRoot([BILLING_PROJECT]);
     await focusRow(PARENT);
 
@@ -709,8 +708,8 @@ describe("Item actions and reorder", () => {
     await dialog.getByRole("radio", { name: "Views" }).click();
     await dialog.getByRole("button", { name: "Move" }).click();
 
-    await expect.element(row(PARENT)).not.toBeInTheDocument();
-    await expect.element(row(SECOND)).toHaveFocus();
+    const viewsTree = page.getByRole("tree", { name: "Items in Views" });
+    await expect.element(viewsTree.getByRole("treeitem", { name: PARENT })).toHaveFocus();
   });
 
   it("Reorders finished siblings with Alt+Up/Down within their own group", async () => {
@@ -735,10 +734,13 @@ describe("Item actions and reorder", () => {
       .toEqual(["Open one", "Done B", "Open two", "Done A"]);
     await expect.element(row("Done A")).toHaveFocus();
 
-    await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
-
+    // A reorder pressed before the saved order arrives is ignored, and Done A
+    // cannot move above Done B twice, so repeat the key until it takes effect.
     await expect
-      .poll(() => store.areaSiblingTitles(projectId, null))
+      .poll(async () => {
+        await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
+        return store.areaSiblingTitles(projectId, null);
+      })
       .toEqual(["Open one", "Done A", "Open two", "Done B"]);
     await expect.element(row("Done A")).toHaveFocus();
   });

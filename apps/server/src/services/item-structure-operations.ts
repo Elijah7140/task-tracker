@@ -1,4 +1,4 @@
-import { createItem, FolderTree, ItemTree, type TodoItem } from "@task-tracker/core";
+import { createItem, dropItem, FolderTree, ItemTree, type TodoItem } from "@task-tracker/core";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { folderRepository } from "../db/repositories/folder-repository.js";
@@ -144,6 +144,19 @@ export function itemStructureOperations(
     );
   }, undo.record);
 
+  const drop = Effect.fnUntraced(function* (
+    projectId: string,
+    folderId: string | null,
+    id: string,
+    targetItemId: string,
+    position: Parameters<typeof dropItem>[3],
+  ) {
+    const target = yield* decodeId(targetItemId);
+    yield* reparent(projectId, folderId, id, "Move", (tree, key, now) =>
+      dropItem(tree, key, target, position, now),
+    );
+  }, undo.record);
+
   const indent = (projectId: string, folderId: string | null, id: string) =>
     undo.record(
       reparent(projectId, folderId, id, "Indent", (tree, key, now) => tree.indent(key, now)),
@@ -239,6 +252,7 @@ export function itemStructureOperations(
   return {
     create,
     move,
+    drop,
     indent,
     outdent,
     moveToArea,

@@ -607,3 +607,38 @@ it.effect("A reopened database retains committed rows and starts with empty hist
     );
   }),
 );
+
+it.effect(
+  "Undo and redo replay the moved subtree and both reconciled ancestor chains in one step",
+  () =>
+    Effect.gen(function* () {
+      const { items, undo, project, root } = yield* setup;
+      const child = (parentId: string, title: string) =>
+        items.create(project.id, null, parentId, title);
+      const oldRoot = yield* root("Old root");
+      const newRoot = yield* root("New root");
+      const oldParent = yield* child(oldRoot.id, "Old parent");
+      const newParent = yield* child(newRoot.id, "New parent");
+      const moved = yield* child(oldParent.id, "Moved");
+      yield* child(moved.id, "Grandchild");
+      const done = yield* child(oldParent.id, "Done");
+      yield* items.setCompleted(project.id, null, done.id, true);
+      yield* items.setCompleted(project.id, null, newParent.id, true);
+      const before = yield* readItems();
+
+      yield* items.drop(project.id, null, moved.id, newParent.id, "into");
+      const after = yield* readItems();
+      const undone = yield* undo.apply("undo");
+
+      expect(
+        after
+          .filter((row) => row.CompletedAtUtc !== null)
+          .map((row) => String(row.Title))
+          .sort((left, right) => left.localeCompare(right)),
+      ).toEqual(["Done", "Old parent", "Old root"]);
+      expect(undone?.label).toBe("Move 'Moved'");
+      expect(yield* readItems()).toEqual(before);
+      yield* undo.apply("redo");
+      expect(yield* readItems()).toEqual(after);
+    }).pipe(Effect.provide(services), withSchema),
+);

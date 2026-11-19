@@ -36,6 +36,8 @@ export const itemRpcHandlers = (timeZone: string) =>
           items.outdent(projectId, folderId, itemId).pipe(mapOperationError),
         MoveItem: ({ projectId, folderId, itemId, parentItemId }) =>
           items.move(projectId, folderId, itemId, parentItemId).pipe(mapOperationError),
+        DropItem: ({ projectId, folderId, itemId, targetItemId, position }) =>
+          items.drop(projectId, folderId, itemId, targetItemId, position).pipe(mapOperationError),
         ReorderItems: ({ projectId, folderId, parentItemId, itemIds }) =>
           items.reorder(projectId, folderId, parentItemId, itemIds).pipe(mapOperationError),
         MoveItemToArea: ({ projectId, sourceFolderId, targetFolderId, itemId }) =>

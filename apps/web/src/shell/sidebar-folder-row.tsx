@@ -2,6 +2,7 @@ import { ContextMenu } from "@base-ui/react/context-menu";
 import { Menu } from "@base-ui/react/menu";
 import { ChevronRight, Ellipsis, Folder as FolderIcon, FolderOpen } from "lucide-react";
 import type { MouseEvent } from "react";
+import { useWorkspaceStore } from "../state/workspace-store.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent, MenuContent } from "../ui/menu.js";
 import { treeStyles } from "../ui/tree-styles.js";
@@ -71,15 +72,19 @@ function OverflowMenu({ node, actions, menuOpen, onMenuOpenChange }: SidebarFold
 export function SidebarFolderRow(props: SidebarFolderRowProps) {
   const { node, current, expanded, actions, onOpen } = props;
   const Icon = expanded && node.children.length > 0 ? FolderOpen : FolderIcon;
+  const dropActive = useWorkspaceStore((state) => state.itemDropArea?.folderId === node.folder.id);
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger
         data-tree-row=""
         data-testid="folder-row"
+        data-item-drop-area={node.folder.id}
+        data-drop-active={dropActive ? "true" : undefined}
         onClick={onOpen}
         className={cx(
           "group/row flex h-7 min-w-0 cursor-default items-center gap-1 rounded-control pr-1 text-fg-muted transition-colors hover:bg-hover hover:text-fg",
           current && "bg-pressed font-medium text-fg",
+          dropActive && "bg-accent-soft text-fg ring-1 ring-accent ring-inset",
         )}
         style={{ paddingLeft: `${1.375 + node.depth * 0.875}rem` }}
       >

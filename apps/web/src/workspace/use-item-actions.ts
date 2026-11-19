@@ -21,6 +21,7 @@ import {
   reportItemFailure,
   useItemStructureActions,
 } from "./use-item-structure-actions.js";
+import { useItemDropActions } from "./use-item-drop-actions.js";
 import { useSingleRunPerItem } from "./use-single-run-per-item.js";
 
 /** Info for the undo banner shown after deleting an item subtree. */
@@ -297,7 +298,7 @@ export function useItemActions(scope: ItemActionScope) {
     moveItemParent: once("moveItemParent", structure.moveItemParent),
     moveItemToArea: once("moveItemToArea", structure.moveItemToArea),
     reorderByOffset: structure.reorderByOffset,
-    reorderByDrop: structure.reorderByDrop,
+    dropItem: useItemDropActions(scope),
   };
 }
 
