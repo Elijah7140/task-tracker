@@ -51,6 +51,7 @@ export default defineConfig({
           include: [
             "@base-ui/react/alert-dialog",
             "@base-ui/react/button",
+            "@base-ui/react/checkbox",
             "@base-ui/react/context-menu",
             "@base-ui/react/dialog",
             "@base-ui/react/field",
@@ -58,6 +59,7 @@ export default defineConfig({
             "@base-ui/react/menu",
             "@base-ui/react/radio",
             "@base-ui/react/radio-group",
+            "@base-ui/react/select",
             "@base-ui/react/toggle",
             "@base-ui/react/toggle-group",
             "@base-ui/react/tooltip",

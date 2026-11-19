@@ -14,14 +14,22 @@ export interface RenderAppOptions {
   readonly path?: string;
   /** A clock for renderer timers, such as a `TestClock` from {@link createTestClock}. */
   readonly clock?: Clock.Clock;
+  /** Optional store setup hook run before the RPC server starts. */
+  readonly configure?: (store: FakeProjectStore) => void;
 }
 
 /**
  * Mounts the whole renderer with memory routing and the real RPC client wired
  * to an in-process fake server.
  */
-export async function renderApp({ projects = [], path = "/", clock }: RenderAppOptions = {}) {
+export async function renderApp({
+  projects = [],
+  path = "/",
+  clock,
+  configure,
+}: RenderAppOptions = {}) {
   const store = new FakeProjectStore(projects);
+  configure?.(store);
   const server = await startFakeServer(store);
   onTestFinished(() => server.close());
   const history = createMemoryHistory({ initialEntries: [path] });

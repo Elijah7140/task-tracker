@@ -1,4 +1,6 @@
 import type { Guid } from "@task-tracker/contracts";
+import { LOOKUPS_KEY } from "./lookup-queries.js";
+import { projectSettingsKey, SETTINGS_KEY } from "./settings-queries.js";
 import { TaskTrackerClient } from "./task-tracker-client.js";
 
 type Id = typeof Guid.Type;
@@ -15,5 +17,12 @@ export const areaAtom = (projectId: Id, folderId: Id | null) =>
   TaskTrackerClient.query(
     "LoadArea",
     { projectId, folderId },
-    { reactivityKeys: [areaKey(projectId, folderId)] },
+    {
+      reactivityKeys: [
+        areaKey(projectId, folderId),
+        SETTINGS_KEY,
+        projectSettingsKey(projectId),
+        LOOKUPS_KEY,
+      ],
+    },
   );

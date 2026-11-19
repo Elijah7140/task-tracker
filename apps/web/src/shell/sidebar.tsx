@@ -1,4 +1,4 @@
-import { CircleCheck, House, Plus } from "lucide-react";
+import { CircleCheck, House, Plus, Settings } from "lucide-react";
 import { useProjectActions } from "../home/use-project-actions.js";
 import { Button } from "../ui/button.js";
 import { SidebarLink } from "./sidebar-link.js";
@@ -61,6 +61,16 @@ export function Sidebar() {
           Home
         </SidebarLink>
         <ProjectsSection />
+      </div>
+      <div className="border-t border-line px-2 py-2">
+        <SidebarLink
+          target={{ to: "/settings" }}
+          icon={<Settings size={15} aria-hidden="true" />}
+          exact
+          testId="sidebar-settings"
+        >
+          Settings
+        </SidebarLink>
       </div>
       <div className="border-t border-line p-3">
         <ThemeSwitcher />

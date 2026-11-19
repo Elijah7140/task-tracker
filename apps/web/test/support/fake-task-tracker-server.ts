@@ -9,6 +9,7 @@ import { Effect, Exit, Scope } from "effect";
 import { HttpEffect } from "effect/http";
 import { RpcSerialization, RpcServer } from "effect/rpc";
 import { areaSnapshot, FakeAreaBuilder, type SeedItem } from "./fake-area-items.js";
+import { FakeSettingsAndLookups, settingsAndLookupHandlers } from "./fake-settings-lookups.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Folder = typeof FolderProjection.Type;
@@ -60,6 +61,8 @@ export class FakeProjectStore {
     this.sequence += 1;
     return guid(this.sequence);
   };
+
+  readonly settingsAndLookups = new FakeSettingsAndLookups(this.nextId);
 
   /** Adds a project as if another client had created it. */
   add({ name, openCount = 0, overdueCount = 0, folders = [], items = [] }: SeedProject): Summary {
@@ -329,24 +332,7 @@ function handlers(store: FakeProjectStore) {
     MoveItemToArea: notUsed,
     DeleteItem: notUsed,
     RestoreItems: notUsed,
-    LoadGlobalSettings: notUsed,
-    LoadProjectSettings: notUsed,
-    PreviewGlobalAutoComplete: notUsed,
-    PreviewProjectAutoComplete: notUsed,
-    SaveGlobalSettings: notUsed,
-    SaveProjectSettings: notUsed,
-    ListItemTypes: notUsed,
-    AddItemType: notUsed,
-    RenameItemType: notUsed,
-    ArchiveItemType: notUsed,
-    RestoreItemType: notUsed,
-    ReorderItemTypes: notUsed,
-    ListPriorityLevels: notUsed,
-    AddPriorityLevel: notUsed,
-    RenamePriorityLevel: notUsed,
-    ArchivePriorityLevel: notUsed,
-    RestorePriorityLevel: notUsed,
-    ReorderPriorityLevels: notUsed,
+    ...settingsAndLookupHandlers(store, record),
   });
 }
 

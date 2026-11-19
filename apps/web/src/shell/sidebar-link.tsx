@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { AreaTarget } from "../workspace/area-route.js";
 
 /** A route the sidebar can link to. */
-export type SidebarTarget = { readonly to: "/" } | AreaTarget;
+export type SidebarTarget = { readonly to: "/" } | { readonly to: "/settings" } | AreaTarget;
 
 /** Props for {@link SidebarLink}. */
 export interface SidebarLinkProps {
