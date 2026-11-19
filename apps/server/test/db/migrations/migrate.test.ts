@@ -2,7 +2,14 @@ import { expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
 import { databaseMigrations, migrate } from "../../../src/db/migrations/migrate.js";
-import { insertProject, withDatabase, withSchema } from "../store.js";
+import {
+  insertItem,
+  insertProject,
+  itemId,
+  timestamp,
+  withDatabase,
+  withSchema,
+} from "../store.js";
 
 it.effect("Seeds the built-in lookups with EF's stored IDs, order and flags", () =>
   Effect.gen(function* () {
@@ -31,7 +38,7 @@ it.effect("Seeds the built-in lookups with EF's stored IDs, order and flags", ()
   }).pipe(withSchema),
 );
 
-it.effect("Applies the second schema stage once without rewriting existing rows", () =>
+it.effect("Applies pending schema stages once without rewriting existing lookups", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     yield* Migrator.make({})({
@@ -57,32 +64,16 @@ it.effect("Applies the second schema stage once without rewriting existing rows"
     const upgrade = yield* migrate;
     const replay = yield* migrate;
 
-    expect(upgrade).toEqual([[2, "AddCustomFields"]]);
+    expect(upgrade).toHaveLength(9);
+    expect(upgrade.at(-1)).toEqual([10, "AddTicketRank"]);
     expect(replay).toEqual([]);
-    expect(yield* tables).toEqual([
-      ["FieldChoice"],
-      ["FieldDefinition"],
-      ["Folder"],
-      ["GlobalSetting"],
-      ["ItemFieldValue"],
-      ["ItemType"],
-      ["PriorityLevel"],
-      ["Project"],
-      ["ProjectSetting"],
-      ["TodoItem"],
-      ["effect_sql_migrations"],
-    ]);
+    expect(yield* tables).toContainEqual(["TodoItemSearch"]);
+    expect(yield* tables).toContainEqual(["FieldDefinition"]);
     expect(yield* sql`SELECT Name FROM Project`.values).toEqual([["Project"]]);
     expect(yield* sql`SELECT Name FROM ItemType ORDER BY SortOrder`.values).toEqual([
       ["Renamed"],
       ["Error"],
       ["Discussion"],
-    ]);
-    expect(
-      yield* sql`SELECT migration_id, name FROM effect_sql_migrations ORDER BY migration_id`.values,
-    ).toEqual([
-      [1, "InitialCreate"],
-      [2, "AddCustomFields"],
     ]);
   }).pipe(withDatabase),
 );
@@ -104,4 +95,124 @@ it.effect("Rolls back pending schema changes and ledger entries when a migration
       ),
     ).toEqual([["FieldChoice"]]);
   }).pipe(withDatabase),
+);
+
+it.effect(
+  "Backfills old items and keeps their search row IDs through updates, deletion and restore",
+  () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* Migrator.make({})({
+        loader: Effect.map(databaseMigrations, (migrations) => migrations.slice(0, 2)),
+      });
+      yield* sql.withTransaction(insertProject.pipe(Effect.andThen(insertItem())));
+      const find = (token: string) =>
+        sql`SELECT ItemId, RowId FROM TodoItemSearch
+        JOIN TodoItemSearchRow ON TodoItemSearch.rowid = RowId
+        WHERE TodoItemSearch MATCH ${token}`.values;
+
+      yield* migrate;
+      const original = yield* find("Item");
+      yield* sql.withTransaction(
+        sql`UPDATE TodoItem SET Title = 'Café', DeletedAtUtc = ${timestamp}`,
+      );
+      const softDeleted = yield* find("cafe");
+      yield* sql.withTransaction(sql`UPDATE TodoItem SET DeletedAtUtc = NULL`);
+      const restored = yield* find("cafe");
+      const obsolete = yield* find("Item");
+      yield* sql.withTransaction(sql`DELETE FROM TodoItem`);
+      const purged = yield* find("cafe");
+      yield* sql.withTransaction(insertItem());
+      const inserted = yield* find("Item");
+
+      expect(original).toEqual([[itemId, 1]]);
+      expect(softDeleted).toEqual(original);
+      expect(restored).toEqual(original);
+      expect(obsolete).toEqual([]);
+      expect(purged).toEqual([]);
+      expect(inserted).toEqual([[itemId, 2]]);
+    }).pipe(withDatabase),
+);
+
+it.effect("Reserves project search keys and rewrites only matching clauses in scope", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* Migrator.make({})({
+      loader: Effect.map(databaseMigrations, (migrations) => migrations.slice(0, 4)),
+    });
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        yield* insertProject;
+        yield* insertItem();
+        yield* sql`UPDATE TodoItem SET CompletedAtUtc = ${timestamp}`;
+        yield* sql`INSERT INTO FieldDefinition (Id, Key, DisplayName, DataType, IsArchived, SortOrder, ProjectId)
+        VALUES ('custom-link', 'link', 'Old link', 'Text', 0, 0, (SELECT Id FROM Project)),
+               ('occupied', 'LINK-2', 'Occupied', 'Text', 1, 1, NULL),
+               ('custom-repeats', 'repeats', 'Old repeats', 'Text', 0, 2, NULL),
+               ('custom-reminder', 'reminder', 'Old reminder', 'Text', 0, 3, NULL),
+               ('custom-completed', 'completed', 'Old completed', 'Text', 0, 4, NULL)`;
+        yield* sql`INSERT INTO SavedSearch (Id, Name, QueryText, ScopeKind, ProjectId, IncludeSubfolders,
+        IncludeCompleted, SortOrder, CreatedAtUtc, UpdatedAtUtc)
+        VALUES ('all', 'All', ${'LINK~"link:test" has:" LINK " "link:value" no:link..link STATUS:true __workflowstatus:Testing completed:notes reminder!=10 repeats:1..2'}, 'AllProjects', NULL, 0, 1, 0, ${timestamp}, ${timestamp}),
+               ('area', 'Area', 'no:link', 'Area', (SELECT Id FROM Project), 1, 0, 1, ${timestamp}, ${timestamp}),
+               ('other', 'Other', 'link:value', 'Project', 'other-project', 0, 0, 2, ${timestamp}, ${timestamp}),
+               ('invalid', 'Invalid', ${'status:"malformed"tail status:"unclosed link:value'}, 'AllProjects', NULL, 0, 0, 3, ${timestamp}, ${timestamp})`;
+      }),
+    );
+
+    yield* migrate;
+
+    expect(yield* sql`SELECT Key FROM FieldDefinition ORDER BY SortOrder`.values).toEqual([
+      ["link-3"],
+      ["LINK-2"],
+      ["repeats-2"],
+      ["reminder-2"],
+      ["completed-2"],
+    ]);
+    expect(yield* sql`SELECT QueryText FROM SavedSearch ORDER BY SortOrder`.values).toEqual([
+      [
+        'link-3~"link:test" has:link-3 "link:value" no:link..link completed:true status:Testing completed-2:notes reminder-2!=10 repeats-2:1..2',
+      ],
+      ["no:link-3"],
+      ["link:value"],
+      ['status:"malformed"tail status:"unclosed link:value'],
+    ]);
+    expect(
+      yield* sql`SELECT CompletedAtUtc, StatusId, ReopenStatusId FROM TodoItem`.values,
+    ).toEqual([[timestamp, "019A0000-0000-7000-8000-000000000204", null]]);
+  }).pipe(withDatabase),
+);
+
+it.effect(
+  "Reserves saved-search keywords using the first available suffix and keeps field values",
+  () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* Migrator.make({})({
+        loader: Effect.map(databaseMigrations, (migrations) => migrations.slice(0, 3)),
+      });
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          yield* insertProject;
+          yield* insertItem();
+          yield* sql`INSERT INTO FieldDefinition (Id, Key, DisplayName, DataType, IsArchived, SortOrder)
+        VALUES ('has', 'has', 'Has', 'Text', 0, 0), ('has-2', 'has-2', 'Other', 'Text', 1, 1),
+               ('no', 'no', 'No', 'Text', 0, 2), ('is', 'is', 'Is', 'Text', 0, 3)`;
+          yield* sql`INSERT INTO ItemFieldValue (ItemId, FieldDefinitionId, TextValue)
+        VALUES (${itemId}, 'has', 'Preserved')`;
+        }),
+      );
+
+      yield* migrate;
+
+      expect(yield* sql`SELECT Key FROM FieldDefinition ORDER BY SortOrder`.values).toEqual([
+        ["has-3"],
+        ["has-2"],
+        ["no-2"],
+        ["is-2"],
+      ]);
+      expect(
+        yield* sql`SELECT TextValue FROM ItemFieldValue WHERE FieldDefinitionId = 'has'`.values,
+      ).toEqual([["Preserved"]]);
+    }).pipe(withDatabase),
 );

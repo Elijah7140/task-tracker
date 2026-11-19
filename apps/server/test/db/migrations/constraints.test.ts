@@ -116,3 +116,63 @@ it.effect("Restricts deleting referenced projects and cascades item value deleti
     expect(yield* sql.withTransaction(sql`SELECT * FROM ItemFieldValue`)).toEqual([]);
   }).pipe(withSchema),
 );
+
+it.effect("Enforces status, completion and remembered-open-status consistency", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const done = "019A0000-0000-7000-8000-000000000204";
+    const queued = "019A0000-0000-7000-8000-000000000201";
+    yield* sql.withTransaction(insertProject.pipe(Effect.andThen(insertItem())));
+
+    const invalid = [
+      sql`UPDATE TodoItem SET CompletedAtUtc = '2026-11-13 12:00:00'`,
+      sql`UPDATE TodoItem SET StatusId = ${done}`,
+      sql`UPDATE TodoItem SET ReopenStatusId = ${queued}`,
+      sql`UPDATE TodoItem SET CompletedAtUtc = '2026-11-13 12:00:00',
+        StatusId = ${done}, ReopenStatusId = ${done}`,
+    ];
+    for (const statement of invalid) {
+      const failure = yield* Effect.flip(sql.withTransaction(statement));
+      expect(failure.message).toContain("Item status must agree with completion");
+    }
+    yield* sql.withTransaction(sql`UPDATE TodoItem SET CompletedAtUtc = '2026-11-13 12:00:00',
+      StatusId = ${done}, ReopenStatusId = ${queued}`);
+    const archive = yield* Effect.flip(
+      sql.withTransaction(sql`UPDATE StatusLevel SET IsArchived = 1 WHERE Id = ${done}`),
+    );
+    const remove = yield* Effect.flip(
+      sql.withTransaction(sql`DELETE FROM StatusLevel WHERE Id = ${queued}`),
+    );
+    const kind = yield* Effect.flip(
+      sql.withTransaction(sql`UPDATE StatusLevel SET Kind = 1 WHERE Id = ${queued}`),
+    );
+
+    expect(archive.message).toContain("At least one Done status must stay active");
+    expect(remove.message).toContain("This status is still used by an item");
+    expect(kind.message).toContain("Status kind cannot change");
+  }).pipe(withSchema),
+);
+
+it.effect(
+  "Allows number-only priorities and reserves each positive integer among active priorities",
+  () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql.withTransaction(sql`INSERT INTO PriorityLevel (Id, Name, Number, IsBuiltIn, IsArchived, SortOrder)
+      VALUES ('one', '', 7, 0, 0, 4), ('two', '', 8, 0, 0, 5), ('archived', '', 7, 0, 1, 6)`);
+
+      const duplicate = yield* Effect.flip(
+        sql.withTransaction(sql`UPDATE PriorityLevel SET IsArchived = 0 WHERE Id = 'archived'`),
+      );
+      const fraction = yield* Effect.flip(
+        sql.withTransaction(sql`UPDATE PriorityLevel SET Number = 1.5 WHERE Id = 'two'`),
+      );
+      const zero = yield* Effect.flip(
+        sql.withTransaction(sql`UPDATE PriorityLevel SET Number = 0 WHERE Id = 'two'`),
+      );
+
+      expect(duplicate.message).toContain("UNIQUE constraint failed: PriorityLevel.Number");
+      expect(fraction.message).toContain("CK_PriorityLevel_Number");
+      expect(zero.message).toContain("CK_PriorityLevel_Number");
+    }).pipe(withSchema),
+);

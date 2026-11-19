@@ -3,7 +3,7 @@ import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
 import { Guid } from "../storage-codecs.js";
-import { ItemEditRow, ItemRow, ItemStructureRow } from "./item-row.js";
+import { ItemEditRow, ItemRow, itemRowColumns, ItemStructureRow } from "./item-row.js";
 
 const area = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
 
@@ -12,13 +12,14 @@ export function itemRepository(sql: SqlClient.SqlClient) {
   const findActive = SqlSchema.findOneOption({
     Request: Guid,
     Result: ItemRow,
-    execute: (id) => sql`SELECT * FROM TodoItem WHERE Id = ${id} AND ${activeRow(sql)}`,
+    execute: (id) =>
+      sql`SELECT ${itemRowColumns} FROM TodoItem WHERE Id = ${id} AND ${activeRow(sql)}`,
   });
   const listArea = (includeDeleted: boolean) =>
     SqlSchema.findAll({
       Request: area,
       Result: ItemRow,
-      execute: ({ projectId, folderId }) => sql`SELECT * FROM TodoItem
+      execute: ({ projectId, folderId }) => sql`SELECT ${itemRowColumns} FROM TodoItem
         WHERE ProjectId = ${projectId} AND FolderId IS ${folderId}
         ${includeDeleted ? sql` ` : sql`AND ${activeRow(sql)}`} ORDER BY rowid`,
     });

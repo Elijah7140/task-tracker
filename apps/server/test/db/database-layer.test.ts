@@ -8,12 +8,14 @@ import type { SQLInputValue } from "node:sqlite";
 import { Effect, Layer, Schema } from "effect";
 import { databaseLayer } from "../../src/db/database-layer.js";
 import { databaseMigrations } from "../../src/db/migrations/migrate.js";
+import { itemRepository } from "../../src/db/repositories/item-repository.js";
+import { projectItemRepository } from "../../src/db/repositories/project-item-repository.js";
 import { sqliteLayer } from "../../src/db/sqlite.js";
 import { Migrator, SqlClient } from "effect/sql";
 import { vi } from "vitest";
 import { FloatingTimestamp, Guid, TimeText, UtcTimestamp } from "../../src/db/storage-codecs.js";
 
-const faults = vi.hoisted(() => ({ failMigration: false }));
+const faults = vi.hoisted(() => ({ failDdl: "" }));
 
 vi.mock("node:sqlite", async (importOriginal) => {
   const native = await importOriginal<typeof import("node:sqlite")>();
@@ -22,9 +24,8 @@ vi.mock("node:sqlite", async (importOriginal) => {
     backup: vi.fn(native.backup),
     DatabaseSync: class extends native.DatabaseSync {
       override prepare(statement: string) {
-        // Fail after the ledger and FieldDefinition have been written.
         const ddl =
-          faults.failMigration && statement.startsWith('CREATE TABLE "FieldChoice"')
+          faults.failDdl && statement.startsWith(faults.failDdl)
             ? "CREATE TABLE FieldDefinition (Sentinel TEXT)"
             : statement;
         return super.prepare(ddl);
@@ -38,12 +39,21 @@ const customFieldsId = "20261114032356_AddCustomFields";
 const completedLedger = [
   { migration_id: 1, name: "InitialCreate" },
   { migration_id: 2, name: "AddCustomFields" },
+  { migration_id: 3, name: "AddItemSearch" },
+  { migration_id: 4, name: "AddSavedSearches" },
+  { migration_id: 5, name: "AddItemLinks" },
+  { migration_id: 6, name: "AddRecurrence" },
+  { migration_id: 7, name: "AddReminders" },
+  { migration_id: 8, name: "IndexTodayCompletions" },
+  { migration_id: 9, name: "AddStatusesAndPriorityNumbers" },
+  { migration_id: 10, name: "AddTicketRank" },
 ];
 const childId = "019A0000-0000-7000-8000-000000000CCB";
 const parentId = "019A0000-0000-7000-8000-000000000CCA";
+const recurringId = "019A0000-0000-7000-8000-000000000FFD";
 const archivedTypeId = "019A0000-0000-7000-8000-000000000EEE";
 
-function temporaryDatabase(fixture?: "initial-create" | "phase-3") {
+function temporaryDatabase(fixture?: "initial-create" | "phase-3" | "legacy-final") {
   return Effect.acquireRelease(
     Effect.sync(() => {
       const folder = mkdtempSync(join(tmpdir(), "tasktracker-startup-"));
@@ -58,6 +68,11 @@ function temporaryDatabase(fixture?: "initial-create" | "phase-3") {
 }
 
 const start = (path: string) => Effect.scoped(Layer.build(databaseLayer(path)));
+const applyEffectPrefix = (path: string, stage: number) =>
+  Migrator.make({})({
+    loader: Effect.map(databaseMigrations, (migrations) => migrations.slice(0, stage)),
+  }).pipe(Effect.provide(sqliteLayer(path)), Effect.scoped);
+
 const backups = (folder: string) =>
   readdirSync(folder).filter((name) => /^tasktracker-.*\.db\.bak$/.test(name));
 function singleBackup(folder: string) {
@@ -89,15 +104,147 @@ function schema(path: string) {
     WHERE name NOT IN ('__EFMigrationsHistory', '__EFMigrationsLock', 'effect_sql_migrations')
       AND name NOT LIKE 'sqlite_autoindex___EFMigrations%'
     ORDER BY name`,
-  );
+  ).map((row) => ({
+    ...row,
+    sql: typeof row.sql === "string" ? row.sql.trim().replace(/\s+/g, " ") : row.sql,
+  }));
 }
 
 function snapshot(path: string) {
   return query(
     path,
     "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'effect_sql_migrations'",
-  ).map(({ name }) => [name, query(path, `SELECT * FROM "${String(name)}"`)] as const);
+  ).map(({ name }) => {
+    using database = new DatabaseSync(path, { readOnly: true });
+    const statement = database.prepare(`SELECT * FROM "${String(name)}"`);
+    statement.setReadBigInts(true);
+    return [name, statement.all()] as const;
+  });
 }
+
+function expectOriginalRows(path: string, before: ReturnType<typeof snapshot>) {
+  for (const [table, rows] of before) {
+    const [first] = rows;
+    if (!first) {
+      continue;
+    }
+    const columns = Object.keys(first)
+      .map((name) => `"${name}"`)
+      .join(", ");
+    const expected =
+      table === "FieldDefinition"
+        ? rows.map((row) => (row.Key === "status" ? { ...row, Key: "status-2" } : row))
+        : rows;
+    using database = new DatabaseSync(path, { readOnly: true });
+    const statement = database.prepare(`SELECT ${columns} FROM "${String(table)}"`);
+    statement.setReadBigInts(true);
+    expect(statement.all()).toEqual(expected);
+  }
+}
+
+it.effect("Adopts the final EF fixture without changing its rows, schema or index mappings", () =>
+  Effect.gen(function* () {
+    const { path, folder } = yield* temporaryDatabase("legacy-final");
+    const fresh = yield* temporaryDatabase();
+    const originalSchema = schema(path);
+    const originalHistory = history(path);
+    const before = snapshot(path);
+    const mappings = query(path, "SELECT * FROM TodoItemSearchRow ORDER BY RowId");
+
+    yield* start(path);
+    yield* start(path);
+    yield* start(fresh.path);
+
+    expect(schema(path)).toEqual(originalSchema);
+    expect(schema(fresh.path)).toEqual(originalSchema);
+    expect(history(path)).toEqual(originalHistory);
+    expect(snapshot(path)).toEqual(before);
+    expect(ledger(path)).toEqual(completedLedger);
+    expect(query(path, "SELECT * FROM TodoItemSearchRow ORDER BY RowId")).toEqual(mappings);
+    expect(query(path, "SELECT QueryText FROM SavedSearch")).toEqual([
+      { QueryText: "completed:completed" },
+    ]);
+    expect(query(path, "SELECT Number FROM PriorityLevel WHERE Name = 'High'")).toEqual([
+      { Number: 7 },
+    ]);
+    expect(query(path, "SELECT Url FROM ItemLink")).toEqual([
+      { Url: "https://example.test/guide" },
+    ]);
+    expect(
+      query(
+        path,
+        `SELECT TicketRank, RecurrenceInterval, ReminderOffsetMinutes,
+      CAST(SnoozedUntilUtc AS TEXT) AS SnoozedUntilUtc FROM TodoItem WHERE TicketNumber = 'SAMPLE-7'`,
+      ),
+    ).toEqual([
+      {
+        TicketRank: 1.5,
+        RecurrenceInterval: 2,
+        ReminderOffsetMinutes: 30,
+        SnoozedUntilUtc: "639325734000000000",
+      },
+    ]);
+    expect(query(join(folder, singleBackup(folder)), "PRAGMA integrity_check")).toEqual([
+      { integrity_check: "ok" },
+    ]);
+    expect(query(path, "PRAGMA foreign_key_check")).toEqual([]);
+  }),
+);
+
+it.effect(
+  "Completes and reopens a final EF item with reminder ticks and an existing open status",
+  () =>
+    Effect.gen(function* () {
+      const { path } = yield* temporaryDatabase("legacy-final");
+      const projectId = "019A0000-0000-7000-8000-000000000AAA";
+      const instant = Temporal.Instant.from("2026-12-01T14:00:00Z");
+      const changeCompletion = (completedAtUtc: Temporal.Instant | null) =>
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql.withTransaction(itemRepository(sql).requireActive(recurringId));
+          yield* sql.withTransaction(
+            projectItemRepository(sql).setCompletion({
+              itemId: recurringId,
+              projectId,
+              completedAtUtc,
+              now: instant,
+            }),
+          );
+        }).pipe(Effect.provide(databaseLayer(path)), Effect.scoped);
+      const status = () =>
+        query(
+          path,
+          "SELECT StatusId, ReopenStatusId, CompletedAtUtc FROM TodoItem WHERE Id = ?",
+          recurringId,
+        );
+
+      yield* changeCompletion(instant);
+      const completed = status();
+      yield* changeCompletion(null);
+
+      expect(completed).toEqual([
+        {
+          StatusId: "019A0000-0000-7000-8000-000000000204",
+          ReopenStatusId: "019A0000-0000-7000-8000-000000000202",
+          CompletedAtUtc: "2026-12-01 14:00:00",
+        },
+      ]);
+      expect(status()).toEqual([
+        {
+          StatusId: "019A0000-0000-7000-8000-000000000202",
+          ReopenStatusId: null,
+          CompletedAtUtc: null,
+        },
+      ]);
+      expect(
+        query(
+          path,
+          "SELECT CAST(SnoozedUntilUtc AS TEXT) AS Ticks FROM TodoItem WHERE Id = ?",
+          recurringId,
+        ),
+      ).toEqual([{ Ticks: "639325734000000000" }]);
+    }),
+);
 
 it.effect("Migrates a new file without backup and opens it again without reseeding", () =>
   Effect.gen(function* () {
@@ -188,7 +335,7 @@ it.effect("Adopts the initial EF migration, adds custom fields, and reopens in p
     }).pipe(Effect.provide(databaseLayer(path)), Effect.scoped);
     yield* start(path);
 
-    expect(snapshot(path)).toEqual(expect.arrayContaining(before));
+    expectOriginalRows(path, before);
     expect(
       query(path, "SELECT Id, ParentItemId, FolderId FROM TodoItem WHERE Id = ?", childId),
     ).toEqual([
@@ -203,20 +350,18 @@ it.effect("Adopts the initial EF migration, adds custom fields, and reopens in p
   }),
 );
 
-it.effect("Baselines Phase 3 and retains the EF schema, storage values and user changes", () =>
+it.effect("Upgrades Phase 3 and retains the EF storage values and user changes", () =>
   Effect.gen(function* () {
     const { path, folder } = yield* temporaryDatabase("phase-3");
     const fresh = yield* temporaryDatabase();
     const before = snapshot(path);
-    const originalSchema = schema(path);
 
     yield* start(path);
     yield* start(path);
     yield* start(fresh.path);
 
-    expect(snapshot(path)).toEqual(before);
-    expect(schema(path)).toEqual(originalSchema);
-    expect(schema(fresh.path)).toEqual(originalSchema);
+    expectOriginalRows(path, before);
+    expect(schema(path)).toEqual(schema(fresh.path));
     expect(query(path, "SELECT Name FROM Project")).toEqual([{ Name: "Sample project" }]);
     expect(history(path).map((row) => row.MigrationId)).toEqual([initialId, customFieldsId]);
     expect(ledger(path)).toEqual(completedLedger);
@@ -384,9 +529,7 @@ it.effect("Stops before adoption when the SQLite backup fails", () =>
 it.effect("Backs up a pending Effect migration before applying it", () =>
   Effect.gen(function* () {
     const { path, folder } = yield* temporaryDatabase();
-    yield* Migrator.make({})({
-      loader: Effect.map(databaseMigrations, (migrations) => migrations.slice(0, 1)),
-    }).pipe(Effect.provide(sqliteLayer(path)), Effect.scoped);
+    yield* applyEffectPrefix(path, 1);
     const before = ledger(path);
 
     yield* start(path);
@@ -415,12 +558,12 @@ it.effect("Rolls back adoption and partial schema changes when the additive migr
     const { path, folder } = yield* temporaryDatabase("initial-create");
     const before = snapshot(path);
     const originalSchema = schema(path);
-    faults.failMigration = true;
+    faults.failDdl = 'CREATE TABLE "FieldChoice"';
 
     const failure = yield* Effect.flip(start(path)).pipe(
       Effect.ensuring(
         Effect.sync(() => {
-          faults.failMigration = false;
+          faults.failDdl = "";
         }),
       ),
     );
@@ -439,5 +582,103 @@ it.effect("Rolls back adoption and partial schema changes when the additive migr
     expect(ledger(path)).toEqual(completedLedger);
     expect(backups(folder)).toHaveLength(2);
     expect(backups(folder)).toContain(saved);
+  }),
+);
+
+it.effect.each([3, 4, 5, 6, 7, 8, 9] as const)(
+  "Adopts the EF history prefix at stage %i and preserves its search mapping",
+  (stage) =>
+    Effect.gen(function* () {
+      const { path, folder } = yield* temporaryDatabase();
+      const { path: fixture } = yield* temporaryDatabase("legacy-final");
+      yield* applyEffectPrefix(path, stage);
+      using original = new DatabaseSync(fixture, { readOnly: true });
+      const definition = original
+        .prepare("SELECT sql FROM sqlite_schema WHERE name = '__EFMigrationsHistory'")
+        .get()?.sql;
+      assert.ok(typeof definition === "string");
+      {
+        using database = new DatabaseSync(path);
+        database.exec(definition);
+        const rows = history(fixture).slice(0, stage);
+        for (const { MigrationId, ProductVersion } of rows) {
+          database
+            .prepare("INSERT INTO __EFMigrationsHistory VALUES (?, ?)")
+            .run(MigrationId ?? null, ProductVersion ?? null);
+        }
+        database.exec(`DROP TABLE effect_sql_migrations;
+        INSERT INTO Project (Id, Name, SortOrder, CreatedAtUtc, UpdatedAtUtc)
+          VALUES ('p', 'Project', 0, '2026-11-13 12:00:00', '2026-11-13 12:00:00');
+        INSERT INTO TodoItem (Id, ProjectId, Title, SortOrder, CreatedAtUtc, UpdatedAtUtc)
+          VALUES ('discarded', 'p', 'Discarded', 0, '2026-11-13 12:00:00', '2026-11-13 12:00:00'),
+                 ('kept', 'p', 'Kept', 0, '2026-11-13 12:00:00', '2026-11-13 12:00:00');
+        DELETE FROM TodoItem WHERE Id = 'discarded';`);
+      }
+      const before = history(path);
+
+      yield* start(path);
+      yield* start(path);
+
+      const saved = join(folder, singleBackup(folder));
+      expect(history(path)).toEqual(before);
+      expect(history(saved)).toEqual(before);
+      expect(ledger(path)).toEqual(completedLedger);
+      expect(query(path, "SELECT RowId, ItemId FROM TodoItemSearchRow")).toEqual([
+        { RowId: 2, ItemId: "kept" },
+      ]);
+      expect(
+        query(path, "SELECT rowid FROM TodoItemSearch WHERE TodoItemSearch MATCH 'kept'"),
+      ).toEqual([{ rowid: 2 }]);
+    }),
+);
+
+it.effect(
+  "Restores a pre-upgrade backup after a late migration failure rolls back FTS and schema changes",
+  () =>
+    Effect.gen(function* () {
+      const { path, folder } = yield* temporaryDatabase("phase-3");
+      const restored = yield* temporaryDatabase();
+      const before = snapshot(path);
+      const originalSchema = schema(path);
+      faults.failDdl = 'ALTER TABLE TodoItem ADD COLUMN "TicketRank"';
+
+      const failure = yield* Effect.flip(start(path)).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            faults.failDdl = "";
+          }),
+        ),
+      );
+
+      expect(failure.message).toContain('Migration "10_AddTicketRank" failed');
+      expect(snapshot(path)).toEqual(before);
+      expect(schema(path)).toEqual(originalSchema);
+      expect(
+        query(path, "SELECT name FROM sqlite_schema WHERE name = 'effect_sql_migrations'"),
+      ).toEqual([]);
+      copyFileSync(join(folder, singleBackup(folder)), restored.path);
+
+      yield* start(restored.path);
+
+      expectOriginalRows(restored.path, before);
+      expect(ledger(restored.path)).toEqual(completedLedger);
+      expect(query(restored.path, "SELECT count(*) AS count FROM TodoItemSearch")).toEqual([
+        { count: 3 },
+      ]);
+    }),
+);
+
+it.effect("Rejects a final EF database with a missing search trigger before adoption", () =>
+  Effect.gen(function* () {
+    const { path, folder } = yield* temporaryDatabase("legacy-final");
+    execute(path, "DROP TRIGGER TodoItemSearchRow_Delete");
+
+    const failure = yield* Effect.flip(start(path));
+
+    expect(failure.message).toContain('Missing schema object "TodoItemSearchRow_Delete"');
+    expect(backups(folder)).toEqual([]);
+    expect(
+      query(path, "SELECT name FROM sqlite_schema WHERE name = 'effect_sql_migrations'"),
+    ).toEqual([]);
   }),
 );

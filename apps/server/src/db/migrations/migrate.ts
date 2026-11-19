@@ -1,12 +1,28 @@
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
 import addCustomFields from "./add-custom-fields.js";
+import addItemLinks from "./add-item-links.js";
+import addItemSearch from "./add-item-search.js";
+import addRecurrence from "./add-recurrence.js";
+import addReminders from "./add-reminders.js";
+import addSavedSearches from "./add-saved-searches.js";
+import addStatusesAndPriorityNumbers from "./add-statuses-and-priority-numbers.js";
+import addTicketRank from "./add-ticket-rank.js";
+import indexTodayCompletions from "./index-today-completions.js";
 import initialCreate from "./initial-create.js";
 
-/** The two legacy schema stages in Effect migration order. */
+/** The legacy schema stages in Effect migration order. */
 export const databaseMigrations = Migrator.fromRecord({
   "1_InitialCreate": initialCreate,
   "2_AddCustomFields": addCustomFields,
+  "3_AddItemSearch": addItemSearch,
+  "4_AddSavedSearches": addSavedSearches,
+  "5_AddItemLinks": addItemLinks,
+  "6_AddRecurrence": addRecurrence,
+  "7_AddReminders": addReminders,
+  "8_IndexTodayCompletions": indexTodayCompletions,
+  "9_AddStatusesAndPriorityNumbers": addStatusesAndPriorityNumbers,
+  "10_AddTicketRank": addTicketRank,
 });
 
 /** Records the validated EF stages and applies any remaining migrations in the same transaction. */

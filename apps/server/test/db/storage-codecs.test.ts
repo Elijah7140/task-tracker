@@ -10,6 +10,7 @@ import {
   Real,
   TimeText,
   UtcTimestamp,
+  UtcTicks,
 } from "../../src/db/storage-codecs.js";
 import { insertItem, insertProject, itemId, projectId, withSchema } from "./store.js";
 
@@ -147,5 +148,23 @@ it.effect("Stores field enum names, boolean bits and numbers with EF's SQLite ty
 
     expect(stored).toEqual([["Number", "text", 1, "integer", 1.25, "real"]]);
     expect(restored).toEqual({ DataType: "Number", IsArchived: true, NumberValue: 1.25 });
+  }).pipe(withSchema),
+);
+
+it.effect("Round-trips .NET reminder ticks as a 64-bit SQLite integer", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const instant = Temporal.Instant.from("2026-12-11T10:30:00.0000001Z");
+    const encoded = Schema.encodeSync(UtcTicks)(instant);
+    yield* sql.withTransaction(insertProject.pipe(Effect.andThen(insertItem())));
+
+    yield* sql.withTransaction(sql`UPDATE TodoItem SET SnoozedUntilUtc = ${encoded}`);
+    const [row] = yield* sql
+      .withTransaction(sql`SELECT SnoozedUntilUtc FROM TodoItem`.values)
+      .pipe(Effect.provideService(SqlClient.SafeIntegers, true));
+
+    const ticks = row?.[0];
+    expect(ticks).toBe(639325818000000001n);
+    expect(Schema.decodeUnknownSync(UtcTicks)(ticks).equals(instant)).toBe(true);
   }).pipe(withSchema),
 );

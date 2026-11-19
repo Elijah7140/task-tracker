@@ -24,6 +24,7 @@ export function seedItem(
         SortOrder: 0,
         CreatedAtUtc: timestamp,
         UpdatedAtUtc: timestamp,
+        StatusId: fields.CompletedAtUtc ? "019A0000-0000-7000-8000-000000000204" : null,
         ...fields,
       })}`,
     );

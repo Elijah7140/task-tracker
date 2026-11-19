@@ -2,7 +2,7 @@ import { Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
 import { Guid, UtcTimestamp } from "../storage-codecs.js";
-import { ItemRow } from "./item-row.js";
+import { ItemRow, itemRowColumns } from "./item-row.js";
 import { projectBatch } from "./row-fields.js";
 
 /** Item reads, cascades and completion updates needed by project and folder operations. */
@@ -26,7 +26,7 @@ export function projectItemRepository(sql: SqlClient.SqlClient) {
       Request: Guid,
       Result: ItemRow,
       execute: (projectId) =>
-        sql`SELECT * FROM TodoItem WHERE ProjectId = ${projectId} AND ${activeRow(sql)}`,
+        sql`SELECT ${itemRowColumns} FROM TodoItem WHERE ProjectId = ${projectId} AND ${activeRow(sql)}`,
     }),
     deleteForProject: deleteBatch(false),
     deleteForFolderBatch: deleteBatch(true),
@@ -44,7 +44,17 @@ export function projectItemRepository(sql: SqlClient.SqlClient) {
         now: UtcTimestamp,
       }),
       execute: ({ itemId, projectId, completedAtUtc, now }) => sql`UPDATE TodoItem
-        SET CompletedAtUtc = ${completedAtUtc}, UpdatedAtUtc = ${now}
+        SET StatusId = CASE
+          WHEN ${completedAtUtc} IS NOT NULL AND CompletedAtUtc IS NULL THEN (
+            SELECT Id FROM StatusLevel WHERE Kind = 1 AND IsArchived = 0 ORDER BY SortOrder, Id LIMIT 1
+          )
+          WHEN ${completedAtUtc} IS NULL AND CompletedAtUtc IS NOT NULL THEN ReopenStatusId
+          ELSE StatusId END,
+        ReopenStatusId = CASE
+          WHEN ${completedAtUtc} IS NULL THEN NULL
+          WHEN CompletedAtUtc IS NULL THEN StatusId
+          ELSE ReopenStatusId END,
+        CompletedAtUtc = ${completedAtUtc}, UpdatedAtUtc = ${now}
         WHERE Id = ${itemId} AND ProjectId = ${projectId} AND ${activeRow(sql)}`,
     }),
   };

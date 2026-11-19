@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { Statement } from "effect/sql";
 import { DateText, FloatingTimestamp, Guid, TimeText, UtcTimestamp } from "../storage-codecs.js";
 import { trackedColumns, trackedFields } from "./row-fields.js";
 
@@ -34,6 +35,9 @@ const columns = {
   scheduledEnd: "ScheduledEnd",
   completedAtUtc: "CompletedAtUtc",
 } as const;
+
+/** Selects the columns decoded by ItemRow. Reminder ticks require a separate bigint read. */
+export const itemRowColumns = Statement.csv(Object.values(columns));
 
 /** TodoItem row with legacy column names and floating and UTC time codecs. */
 export const ItemRow = Schema.Struct({

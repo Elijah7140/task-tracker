@@ -1,10 +1,20 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { customFieldSchema } from "./add-custom-fields.js";
-import { initialSchema } from "./initial-create.js";
 import { databaseMigrations } from "./migrate.js";
+import { stageSchema } from "./stage-schema.js";
 
-const efMigrations = ["20261113163313_InitialCreate", "20261114032356_AddCustomFields"];
+const efMigrations = [
+  "20261113163313_InitialCreate",
+  "20261114032356_AddCustomFields",
+  "20261114120000_AddItemSearch",
+  "20261115054310_AddSavedSearches",
+  "20261115121847_AddItemLinks",
+  "20261117211849_AddRecurrence",
+  "20261117220848_AddReminders",
+  "20261118033043_IndexTodayCompletions",
+  "20261118045951_AddStatusesAndPriorityNumbers",
+  "20261118072606_AddTicketRank",
+];
 const efHistoryTable = "__EFMigrationsHistory";
 const efLockTable = "__EFMigrationsLock";
 const effectTable = "effect_sql_migrations";
@@ -38,7 +48,9 @@ function validateObjects(actual: readonly SchemaObject[], expected: readonly str
     }
   }
   for (const statement of remaining) {
-    const name = statement.split('"')[1];
+    const name = /^(?:CREATE (?:VIRTUAL |UNIQUE )?(?:TABLE|INDEX|TRIGGER)) ["']?([^"' (]+)/.exec(
+      statement,
+    )?.[1];
     return unsupported(`Missing schema object "${name}".`);
   }
 }
@@ -112,8 +124,7 @@ export const inspectSchema = Effect.gen(function* () {
   const { efStage, effectStage, hasEfLock } = yield* readHistories(schema);
   const stage = Math.max(efStage, effectStage);
   const expected = [
-    ...(stage >= 1 ? initialSchema : []),
-    ...(stage >= 2 ? customFieldSchema : []),
+    ...stageSchema(stage),
     ...(efStage > 0 ? [historySchema] : []),
     ...(efStage > 0 && hasEfLock ? [lockSchema] : []),
     ...(effectStage > 0 ? [effectSchema] : []),

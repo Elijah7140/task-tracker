@@ -11,7 +11,7 @@ export const itemId = "019A0000-0000-7000-8000-000000000CCC";
 /** Runs a test with a fresh SQLite connection closed at the end of the test. */
 export const withDatabase = Effect.provide(sqliteLayer(":memory:"));
 
-/** Applies both migrations on a fresh database before running a test. */
+/** Applies all migrations on a fresh database before running a test. */
 export const withSchema = <A, E>(test: Effect.Effect<A, E, SqlClient.SqlClient>) =>
   Effect.andThen(migrate, test).pipe(withDatabase);
 

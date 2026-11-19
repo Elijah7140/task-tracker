@@ -89,3 +89,22 @@ export const UtcTimestamp = timestampText.pipe(
     ),
   ),
 );
+
+const unixEpochTicks = 621355968000000000n;
+const nanosecondsPerTick = 100n;
+
+/** Reminder and snooze UTC instants stored as .NET DateTime ticks. Read with SafeIntegers. */
+export const UtcTicks = Schema.BigInt.check(
+  Schema.isBetweenBigInt({ minimum: 0n, maximum: 3155378975999999999n }),
+).pipe(
+  Schema.decodeTo(
+    Schema.instanceOf(Temporal.Instant).check(
+      Schema.makeFilter((instant) => instant.epochNanoseconds % nanosecondsPerTick === 0n),
+    ),
+    SchemaTransformation.transform({
+      decode: (ticks) =>
+        Temporal.Instant.fromEpochNanoseconds((ticks - unixEpochTicks) * nanosecondsPerTick),
+      encode: (instant) => instant.epochNanoseconds / nanosecondsPerTick + unixEpochTicks,
+    }),
+  ),
+);
