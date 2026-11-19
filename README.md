@@ -38,7 +38,7 @@ with `pnpm --filter @task-tracker/desktop exec install-electron`. GTK 3 and its
 missing shared-library dependencies were downloaded with `apt-get download`,
 extracted with `dpkg-deb -x` under `~/.local/task-tracker-gtk`, and loaded by
 prepending `~/.local/task-tracker-gtk/usr/lib/x86_64-linux-gnu` to
-`LD_LIBRARY_PATH` for the runtime check.
+`LD_LIBRARY_PATH` (`. scripts/dev-env.sh` does this when the folder exists).
 
 ## Build and run the .NET app
 
