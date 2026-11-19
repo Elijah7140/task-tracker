@@ -248,7 +248,8 @@ export function applyCreateItem(
   });
 }
 
-function applyEditItem(
+/** Validates and applies built-in item fields, mirroring the server's rule messages. */
+export function applyEditItem(
   store: FakeItemStoreContext,
   itemId: string,
   fields: ItemEditType,

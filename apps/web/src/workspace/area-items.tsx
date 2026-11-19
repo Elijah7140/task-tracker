@@ -6,7 +6,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { areaAtom, areaKey } from "../rpc/area-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { urgencyRefreshAtom } from "../rpc/urgency-refresh.js";
+import { ItemEditor } from "../editor/item-editor.js";
 import { dialogStore } from "../state/dialog-store.js";
+import { isItemEditorOpen, useItemEditorStore } from "../state/item-editor-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import type { Folder } from "./folder-outline.js";
@@ -84,7 +86,7 @@ function AreaSkeleton() {
 /**
  * The open area's quick-add line and item tree. Reloads server urgency every
  * minute, supports Ctrl+N / Ctrl+Shift+N workspace shortcuts, and hosts the
- * post-delete Undo banner.
+ * floating item editor and the post-delete Undo banner.
  */
 export function AreaItems({
   projectId,
@@ -150,7 +152,8 @@ export function AreaItems({
       if (event.altKey || !(event.ctrlKey || event.metaKey)) {
         return;
       }
-      if (dialogStore.getState().queue.length > 0 || event.key.toLowerCase() !== "n") {
+      const blocked = dialogStore.getState().queue.length > 0 || isItemEditorOpen();
+      if (blocked || event.key.toLowerCase() !== "n") {
         return;
       }
       if (event.shiftKey) {
@@ -169,6 +172,9 @@ export function AreaItems({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  // The editor belongs to this area; leaving the area closes it.
+  useEffect(() => () => useItemEditorStore.getState().close(), []);
 
   const handleQuickAdd = async (title: string) => {
     const waitForNonEmpty = areaIsEmpty;
@@ -212,6 +218,9 @@ export function AreaItems({
             />
           ),
       })}
+      {AsyncResult.isSuccess(area) ? (
+        <ItemEditor snapshot={area.value} onAddSubItem={actions.addSubItem} />
+      ) : null}
       {deletedBatch === null ? null : (
         <ItemUndoBanner
           batch={deletedBatch}

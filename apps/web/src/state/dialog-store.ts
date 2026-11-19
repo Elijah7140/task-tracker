@@ -40,6 +40,15 @@ export interface MessageOptions {
   readonly message: string;
 }
 
+/** A question about an unsaved draft before an action replaces or closes it. */
+export interface DraftOptions {
+  readonly title: string;
+  readonly message: string;
+}
+
+/** What to do with an unsaved draft. Escape or dismissal answers `cancel`. */
+export type DraftDecision = "save" | "discard" | "cancel";
+
 interface Pending<Kind extends string, Options, Result> {
   readonly kind: Kind;
   readonly id: number;
@@ -53,7 +62,8 @@ export type DialogRequest =
   | Pending<"confirm", ConfirmOptions, boolean>
   | Pending<"prompt", PromptOptions, string | null>
   | Pending<"choose", ChooseOptions, string | null>
-  | Pending<"message", MessageOptions, undefined>;
+  | Pending<"message", MessageOptions, undefined>
+  | Pending<"draft", DraftOptions, DraftDecision>;
 
 /** Pending dialogs and the actions that open and settle them. */
 export interface DialogState {
@@ -63,6 +73,7 @@ export interface DialogState {
   readonly prompt: (options: PromptOptions) => Promise<string | null>;
   readonly choose: (options: ChooseOptions) => Promise<string | null>;
   readonly notify: (options: MessageOptions) => Promise<undefined>;
+  readonly resolveDraft: (options: DraftOptions) => Promise<DraftDecision>;
   readonly settle: (id: number, result: boolean | string | null | undefined) => void;
 }
 
@@ -95,6 +106,8 @@ export function createDialogStore() {
         new Promise((resolve) => push({ kind: "choose", options, title: options.title, resolve })),
       notify: (options) =>
         new Promise((resolve) => push({ kind: "message", options, title: options.title, resolve })),
+      resolveDraft: (options) =>
+        new Promise((resolve) => push({ kind: "draft", options, title: options.title, resolve })),
       settle: (id, result) => {
         const request = get().queue.find((candidate) => candidate.id === id);
         if (request === undefined) {
@@ -116,6 +129,8 @@ function settleRequest(request: DialogRequest, result: boolean | string | null |
       return request.resolve(typeof result === "string" ? result : null);
     case "message":
       return request.resolve(undefined);
+    case "draft":
+      return request.resolve(result === "save" || result === "discard" ? result : "cancel");
   }
 }
 
@@ -133,6 +148,9 @@ export const choose = (options: ChooseOptions) => dialogStore.getState().choose(
 
 /** Shows a notice and resolves when the user dismisses it. */
 export const notify = (options: MessageOptions) => dialogStore.getState().notify(options);
+
+/** Asks whether to save, discard or keep editing an unsaved draft. */
+export const resolveDraft = (options: DraftOptions) => dialogStore.getState().resolveDraft(options);
 
 /** The dialog currently shown, if any. */
 export const useActiveDialog = () => useStore(dialogStore, (state) => state.queue[0]);

@@ -2,15 +2,22 @@ import {
   type FieldChoiceProjection,
   type FieldDataType,
   type FieldDefinitionProjection,
+  type FieldValueInput,
+  type ItemFieldValue,
   NotFound,
   OperationFailed,
   RuleViolation,
 } from "@task-tracker/contracts";
 import { Effect } from "effect";
+import { FakeFieldValues, type FieldValueColumns } from "./fake-field-values.js";
 
 type Field = typeof FieldDefinitionProjection.Type;
 type Choice = typeof FieldChoiceProjection.Type;
 type DataType = typeof FieldDataType.Type;
+type Stored = typeof ItemFieldValue.Type;
+type Input = typeof FieldValueInput.Type;
+
+export type { FieldValueColumns } from "./fake-field-values.js";
 
 /** Options for {@link FakeCustomFields.addFieldSeed}. */
 export interface FieldSeedOptions {
@@ -108,18 +115,31 @@ function orderRows<Row extends { readonly id: string; readonly sortOrder: number
 }
 
 /**
- * In-memory custom fields and choices behind the fake RPC server. Mirrors the
- * server's rule messages for names, labels, visibility, type changes on used
- * fields, choice ownership and complete reorder lists.
+ * In-memory custom fields, choices and item values behind the fake RPC
+ * server. The field manager and the item editor share these records, so a
+ * change made in settings is what the editor reads next. Mirrors the server's
+ * rule messages for names, labels, visibility, type changes on used fields,
+ * choice ownership, complete reorder lists and item value edits.
  */
 export class FakeCustomFields {
   fields: Array<Field> = [];
   choices: Array<Choice> = [];
-  /** When set, list RPCs fail with this message, as if the database could not be read. */
+  /** When set, read RPCs fail with this message, as if the database could not be read. */
   listFailure: string | null = null;
   private readonly fieldsWithValues = new Set<string>();
+  private readonly itemValues = new FakeFieldValues();
 
   constructor(private readonly nextId: () => string) {}
+
+  /** Every stored item value row. */
+  get values(): ReadonlyArray<Stored> {
+    return this.itemValues.rows;
+  }
+
+  /** The `customValues` of each EditItem request, in order. */
+  get edits(): ReadonlyArray<ReadonlyArray<Input>> {
+    return this.itemValues.edits;
+  }
 
   /** Seeds a field at the end of its scope, as if it existed before the test. */
   addFieldSeed(name: string, dataType: DataType = "Text", options: FieldSeedOptions = {}): Field {
@@ -162,6 +182,55 @@ export class FakeCustomFields {
     this.fieldsWithValues.add(fieldId);
   }
 
+  /** Archives a field as if done in settings elsewhere. */
+  archiveField(fieldId: string) {
+    this.fields = this.fields.map((field) =>
+      field.id === fieldId ? { ...field, isArchived: true } : field,
+    );
+  }
+
+  /** Archives a choice as if done in settings elsewhere. */
+  archiveChoice(choiceId: string) {
+    this.choices = this.choices.map((choice) =>
+      choice.id === choiceId ? { ...choice, isArchived: true } : choice,
+    );
+  }
+
+  /** Stores an item value directly, as if saved by another client. */
+  setValue(itemId: string, fieldId: string, columns: FieldValueColumns) {
+    this.itemValues.set(itemId, fieldId, columns);
+  }
+
+  /** The stored value rows of one item. */
+  valuesFor(itemId: string): ReadonlyArray<Stored> {
+    return this.itemValues.rows.filter((row) => row.itemId === itemId);
+  }
+
+  /** Holds LoadItemFieldValues for `itemId` until the returned function is called. */
+  holdValues(itemId: string): () => void {
+    return this.itemValues.hold(itemId);
+  }
+
+  /** The item's values, after any hold placed with {@link holdValues} is released. */
+  loadValues(itemId: string): Effect.Effect<ReadonlyArray<Stored>> {
+    return this.itemValues.load(itemId);
+  }
+
+  /**
+   * Validates every supplied value for an item in `projectId` and returns a
+   * commit that applies them, or fails without changing anything.
+   */
+  planEdit(
+    itemId: string,
+    projectId: string,
+    inputs: ReadonlyArray<Input>,
+  ): Effect.Effect<() => void, RuleViolation | NotFound> {
+    return this.itemValues.plan(itemId, projectId, inputs, {
+      field: (fieldId) => this.fields.find((field) => field.id === fieldId),
+      choice: (choiceId) => this.choices.find((choice) => choice.id === choiceId),
+    });
+  }
+
   /** Removes a field and its choices, as if it had disappeared elsewhere. */
   removeField(fieldId: string) {
     this.fields = this.fields.filter((field) => field.id !== fieldId);
@@ -189,6 +258,21 @@ export class FakeCustomFields {
     return this.choicesOf(fieldId)
       .filter((choice) => includeArchived || !choice.isArchived)
       .map((choice) => choice.label);
+  }
+
+  /** Global and project fields, including archived ones, in sort order. */
+  listAll(projectId: string | null): ReadonlyArray<Field> {
+    return this.fields
+      .filter((field) => field.projectId === null || field.projectId === projectId)
+      .toSorted(byOrder);
+  }
+
+  /** Active global fields first, then active project fields, each in sort order. */
+  listEffective(projectId: string): ReadonlyArray<Field> {
+    return [
+      ...this.scope(null).filter((field) => !field.isArchived),
+      ...this.scope(projectId).filter((field) => !field.isArchived),
+    ];
   }
 
   /** Fields of exactly one scope, including archived ones, in saved order. */
@@ -222,8 +306,12 @@ export class FakeCustomFields {
       : Effect.succeed(choice);
   }
 
+  /** Whether any item stores a value for the field, seeded or saved. */
   hasValues(fieldId: string): boolean {
-    return this.fieldsWithValues.has(fieldId);
+    return (
+      this.fieldsWithValues.has(fieldId) ||
+      this.itemValues.rows.some((row) => row.fieldDefinitionId === fieldId)
+    );
   }
 
   saveField(field: Field) {
@@ -264,6 +352,20 @@ export class FakeCustomFields {
       Effect.flatMap((field) => ensureUniqueName(this.fields, field)),
       Effect.map((field) => this.saveField(field)),
     );
+  }
+
+  /** Renames a field after validating the trimmed name. */
+  rename(fieldId: string, name: string) {
+    return this.editField(fieldId, (field) =>
+      normalizeName(name, "Field name").pipe(
+        Effect.map((displayName) => ({ ...field, displayName })),
+      ),
+    );
+  }
+
+  /** Archives or restores a field. */
+  setFieldArchived(fieldId: string, isArchived: boolean) {
+    return this.editField(fieldId, (field) => Effect.succeed({ ...field, isArchived }));
   }
 
   /** Changes a field's type unless items already store values for it. */
@@ -316,156 +418,26 @@ export class FakeCustomFields {
     );
   }
 
+  /** Renames a choice after validating the trimmed label. */
+  renameChoice(fieldId: string, choiceId: string, label: string) {
+    return this.editChoice(fieldId, choiceId, (choice) =>
+      normalizeName(label, "Choice label").pipe(
+        Effect.map((trimmed) => ({ ...choice, label: trimmed })),
+      ),
+    );
+  }
+
+  /** Archives or restores a choice. */
+  setChoiceArchived(fieldId: string, choiceId: string, isArchived: boolean) {
+    return this.editChoice(fieldId, choiceId, (choice) =>
+      Effect.succeed({ ...choice, isArchived }),
+    );
+  }
+
   /** Saves a complete order for one field's choices, archived choices included. */
   reorderChoices(fieldId: string, ids: ReadonlyArray<string>) {
     return orderRows(this.choicesOf(fieldId), ids).pipe(
       Effect.map((ordered) => ordered.forEach((choice) => this.saveChoice(choice))),
     );
   }
-}
-
-function fieldListHandlers(
-  store: CustomFieldProjectTarget & { readonly customFields: FakeCustomFields },
-  record: (tag: string) => Effect.Effect<unknown>,
-) {
-  const data = store.customFields;
-  return {
-    ListFields: ({ projectId }: { readonly projectId: string | null }) =>
-      record("ListFields").pipe(
-        Effect.andThen(data.readable()),
-        Effect.map(() =>
-          data.fields
-            .filter((field) => field.projectId === null || field.projectId === projectId)
-            .toSorted(byOrder),
-        ),
-      ),
-    ListEffectiveFields: ({ projectId }: { readonly projectId: string }) =>
-      record("ListEffectiveFields").pipe(
-        Effect.andThen(data.readable()),
-        Effect.map(() => [
-          ...data.scope(null).filter((field) => !field.isArchived),
-          ...data.scope(projectId).filter((field) => !field.isArchived),
-        ]),
-      ),
-    ListFieldChoices: ({ fieldId }: { readonly fieldId: string }) =>
-      record("ListFieldChoices").pipe(
-        Effect.andThen(data.readable()),
-        Effect.andThen(data.requireField(fieldId)),
-        Effect.map(() => data.choicesOf(fieldId)),
-      ),
-  };
-}
-
-function fieldDefinitionHandlers(
-  store: CustomFieldProjectTarget & { readonly customFields: FakeCustomFields },
-  record: (tag: string) => Effect.Effect<unknown>,
-) {
-  const data = store.customFields;
-  return {
-    CreateField: (payload: {
-      readonly name: string;
-      readonly dataType: DataType;
-      readonly projectId: string | null;
-    }) =>
-      record("CreateField").pipe(
-        Effect.andThen(payload.projectId === null ? Effect.void : store.find(payload.projectId)),
-        Effect.andThen(data.create(payload.name, payload.dataType, payload.projectId)),
-      ),
-    RenameField: ({ fieldId, name }: { readonly fieldId: string; readonly name: string }) =>
-      record("RenameField").pipe(
-        Effect.andThen(
-          data.editField(fieldId, (field) =>
-            normalizeName(name, "Field name").pipe(
-              Effect.map((displayName) => ({ ...field, displayName })),
-            ),
-          ),
-        ),
-      ),
-    ChangeFieldType: (payload: { readonly fieldId: string; readonly dataType: DataType }) =>
-      record("ChangeFieldType").pipe(
-        Effect.andThen(data.changeType(payload.fieldId, payload.dataType)),
-      ),
-    ArchiveField: ({ fieldId }: { readonly fieldId: string }) =>
-      record("ArchiveField").pipe(
-        Effect.andThen(
-          data.editField(fieldId, (field) => Effect.succeed({ ...field, isArchived: true })),
-        ),
-      ),
-    RestoreField: ({ fieldId }: { readonly fieldId: string }) =>
-      record("RestoreField").pipe(
-        Effect.andThen(
-          data.editField(fieldId, (field) => Effect.succeed({ ...field, isArchived: false })),
-        ),
-      ),
-    ReorderFields: (payload: {
-      readonly projectId: string | null;
-      readonly fieldIds: ReadonlyArray<string>;
-    }) =>
-      record("ReorderFields").pipe(
-        Effect.andThen(data.reorder(payload.projectId, payload.fieldIds)),
-      ),
-  };
-}
-
-function fieldChoiceHandlers(
-  store: { readonly customFields: FakeCustomFields },
-  record: (tag: string) => Effect.Effect<unknown>,
-) {
-  const data = store.customFields;
-  return {
-    AddFieldChoice: ({ fieldId, label }: { readonly fieldId: string; readonly label: string }) =>
-      record("AddFieldChoice").pipe(Effect.andThen(data.addChoice(fieldId, label))),
-    RenameFieldChoice: (payload: {
-      readonly fieldId: string;
-      readonly choiceId: string;
-      readonly label: string;
-    }) =>
-      record("RenameFieldChoice").pipe(
-        Effect.andThen(
-          data.editChoice(payload.fieldId, payload.choiceId, (choice) =>
-            normalizeName(payload.label, "Choice label").pipe(
-              Effect.map((label) => ({ ...choice, label })),
-            ),
-          ),
-        ),
-      ),
-    ArchiveFieldChoice: (payload: { readonly fieldId: string; readonly choiceId: string }) =>
-      record("ArchiveFieldChoice").pipe(
-        Effect.andThen(
-          data.editChoice(payload.fieldId, payload.choiceId, (choice) =>
-            Effect.succeed({ ...choice, isArchived: true }),
-          ),
-        ),
-      ),
-    RestoreFieldChoice: (payload: { readonly fieldId: string; readonly choiceId: string }) =>
-      record("RestoreFieldChoice").pipe(
-        Effect.andThen(
-          data.editChoice(payload.fieldId, payload.choiceId, (choice) =>
-            Effect.succeed({ ...choice, isArchived: false }),
-          ),
-        ),
-      ),
-    ReorderFieldChoices: (payload: {
-      readonly fieldId: string;
-      readonly choiceIds: ReadonlyArray<string>;
-    }) =>
-      record("ReorderFieldChoices").pipe(
-        Effect.andThen(data.reorderChoices(payload.fieldId, payload.choiceIds)),
-      ),
-  };
-}
-
-/**
- * Builds the custom-field and choice RPC handlers backed by
- * `store.customFields`, for spreading into the fake server's handler layer.
- */
-export function customFieldHandlers(
-  store: CustomFieldProjectTarget & { readonly customFields: FakeCustomFields },
-  record: (tag: string) => Effect.Effect<unknown>,
-) {
-  return {
-    ...fieldListHandlers(store, record),
-    ...fieldDefinitionHandlers(store, record),
-    ...fieldChoiceHandlers(store, record),
-  };
 }

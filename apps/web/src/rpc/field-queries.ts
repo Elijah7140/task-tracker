@@ -15,6 +15,9 @@ export const FIELD_CHOICES_KEY = "fields:choices";
 /** Reactivity key for one field's choices. */
 export const fieldChoicesKey = (fieldId: Id) => `${FIELD_CHOICES_KEY}:${fieldId}`;
 
+/** Reactivity key for one item's stored custom-field values. Item edits invalidate it. */
+export const itemFieldValuesKey = (itemId: Id) => `item-field-values:${itemId}`;
+
 /** Keys a field-definition mutation invalidates, so every field list and picker refreshes. */
 export const FIELD_MUTATION_KEYS: ReadonlyArray<string> = [FIELDS_KEY];
 
@@ -27,8 +30,9 @@ export const choiceMutationKeys = (fieldId: Id): ReadonlyArray<string> => [
 ];
 
 /**
- * Field definitions for settings, including archived ones. `null` lists the
- * global fields; a project ID lists global and that project's fields.
+ * Field definitions including archived ones, for settings and for the item
+ * editor's read-only archived values. `null` lists the global fields; a
+ * project ID lists global and that project's fields.
  */
 export const fieldsAtom = (projectId: Id | null) =>
   TaskTrackerClient.query("ListFields", { projectId }, { reactivityKeys: [FIELDS_KEY] });
@@ -43,6 +47,14 @@ export const fieldChoicesAtom = (fieldId: Id) =>
     "ListFieldChoices",
     { fieldId },
     { reactivityKeys: [FIELD_CHOICES_KEY, fieldChoicesKey(fieldId)] },
+  );
+
+/** One item's stored custom-field values. */
+export const itemFieldValuesAtom = (itemId: Id) =>
+  TaskTrackerClient.query(
+    "LoadItemFieldValues",
+    { itemId },
+    { reactivityKeys: [itemFieldValuesKey(itemId), FIELDS_KEY] },
   );
 
 /** Creates a global or project field. */
