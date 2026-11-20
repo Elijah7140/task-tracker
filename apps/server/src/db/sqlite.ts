@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
+import type { SQLInputValue, SQLOutputValue, StatementSync } from "node:sqlite";
 import { isArrayBufferView } from "node:util/types";
 import { foldSearchText } from "@task-tracker/core";
 import { Effect, Layer, Semaphore, Stream } from "effect";
@@ -39,29 +39,60 @@ function bindValue(value: unknown): SQLInputValue {
   throw new TypeError("Encode SQLite parameters as TEXT, INTEGER, REAL, BLOB or NULL");
 }
 
+/** How many distinct SQL texts keep a prepared statement. */
+const STATEMENT_CACHE_SIZE = 256;
+
+/**
+ * Reuses prepared statements by SQL text, least recently used first out.
+ * Preparing is a large share of each query's cost: an insert into `TodoItem`
+ * also compiles its search triggers. SQLite re-prepares a cached statement
+ * itself after a schema change, and closing the database finalizes them all.
+ */
+function statementCache(database: DatabaseSync) {
+  const statements = new Map<string, StatementSync>();
+  return (sql: string) => {
+    const cached = statements.get(sql);
+    if (cached !== undefined) {
+      statements.delete(sql);
+      statements.set(sql, cached);
+      return cached;
+    }
+    const statement = database.prepare(sql);
+    statements.set(sql, statement);
+    const oldest = statements.keys().next();
+    if (statements.size > STATEMENT_CACHE_SIZE && oldest.done !== true) {
+      statements.delete(oldest.value);
+    }
+    return statement;
+  };
+}
+
 function makeConnection(database: DatabaseSync): SqlConnection.Connection {
+  const statementFor = statementCache(database);
+  // A cached statement keeps its last read modes, so every use sets both.
   const prepare = <A>(
     sql: string,
     parameters: ReadonlyArray<unknown>,
-    run: (statement: ReturnType<DatabaseSync["prepare"]>, values: SQLInputValue[]) => A,
+    returnArrays: boolean,
+    run: (statement: StatementSync, values: SQLInputValue[]) => A,
   ) =>
     Effect.flatMap(SqlClient.SafeIntegers, (safeIntegers) =>
       sqliteEffect("execute", () => {
-        const statement = database.prepare(sql);
+        const statement = statementFor(sql);
         statement.setReadBigInts(safeIntegers);
+        statement.setReturnArrays(returnArrays);
         return run(statement, parameters.map(bindValue));
       }),
     );
 
   const execute: SqlConnection.Connection["execute"] = (sql, parameters, transformRows) =>
-    prepare(sql, parameters, (statement, values) => {
+    prepare(sql, parameters, false, (statement, values) => {
       const rows = statement.all(...values);
       return transformRows ? transformRows(rows) : rows;
     });
 
   const executeValues: SqlConnection.Connection["executeValues"] = (sql, parameters) =>
-    prepare(sql, parameters, (statement, values) => {
-      statement.setReturnArrays(true);
+    prepare(sql, parameters, true, (statement, values) => {
       // The Node declaration for all() only describes the default object mode.
       return statement.all(...values) as unknown as ReadonlyArray<ReadonlyArray<SQLOutputValue>>;
     });
@@ -72,7 +103,7 @@ function makeConnection(database: DatabaseSync): SqlConnection.Connection {
     executeValues,
     executeValuesUnprepared: executeValues,
     executeRaw: (sql, parameters) =>
-      prepare(sql, parameters, (statement, values) =>
+      prepare(sql, parameters, false, (statement, values) =>
         statement.columns().length === 0 ? statement.run(...values) : statement.all(...values),
       ),
     // Materialize rows so interruption never leaves a native statement iterator open.

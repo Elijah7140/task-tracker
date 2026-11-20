@@ -1,13 +1,14 @@
 import { useAtomValue } from "@effect/atom-react";
 import type {
   ItemQuery,
+  ItemSearchResult,
   SavedSearchProjection,
   SearchableField,
   SearchScope,
 } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { ArrowLeft, Plus, Search } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { searchFieldsAtom } from "../rpc/search-queries.js";
 import type { ReturnGuard } from "../shell/return-guards.js";
@@ -26,7 +27,7 @@ import { SearchFilterRow } from "./search-filter-row.js";
 import { SearchResults } from "./search-results.js";
 import { currentField, useFilterRows } from "./use-filter-rows.js";
 import { useOpenSearchResult } from "./use-open-search-result.js";
-import { usePushBackOneDay } from "../workspace/use-push-back-one-day.js";
+import { type PushBackTarget, usePushBackOneDay } from "../workspace/use-push-back-one-day.js";
 import { useSavedSearchLoad } from "./use-saved-search-load.js";
 import { useSearchPageSavedSearches } from "./use-search-page-saved-searches.js";
 import { useSearchQuery } from "./use-search-query.js";
@@ -34,6 +35,7 @@ import { useSearchScope } from "./use-search-scope.js";
 
 type Field = typeof SearchableField.Type;
 type Query = typeof ItemQuery.Type;
+type Result = typeof ItemSearchResult.Type;
 
 /** The input Ctrl+F focuses when Search is already open. */
 export const SEARCH_INPUT_TEST_ID = "search-input";
@@ -47,6 +49,29 @@ export interface SearchPageProps {
 interface Submitted {
   readonly query: Query;
   readonly run: number;
+}
+
+/**
+ * Result handlers that keep one identity while the page is open and call the
+ * latest open and push back. With them the memoized results list re-renders
+ * none of its rows (up to 200) for each key typed in the query box.
+ */
+function useResultHandlers(
+  open: (itemId: string) => Promise<void>,
+  pushBack: (target: PushBackTarget) => Promise<boolean>,
+) {
+  const latest = useRef({ open, pushBack });
+  useLayoutEffect(() => {
+    latest.current = { open, pushBack };
+  });
+  return useMemo(
+    () => ({
+      onOpen: (itemId: string) => void latest.current.open(itemId),
+      onPushBack: ({ itemId, projectId, folderId }: Result) =>
+        void latest.current.pushBack({ id: itemId, projectId, folderId }),
+    }),
+    [],
+  );
 }
 
 function useScopeFields(scope: typeof SearchScope.Type) {
@@ -190,6 +215,7 @@ function SearchContent({ onBack, runGuards, savedSearch }: SearchContentProps) {
   });
   const opening = useOpenSearchResult(runGuards);
   const pushBack = usePushBackOneDay();
+  const resultHandlers = useResultHandlers(opening.open, pushBack);
   const saved = useSearchPageSavedSearches(savedSearch?.id ?? null, query.definition);
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
   const run = (next: Query) =>
@@ -265,10 +291,8 @@ function SearchContent({ onBack, runGuards, savedSearch }: SearchContentProps) {
           <SearchResults
             query={submitted.query}
             run={submitted.run}
-            onOpen={(itemId) => void opening.open(itemId)}
-            onPushBack={({ itemId, projectId, folderId }) =>
-              void pushBack({ id: itemId, projectId, folderId })
-            }
+            onOpen={resultHandlers.onOpen}
+            onPushBack={resultHandlers.onPushBack}
           />
         )}
       </div>

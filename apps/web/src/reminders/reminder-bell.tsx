@@ -23,6 +23,29 @@ function canToggle() {
   return dialogStore.getState().queue.length === 0 && !editorShown;
 }
 
+/**
+ * Whether a press reported outside the panel was on a message box opened from
+ * it, such as the OK of "Cannot complete item". Base UI skips presses on a modal
+ * opened over the panel only while that modal still marks the page inert. When
+ * the box closes without a transition, as with reduced motion, the marking is
+ * gone before the press reaches the panel, which must still stay open.
+ */
+function pressedInMessageBox(event: Event) {
+  const target = event.target;
+  return target instanceof Element && target.closest('[role="alertdialog"]') !== null;
+}
+
+/** Applies a Base UI open change, keeping the panel open for presses in its message boxes. */
+function keepingMessageBoxPresses(setOpen: (open: boolean) => void) {
+  return (open: boolean, details: Popover.Root.ChangeEventDetails) => {
+    if (!open && details.reason === "outside-press" && pressedInMessageBox(details.event)) {
+      details.cancel();
+      return;
+    }
+    setOpen(open);
+  };
+}
+
 function usePanelShortcut() {
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
@@ -52,10 +75,11 @@ export function ReminderBell({ runGuards }: { readonly runGuards: ReturnGuard })
   const { open, panel, failure, setOpen } = useReminderPanelStore();
   const actions = useReminderActions(runGuards);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const changeOpen = keepingMessageBoxPresses(setOpen);
   const reminders = panel?.reminders ?? [];
   const count = reminders.length;
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={changeOpen}>
       <Popover.Trigger
         render={
           <Button

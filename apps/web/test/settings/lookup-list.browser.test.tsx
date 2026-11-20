@@ -111,8 +111,11 @@ describe("LookupListCard", () => {
   it("Ignores a second Move up click while the first move is still saving", async () => {
     const { store } = await openLookups();
     const moveUp = () => rowIn(priorityLevelsCard(), "Low").getByTestId("lookup-move-up");
+    // Keep the first move saving until both clicks land, however slowly they arrive.
+    const release = store.hold("ReorderPriorityLevels");
 
     await moveUp().dblClick();
+    release();
 
     await expect.element(activeRows(priorityLevelsCard()).nth(2)).toHaveAccessibleName("Low");
     await expect.element(moveUp()).not.toHaveAttribute("aria-disabled", "true");

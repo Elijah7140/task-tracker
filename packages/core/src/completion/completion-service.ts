@@ -179,14 +179,23 @@ function currentStates(tree: ItemTree): CompletionStates {
   return new Map(tree.all.map((row) => [row.id, row.completedAtUtc]));
 }
 
+/**
+ * Groups active items by parent once, so reconciling a wide tree stays linear
+ * instead of scanning every item for each parent.
+ */
+function childrenByParent(tree: ItemTree): Map<string | null, TodoItem[]> {
+  return Map.groupBy(tree.all, (row) => row.parentItemId);
+}
+
 function reconcileParents(
   tree: ItemTree,
   bottomUp: readonly TodoItem[],
   proposed: CompletionStates,
   now: Temporal.Instant,
 ): void {
+  const byParent = childrenByParent(tree);
   for (const parent of bottomUp) {
-    const children = tree.children(parent.id);
+    const children = byParent.get(parent.id) ?? [];
     if (children.length === 0) {
       continue;
     }

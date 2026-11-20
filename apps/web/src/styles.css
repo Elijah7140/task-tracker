@@ -144,6 +144,21 @@
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
   }
+
+  /*
+   * Honour the system's reduced-motion setting: popups, menus, dialogs and hover
+   * states change at once instead of fading or scaling. Base UI then opens and
+   * unmounts popups without waiting for a transition. Important declarations in
+   * this base layer override the transition utilities.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+    }
+  }
 }
 
 @layer components {
