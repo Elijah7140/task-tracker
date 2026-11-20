@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -8,7 +8,13 @@ import type { MessageBoxOptions } from "electron";
 import { _electron, type ElectronApplication } from "playwright";
 import { expect, test } from "vitest";
 import { unpackedExecutable as executable } from "../scripts/package-paths.ts";
-import { isRunning, mainPid, serverChildren, serverPid } from "./support/desktop-processes.js";
+import {
+  isRunning,
+  mainPid,
+  serverChildren,
+  serverPid,
+  signalIfRunning,
+} from "./support/desktop-processes.js";
 
 interface DesktopFixture {
   readonly database: string;
@@ -231,13 +237,26 @@ desktopTest(
   },
 );
 
-/** Finds Electron main processes for `profile` other than `excluded`. */
+/**
+ * Finds Electron main processes for `profile` other than `excluded`. Matching the
+ * executable skips the shell that waits to start the relaunched app.
+ */
 function otherMainProcesses(profile: string, excluded: number) {
   return execFileSync("ps", ["-axww", "-o", "pid=,command="], { encoding: "utf8" })
     .split("\n")
-    .filter((line) => line.includes(`--user-data-dir=${profile}`) && !line.includes("--type="))
-    .map((line) => Number.parseInt(line.trim(), 10))
-    .filter((pid) => Number.isInteger(pid) && pid !== excluded);
+    .map((line) => /^\s*(\d+)\s+(.*)$/.exec(line))
+    .filter((match) => match !== null)
+    .filter(([, , command = ""]) => isMainProcessFor(command, profile))
+    .map(([, pid = ""]) => Number.parseInt(pid, 10))
+    .filter((pid) => pid !== excluded);
+}
+
+function isMainProcessFor(command: string, profile: string) {
+  return (
+    command.startsWith(`${executable} `) &&
+    command.includes(`--user-data-dir=${profile}`) &&
+    !command.includes("--type=")
+  );
 }
 
 async function runSecondInstance(desktop: DesktopFixture) {
@@ -246,6 +265,16 @@ async function runSecondInstance(desktop: DesktopFixture) {
     stdio: "ignore",
   });
   return once(secondInstance, "exit");
+}
+
+/**
+ * Reads whether the kernel's no-new-privileges flag is set for the PID. With it
+ * set, the setuid `chrome-sandbox` helper cannot gain root, so Chromium cannot
+ * start where the user-namespace sandbox is unavailable, as on GitHub's Ubuntu.
+ */
+async function hasNoNewPrivileges(pid: number) {
+  const status = await readFile(`/proc/${pid}/status`, "utf8");
+  return /^NoNewPrivs:\s*1$/m.test(status);
 }
 
 // Holding the stop open needs SIGSTOP, which Windows does not provide.
@@ -267,20 +296,23 @@ desktopTest.skipIf(process.platform === "win32")(
       process.kill(server, "SIGCONT");
       await exited;
 
+      let found: number[] = [];
       await expect
-        .poll(() => otherMainProcesses(desktop.profile, original), { timeout: 15_000 })
+        .poll(() => (found = otherMainProcesses(desktop.profile, original)), { timeout: 15_000 })
         .toHaveLength(1);
-      relaunched = otherMainProcesses(desktop.profile, original)[0] ?? 0;
-      const launchedPid = relaunched;
-      await expect.poll(() => serverChildren(launchedPid), { timeout: 15_000 }).toHaveLength(1);
-    } finally {
-      if (isRunning(server)) {
-        process.kill(server, "SIGCONT");
+      const [launchedPid = Number.NaN] = found;
+      relaunched = launchedPid;
+      if (process.platform === "linux") {
+        expect(await hasNoNewPrivileges(launchedPid)).toBe(false);
       }
+      await expect.poll(() => serverChildren(launchedPid), { timeout: 15_000 }).toHaveLength(1);
+      process.kill(launchedPid, "SIGTERM");
+      await expect.poll(() => isRunning(launchedPid), { timeout: 15_000 }).toBe(false);
+    } finally {
+      // Best-effort cleanup that never throws, so the assertion that failed is the one reported.
+      signalIfRunning(server, "SIGCONT");
       if (relaunched !== undefined) {
-        process.kill(relaunched, "SIGTERM");
-        const stopped = relaunched;
-        await expect.poll(() => isRunning(stopped), { timeout: 15_000 }).toBe(false);
+        signalIfRunning(relaunched, "SIGKILL");
       }
       await application.close().catch(() => {});
     }

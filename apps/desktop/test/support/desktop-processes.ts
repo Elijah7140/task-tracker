@@ -42,8 +42,21 @@ export async function serverPid(application: ElectronApplication) {
 
 /** Checks whether the OS still has a live process for the PID. */
 export function isRunning(pid: number) {
+  return signalIfRunning(pid, 0);
+}
+
+/**
+ * Sends `signal` to the PID unless the process has already exited, so cleanup
+ * after a failed assertion cannot replace that failure with `kill ESRCH`.
+ * Returns whether the process was still there. Refuses PIDs that would signal
+ * a process group, as 0 signals the test runner's own group.
+ */
+export function signalIfRunning(pid: number, signal: NodeJS.Signals | 0) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    throw new Error(`Refusing to signal PID ${pid}.`);
+  }
   try {
-    process.kill(pid, 0);
+    process.kill(pid, signal);
     return true;
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ESRCH") {

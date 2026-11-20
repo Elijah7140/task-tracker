@@ -26,6 +26,7 @@ import {
   servePackagedRenderer,
 } from "./renderer.js";
 import type { ServerMessage } from "./server-messages.js";
+import { relaunchAfterExit } from "./relaunch-after-exit.js";
 import { launchServer, type ServerProcess } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
@@ -126,6 +127,17 @@ function onSecondInstance() {
   }
   if (!relaunchScheduled) {
     relaunchScheduled = true;
+    relaunchOnExit();
+  }
+}
+
+/**
+ * Starts the app again with the same arguments once this process has exited.
+ * Linux avoids `app.relaunch()`, whose new instance cannot use the setuid sandbox.
+ */
+function relaunchOnExit() {
+  const command = { executable: process.execPath, args: process.argv.slice(1) };
+  if (relaunchAfterExit(command) === undefined) {
     app.relaunch();
   }
 }
