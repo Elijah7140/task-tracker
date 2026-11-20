@@ -47,6 +47,7 @@ import { launchServer, type ServerProcess } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
 import { createTrayCardWindow, type TrayCardWindow } from "./tray-card-window.js";
+import { applicationMenuTemplate } from "./application-menu.js";
 import { decideTrayClose } from "./tray-close-decision.js";
 import { windowsAppIdentity } from "./windows-app-identity.js";
 
@@ -447,7 +448,8 @@ async function openApplication(early: EarlyStart | Error) {
   void installation.clearInstallerCache();
   if (app.isPackaged) {
     // Packaged builds offer no reload or developer tools shortcuts.
-    Menu.setApplicationMenu(null);
+    const template = applicationMenuTemplate(process.platform);
+    Menu.setApplicationMenu(template === null ? null : Menu.buildFromTemplate(template));
     servePackagedRenderer(() => connection?.port);
   }
   denyPermissions();

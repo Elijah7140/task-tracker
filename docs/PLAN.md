@@ -1673,6 +1673,10 @@ Calendar, Today, Tickets, Trash and Reminders. Settings returns to the originati
 Alt pressed alone or F10 moves focus to the menu bar and back, Alt with a menu's first letter
 opens it, and Escape on a closed menu returns focus to where it was. A chosen command returns
 focus there too unless it opens a page. The sidebar keeps Home and the project tree.
+Packaged builds install no native menu on Windows and Linux. macOS routes Cmd+C, Cmd+V,
+Cmd+X, Cmd+A and Cmd+Q through the application menu, so there the app keeps the system app
+menu and an Edit menu with the clipboard commands only. Native Undo and Redo stay out so
+Cmd+Z reaches the app's history, and no build offers reload or developer tools.
 
 ## 9. Delivery phases
 

@@ -5,6 +5,7 @@ export default defineConfig({
     include: ["apps/desktop/test/**/*.test.ts"],
     // Unit suites run in the root desktop-unit project and need no packaged app.
     exclude: [
+      "apps/desktop/test/application-menu.test.ts",
       "apps/desktop/test/renderer.test.ts",
       "apps/desktop/test/server-process.test.ts",
       "apps/desktop/test/relaunch-after-exit.test.ts",
