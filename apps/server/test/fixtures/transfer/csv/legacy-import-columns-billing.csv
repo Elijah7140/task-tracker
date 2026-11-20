@@ -1,0 +1,16 @@
+﻿Title,Description,Ticket,Type,Priority,Priority reference,Status,Due date,Due time,Scheduled start,Scheduled end,Completed,Completed at,Project,Folder path,Parent title,Links,Repeats,Severity,Estimate,Reviewed,Flag,Notes,Customer
+Fix invoice totals,"Totals are wrong,
+see the ""Q4"" report",JIRA-1,Change,High,#name:High,,2026-11-20,15:00:00,,,no,,Billing,,,,,Major,2.5,2026-11-01,yes,Needs a look,"Acme, Inc."
+Check query plan,,,,,,Completed,,,,,yes,2026-11-13T12:00:01Z,Billing,,Fix invoice totals,,,,,,,,
+Write regression test,,,,,,,,,,,no,,Billing,,Fix invoice totals,,,,,,,,
+Plan release,"Line one
+line two, with comma and ""quotes""",T-100,Change,High,#name:High,Testing,2026-12-01,09:30:00,2026-12-02T10:00:00,2026-12-02T11:30:00,no,,Billing,,,https://a.example https://b.example/x?y=1,,Major,3.75,2026-10-01,yes,trimmed,Acme
+Padded title,"LF only
+inside",'-9,Error,7,#7,Completed,2026-12-03,15:00:00.5,,,yes,2026-11-13T12:00:00Z,Billing,,,,,Minor,-2.5,,no,"'=SUM(1,2)",'quote
+Done with time,,,,Urgent,#name:Urgent,Completed,,,,,yes,2026-10-01T08:00:00Z,Billing,,,mailto:team@example.com https://c.example,,,1000,,yes,'+1 note,
+Shipped by status,,,Spike,Medium,#name:Medium,Shipped,,,,,yes,2026-11-13T12:00:00Z,Billing,,,,,,,,,,
+Completed status only,,TKT-1,,,,Completed,,,,,yes,2026-11-13T12:00:00Z,Billing,,,,,,,,,,
+Unicode 🚀👍🏽 é 漢字 مرحبا, NBSP padded ,,Discussion,Medium,#name:Medium,,2028-02-29,,,,no,,Billing,,,,,,0.1,2026-11-30,no,Café,
+Short row,,,Change,,,,,,,,no,,Billing,,,,,,,,,,
+'@mention title,,'=ticket,,,,,,,,,no,,Billing,,,,,,,,,,
+Add index,,,Spike,Urgent,#name:Urgent,Completed,2026-11-22,,2026-11-21T09:00:00,2026-11-21T10:30:00,yes,2026-11-13T12:00:02Z,Billing,dbo/Tables,,,,,,,,,

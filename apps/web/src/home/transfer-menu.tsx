@@ -1,11 +1,20 @@
 import { Menu } from "@base-ui/react/menu";
-import { ArrowDownUp, ChevronDown, Download, FolderDown, Upload } from "lucide-react";
+import {
+  ArrowDownUp,
+  ChevronDown,
+  Download,
+  FileSpreadsheet,
+  FolderDown,
+  TableProperties,
+  Upload,
+} from "lucide-react";
 import { useDataTransfer } from "../transfer/use-data-transfer.js";
 import { Button } from "../ui/button.js";
 import { MenuContent, MenuItem, MenuSeparator } from "../ui/menu.js";
 
 /**
- * Home's Import and export menu (§7.9). Its commands are disabled while a
+ * Home's Import and export menu (§7.9): JSON and CSV import, and JSON and CSV
+ * project export. Its commands are disabled while a
  * transfer runs, including while one of its dialogs is open.
  */
 export function TransferMenu() {
@@ -26,6 +35,14 @@ export function TransferMenu() {
         >
           Import JSON…
         </MenuItem>
+        <MenuItem
+          icon={<TableProperties size={14} />}
+          disabled={transfer.running}
+          onClick={() => void transfer.importCsv()}
+          testId="transfer-import-csv"
+        >
+          Import CSV into project…
+        </MenuItem>
         <MenuSeparator />
         <MenuItem
           icon={<Download size={14} />}
@@ -42,6 +59,14 @@ export function TransferMenu() {
           testId="transfer-export-project"
         >
           Export project (JSON)…
+        </MenuItem>
+        <MenuItem
+          icon={<FileSpreadsheet size={14} />}
+          disabled={transfer.running}
+          onClick={() => void transfer.exportProjectCsv()}
+          testId="transfer-export-project-csv"
+        >
+          Export project (CSV)…
         </MenuItem>
       </MenuContent>
     </Menu.Root>

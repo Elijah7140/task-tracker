@@ -1,0 +1,12 @@
+﻿title,TYPE,priority,Priority reference,Status,Ticket,Due date,Due time,Scheduled start,Scheduled end,Completed,Completed at,Description,severity,Estimate,Reviewed,Flag,Notes,Customer,Links,Project,Folder path,Parent title,Repeats,Mystery,
+Plan release,change,HIGH,,Testing,T-100,2026-12-01,09:30,2026-12-02 10:00,2026-12-02T11:30,,,"Line one
+line two, with comma and ""quotes""",major,3.75,2026-10-01,yes,  trimmed  ,Acme,https://a.example https://b.example/x?y=1,Billing,dbo/Tables,Fix invoice totals,Every day,ignored me,
+  Padded title  ,Error,,#7,,'-9,2026-12-03,15:00:00.5,,,yes,,"LF only
+inside",Minor,-2.5,,0,"'=SUM(1,2)",'quote,,,,,,,
+Done with time,,Low,#name:Urgent,,,,,,,Y,2026-10-01T08:00:00Z,,,1e3,,TRUE,'+1 note,,mailto:team@example.com	https://c.example,,,,,,
+Shipped by status,Spike,critical,#id:019a0000-0000-7000-8000-000000000103,Shipped,,,,,,,,,,,,,,,,,,,,,
+
+Completed status only,,,,Completed,TKT-1,,,,,,,,,,,,,,,,,,,,
+Unicode 🚀👍🏽 é 漢字 مرحبا,Discussion,Medium,,,,2028-02-29,,,,no,, NBSP padded ,,  0.1  ,2026-11-30,n,Café,,,,,,,,
+Short row,Change
+'@mention title,,,,,'=ticket,,,,,,,,,,,,,,,,,,,,

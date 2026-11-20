@@ -2,6 +2,7 @@ import { isAbsolute } from "node:path";
 import { TransferFileGrant } from "@task-tracker/contracts";
 import { Context, Deferred, Duration, Effect, Layer, Option, Schema } from "effect";
 import { TransferFileError } from "./transfer-file-error.js";
+import type { TransferFileKind } from "./transfer-files.js";
 
 /** A path Electron main granted for one transfer, for reading or writing. */
 export type FileGrant = typeof TransferFileGrant.Type;
@@ -16,9 +17,22 @@ const NOT_GRANTED = "Choose the file again in Task Tracker; this file choice is 
 
 const decodeGrant = Schema.decodeUnknownOption(TransferFileGrant);
 
-/** True for an absolute path to a `.json` file, the only kind a grant may name. */
+const EXTENSIONS: Record<TransferFileKind, RegExp> = { json: /\.json$/i, csv: /\.csv$/i };
+
+/** The kind of transfer file a path names by its extension, or null for any other file. */
+export function transferPathKind(path: string): TransferFileKind | null {
+  if (!isAbsolute(path) || path.includes("\0")) {
+    return null;
+  }
+  if (EXTENSIONS.json.test(path)) {
+    return "json";
+  }
+  return EXTENSIONS.csv.test(path) ? "csv" : null;
+}
+
+/** True for an absolute path to a `.json` or `.csv` file, the only kinds a grant may name. */
 export function isTransferPath(path: string): boolean {
-  return isAbsolute(path) && /\.json$/i.test(path) && !path.includes("\0");
+  return transferPathKind(path) !== null;
 }
 
 const make = Effect.sync(() => {
@@ -47,18 +61,21 @@ const make = Effect.sync(() => {
   });
 
   /**
-   * The path behind a token, for the given access. Write grants and consumed read
-   * grants are forgotten, so a token works for one export or one import only.
+   * The path behind a token, for the given access and file kind. Write grants and
+   * consumed read grants are forgotten, so a token works for one export or one
+   * import only. A JSON operation never accepts a CSV file, nor the reverse.
    */
   const path = Effect.fnUntraced(function* (
     token: string,
     access: FileGrant["access"],
     consume: boolean,
+    kind: TransferFileKind,
   ) {
     const found = yield* Deferred.await(yield* slot(token)).pipe(
       Effect.timeoutOption(ARRIVAL_WAIT),
     );
-    if (Option.isNone(found) || found.value.access !== access) {
+    const matches = Option.isSome(found) && found.value.access === access;
+    if (!matches || transferPathKind(found.value.path) !== kind) {
       pending.delete(token);
       return yield* Effect.fail(new TransferFileError(NOT_GRANTED));
     }

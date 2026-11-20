@@ -1,0 +1,7 @@
+Title,Description,Ticket
+LF row,plain,A-1CR row,"quotedwith CR",A-2
+CRLF row,"two
+lines",A-3
+
+"Quoted, title","say ""hi""",A-4
+No final newline,,A-5

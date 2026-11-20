@@ -1,0 +1,34 @@
+{
+  "preview": {
+    "rowCount": 1,
+    "recognizedColumns": [
+      "Description"
+    ],
+    "unknownColumns": [
+      "Mystery"
+    ],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": true
+      }
+    ],
+    "issues": [
+      {
+        "path": "Row 1",
+        "message": "The column \u0027description\u0027 appears more than once."
+      },
+      {
+        "path": "Row 1",
+        "message": "The header needs a \u0027Title\u0027 column."
+      }
+    ],
+    "canImport": false
+  },
+  "imported": null
+}

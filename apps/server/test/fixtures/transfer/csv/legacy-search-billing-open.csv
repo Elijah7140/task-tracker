@@ -1,0 +1,4 @@
+﻿Title,Description,Ticket,Type,Priority,Priority reference,Status,Due date,Due time,Scheduled start,Scheduled end,Completed,Completed at,Project,Folder path,Parent title,Links,Repeats,Severity,Estimate,Reviewed,Flag,Notes,Customer
+Fix invoice totals,"Totals are wrong,
+see the ""Q4"" report",JIRA-1,Change,High,#name:High,,2026-11-20,15:00:00,,,no,,Billing,,,,,Major,2.5,2026-11-01,yes,Needs a look,"Acme, Inc."
+Write regression test,,,,,,,,,,,no,,Billing,,Fix invoice totals,,,,,,,,

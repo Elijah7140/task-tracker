@@ -18,7 +18,7 @@ it.live("Records a grant that main writes on the shared stdin channel", () =>
       input.write(`{"type":"check-reminders"}\n${JSON.stringify(grant)}\n`);
       const path = yield* Effect.gen(function* () {
         const files = yield* TransferFileGrants;
-        return yield* files.path(TOKEN, "read", true);
+        return yield* files.path(TOKEN, "read", true, "json");
       }).pipe(Effect.provide(context));
 
       expect(path).toBe("/a.json");

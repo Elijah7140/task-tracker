@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "@effect/vitest";
@@ -90,5 +90,91 @@ it.effect(
         rmSync(folder, { recursive: true, force: true });
       }),
       transfer,
+    ),
+);
+
+const csvFolder = mkdtempSync(join(tmpdir(), "tasktracker-transfer-csv-rpc-"));
+const csvFile = join(csvFolder, "items.csv");
+const resultsFile = join(csvFolder, "results.csv");
+const csvGrants = [
+  { type: "transfer-file-grant", token: "C".repeat(43), path: csvFile, access: "write" },
+  { type: "transfer-file-grant", token: "S".repeat(43), path: resultsFile, access: "write" },
+  { type: "transfer-file-grant", token: "I".repeat(43), path: csvFile, access: "read" },
+  { type: "transfer-file-grant", token: "J".repeat(43), path: csvFile, access: "read" },
+] as const;
+
+const csvTransfer = Layer.merge(
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const files = yield* TransferFileGrants;
+      yield* Effect.forEach(csvGrants, files.grant, { discard: true });
+    }),
+  ).pipe(Layer.provideMerge(TransferFileGrants.layer)),
+  Layer.succeed(DatabaseBackup, {
+    createImportBackup: Effect.succeed(join(csvFolder, "backup.db.bak")),
+  }),
+);
+
+it.effect(
+  "Exports a project and search results as CSV, previews the file and imports it into a folder",
+  () =>
+    withRendererRpc(
+      Effect.gen(function* () {
+        const client = yield* connectRenderer;
+        const project = yield* client.CreateProject({ name: "Billing" });
+        const folder = yield* client.CreateFolder({
+          projectId: project.id,
+          parentFolderId: null,
+          name: "Inbox",
+        });
+        const item = yield* client.CreateItem({
+          projectId: project.id,
+          folderId: null,
+          parentItemId: null,
+          title: "Pay invoices",
+        });
+        yield* client.EditItem({
+          itemId: item.id,
+          fields,
+          reminder: { kind: "offset", minutes: 0 },
+        });
+        const query = {
+          scope: { kind: "allProjects" },
+          text: null,
+          filters: [],
+          includeCompleted: false,
+        } as const;
+        const target = { projectId: project.id, folderId: folder.id };
+
+        const exported = yield* client.ExportProjectCsv({
+          projectId: project.id,
+          fileToken: csvGrants[0].token,
+        });
+        const results = yield* client.ExportSearchResultsCsv({
+          query,
+          fileToken: csvGrants[1].token,
+        });
+        const preview = yield* client.PreviewCsvImport({ fileToken: csvGrants[2].token, target });
+        const imported = yield* client.ImportCsv({ fileToken: csvGrants[3].token, target });
+        const inbox = yield* client.LoadArea({ projectId: project.id, folderId: folder.id });
+
+        expect(exported).toEqual({ path: csvFile });
+        expect(results).toEqual({ path: resultsFile, count: 1 });
+        expect(readFileSync(resultsFile).subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
+        expect(preview).toMatchObject({
+          fileName: "items.csv",
+          rowCount: 1,
+          canImport: true,
+          issues: [],
+        });
+        expect(imported).toEqual({
+          kind: "imported",
+          summary: { projects: 0, folders: 0, items: 1, savedSearches: 0 },
+          backupPath: join(csvFolder, "backup.db.bak"),
+        });
+        expect(JSON.stringify(inbox)).toContain("Pay invoices");
+        rmSync(csvFolder, { recursive: true, force: true });
+      }),
+      csvTransfer,
     ),
 );

@@ -16,7 +16,13 @@ import {
   type ImportResult,
   TransferService,
 } from "../../../../src/services/transfer/transfer-service.js";
-import type { TransferIssue, TransferSummary } from "@task-tracker/core";
+import type {
+  CsvImportPreview,
+  ItemQuery,
+  TransferIssue,
+  TransferSummary,
+} from "@task-tracker/core";
+import { SearchService } from "../../../../src/services/search-service.js";
 import { UndoService } from "../../../../src/services/undo-service.js";
 
 /** The fixtures generated with legacy-final (see the folder's README). */
@@ -57,6 +63,26 @@ export interface TransferWorld {
   readonly previewJson: (text: string) => Effect.Effect<ImportPreview, Error>;
   /** Grants a path and returns its token. */
   readonly grant: (path: string, access: "read" | "write") => Effect.Effect<string>;
+  /** Exports a project as CSV through a write grant and returns the file's bytes. */
+  readonly exportProjectCsvBytes: (projectId: string) => Effect.Effect<Buffer, Error>;
+  /** Exports a project as CSV and returns the file's text, byte order mark included. */
+  readonly exportProjectCsv: (projectId: string) => Effect.Effect<string, Error>;
+  /** Exports every match of a search as CSV and returns the file's bytes and the count. */
+  readonly exportSearchCsv: (
+    query: ItemQuery,
+  ) => Effect.Effect<{ readonly bytes: Buffer; readonly count: number }, Error>;
+  /** Writes `content` to a `.csv` file, grants it and previews it against the target. */
+  readonly previewCsv: (
+    content: string | Uint8Array,
+    projectId: string,
+    folderId?: string | null,
+  ) => Effect.Effect<CsvImportPreview & { readonly fileName: string }, Error>;
+  /** Writes `content` to a `.csv` file, grants it and imports it into the target. */
+  readonly importCsv: (
+    content: string | Uint8Array,
+    projectId: string,
+    folderId?: string | null,
+  ) => Effect.Effect<ImportResult, Error>;
 }
 
 const newToken = () => randomBytes(32).toString("base64url");
@@ -90,11 +116,21 @@ const makeWorld = (folder: string, backup: RecordingBackup) =>
         yield* grants.grant({ type: "transfer-file-grant", token, path, access });
         return token;
       });
-    const fileWith = (text: string) => {
-      const path = join(folder, `import-${files++}.json`);
-      writeFileSync(path, text, "utf8");
+    const fileWith = (text: string | Uint8Array, extension = "json") => {
+      const path = join(folder, `import-${files++}.${extension}`);
+      writeFileSync(path, text);
       return path;
     };
+    const exportCsvTo = <A>(write: (token: string) => Effect.Effect<A, unknown>) =>
+      Effect.gen(function* () {
+        const path = join(folder, `export-${files++}.csv`);
+        const result = yield* write(yield* grantPath(path, "write"));
+        return { bytes: readFileSync(path), result };
+      }) as Effect.Effect<{ bytes: Buffer; result: A }, Error>;
+    const csvTarget = (projectId: string, folderId: string | null = null) => ({
+      projectId,
+      folderId,
+    });
     const world: TransferWorld = {
       sql,
       backup,
@@ -107,6 +143,29 @@ const makeWorld = (folder: string, backup: RecordingBackup) =>
           return readFileSync(path, "utf8");
         }) as Effect.Effect<string, Error>,
       importJson: (text) => Effect.flatMap(grantPath(fileWith(text), "read"), transfer.importJson),
+      exportProjectCsvBytes: (projectId) =>
+        Effect.map(
+          exportCsvTo((token) => transfer.exportProjectCsv(projectId, token)),
+          ({ bytes }) => bytes,
+        ),
+      exportProjectCsv: (projectId) =>
+        Effect.map(
+          exportCsvTo((token) => transfer.exportProjectCsv(projectId, token)),
+          ({ bytes }) => bytes.toString("utf8"),
+        ),
+      exportSearchCsv: (query) =>
+        Effect.map(
+          exportCsvTo((token) => transfer.exportSearchResultsCsv(query, token)),
+          ({ bytes, result }) => ({ bytes, count: result.count }),
+        ),
+      previewCsv: (content, projectId, folderId) =>
+        Effect.flatMap(grantPath(fileWith(content, "csv"), "read"), (token) =>
+          transfer.previewCsvImport(token, csvTarget(projectId, folderId)),
+        ) as Effect.Effect<CsvImportPreview & { readonly fileName: string }, Error>,
+      importCsv: (content, projectId, folderId) =>
+        Effect.flatMap(grantPath(fileWith(content, "csv"), "read"), (token) =>
+          transfer.importCsv(token, csvTarget(projectId, folderId)),
+        ) as Effect.Effect<ImportResult, Error>,
       previewJson: (text) =>
         Effect.flatMap(
           grantPath(fileWith(text), "read"),
@@ -119,6 +178,7 @@ const makeWorld = (folder: string, backup: RecordingBackup) =>
 type WorldServices =
   | SqlClient.SqlClient
   | UndoService
+  | SearchService
   | Scope.Scope
   | TransferService
   | TransferFileGrants;
@@ -127,6 +187,7 @@ type WorldTest<A, E> = (world: TransferWorld) => Effect.Effect<A, E, WorldServic
 function services(database: Layer.Layer<SqlClient.SqlClient, unknown>, backup: RecordingBackup) {
   const base = Layer.mergeAll(
     UndoService.layer,
+    SearchService.layer,
     TransferFileGrants.layer,
     recordingBackup(backup),
   ).pipe(Layer.provideMerge(database));

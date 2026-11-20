@@ -20,3 +20,18 @@ export const previewJsonImportAtom = TaskTrackerClient.mutation("PreviewJsonImpo
 
 /** Imports a checked file as new data after a backup, or reports why it refused. */
 export const importJsonAtom = TaskTrackerClient.mutation("ImportJson");
+
+/** Writes every active item of one project to a chosen `.csv` file. */
+export const exportProjectCsvAtom = TaskTrackerClient.mutation("ExportProjectCsv");
+
+/** Re-runs a search without the page limit and writes every match to a chosen `.csv` file. */
+export const exportSearchResultsCsvAtom = TaskTrackerClient.mutation("ExportSearchResultsCsv");
+
+/** Reads a project's folders as they are now, for the CSV import's folder choice. */
+export const loadWorkspaceForImportAtom = TaskTrackerClient.mutation("LoadWorkspace");
+
+/** Reads and checks a chosen CSV file against a target without writing anything. */
+export const previewCsvImportAtom = TaskTrackerClient.mutation("PreviewCsvImport");
+
+/** Adds a checked CSV file's rows as new items after a backup, or reports why it refused. */
+export const importCsvAtom = TaskTrackerClient.mutation("ImportCsv");

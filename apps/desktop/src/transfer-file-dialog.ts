@@ -21,29 +21,45 @@ export function parseTransferRequest(value: unknown): TransferRequest | undefine
   return Option.getOrUndefined(decodeRequest(value));
 }
 
-/** A suggested file name: no folders, no characters file systems reject, ending in `.json`. */
-export function suggestedFileName(name: string | undefined): string {
+/** The two transfer file formats; each purpose names one. */
+export type TransferKind = "json" | "csv";
+
+const EXTENSIONS: Record<TransferKind, RegExp> = { json: /\.json$/i, csv: /\.csv$/i };
+
+/** The file kind a dialog purpose is for. */
+export function transferKind(purpose: TransferRequest["purpose"]): TransferKind {
+  return purpose.endsWith("-csv") ? "csv" : "json";
+}
+
+/** A suggested file name: no folders, no characters file systems reject, ending in the kind's extension. */
+export function suggestedFileName(name: string | undefined, kind: TransferKind): string {
   const cleaned = (name ?? "")
     // oxlint-disable-next-line no-control-regex -- control characters are invalid in file names
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
     .trim()
     .replace(/^\.+/, "");
   const base = cleaned === "" ? "task-tracker-export" : cleaned;
-  return /\.json$/i.test(base) ? base : `${base}.json`;
+  return EXTENSIONS[kind].test(base) ? base : `${base}.${kind}`;
 }
 
 /**
  * The path a dialog returned, checked before the server may use it: absolute and
- * named `.json`. A save without the extension gets it; anything else is refused.
+ * named with the kind's extension. A save without the extension gets it;
+ * anything else is refused.
  */
-export function checkedTransferPath(path: string | undefined, saving: boolean): string | undefined {
+export function checkedTransferPath(
+  path: string | undefined,
+  saving: boolean,
+  kind: TransferKind,
+): string | undefined {
   if (path === undefined || path === "" || !isAbsolute(path) || path.includes("\0")) {
     return undefined;
   }
-  if (/\.json$/i.test(path)) {
+  if (EXTENSIONS[kind].test(path)) {
     return path;
   }
-  return saving ? `${path}.json` : undefined;
+  const hasOtherExtension = Object.values(EXTENSIONS).some((pattern) => pattern.test(path));
+  return saving && !hasOtherExtension ? `${path}.${kind}` : undefined;
 }
 
 /** A fresh grant for a checked path; the renderer only ever sees the token and file name. */
@@ -52,7 +68,7 @@ export function grantFor(path: string, request: TransferRequest): TransferGrant 
     type: "transfer-file-grant",
     token: randomBytes(32).toString("base64url"),
     path,
-    access: request.purpose === "export-json" ? "write" : "read",
+    access: request.purpose.startsWith("export-") ? "write" : "read",
   };
 }
 

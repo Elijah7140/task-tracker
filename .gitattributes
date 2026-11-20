@@ -5,3 +5,6 @@
 *.png binary
 *.ico binary
 *.db binary
+
+# CSV transfer fixtures keep the exact bytes legacy-final read or wrote: CRLF, lone CR and LF.
+apps/server/test/fixtures/transfer/csv/*.csv -text

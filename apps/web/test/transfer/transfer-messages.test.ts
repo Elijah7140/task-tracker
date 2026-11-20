@@ -92,6 +92,12 @@ describe("projectExportFileName", () => {
 
     expect(name).toBe("Billing DB.json");
   });
+
+  it("Ends a CSV export's suggested name in .csv", () => {
+    const name = projectExportFileName("Home Lab", "csv");
+
+    expect(name).toBe("Home Lab.csv");
+  });
 });
 
 describe("importConfirmationMessage", () => {

@@ -1,0 +1,32 @@
+{
+  "preview": {
+    "rowCount": 2,
+    "recognizedColumns": [
+      "Title",
+      "Priority"
+    ],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "First in tables",
+        "type": "",
+        "priority": "High",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 3,
+        "title": "Second in tables",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      }
+    ],
+    "issues": [],
+    "canImport": true
+  },
+  "imported": 2
+}

@@ -304,3 +304,12 @@ export {
   trimText as trimTransferText,
 } from "./transfer/json/import-checks.js";
 export { nameKey } from "./metadata/names.js";
+export { CSV_COLUMNS, csvFieldHeader, STANDARD_CSV_COLUMNS } from "./transfer/csv/csv-columns.js";
+export { protectCsvCell, unprotectCsvCell } from "./transfer/csv/csv-cells.js";
+export { escapeCsvCell, writeCsv } from "./transfer/csv/csv-writer.js";
+export { parseCsv, type CsvRecord, type CsvTable } from "./transfer/csv/csv-parser.js";
+export { exportCsv } from "./transfer/csv/csv-exporter.js";
+export { csvImportFields, type CsvImportContext } from "./transfer/csv/csv-import-context.js";
+export type { CsvImportPreview, CsvPreviewRow } from "./transfer/csv/csv-import-preview.js";
+export type { CsvImportRow } from "./transfer/csv/csv-import-row.js";
+export { planCsvImport, type CsvImportPlan } from "./transfer/csv/csv-import-planner.js";

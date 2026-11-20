@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe("TransferMenu", () => {
-  it("Lists the JSON import and export commands", async () => {
+  it("Lists the JSON and CSV import and export commands", async () => {
     await renderApp({ projects });
 
     await trigger().click();
@@ -44,6 +44,12 @@ describe("TransferMenu", () => {
     await expect
       .element(item("Export project (JSON)…"))
       .toHaveAttribute("data-testid", "transfer-export-project");
+    await expect
+      .element(item("Import CSV into project…"))
+      .toHaveAttribute("data-testid", "transfer-import-csv");
+    await expect
+      .element(item("Export project (CSV)…"))
+      .toHaveAttribute("data-testid", "transfer-export-project-csv");
   });
 
   it("Disables its commands and ignores a second request while a save dialog is open", async () => {
@@ -58,8 +64,10 @@ describe("TransferMenu", () => {
 
     for (const testId of [
       "transfer-import-json",
+      "transfer-import-csv",
       "transfer-export-all",
       "transfer-export-project",
+      "transfer-export-project-csv",
     ]) {
       await expect.element(page.getByTestId(testId)).toHaveAttribute("aria-disabled", "true");
     }
@@ -90,6 +98,8 @@ describe("TransferMenu", () => {
     await userEvent.keyboard("{ArrowDown}");
     await expect.element(item("Import JSON…")).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");
+    await expect.element(item("Import CSV into project…")).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
     await expect.element(item("Export everything (JSON)…")).toHaveFocus();
     await userEvent.keyboard("{Enter}");
 
@@ -117,7 +127,7 @@ describe("TransferMenu", () => {
       await settleTheme(theme);
 
       await trigger().click();
-      await expect.element(item("Export project (JSON)…")).toBeVisible();
+      await expect.element(item("Export project (CSV)…")).toBeVisible();
 
       await expect
         .element(page.getByTestId("app-shell"))

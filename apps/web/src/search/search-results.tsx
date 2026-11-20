@@ -5,6 +5,7 @@ import { memo, useEffect, useRef } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { SEARCH_RESULT_LIMIT, searchResultsAtom } from "../rpc/search-queries.js";
 import { SearchError } from "./search-error.js";
+import { SearchResultsExport } from "./search-results-export.js";
 import { SearchResultsList } from "./search-results-list.js";
 
 type Page = typeof ItemSearchResults.Type;
@@ -71,6 +72,9 @@ export const SearchResults = memo(function SearchResults({
           Searching…
         </p>
       ) : null}
+      {page === null || page.items.length === 0 ? null : (
+        <SearchResultsExport query={query} hasResults={!busy} />
+      )}
       {page === null ? null : (
         <SearchResultsList
           page={page}
