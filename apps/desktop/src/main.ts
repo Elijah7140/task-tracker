@@ -22,6 +22,7 @@ import {
 import { Effect, Option, Schema } from "effect";
 import { createAppTray } from "./app-tray.js";
 import { instanceProfile } from "./instance-scope.js";
+import { withLaunchLock } from "./launch-lock.js";
 import {
   createDesktopInstallation,
   type DesktopInstallationServices,
@@ -578,7 +579,14 @@ if (process.platform === "win32") {
   applyWindowsAppIdentity();
 }
 
-if (app.requestSingleInstanceLock()) {
+/** Takes Electron's single-instance lock while no other launch on the profile is taking it. */
+function requestSingleInstance() {
+  return withLaunchLock(app.getPath("userData"), () => app.requestSingleInstanceLock(), {
+    warn: (message) => console.warn(message),
+  });
+}
+
+if (requestSingleInstance()) {
   registerRendererScheme();
   app.on("second-instance", onSecondInstance);
   app.on("before-quit", beforeQuit);

@@ -1186,6 +1186,9 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
     The default database keeps the Electron profile and its lock. A `TASKTRACKER_DB_PATH` override
     moves the profile to `instances/<hash of user and resolved path>` beneath it before the lock
     is taken.
+  - Launches take that lock one at a time, under an OS lock on the profile's `LaunchLock` file.
+    On Linux, Chromium checks a lock holder by its `chrome` executable name. A racing launch
+    otherwise deletes the lock of an instance that has not yet bound its socket, and both run.
   - Legacy used a mutex and pipe with a three-second response deadline. Verify activation while
     starting or tray-hidden and give the launching user feedback when the instance is unresponsive.
 - **Search (§7.7).** `has:reminder` matches open items whose effective reminder is not None.

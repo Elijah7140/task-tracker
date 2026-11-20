@@ -66,6 +66,7 @@ export default defineConfig({
             "apps/desktop/test/transfer-file-dialog.test.ts",
             "apps/desktop/test/scripts/**/*.test.ts",
             "apps/desktop/test/instance-scope.test.ts",
+            "apps/desktop/test/launch-lock.test.ts",
             "apps/desktop/test/native-notifier.test.ts",
             "apps/desktop/test/reminder-notifications.test.ts",
             "apps/desktop/test/reminder-toast.test.ts",
