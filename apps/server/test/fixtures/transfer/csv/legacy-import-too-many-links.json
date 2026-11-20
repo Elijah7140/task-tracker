@@ -1,0 +1,29 @@
+{
+  "preview": {
+    "rowCount": 1,
+    "recognizedColumns": [
+      "Title",
+      "Links"
+    ],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "One",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": true
+      }
+    ],
+    "issues": [
+      {
+        "path": "Row 2, Links",
+        "message": "An item may have at most 100 links."
+      }
+    ],
+    "canImport": false
+  },
+  "imported": null
+}

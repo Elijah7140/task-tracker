@@ -1,3 +1,4 @@
+import type { CsvImportPreview } from "@task-tracker/contracts";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
@@ -63,6 +64,17 @@ export interface DraftOptions {
   readonly message: string;
 }
 
+/**
+ * A CSV import preview (§7.9): the file's rows, columns and problems for a
+ * target. It offers Import only when the file can be imported.
+ */
+export interface CsvPreviewOptions {
+  readonly title: string;
+  readonly preview: typeof CsvImportPreview.Type;
+  /** The target project, and folder when there is one, such as "Billing / Tables". */
+  readonly targetName: string;
+}
+
 /** What to do with an unsaved draft. Escape or dismissal answers `cancel`. */
 export type DraftDecision = "save" | "discard" | "cancel";
 
@@ -80,7 +92,8 @@ export type DialogRequest =
   | Pending<"prompt", PromptOptions, string | null>
   | Pending<"choose", ChooseOptions, string | null>
   | Pending<"message", MessageOptions, undefined>
-  | Pending<"draft", DraftOptions, DraftDecision>;
+  | Pending<"draft", DraftOptions, DraftDecision>
+  | Pending<"csv-preview", CsvPreviewOptions, boolean>;
 
 /** Pending dialogs and the actions that open and settle them. */
 export interface DialogState {
@@ -91,6 +104,7 @@ export interface DialogState {
   readonly choose: (options: ChooseOptions) => Promise<string | null>;
   readonly notify: (options: MessageOptions) => Promise<undefined>;
   readonly resolveDraft: (options: DraftOptions) => Promise<DraftDecision>;
+  readonly previewCsv: (options: CsvPreviewOptions) => Promise<boolean>;
   readonly settle: (id: number, result: boolean | string | null | undefined) => void;
 }
 
@@ -125,6 +139,10 @@ export function createDialogStore() {
         new Promise((resolve) => push({ kind: "message", options, title: options.title, resolve })),
       resolveDraft: (options) =>
         new Promise((resolve) => push({ kind: "draft", options, title: options.title, resolve })),
+      previewCsv: (options) =>
+        new Promise((resolve) =>
+          push({ kind: "csv-preview", options, title: options.title, resolve }),
+        ),
       settle: (id, result) => {
         const request = get().queue.find((candidate) => candidate.id === id);
         if (request === undefined) {
@@ -140,6 +158,7 @@ export function createDialogStore() {
 function settleRequest(request: DialogRequest, result: boolean | string | null | undefined) {
   switch (request.kind) {
     case "confirm":
+    case "csv-preview":
       return request.resolve(result === true);
     case "prompt":
     case "choose":
@@ -168,6 +187,10 @@ export const notify = (options: MessageOptions) => dialogStore.getState().notify
 
 /** Asks whether to save, discard or keep editing an unsaved draft. */
 export const resolveDraft = (options: DraftOptions) => dialogStore.getState().resolveDraft(options);
+
+/** Shows a CSV import preview and resolves true when the user chooses Import. */
+export const previewCsv = (options: CsvPreviewOptions) =>
+  dialogStore.getState().previewCsv(options);
 
 /** The dialog currently shown, if any. */
 export const useActiveDialog = () => useStore(dialogStore, (state) => state.queue[0]);

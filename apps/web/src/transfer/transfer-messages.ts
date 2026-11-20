@@ -49,11 +49,14 @@ export function describeTransferIssues(issues: ReadonlyArray<Issue>): string {
 
 /**
  * The file name a project export suggests: the project name with characters
- * that file systems refuse replaced by "-", trimmed, plus ".json".
+ * that file systems refuse replaced by "-", trimmed, plus ".json" or ".csv".
  */
-export function projectExportFileName(projectName: string): string {
+export function projectExportFileName(
+  projectName: string,
+  extension: "json" | "csv" = "json",
+): string {
   const safe = projectName.replace(INVALID_FILE_NAME_CHARACTERS, "-").trim();
-  return `${safe === "" ? "project" : safe}.json`;
+  return `${safe === "" ? "project" : safe}.${extension}`;
 }
 
 /** The question asked before a JSON import adds a checked file's contents. */

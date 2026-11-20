@@ -156,30 +156,34 @@ describe("JSON import robustness", () => {
     ),
   );
 
-  it.effect("Imports a large hierarchy", () =>
-    emptyWorld((world) =>
-      Effect.gen(function* () {
-        const parentId = randomGuid();
-        const items = [
-          { id: parentId, title: "Parent", sortOrder: 0 },
-          ...Array.from({ length: 2999 }, (_, index) => ({
-            id: randomGuid(),
-            parentItemId: parentId,
-            title: `Child ${index + 1}`,
-            sortOrder: index + 1,
-          })),
-        ];
-        const text = JSON.stringify({
-          format: "task-tracker",
-          version: 1,
-          projects: [{ id: randomGuid(), name: "Wide", items }],
-        });
+  it.effect(
+    "Imports a large hierarchy",
+    () =>
+      emptyWorld((world) =>
+        Effect.gen(function* () {
+          const parentId = randomGuid();
+          const items = [
+            { id: parentId, title: "Parent", sortOrder: 0 },
+            ...Array.from({ length: 2999 }, (_, index) => ({
+              id: randomGuid(),
+              parentItemId: parentId,
+              title: `Child ${index + 1}`,
+              sortOrder: index + 1,
+            })),
+          ];
+          const text = JSON.stringify({
+            format: "task-tracker",
+            version: 1,
+            projects: [{ id: randomGuid(), name: "Wide", items }],
+          });
 
-        const result = yield* world.importJson(text);
+          const result = yield* world.importJson(text);
 
-        expect(result).toMatchObject({ kind: "imported", summary: { items: 3000 } });
-      }),
-    ),
+          expect(result).toMatchObject({ kind: "imported", summary: { items: 3000 } });
+        }),
+      ),
+    // About a second alone, but it shares the CPU with every other suite in the Electron run.
+    20_000,
   );
 
   it.effect("Refuses a file that is not UTF-8 with advice", () =>

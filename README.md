@@ -57,8 +57,9 @@ Playwright runs the unpacked executable against temporary databases. On headless
 Linux, run the smoke suite with `xvfb-run -a pnpm run test:desktop`. The packaged
 executable needs a working Chromium sandbox.
 
-For end-to-end tests only, the JSON import and export file dialogs answer with a
-fixed path when both `TASKTRACKER_SMOKE=1` and `TASKTRACKER_TEST_FILE_PATH` are set.
+For end-to-end tests only, the JSON and CSV import and export file dialogs answer
+with a fixed path when both `TASKTRACKER_SMOKE=1` and `TASKTRACKER_TEST_FILE_PATH`
+are set.
 Without both, the native dialog is always shown, so a normal run cannot overwrite
 or read a file by accident.
 

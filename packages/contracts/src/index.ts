@@ -96,10 +96,15 @@ export {
 } from "./ticket-board.js";
 export { TicketRpcs } from "./ticket-rpcs.js";
 export {
+  CsvImportPreview,
+  CsvImportResult,
+  CsvImportTarget,
+  CsvPreviewRow,
   JsonExportResult,
   JsonExportScope,
   JsonImportPreview,
   JsonImportResult,
+  SearchResultsExportResult,
   TransferError,
   TransferFailed,
   TransferFileChoice,

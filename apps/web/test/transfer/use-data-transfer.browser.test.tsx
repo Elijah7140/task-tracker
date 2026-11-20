@@ -9,7 +9,11 @@ const TOKEN = "T".repeat(43);
 const billing = { name: "Billing DB", openCount: 3, overdueCount: 1 };
 const website = { name: "Web/Site: v2", openCount: 5 };
 
-type MenuCommand = "transfer-import-json" | "transfer-export-all" | "transfer-export-project";
+type MenuCommand =
+  | "transfer-import-json"
+  | "transfer-export-all"
+  | "transfer-export-project"
+  | "transfer-export-project-csv";
 
 /** Stubs the desktop bridge so file dialogs answer in order; later dialogs are cancelled. */
 function stubFileDialogs(...fileNames: ReadonlyArray<string | null>) {
@@ -108,6 +112,28 @@ describe("useDataTransfer", () => {
     const projectId = store.summaries[1]?.project.id;
     expect(store.transfer.requests).toEqual([
       { tag: "ExportJson", scope: { kind: "project", projectId }, fileToken: TOKEN },
+    ]);
+  });
+
+  it("Exports the chosen project as CSV with a .csv file name suggested from its name", async () => {
+    const dialogs = stubFileDialogs("Web-Site- v2.csv");
+    const { store } = await renderHome();
+    await runCommand("transfer-export-project-csv");
+    const choice = page.getByTestId("choice-dialog");
+    await expect.element(choice.getByRole("heading", { name: "Export project" })).toBeVisible();
+
+    await choice.getByRole("radio", { name: "Web/Site: v2" }).click();
+    await userEvent.keyboard("{Enter}");
+
+    await expect
+      .element(status())
+      .toHaveTextContent("Exported Web/Site: v2 to /home/owner/Documents/task-tracker-export.csv.");
+    expect(dialogs.mock.calls).toEqual([
+      [{ purpose: "export-csv", suggestedName: "Web-Site- v2.csv" }],
+    ]);
+    const projectId = store.summaries[1]?.project.id;
+    expect(store.transfer.requests).toEqual([
+      { tag: "ExportProjectCsv", projectId, fileToken: TOKEN },
     ]);
   });
 

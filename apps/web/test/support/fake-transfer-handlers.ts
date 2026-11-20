@@ -1,4 +1,7 @@
 import type {
+  CsvImportPreview,
+  CsvImportTarget,
+  ItemQuery,
   JsonExportScope,
   JsonImportPreview,
   JsonImportResult,
@@ -7,7 +10,16 @@ import type {
 import { Effect } from "effect";
 import type { FakeProjectStore, SeedProject } from "./fake-task-tracker-server.js";
 
-type TransferRpc = "ExportJson" | "PreviewJsonImport" | "ImportJson";
+type TransferRpc =
+  | "ExportJson"
+  | "PreviewJsonImport"
+  | "ImportJson"
+  | "ExportProjectCsv"
+  | "ExportSearchResultsCsv"
+  | "PreviewCsvImport"
+  | "ImportCsv";
+
+type Target = typeof CsvImportTarget.Type;
 
 /** One transfer RPC as the fake server received it. */
 export type FakeTransferRequest =
@@ -16,7 +28,18 @@ export type FakeTransferRequest =
       readonly fileToken: string;
       readonly scope: typeof JsonExportScope.Type;
     }
-  | { readonly tag: "PreviewJsonImport" | "ImportJson"; readonly fileToken: string };
+  | { readonly tag: "PreviewJsonImport" | "ImportJson"; readonly fileToken: string }
+  | { readonly tag: "ExportProjectCsv"; readonly fileToken: string; readonly projectId: string }
+  | {
+      readonly tag: "ExportSearchResultsCsv";
+      readonly fileToken: string;
+      readonly query: typeof ItemQuery.Type;
+    }
+  | {
+      readonly tag: "PreviewCsvImport" | "ImportCsv";
+      readonly fileToken: string;
+      readonly target: Target;
+    };
 
 /**
  * Transfer answers and recorded requests for import and export tests (§7.9).
@@ -39,6 +62,28 @@ export class FakeTransfer {
     summary: { projects: 1, folders: 0, items: 2, savedSearches: 0 },
     backupPath: "/home/owner/.local/share/task-tracker/tasktracker-import-20261119.db.bak",
   };
+  /** What `PreviewCsvImport` reports for any token. */
+  csvPreview: typeof CsvImportPreview.Type = {
+    fileName: "items.csv",
+    rowCount: 2,
+    recognizedColumns: ["Title", "Type"],
+    unknownColumns: [],
+    ignoredColumns: [],
+    sampleRows: [
+      { rowNumber: 2, title: "One", type: "Change", priority: "", dueDate: "", hasError: false },
+      { rowNumber: 3, title: "Two", type: "", priority: "", dueDate: "", hasError: false },
+    ],
+    issues: [],
+    canImport: true,
+  };
+  /** What `ImportCsv` reports for any token. */
+  csvImportResult: typeof JsonImportResult.Type = {
+    kind: "imported",
+    summary: { projects: 0, folders: 0, items: 2, savedSearches: 0 },
+    backupPath: "/home/owner/.local/share/task-tracker/tasktracker-import-20261119.db.bak",
+  };
+  /** How many matches a search results export reports. */
+  searchExportCount = 3;
   /** Projects an accepted import adds, so Home can show them after it reloads. */
   importedProjects: Array<SeedProject> = [{ name: "Home Lab", openCount: 2 }];
   /** A failure the named RPC returns instead of its answer. */
@@ -58,7 +103,34 @@ function importAnswer(store: FakeProjectStore) {
   return result;
 }
 
-/** `ExportJson`, `PreviewJsonImport` and `ImportJson` backed by {@link FakeTransfer}. */
+/** Records a request and answers it, unless a failure was set for its RPC. */
+function answer<A>(store: FakeProjectStore, request: FakeTransferRequest, reply: () => A) {
+  store.transfer.requests.push(request);
+  return store.record(request.tag).pipe(Effect.andThen(failOr(store, request.tag, reply)));
+}
+
+/** The CSV transfer RPCs backed by {@link FakeTransfer}. */
+function csvTransferHandlers(store: FakeProjectStore) {
+  const { transfer } = store;
+  type Token = { fileToken: string };
+  return {
+    ExportProjectCsv: ({ projectId, fileToken }: Token & { projectId: string }) =>
+      answer(store, { tag: "ExportProjectCsv", projectId, fileToken }, () => ({
+        path: transfer.exportPath.replace(/\.json$/, ".csv"),
+      })),
+    ExportSearchResultsCsv: ({ query, fileToken }: Token & { query: typeof ItemQuery.Type }) =>
+      answer(store, { tag: "ExportSearchResultsCsv", query, fileToken }, () => ({
+        path: "/home/owner/Documents/search-results.csv",
+        count: transfer.searchExportCount,
+      })),
+    PreviewCsvImport: ({ fileToken, target }: Token & { target: Target }) =>
+      answer(store, { tag: "PreviewCsvImport", fileToken, target }, () => transfer.csvPreview),
+    ImportCsv: ({ fileToken, target }: Token & { target: Target }) =>
+      answer(store, { tag: "ImportCsv", fileToken, target }, () => transfer.csvImportResult),
+  };
+}
+
+/** Every transfer RPC backed by {@link FakeTransfer}. */
 export function transferHandlers(store: FakeProjectStore) {
   const { transfer } = store;
   return {
@@ -86,5 +158,6 @@ export function transferHandlers(store: FakeProjectStore) {
         .record("ImportJson")
         .pipe(Effect.andThen(failOr(store, "ImportJson", () => importAnswer(store))));
     },
+    ...csvTransferHandlers(store),
   };
 }

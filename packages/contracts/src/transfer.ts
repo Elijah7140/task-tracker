@@ -8,8 +8,13 @@ import { NotFound, OperationFailed, RuleViolation } from "./rpc-operation-error.
  */
 export const TransferFileToken = Schema.String.check(Schema.isPattern(/^[A-Za-z0-9_-]{43}$/));
 
-/** What a file dialog is for. Each purpose fixes the dialog kind and the `.json` filter. */
-export const TransferFilePurpose = Schema.Literals(["export-json", "import-json"]);
+/** What a file dialog is for. Each purpose fixes the dialog kind and the `.json` or `.csv` filter. */
+export const TransferFilePurpose = Schema.Literals([
+  "export-json",
+  "import-json",
+  "export-csv",
+  "import-csv",
+]);
 
 /** A renderer request for a file dialog. The suggested name only seeds a save dialog. */
 export const TransferFileRequest = Schema.Struct({
@@ -34,7 +39,7 @@ export const TransferFileGrant = Schema.Struct({
   access: Schema.Literals(["read", "write"]),
 });
 
-/** One problem in an import file, located by a JSON path. */
+/** One problem in an import file, located by a JSON path or a CSV row and column. */
 export const TransferIssue = Schema.Struct({ path: Schema.String, message: Schema.String });
 
 /** How much an import file holds or an import created. */
@@ -70,6 +75,40 @@ export const JsonImportResult = Schema.Union([
   }),
   Schema.Struct({ kind: Schema.Literal("refused"), issues: Schema.Array(TransferIssue) }),
 ]);
+
+/** A finished search results export: the file and how many matches it holds. */
+export const SearchResultsExportResult = Schema.Struct({ path: Schema.String, count: Schema.Int });
+
+/** The project, and optionally one of its folders, that a CSV import adds rows to. */
+export const CsvImportTarget = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
+
+/** A row of a CSV import file as written, with whether it has errors. */
+export const CsvPreviewRow = Schema.Struct({
+  rowNumber: Schema.Int,
+  title: Schema.String,
+  type: Schema.String,
+  priority: Schema.String,
+  dueDate: Schema.String,
+  hasError: Schema.Boolean,
+});
+
+/**
+ * What a CSV import would do (§7.9): the row count, how the columns were read,
+ * the first five rows and every problem by row. It can be imported when `canImport`.
+ */
+export const CsvImportPreview = Schema.Struct({
+  fileName: Schema.String,
+  rowCount: Schema.Int,
+  recognizedColumns: Schema.Array(Schema.String),
+  unknownColumns: Schema.Array(Schema.String),
+  ignoredColumns: Schema.Array(Schema.String),
+  sampleRows: Schema.Array(CsvPreviewRow),
+  issues: Schema.Array(TransferIssue),
+  canImport: Schema.Boolean,
+});
+
+/** The outcome of a CSV import, like a JSON import's. */
+export const CsvImportResult = JsonImportResult;
 
 /**
  * A file could not be chosen, read or written, or the pre-import backup failed. The

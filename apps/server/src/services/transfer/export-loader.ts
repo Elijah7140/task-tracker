@@ -58,6 +58,29 @@ const selectProjects = Effect.fnUntraced(function* (
 });
 
 /**
+ * Loads the active projects with these ids for a CSV export, in order of first
+ * appearance, leaving out any that are missing or deleted (§7.9).
+ */
+export const loadActiveProjects = Effect.fnUntraced(function* (
+  sql: SqlClient.SqlClient,
+  projectIds: Iterable<string>,
+) {
+  const projects = projectRepository(sql);
+  const found = yield* Effect.forEach(new Set(projectIds), (id) => projects.findActive(id));
+  const active = found.flatMap((project) => (Option.isSome(project) ? [project.value] : []));
+  return yield* Effect.forEach(active, (project) => loadProject(sql, project));
+});
+
+/** Loads one active project for a CSV export; a deleted one is refused. */
+export const loadProjectForCsv = Effect.fnUntraced(function* (
+  sql: SqlClient.SqlClient,
+  projectId: string,
+) {
+  const projects = yield* selectProjects(sql, projectId);
+  return yield* Effect.forEach(projects, (project) => loadProject(sql, project));
+});
+
+/**
  * Loads what a JSON export writes on the caller's transaction: every active
  * project, or one project (a deleted one is refused), and the lookups, fields,
  * settings and saved searches (§7.9).

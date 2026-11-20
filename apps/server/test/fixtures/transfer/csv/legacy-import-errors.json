@@ -1,0 +1,184 @@
+{
+  "preview": {
+    "rowCount": 25,
+    "recognizedColumns": [
+      "Title",
+      "Type",
+      "Priority",
+      "Priority reference",
+      "Status",
+      "Due date",
+      "Due time",
+      "Scheduled start",
+      "Scheduled end",
+      "Completed",
+      "Completed at",
+      "Severity",
+      "Estimate",
+      "Reviewed",
+      "Flag",
+      "Links",
+      "Ticket"
+    ],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "Good",
+        "type": "Change",
+        "priority": "High",
+        "dueDate": "2026-12-01",
+        "hasError": false
+      },
+      {
+        "rowNumber": 3,
+        "title": "Bad type",
+        "type": "Bug",
+        "priority": "High",
+        "dueDate": "",
+        "hasError": true
+      },
+      {
+        "rowNumber": 4,
+        "title": "",
+        "type": "Change",
+        "priority": "Urgent",
+        "dueDate": "13/01/2026",
+        "hasError": true
+      },
+      {
+        "rowNumber": 5,
+        "title": "Archived priority",
+        "type": "",
+        "priority": "Someday",
+        "dueDate": "",
+        "hasError": true
+      },
+      {
+        "rowNumber": 6,
+        "title": "Archived number",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": true
+      }
+    ],
+    "issues": [
+      {
+        "path": "Row 3, Type",
+        "message": "There is no type named \u0027Bug\u0027. Use one of: Change, Error, Discussion, Spike."
+      },
+      {
+        "path": "Row 4, Title",
+        "message": "A title of 1 to 300 characters is required."
+      },
+      {
+        "path": "Row 4, Due date",
+        "message": "Expected a date such as 2026-11-13."
+      },
+      {
+        "path": "Row 4, Severity",
+        "message": "\u0027Huge\u0027 is not one of the choices: Minor, Major."
+      },
+      {
+        "path": "Row 4, Estimate",
+        "message": "\u0027abc\u0027 is not a number; use a dot for decimals, for example 2.5."
+      },
+      {
+        "path": "Row 5, Priority",
+        "message": "The priority \u0027Someday\u0027 is archived."
+      },
+      {
+        "path": "Row 6, Priority reference",
+        "message": "There is no priority matching \u0027#8\u0027. Use one of: #name:Critical, #name:High, #name:Medium, #name:Low, #name:Urgent, #7."
+      },
+      {
+        "path": "Row 7, Priority reference",
+        "message": "The priority \u0027#id:01A1F637-48EB-7D52-B5CA-49B075DEEE4F\u0027 is archived."
+      },
+      {
+        "path": "Row 8, Priority reference",
+        "message": "There is no priority matching \u0027#99\u0027. Use one of: #name:Critical, #name:High, #name:Medium, #name:Low, #name:Urgent, #7."
+      },
+      {
+        "path": "Row 9, Due time",
+        "message": "A due time needs a due date."
+      },
+      {
+        "path": "Row 10, Due time",
+        "message": "Expected a time such as 15:00."
+      },
+      {
+        "path": "Row 11, Scheduled end",
+        "message": "The scheduled end must not be before the start."
+      },
+      {
+        "path": "Row 12, Scheduled end",
+        "message": "A scheduled end needs a scheduled start."
+      },
+      {
+        "path": "Row 13, Scheduled start",
+        "message": "Expected a local date and time such as 2026-11-13T15:00."
+      },
+      {
+        "path": "Row 14, Completed",
+        "message": "Expected yes or no."
+      },
+      {
+        "path": "Row 15, Completed at",
+        "message": "A completion time is set but Completed says no."
+      },
+      {
+        "path": "Row 16, Completed at",
+        "message": "Expected a UTC timestamp such as 2026-11-13T12:00:00Z."
+      },
+      {
+        "path": "Row 17, Status",
+        "message": "Status must agree with completion."
+      },
+      {
+        "path": "Row 18, Status",
+        "message": "Status must agree with completion."
+      },
+      {
+        "path": "Row 19, Status",
+        "message": "There is no status named \u0027Blocked\u0027. Use one of: Queued, In progress, Testing, Completed, Verification, Shipped."
+      },
+      {
+        "path": "Row 20, Estimate",
+        "message": "\u00272,5\u0027 is not a number; use a dot for decimals, for example 2.5."
+      },
+      {
+        "path": "Row 21, Reviewed",
+        "message": "Expected a date such as 2026-11-13."
+      },
+      {
+        "path": "Row 21, Flag",
+        "message": "Expected yes or no."
+      },
+      {
+        "path": "Row 22, Title",
+        "message": "A title of 1 to 300 characters is required."
+      },
+      {
+        "path": "Row 23, Ticket",
+        "message": "The ticket number must be 100 characters or fewer."
+      },
+      {
+        "path": "Row 24, Links",
+        "message": "\u0027file:///C:/x\u0027: A link must be a full http, https or mailto address."
+      },
+      {
+        "path": "Row 24, Links",
+        "message": "\u0027not-a-link\u0027: A link must be a full http, https or mailto address."
+      },
+      {
+        "path": "Row 25",
+        "message": "The row has 18 cells but the header has 17 columns."
+      }
+    ],
+    "canImport": false
+  },
+  "imported": null
+}

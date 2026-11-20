@@ -1,0 +1,12 @@
+﻿Title,Description,Ticket,Type,Priority,Priority reference,Status,Due date,Due time,Scheduled start,Scheduled end,Completed,Completed at,Project,Folder path,Parent title,Links,Repeats,Severity,Estimate,Reviewed,Flag,Notes,Customer
+Fix invoice totals,"Totals are wrong,
+see the ""Q4"" report",JIRA-1,Change,High,#name:High,,2026-11-20,15:00:00,,,no,,Billing,,,,,Major,2.5,2026-11-01,yes,Needs a look,"Acme, Inc."
+Check query plan,,,,,,Completed,,,,,yes,2026-11-13T12:00:01Z,Billing,,Fix invoice totals,,,,,,,,
+Write regression test,,,,,,,,,,,no,,Billing,,Fix invoice totals,,,,,,,,
+LF row,plain,A-1,,,,,,,,,no,,Billing,,,,,,,,,,
+CR row,"quotedwith CR",A-2,,,,,,,,,no,,Billing,,,,,,,,,,
+CRLF row,"two
+lines",A-3,,,,,,,,,no,,Billing,,,,,,,,,,
+"Quoted, title","say ""hi""",A-4,,,,,,,,,no,,Billing,,,,,,,,,,
+No final newline,,A-5,,,,,,,,,no,,Billing,,,,,,,,,,
+Add index,,,Spike,Urgent,#name:Urgent,Completed,2026-11-22,,2026-11-21T09:00:00,2026-11-21T10:30:00,yes,2026-11-13T12:00:02Z,Billing,dbo/Tables,,,,,,,,,

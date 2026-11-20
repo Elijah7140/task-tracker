@@ -6,10 +6,15 @@ import { Deferred, Effect, Fiber, Layer } from "effect";
 import { TestClock } from "effect/testing";
 import { databaseLayer } from "../../../../src/db/database-layer.js";
 import { ProjectService } from "../../../../src/services/project-service.js";
+import { SearchService } from "../../../../src/services/search-service.js";
 import { DatabaseBackup } from "../../../../src/services/transfer/database-backup.js";
-import { TransferFileGrants } from "../../../../src/services/transfer/transfer-file-grants.js";
+import {
+  isTransferPath,
+  TransferFileGrants,
+} from "../../../../src/services/transfer/transfer-file-grants.js";
 import { TransferService } from "../../../../src/services/transfer/transfer-service.js";
 import { UndoService } from "../../../../src/services/undo-service.js";
+import { createProject } from "./csv-setup.js";
 import { parseJson } from "./transfer-json.js";
 import { countRows, projectId, readProjects } from "./transfer-rows.js";
 import { emptyWorld, fixturePath, fixtureText, seededWorld, startedAt } from "./transfer-world.js";
@@ -227,6 +232,46 @@ describe("Transfer file grants", () => {
     ),
   );
 
+  it.effect("Refuses a CSV file for a JSON operation and a JSON file for a CSV operation", () =>
+    emptyWorld((world) =>
+      Effect.gen(function* () {
+        const transfer = yield* TransferService;
+        const project = yield* createProject(world, "Target");
+        const csvFile = join(world.folder, "items.csv");
+        writeFileSync(csvFile, "Title\r\nOne\r\n");
+        const jsonToken = yield* world.grant(csvFile, "read");
+        const csvToken = yield* world.grant(join(world.folder, "out.json"), "write");
+        const refused = (operation: Effect.Effect<unknown, Error>) =>
+          Effect.flip(
+            Effect.forkChild(operation).pipe(
+              Effect.tap(() => TestClock.adjust("6 seconds")),
+              Effect.flatMap(Fiber.join),
+            ),
+          );
+
+        const json = yield* refused(transfer.previewJsonImport(jsonToken));
+        const csv = yield* refused(transfer.exportProjectCsv(project, csvToken));
+
+        expect(json.message).toBe(
+          "Choose the file again in Task Tracker; this file choice is no longer valid.",
+        );
+        expect(csv.message).toBe(json.message);
+      }),
+    ),
+  );
+
+  it.effect("Grants only absolute .json and .csv paths", () =>
+    Effect.sync(() => {
+      const accepted = ["/tmp/a.json", "/tmp/b.CSV"].map(isTransferPath);
+      const refused = ["relative.csv", "/tmp/c.txt", "/tmp/d.csv\0.json", "/tmp/e.csvx"].map(
+        isTransferPath,
+      );
+
+      expect(accepted).toEqual([true, true]);
+      expect(refused).toEqual([false, false, false, false]);
+    }),
+  );
+
   it.effect(
     "Waits briefly for a grant written just before the request and ignores invalid paths",
     () =>
@@ -271,6 +316,7 @@ describe("Pre-import backups", () => {
             Layer.provideMerge(
               Layer.mergeAll(
                 UndoService.layer,
+                SearchService.layer,
                 TransferFileGrants.layer,
                 DatabaseBackup.layer(database),
               ),
