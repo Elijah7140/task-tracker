@@ -1,3 +1,4 @@
+import { trimText } from "../text/dotnet-white-space.js";
 import type { SettingCodec } from "./setting-codec.js";
 
 const hyphenatedGuid = /^\{?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}?$/i;
@@ -9,7 +10,7 @@ const hyphenatedGuid = /^\{?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
  */
 export const optionalGuidCodec: SettingCodec<string | null> = {
   parse(text) {
-    const trimmed = text.trim();
+    const trimmed = trimText(text);
     if (trimmed === "") {
       return null;
     }

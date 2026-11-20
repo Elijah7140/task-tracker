@@ -1,3 +1,4 @@
+import { isBlankText, trimText } from "@task-tracker/contracts";
 import type { ItemLink, ItemLinkInput } from "@task-tracker/contracts";
 import { linkProblem, MAX_LINKS_PER_ITEM, normalizeLinkTitle } from "./link-validation.js";
 
@@ -72,9 +73,9 @@ function editingRow(rows: ReadonlyArray<LinkRow>, draft: LinkDraft) {
 export function hasPendingLinkEntry(rows: ReadonlyArray<LinkRow>, draft: LinkDraft): boolean {
   const row = editingRow(rows, draft);
   if (row !== undefined) {
-    return draft.url.trim() !== row.url || normalizeLinkTitle(draft.title) !== row.title;
+    return trimText(draft.url) !== row.url || normalizeLinkTitle(draft.title) !== row.title;
   }
-  return draft.url.trim() !== "" || draft.title.trim() !== "";
+  return !isBlankText(draft.url) || !isBlankText(draft.title);
 }
 
 /** Whether Cancel can clear typed text or stop an edit. */
@@ -91,7 +92,7 @@ function entryProblem(rows: ReadonlyArray<LinkRow>, draft: LinkDraft): string | 
 }
 
 function placeEntry(rows: ReadonlyArray<LinkRow>, draft: LinkDraft, key: string) {
-  const fields = { url: draft.url.trim(), title: normalizeLinkTitle(draft.title) };
+  const fields = { url: trimText(draft.url), title: normalizeLinkTitle(draft.title) };
   const editing = editingRow(rows, draft);
   if (editing === undefined) {
     return [...rows, { key, id: null, ...fields }];

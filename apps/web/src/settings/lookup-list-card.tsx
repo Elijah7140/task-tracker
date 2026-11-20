@@ -1,3 +1,4 @@
+import { isBlankText } from "@task-tracker/contracts";
 import { Input } from "@base-ui/react/input";
 import { type FormEvent, type RefObject, useRef, useState } from "react";
 import { UNSAVED_SETTINGS_UNDO_MESSAGE, useUndoBlocker } from "../shell/undo-blockers.js";
@@ -91,7 +92,7 @@ function AddLookupForm({
 }) {
   const [newName, setNewName] = useState("");
   const [newNumber, setNewNumber] = useState("");
-  useUndoBlocker(newName.trim() !== "" || newNumber !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
+  useUndoBlocker(!isBlankText(newName) || newNumber !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
 
   const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

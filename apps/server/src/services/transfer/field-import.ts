@@ -3,7 +3,7 @@ import {
   nameKey,
   parseTransferDataType,
   QUERY_KEYWORDS,
-  trimTransferText,
+  trimText,
   TRANSFER_NAME_MAX_LENGTH,
   uniqueImportedName,
   type ChoiceDocument,
@@ -64,7 +64,7 @@ class FieldImport {
       [...existing.fields.map((field) => field.key), ...RESERVED_KEYS].map(nameKey),
     );
     const documents = listOf(context.document.fields);
-    this.#sourceKeys = new Set(documents.map((field) => nameKey(trimTransferText(field.key!))));
+    this.#sourceKeys = new Set(documents.map((field) => nameKey(trimText(field.key!))));
   }
 
   run(): void {
@@ -88,7 +88,7 @@ class FieldImport {
     const type = parseTransferDataType(document.dataType)!;
     const projectId =
       document.projectId === null ? null : this.context.map.projects.get(document.projectId)!;
-    const key = trimTransferText(document.key!);
+    const key = trimText(document.key!);
     const match = projectId === null ? this.#findGlobal(key) : undefined;
     if (match === undefined) {
       this.#createField(document, type, projectId);
@@ -108,7 +108,7 @@ class FieldImport {
   }
 
   #createField(document: FieldDocument, dataType: FieldDataType, projectId: string | null): void {
-    const sourceKey = trimTransferText(document.key!);
+    const sourceKey = trimText(document.key!);
     const unavailable = new Set([...this.#usedKeys, ...this.#sourceKeys]);
     unavailable.delete(nameKey(sourceKey));
     for (const used of this.#usedKeys) {
@@ -133,7 +133,7 @@ class FieldImport {
   }
 
   #displayName(document: FieldDocument, projectId: string | null): string {
-    const name = trimTransferText(document.displayName!);
+    const name = trimText(document.displayName!);
     if (document.isArchived === true) {
       return name;
     }
@@ -166,7 +166,7 @@ class FieldImport {
 
   #matchChoices(document: FieldDocument, field: FieldDefinition): void {
     for (const choice of listOf(document.choices)) {
-      const label = choice.label === null ? null : trimTransferText(choice.label);
+      const label = choice.label === null ? null : trimText(choice.label);
       const existing = this.#choices.find(
         (row) =>
           row.fieldDefinitionId === field.id &&
@@ -189,7 +189,7 @@ class FieldImport {
     const choice: FieldChoice = {
       id: this.context.newId(),
       fieldDefinitionId: field.id,
-      label: trimTransferText(document.label!),
+      label: trimText(document.label!),
       sortOrder,
       isArchived: document.isArchived === true,
     };

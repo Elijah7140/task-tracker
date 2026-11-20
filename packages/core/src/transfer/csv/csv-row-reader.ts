@@ -1,7 +1,8 @@
 import { validate as validateLink, MAX_LINKS_PER_ITEM } from "../../items/link-policy.js";
 import type { LookupEntity } from "../../lookups/lookup-entity.js";
 import { firstDoneStatus, type StatusLevel } from "../../lookups/status-level.js";
-import { nameKey, trimMetadataText as trim } from "../../metadata/names.js";
+import { nameKey } from "../../metadata/names.js";
+import { trimText as trim } from "../../text/dotnet-white-space.js";
 import { NAME_MAX_LENGTH, TICKET_NUMBER_MAX_LENGTH } from "../json/import-checks.js";
 import type { IssueList } from "../transfer-issue.js";
 import {

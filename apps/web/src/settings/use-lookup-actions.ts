@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import { useAtomSet } from "@effect/atom-react";
 import type { Exit } from "effect";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
@@ -46,7 +47,7 @@ async function runLookupMutation(
  * Shows the legacy message for anything else and resolves false without a request.
  */
 async function withPriorityNumber(text: string, save: (number: number | null) => Promise<boolean>) {
-  const trimmed = text.trim();
+  const trimmed = trimText(text);
   if (trimmed === "") {
     return save(null);
   }

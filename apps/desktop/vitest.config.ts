@@ -19,8 +19,10 @@ export default defineConfig({
       "apps/desktop/test/tray-card-height.test.ts",
       "apps/desktop/test/installation/**/*.test.ts",
     ],
-    // Give packaged Electron launches exclusive use of the native desktop session on Windows and macOS.
-    fileParallelism: process.platform === "linux",
+    // Give each packaged Electron launch the desktop session to itself. On Linux every file
+    // shares one Xvfb display without a window manager, so a parallel app's window takes
+    // focus: the tray card hides on blur and focusing the main window checks reminders.
+    fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 30_000,
   },

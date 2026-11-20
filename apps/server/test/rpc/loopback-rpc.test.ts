@@ -1,6 +1,6 @@
 import { request as nodeRequest, type IncomingMessage } from "node:http";
 import { expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Context, Effect, Exit, Fiber, Layer, Scope } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { rpcUrl } from "@task-tracker/contracts";
 import { makeRpcClient } from "../../../web/src/rpc-client.js";
@@ -161,6 +161,27 @@ it.effect("Closes the listener when its scope ends", () =>
 
     expect(request._tag).toBe("Failure");
   }),
+);
+
+it.effect("Stops at once while a reminder watch is waiting for a change", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const serverScope = yield* Scope.make();
+      const services = yield* Layer.buildWithScope(testServer(rendererOrigin), serverScope);
+      const client = yield* makeRpcClient(Context.get(services, LoopbackRpc));
+      const current = yield* client.WatchReminders({ afterVersion: -1 });
+      const watch = yield* Effect.forkChild(
+        client.WatchReminders({ afterVersion: current.version }),
+      );
+      // A later round trip shows the server has read the earlier watch request.
+      yield* client.GetServerInfo();
+
+      yield* Scope.close(serverScope, Exit.void);
+
+      const watched = yield* Fiber.await(watch);
+      expect(Exit.isFailure(watched)).toBe(true);
+    }).pipe(Effect.provideService(FetchHttpClient.Fetch, rendererFetch)),
+  ),
 );
 
 it.effect.each(["*", "null", `${rendererOrigin}/`])(

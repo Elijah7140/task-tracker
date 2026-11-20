@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import type { TransferIssue, TransferSummary } from "@task-tracker/contracts";
 
 type Summary = typeof TransferSummary.Type;
@@ -55,7 +56,7 @@ export function projectExportFileName(
   projectName: string,
   extension: "json" | "csv" = "json",
 ): string {
-  const safe = projectName.replace(INVALID_FILE_NAME_CHARACTERS, "-").trim();
+  const safe = trimText(projectName.replace(INVALID_FILE_NAME_CHARACTERS, "-"));
   return `${safe === "" ? "project" : safe}.${extension}`;
 }
 

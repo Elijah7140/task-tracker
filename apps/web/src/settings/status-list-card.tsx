@@ -1,3 +1,4 @@
+import { isBlankText } from "@task-tracker/contracts";
 import { Input } from "@base-ui/react/input";
 import type { StatusKind, StatusProjection } from "@task-tracker/contracts";
 import { type FormEvent, useRef, useState } from "react";
@@ -27,7 +28,7 @@ function AddStatusForm({
 }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<Kind>("Open");
-  useUndoBlocker(name.trim() !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
+  useUndoBlocker(!isBlankText(name), UNSAVED_SETTINGS_UNDO_MESSAGE);
 
   const handleAdd = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

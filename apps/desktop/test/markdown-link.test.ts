@@ -48,7 +48,7 @@ desktopTest(
             "/relative/path",
             "http:/example.com",
             "https://example.com/a b",
-            "https://example.com/\u0085",
+            "https://example.com/a\u0085b",
             "https://example.com/" + "a".repeat(2000),
             "not a link",
             "",

@@ -93,6 +93,16 @@ function rendererShowsHome(application: ElectronApplication) {
   });
 }
 
+/**
+ * The window's URL as main sees it. Main shows its dialogs only after its own
+ * navigation finished, while Playwright's `page.url()` follows a moment later.
+ */
+function rendererUrl(application: ElectronApplication) {
+  return application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]?.webContents.getURL(),
+  );
+}
+
 function windowCount(application: ElectronApplication) {
   return application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length);
 }
@@ -155,7 +165,7 @@ desktopTest(
       process.kill(await serverPid(application), "SIGKILL");
 
       await expect.poll(dialogs.read).toMatchObject([{ buttons: ["Restart", "Quit"] }]);
-      expect(new URL(page.url()).protocol).toBe("data:");
+      expect(new URL((await rendererUrl(application)) ?? "").protocol).toBe("data:");
       await page.getByRole("heading", { name: "The Task Tracker server stopped." }).waitFor();
       const reload = page.waitForEvent("load");
       await dialogs.press(0);

@@ -1,5 +1,6 @@
 import type { FieldDefinition } from "../../fields/field-definition.js";
-import { nameKey, trimMetadataText } from "../../metadata/names.js";
+import { nameKey } from "../../metadata/names.js";
+import { trimText } from "../../text/dotnet-white-space.js";
 import type { IssueList } from "../transfer-issue.js";
 import {
   CSV_COLUMNS,
@@ -46,7 +47,7 @@ export class CsvHeader {
     const header = new CsvHeader(record.cells.length, hasLinksField);
     const seen = new Set<string>();
     record.cells.forEach((cell, index) => {
-      const name = trimMetadataText(cell);
+      const name = trimText(cell);
       if (name.length > 0) {
         header.#addColumn(name, index, context, seen, issues);
       }
@@ -70,7 +71,7 @@ export class CsvHeader {
 
   /** The trimmed cell of a fixed column, as the preview shows it. */
   cellText(record: CsvRecord, column: string): string {
-    return trimMetadataText(this.cell(record, column));
+    return trimText(this.cell(record, column));
   }
 
   #addColumn(

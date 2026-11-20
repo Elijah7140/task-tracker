@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import type { MouseEvent, PointerEvent, ReactNode } from "react";
 import { CurrentItemStar } from "../current-item/current-item-star.js";
@@ -182,7 +183,7 @@ export function ItemCard(props: ItemCardProps) {
   const { node, selected, canIndent, hasFolders, dragging, dropIndicator, lookups, actions } =
     props;
   const date = dateCell(node, lookups.timeZone);
-  const description = node.item.description?.trim() ?? "";
+  const description = trimText(node.item.description ?? "");
   const hasBody = description.length > 0 || props.children !== undefined;
   return (
     <ContextMenu.Root>

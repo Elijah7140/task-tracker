@@ -1,3 +1,4 @@
+import { isBlankText } from "@task-tracker/contracts";
 import type {
   FieldFilter,
   FilterOperator,
@@ -145,7 +146,7 @@ function choiceValue(row: FilterRowDraft): ValueOutcome {
 function rowValue(row: FilterRowDraft, field: Field): ValueOutcome {
   switch (field.dataType) {
     case "Text":
-      return row.first.trim() === "" ? null : { kind: "text", value: row.first };
+      return isBlankText(row.first) ? null : { kind: "text", value: row.first };
     case "Number":
       return numberValue(row);
     case "Date":

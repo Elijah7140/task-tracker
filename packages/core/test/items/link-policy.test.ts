@@ -92,4 +92,15 @@ describe("LinkPolicy", () => {
     expect(LinkPolicy.normalizeUrl("  https://a.example ")).toBe("https://a.example");
     expect(LinkPolicy.normalizeUrl(null)).toBe("");
   });
+
+  it("Trims titles and addresses like .NET, keeping a byte-order mark", () => {
+    const titles = ["\u00a0\u2028", "\u0085\ufeffSpec\u200b\u3000"].map(LinkPolicy.normalizeTitle);
+
+    const address = LinkPolicy.normalizeUrl("\u00a0https://a.example\u2028");
+    const marked = LinkPolicy.normalizeUrl("\ufeffhttps://a.example");
+
+    expect(titles).toEqual([null, "\ufeffSpec\u200b"]);
+    expect(address).toBe("https://a.example");
+    expect(marked).toBe("\ufeffhttps://a.example");
+  });
 });

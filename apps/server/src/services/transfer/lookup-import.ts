@@ -1,10 +1,10 @@
 import {
   firstDoneStatus,
-  isBlankTransferText,
+  isBlankText,
   listOf,
   nameKey,
   readStatusKind,
-  trimTransferText,
+  trimText,
   type ItemType,
   type LookupDocument,
   type PriorityLevel,
@@ -13,7 +13,7 @@ import {
 import { type ImportContext, type ImportExisting, nextSortOrder } from "./import-plan.js";
 
 const sameName = (existing: string, imported: string | null) =>
-  imported !== null && nameKey(existing) === nameKey(trimTransferText(imported));
+  imported !== null && nameKey(existing) === nameKey(trimText(imported));
 
 /** The documents in sort order, each with its position in the file for issue paths. */
 function ordered(documents: readonly LookupDocument[]) {
@@ -29,7 +29,7 @@ function importItemTypes(context: ImportContext, known: ItemType[]): void {
     if (match === undefined) {
       match = {
         id: context.newId(),
-        name: trimTransferText(document.name!),
+        name: trimText(document.name!),
         colorKey: document.colorKey,
         iconKey: document.iconKey,
         isBuiltIn: false,
@@ -53,7 +53,7 @@ function findPriority(
   if (exact !== undefined) {
     return exact;
   }
-  if (!isBlankTransferText(document.name)) {
+  if (!isBlankText(document.name)) {
     return known.find((level) => sameName(level.name, document.name));
   }
   const archived = document.isArchived === true;
@@ -112,7 +112,7 @@ function createPriority(
 ): PriorityLevel {
   return {
     id: context.newId(),
-    name: trimTransferText(document.name ?? ""),
+    name: trimText(document.name ?? ""),
     number: document.number,
     colorKey: document.colorKey,
     isBuiltIn: false,
@@ -129,7 +129,7 @@ function importStatuses(context: ImportContext, known: StatusLevel[]): void {
     if (status === undefined) {
       status = {
         id: context.newId(),
-        name: trimTransferText(document.name!),
+        name: trimText(document.name!),
         kind,
         isArchived: document.isArchived === true,
         sortOrder: order++,

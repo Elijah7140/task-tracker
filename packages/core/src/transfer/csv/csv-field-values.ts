@@ -1,6 +1,7 @@
 import type { FieldDefinition } from "../../fields/field-definition.js";
 import type { FieldValueInput } from "../../fields/field-value-input.js";
-import { nameKey, trimMetadataText as trim } from "../../metadata/names.js";
+import { nameKey } from "../../metadata/names.js";
+import { trimText as trim } from "../../text/dotnet-white-space.js";
 import { parseTransferDate } from "../transfer-time-format.js";
 import { unprotectCsvCell } from "./csv-cells.js";
 import { csvFieldHeader } from "./csv-columns.js";

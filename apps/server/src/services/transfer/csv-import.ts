@@ -70,8 +70,6 @@ function itemOf(
   const created = createItem(id, target.projectId, target.folderId, null, row.title, now);
   return {
     ...created,
-    // The reader already trimmed like .NET, which keeps U+FEFF that JavaScript's trim drops.
-    title: row.title,
     sortOrder,
     description: row.description,
     ticketNumber: row.ticketNumber,

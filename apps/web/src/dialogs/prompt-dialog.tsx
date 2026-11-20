@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import { Dialog } from "@base-ui/react/dialog";
 import { type FormEvent, useRef, useState } from "react";
 import type { PromptOptions } from "../state/dialog-store.js";
@@ -32,7 +33,7 @@ export function PromptDialog({ id, options }: PromptDialogProps) {
     if (error !== null) {
       return;
     }
-    lifecycle.close(validation === undefined ? value : value.trim());
+    lifecycle.close(validation === undefined ? value : trimText(value));
   };
 
   return (

@@ -120,6 +120,12 @@ before installing. Restart to update replaces the AppImage in place and
 relaunches it, or runs the Windows installer silently as an update. A declined
 restart installs the download at the next launch.
 
+The legacy app started with Windows through a `TaskTracker` value under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. The first launch of the
+installed Windows build deletes that value, so the old app no longer starts at
+sign-in, and if it was there writes the new app's own entry instead. Later
+launches find no legacy value and leave the setting alone.
+
 The feed is the folder that holds the release metadata and installers. Packaged
 builds use `https://github.com/<owner>/<repo>/releases/latest/download/`, which
 needs public release assets, or the `TASKTRACKER_UPDATE_FEED_URL` value set when

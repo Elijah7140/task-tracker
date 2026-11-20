@@ -368,6 +368,22 @@ describe("CSV import", () => {
     ),
   );
 
+  it.effect("Trims titles like .NET, keeping a byte-order mark or zero-width space", () =>
+    seededWorld((world) =>
+      Effect.gen(function* () {
+        const billing = yield* billingOf(world);
+        const csv = "Title\r\n\u00a0\uFEFFMarked\u2028\r\n\u0085\u200bZero width\u3000\r\n";
+
+        const result = yield* world.importCsv(csv, billing);
+
+        expect(result).toMatchObject({ kind: "imported", summary: { items: 2 } });
+        const titles = (yield* readItems(world, billing)).map((item) => item.Title);
+        expect(titles).toContain("\uFEFFMarked");
+        expect(titles).toContain("\u200bZero width");
+      }),
+    ),
+  );
+
   it.effect("Reads numbers and dates the same under another time zone", () =>
     seededWorld((world) =>
       Effect.gen(function* () {

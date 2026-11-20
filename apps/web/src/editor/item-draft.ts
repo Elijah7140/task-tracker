@@ -1,3 +1,4 @@
+import { isBlankText } from "@task-tracker/contracts";
 import type { Item, ItemEdit } from "@task-tracker/contracts";
 
 type ItemRecord = typeof Item.Type;
@@ -76,7 +77,7 @@ export function itemEdit(item: ItemRecord, overrides: BuiltInOverrides): Edit {
     if (!changed.has(key)) {
       return item[key];
     }
-    return typed.trim().length === 0 ? null : typed;
+    return isBlankText(typed) ? null : typed;
   };
   return {
     title: changed.has("title") ? (overrides.title ?? "") : item.title,

@@ -90,6 +90,18 @@ describe("Text field drafts", () => {
     expect(draftInput(text, draft)).toEqual({ fieldDefinitionId: FIELD_ID, textValue: null });
   });
 
+  it("Trims text like .NET, keeping a byte-order mark and dropping .NET white space", () => {
+    const marked: CustomFieldDraft = { kind: "Text", text: "\u0085\ufeffNote\u00a0" };
+    const blank: CustomFieldDraft = { kind: "Text", text: "\u0085\u2028" };
+
+    const sent = [draftInput(text, marked), draftInput(text, blank)];
+
+    expect(sent).toEqual([
+      { fieldDefinitionId: FIELD_ID, textValue: "\ufeffNote" },
+      { fieldDefinitionId: FIELD_ID, textValue: null },
+    ]);
+  });
+
   it("Blank text over no stored value is not a change", () => {
     const draft: CustomFieldDraft = { kind: "Text", text: "   " };
 

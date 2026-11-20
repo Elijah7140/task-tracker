@@ -1,6 +1,6 @@
 import { EntityMissing } from "../entity-missing.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
-import { trimMetadataText } from "../metadata/names.js";
+import { trimText } from "../text/dotnet-white-space.js";
 import type { FieldChoice } from "./field-choice.js";
 import type { FieldDefinition } from "./field-definition.js";
 import type { FieldValueInput } from "./field-value-input.js";
@@ -21,7 +21,7 @@ function normalizeValue(itemId: string, input: FieldValueInput): ItemFieldValue 
   return {
     itemId,
     fieldDefinitionId: input.fieldDefinitionId,
-    textValue: trimMetadataText(input.textValue ?? "") || null,
+    textValue: trimText(input.textValue ?? "") || null,
     numberValue: input.numberValue ?? null,
     dateValue: input.dateValue ?? null,
     boolValue: input.boolValue ?? null,

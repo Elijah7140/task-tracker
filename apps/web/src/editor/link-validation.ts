@@ -1,4 +1,4 @@
-import { externalLinkAddress } from "@task-tracker/contracts";
+import { externalLinkAddress, trimText } from "@task-tracker/contracts";
 
 /** The longest link address the server accepts, after trimming. The server still enforces it. */
 export const LINK_URL_MAX_LENGTH = 2_000;
@@ -27,7 +27,7 @@ function addressTextProblem(address: string): string | null {
 
 /** Trims a typed title; a blank one means no title. */
 export function normalizeLinkTitle(title: string): string | null {
-  const trimmed = title.trim();
+  const trimmed = trimText(title);
   return trimmed.length === 0 ? null : trimmed;
 }
 
@@ -37,7 +37,7 @@ export function normalizeLinkTitle(title: string): string | null {
  * Accepted addresses are exactly those the system link launcher opens.
  */
 export function linkProblem(url: string, title: string): string | null {
-  const address = url.trim();
+  const address = trimText(url);
   const problem = addressTextProblem(address);
   if (problem !== null) {
     return problem;

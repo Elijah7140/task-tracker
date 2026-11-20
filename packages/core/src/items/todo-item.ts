@@ -1,3 +1,4 @@
+import { trimText } from "../text/dotnet-white-space.js";
 import type { DeletionFields } from "../hierarchy/deletion-fields.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import { DEFAULT_REMINDER, type ReminderChoice } from "../reminders/reminder-choice.js";
@@ -36,8 +37,8 @@ export interface TodoItem extends DeletionFields {
 
 /** Validate and trim the title shared by item creation and editing. */
 export function itemTitle(title: string): string {
-  const trimmed = title.trim();
-  if (trimmed.length === 0 || title.length > 300) {
+  const trimmed = trimText(title);
+  if (trimmed.length === 0 || trimmed.length > 300) {
     throw new MetadataRuleError("Item title is required and must be at most 300 characters.");
   }
   return trimmed;

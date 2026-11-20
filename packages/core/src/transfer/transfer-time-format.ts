@@ -1,14 +1,11 @@
+import { trimText } from "../text/dotnet-white-space.js";
+
 /**
  * Writes and reads dates and times in the invariant ISO forms of both transfer
  * formats (§7.9), exactly as the legacy `TransferTimeFormat` did. Floating local
  * values carry no offset and UTC timestamps end with `Z`. Fractions have at most
  * seven digits (.NET ticks) and are written without trailing zeros.
  */
-
-/** .NET `string.Trim` whitespace, which matches the Unicode White_Space property. */
-function trimText(text: string): string {
-  return text.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
-}
 
 function pad(value: number, length: number): string {
   return String(value).padStart(length, "0");

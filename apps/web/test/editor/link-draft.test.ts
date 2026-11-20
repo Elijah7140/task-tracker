@@ -196,4 +196,28 @@ describe("Link drafts", () => {
 
     expect(rows).toEqual(["https://typed.example"]);
   });
+
+  describe("Link drafts trim like .NET", () => {
+    it("Treats .NET white space as an empty entry", () => {
+      const list = stored(["https://a.example", null]);
+
+      const status = linkDraftStatus(list, type(EMPTY_LINK_DRAFT, "\u0085", "\u2028"));
+
+      expect(status.dirty).toBe(false);
+    });
+
+    it("Keeps a byte-order mark in an added title", () => {
+      const list = stored();
+
+      const draft = submitLinkEntry(
+        list,
+        type(EMPTY_LINK_DRAFT, "\u00a0https://b.example\u0085", "\ufeffSpec\u3000"),
+        newKey,
+      );
+
+      expect(currentLinkRows(list, draft).map((row) => [row.url, row.title])).toEqual([
+        ["https://b.example", "\ufeffSpec"],
+      ]);
+    });
+  });
 });

@@ -1251,7 +1251,11 @@ Its exact packaging and update decisions are recorded in `legacy-final:docs/PLAN
   `~/.config/autostart`. Linux uses the stable AppImage path. Preserve the stored preference if
   writing the entry fails and show the error. Uninstall removes the Windows entry. Document
   Linux cleanup. Keep the preference for reinstall and recreate the entry when saved again.
-  Startup preferences stay outside undo history (§7.8).
+  Startup preferences stay outside undo history (§7.8). The legacy app used the Run value
+  `TaskTracker`, while Electron's login item uses the AppUserModelID. On the first launch after
+  upgrading, an installed Windows build deletes a legacy `TaskTracker` value, so the old app stops
+  starting, and writes its own entry when that value existed. Without the value it does nothing,
+  so the step runs once and later choices stand.
 - **Signing and verification.** Legacy releases were unsigned. Keep Windows and macOS install
   instructions aligned with the artifacts and signing status. Test update states and startup
   registration with fakes. Use UI baselines for the About card and restart-to-update state.
