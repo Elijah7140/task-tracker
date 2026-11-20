@@ -158,7 +158,9 @@ function githubReleases(repository: string, tag: string): GitHubReleases {
         repository,
         "--verify-tag",
         "--draft",
-        "--notes-from-tag",
+        // GitHub writes the notes from merged pull requests; `--notes-from-tag` needs a
+        // local checkout and is refused together with `--repo`.
+        "--generate-notes",
         "--title",
         `Task Tracker ${tag.slice(1)}`,
         ...(prerelease ? ["--prerelease"] : []),
