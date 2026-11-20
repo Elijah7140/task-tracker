@@ -24,6 +24,14 @@ request cancels a running build, except on `main`.
 runner, it starved the Node workers. Loopback RPC tests then took up to 5 s and
 timed out. Isolated, the same tests finish in under 1 s.
 
+On Windows the test steps run with `TEMP` and `TMP` set to `RUNNER_TEMP`. The default
+`%TEMP%` is on the runner's C: OS disk, where each flush to disk takes about 4 ms and
+sometimes over 200 ms. SQLite tests that use temporary files flush on every write
+commit, startup backup and close. On C:, one startup backup took 2 s, and the EF
+fixture RPC tests sometimes passed the 5 s timeout. The D: drive that holds
+`RUNNER_TEMP` flushes in 0.1 ms. Defender real-time scanning is off on these runners,
+so it plays no part.
+
 Each job uploads its installer as `package-linux-x64` or `package-windows-x64`
 for a week. A failing job uploads differing screenshots as
 `browser-screenshot-diffs-linux` or `browser-screenshot-diffs-windows`.
