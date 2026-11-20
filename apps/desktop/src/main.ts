@@ -272,13 +272,23 @@ async function handleCrash(diagnostic: string, address: RendererAddress) {
   }
 }
 
-/** Launches the server, waits for readiness and (re)loads the renderer. */
-async function start(address: RendererAddress) {
+/**
+ * Starts the server child. Its messages wait for the app to be ready, because
+ * the tray and notifications need it.
+ */
+function spawnServer(address: RendererAddress) {
   const entry = app.isPackaged
     ? join(process.resourcesPath, "server.mjs")
     : fileURLToPath(new URL("../../server/dist/main.js", import.meta.url));
-  const child = launchServer(entry, address.origin, undefined, handleServerMessage);
+  const child = launchServer(entry, address.origin, undefined, (message) => {
+    void app.whenReady().then(() => handleServerMessage(message));
+  });
   server = child;
+  return child;
+}
+
+/** Waits for the server (launching one unless given) and (re)loads the renderer. */
+async function start(address: RendererAddress, child = spawnServer(address)) {
   connection = await child.ready;
   if (quitting) {
     return;
@@ -321,12 +331,39 @@ async function finishPendingUpdate(installation: DesktopInstallationServices) {
   return false;
 }
 
-async function openApplication() {
+/** The renderer address and the server started before the app was ready. */
+interface EarlyStart {
+  readonly address: RendererAddress;
+  readonly child: ServerProcess;
+}
+
+/**
+ * Starts the server before the app is ready (§4). Windows children inherit
+ * every inheritable handle, and Chromium launches renderers only once it is
+ * ready. A server spawned while one launched could inherit its pipe and keep
+ * a crashed window from ever being reported.
+ */
+function startServerEarly(): EarlyStart | Error {
+  try {
+    const address = rendererAddress();
+    const child = spawnServer(address);
+    // A failure before the app is ready is reported once openApplication awaits it.
+    child.ready.catch(() => undefined);
+    return { address, child };
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+async function openApplication(early: EarlyStart | Error) {
+  if (early instanceof Error) {
+    throw early;
+  }
+  const { address, child } = early;
   const installation = createDesktopInstallation();
   if (await finishPendingUpdate(installation)) {
     return;
   }
-  const address = rendererAddress();
   if (app.isPackaged) {
     // Packaged builds offer no reload or developer tools shortcuts.
     Menu.setApplicationMenu(null);
@@ -340,7 +377,7 @@ async function openApplication() {
   });
   registerRendererHandlers(address, installation);
   powerMonitor.on("resume", requestReminderCheck);
-  await start(address);
+  await start(address, child);
 }
 
 /** The renderer needs no browser permissions such as camera, notifications or geolocation. */
@@ -453,7 +490,11 @@ if (app.requestSingleInstanceLock()) {
   app.on("second-instance", onSecondInstance);
   app.on("before-quit", beforeQuit);
   app.on("window-all-closed", () => app.quit());
-  void app.whenReady().then(openApplication).catch(startupFailed);
+  const early = startServerEarly();
+  void app
+    .whenReady()
+    .then(() => openApplication(early))
+    .catch(startupFailed);
 } else {
   app.quit();
 }
