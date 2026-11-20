@@ -352,7 +352,8 @@ describe("periods and views", () => {
     });
     await expect.element(monday).toBeVisible();
     expect(page.getByTestId("calendar-week-day-header").elements()).toHaveLength(7);
-    expect(monday.getByTestId("calendar-entry").elements()).toHaveLength(4);
+    // Week loads its own range, so its entries arrive after the grid appears.
+    await expect.element(monday.getByTestId("calendar-entry")).toHaveLength(4);
     expect(page.getByTestId("calendar-week-scroll").element().scrollTop).toBe(MORNING_OFFSET);
   });
 

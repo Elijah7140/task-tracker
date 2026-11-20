@@ -24,12 +24,21 @@ const helpButton = () => page.getByRole("button", { name: "Query syntax help" })
 const helpPanel = () => page.getByRole("dialog", { name: "Query syntax" });
 const rowField = (index = 0) => filterRow(index).getByRole("combobox", { name: "Filter field" });
 
+/**
+ * Presses Enter to search once the Search button is enabled. Each scope loads its
+ * field list first, and Enter does nothing until it arrives.
+ */
+async function searchWithEnter() {
+  await expect.element(searchButton()).toBeEnabled();
+  await userEvent.keyboard("{Enter}");
+}
+
 /** Replaces the query box text by typing, as a user would, and presses Enter. */
 async function enterQuery(text: string) {
   await searchInput().click();
   await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
   await userEvent.keyboard(text.replaceAll("{", "{{").replaceAll("[", "[["));
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
 }
 
 const PROJECTS: ReadonlyArray<SeedProject> = [
@@ -158,7 +167,7 @@ it("Starts in the originating folder and searches sub-items with or without subf
 
   await ctrlF();
   await expect.element(scopeSelect()).toHaveTextContent("This folder");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
 
   expect(await titlesShown()).toEqual(["Audit Q4", "Audit receipts", "Nested check"]);
   await page.getByRole("checkbox", { name: "Include subfolders" }).click();
@@ -261,7 +270,7 @@ it("Searches text with Enter and shows each result's ticket, location, priority 
   await ctrlF();
 
   await searchInput().fill("aud");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
 
   const audit = result("Audit Q4");
   await expect.element(audit).toMatchTextContent("BILL-2");
@@ -270,7 +279,7 @@ it("Searches text with Enter and shows each result's ticket, location, priority 
   await expect.element(audit).toMatchTextContent("Nov 20, 2026");
   await expect.element(result("Audit receipts")).toBeVisible();
   await searchInput().fill("nothing-matches");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(page.getByText("No items match")).toBeVisible();
 });
 
@@ -280,10 +289,10 @@ it("Sends one search request for each new or repeated search", async () => {
   const searches = () => store.calls.filter((call) => call === "SearchItems").length;
 
   await searchInput().fill("audit");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Audit Q4")).toBeVisible();
   await searchInput().fill("platform");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Platform migration")).toBeVisible();
   await searchButton().click();
   await expect.poll(searches).toBe(3);
@@ -300,7 +309,7 @@ it("Opens a result in its current folder with its parent expanded, after asking 
   await page.getByTestId("item-editor-title").fill("Unsaved title");
   await ctrlF();
   await searchInput().fill("receipts");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   const dialog = page.getByRole("alertdialog", { name: "Unsaved changes" });
 
   await result("Audit receipts").click();
@@ -321,7 +330,7 @@ it("Runs one activation at a time and drops a pending one when Search closes", a
   await ctrlF();
   await choose(scopeSelect(), "All projects");
   await searchInput().fill("audit");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   const release = store.hold("LocateSearchItem");
 
   await result("Audit Q4").click();
@@ -341,7 +350,7 @@ it("Reports a deleted result, a refused search and the more-results note inline"
   const { store } = await openApp();
   await ctrlF();
   await searchInput().fill("root");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Root invoice")).toBeVisible();
   const billing = store.summaries[0]!.project.id;
   const root = store.findItemByTitle(billing, null, "Root invoice")!;
@@ -387,7 +396,7 @@ it("Refreshes shown results when undo changes an item behind Search", async () =
   await expect.element(item("Renamed invoice")).toBeVisible();
   await ctrlF();
   await searchInput().fill("renamed");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Renamed invoice")).toBeVisible();
 
   await menuTrigger("edit").click();
@@ -395,7 +404,7 @@ it("Refreshes shown results when undo changes an item behind Search", async () =
 
   await expect.element(page.getByText("No items match")).toBeVisible();
   await searchInput().fill("root");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Root invoice")).toBeVisible();
 });
 
@@ -412,7 +421,7 @@ it("Pushes back a result from its row menu and Back asks about the draft behind"
   await page.getByTestId("item-editor-title").fill("Unsaved title");
   await ctrlF();
   await searchInput().fill("audit");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Audit Q4")).toMatchTextContent("Nov 20, 2026");
 
   await result("Audit Q4").click({ button: "right" });
@@ -428,7 +437,7 @@ it("Pushes back the focused result with Ctrl+Shift+P and disables it for an unda
   const { store } = await openApp();
   await ctrlF();
   await searchInput().fill("aud");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Audit receipts")).toBeVisible();
 
   (result("Audit Q4").element() as HTMLElement).focus();
@@ -672,7 +681,7 @@ it.each(THEMES)("Renders the empty and refused Search states in %s mode", async 
   const { store } = await openApp();
   await ctrlF();
   await searchInput().fill("nothing-matches");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(page.getByText("No items match")).toBeVisible();
   await settleTheme(theme);
   await expect(page.getByTestId("app-shell")).toMatchScreenshot(`search-empty-${theme}`);
@@ -689,7 +698,7 @@ it.each(THEMES)("Matches the reviewed result menu baseline in %s mode", async (t
   await openApp();
   await ctrlF();
   await searchInput().fill("audit");
-  await userEvent.keyboard("{Enter}");
+  await searchWithEnter();
   await expect.element(result("Audit Q4")).toBeVisible();
   await settleTheme(theme);
 

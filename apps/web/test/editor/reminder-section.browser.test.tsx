@@ -37,7 +37,9 @@ describe("Reminder section", () => {
   it("Chooses None with the keyboard and discards the change", async () => {
     const { stored } = await openReminder();
     await choice().click();
-    await expect.element(page.getByRole("listbox")).toBeVisible();
+    // Base UI focuses the selected option a frame after the list opens. An arrow key
+    // pressed while focus is still on the trigger only focuses the selected option.
+    await expect.element(page.getByRole("option", { name: "Default", exact: true })).toHaveFocus();
 
     await userEvent.keyboard("{ArrowDown}{Enter}");
 
