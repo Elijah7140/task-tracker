@@ -7,7 +7,17 @@ import {
   type RpcConnection,
   TRAY_CARD_HASH,
 } from "@task-tracker/contracts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, powerMonitor, session, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  Notification,
+  powerMonitor,
+  session,
+  shell,
+} from "electron";
 import { Effect, Option, Schema } from "effect";
 import { createAppTray } from "./app-tray.js";
 import { instanceProfile } from "./instance-scope.js";
@@ -65,6 +75,7 @@ const notifier = makeNativeNotifier(
     iconPath,
     onActivate: activateReminder,
     onFailure: (error) => Effect.runFork(notifier.reportFailure(error)),
+    platform: Notification,
   }),
   (message) => console.warn(message),
 );
