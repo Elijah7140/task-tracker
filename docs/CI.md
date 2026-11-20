@@ -19,6 +19,11 @@ the Electron steps under `xvfb-run -a` and makes the packaged `chrome-sandbox`
 setuid root first, as WP22 introduced. A newer push to the same branch or pull
 request cancels a running build, except on `main`.
 
+`vp test run` runs the Node projects first and `web-browser` after them
+(`sequence.groupOrder`). When Chromium ran alongside them on the four-core Windows
+runner, it starved the Node workers. Loopback RPC tests then took up to 5 s and
+timed out. Isolated, the same tests finish in under 1 s.
+
 Each job uploads its installer as `package-linux-x64` or `package-windows-x64`
 for a week. A failing job uploads differing screenshots as
 `browser-screenshot-diffs-linux` or `browser-screenshot-diffs-windows`.

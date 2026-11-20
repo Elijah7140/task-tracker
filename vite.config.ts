@@ -32,6 +32,7 @@ export default defineConfig({
   lint: { options: { typeAware: true, typeCheck: true } },
   test: {
     projects: [
+      { test: { name: "workspace", include: ["test/**/*.test.ts"] } },
       { test: { name: "core", include: ["packages/core/test/**/*.test.ts"] } },
       {
         test: {
@@ -131,6 +132,9 @@ export default defineConfig({
         test: {
           name: "web-browser",
           include: ["test/**/*.browser.test.tsx"],
+          // Runs after the Node projects. Run alongside them on a four-core CI runner,
+          // Chromium starved their workers and pushed loopback RPC tests past 5 s.
+          sequence: { groupOrder: 1 },
           setupFiles: ["test/support/browser-setup.ts"],
           browser: {
             enabled: true,
