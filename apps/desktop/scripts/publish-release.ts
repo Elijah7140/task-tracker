@@ -22,6 +22,8 @@ export interface GitHubRelease {
  */
 export interface GitHubReleases {
   find(): Promise<GitHubRelease | undefined>;
+  /** Reads one release by id. Unlike the release list, this sees a new draft at once. */
+  get(id: number): Promise<GitHubRelease>;
   createDraft(prerelease: boolean): Promise<number>;
   /** Uploads the files, replacing any incomplete asset with the same name. */
   upload(assets: readonly ReleaseAsset[]): Promise<void>;
@@ -122,8 +124,8 @@ export async function publishRelease(
   if (pending.length > 0) {
     await github.upload(pending);
   }
-  const draft = await github.find();
-  if (draft?.id !== id || !draft.draft || draft.prerelease !== prerelease) {
+  const draft = await github.get(id);
+  if (!draft.draft || draft.prerelease !== prerelease) {
     throw new Error("The release draft or its prerelease setting changed during upload.");
   }
   verifyUpload(draft, assets, true);
@@ -149,27 +151,36 @@ function githubReleases(repository: string, tag: string): GitHubReleases {
       ) as TagRelease[][];
       return pages.flat().find(({ tag_name }) => tag_name === tag);
     },
+    async get(id) {
+      return JSON.parse(await gh("api", `${endpoint}/${id}`)) as GitHubRelease;
+    },
     async createDraft(prerelease) {
-      await gh(
-        "release",
-        "create",
-        tag,
-        "--repo",
-        repository,
-        "--verify-tag",
-        "--draft",
-        // GitHub writes the notes from merged pull requests; `--notes-from-tag` needs a
-        // local checkout and is refused together with `--repo`.
-        "--generate-notes",
-        "--title",
-        `Task Tracker ${tag.slice(1)}`,
-        ...(prerelease ? ["--prerelease"] : []),
-      );
-      const draft = await this.find();
-      if (!draft?.draft || draft.prerelease !== prerelease) {
-        throw new Error(`Could not find the draft for '${tag}'.`);
+      // Fails when the tag is missing, so a release never creates its own tag.
+      await gh("api", `repos/${repository}/git/ref/tags/${tag}`, "--silent");
+      // The create response carries the id. The release list can lag behind a new draft,
+      // which made a lookup straight after creation miss it.
+      const created = JSON.parse(
+        await gh(
+          "api",
+          "--method",
+          "POST",
+          endpoint,
+          "-f",
+          `tag_name=${tag}`,
+          "-f",
+          `name=Task Tracker ${tag.slice(1)}`,
+          "-F",
+          "draft=true",
+          "-F",
+          `prerelease=${prerelease}`,
+          "-F",
+          "generate_release_notes=true",
+        ),
+      ) as GitHubRelease;
+      if (!created.draft || created.prerelease !== prerelease) {
+        throw new Error(`GitHub did not create a draft for '${tag}'.`);
       }
-      return draft.id;
+      return created.id;
     },
     async upload(assets) {
       // Clobber replaces an asset left incomplete by an interrupted upload. Completed
