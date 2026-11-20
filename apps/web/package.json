@@ -10,6 +10,8 @@
     "@base-ui/react": "catalog:",
     "@effect/atom-react": "catalog:",
     "@fontsource-variable/inter": "catalog:",
+    "@fontsource-variable/jetbrains-mono": "catalog:",
+    "@fontsource/noto-sans-symbols-2": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@task-tracker/contracts": "workspace:*",
     "effect": "catalog:",

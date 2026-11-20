@@ -2,6 +2,22 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vite-plus";
 
+/**
+ * Chromium launch settings that make browser screenshots identical on every machine of
+ * one OS. The switches turn off hinting, LCD (subpixel) antialiasing and subpixel glyph
+ * positioning, and the pinned fontconfig replaces the host's font settings on Linux,
+ * the only OS where Chromium reads fontconfig (§11.1).
+ */
+const screenshotLaunchOptions = {
+  args: ["--font-render-hinting=none", "--disable-lcd-text", "--disable-font-subpixel-positioning"],
+  env: {
+    ...process.env,
+    FONTCONFIG_FILE: fileURLToPath(
+      new URL("./apps/web/test/support/fontconfig/fonts.conf", import.meta.url),
+    ),
+  },
+};
+
 // Web suites read the contracts source so they run without a prior build.
 const webTestResolve = {
   dedupe: ["react", "react-dom"],
@@ -115,6 +131,7 @@ export default defineConfig({
             headless: true,
             // Fixed locale, zone, viewport and motion keep screenshots reproducible (§11.1).
             provider: playwright({
+              launchOptions: screenshotLaunchOptions,
               contextOptions: {
                 locale: "en-US",
                 timezoneId: "UTC",

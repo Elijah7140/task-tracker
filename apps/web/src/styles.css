@@ -1,4 +1,12 @@
+/*
+ * Every glyph the UI draws comes from a bundled font, so screens look the same on every
+ * machine and screenshot baselines never depend on installed system fonts (§11.1).
+ * Noto Sans Symbols 2 supplies dingbats such as the calendar's check mark, which the
+ * Inter subsets do not cover.
+ */
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/noto-sans-symbols-2/symbols-400.css";
 @import "tailwindcss" source("..");
 
 /*
@@ -88,7 +96,8 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Noto Sans Symbols 2", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
   --color-canvas: var(--tt-canvas);
   --color-sidebar: var(--tt-sidebar);
