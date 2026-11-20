@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { STARTUP_ENTRY_FAILED_MESSAGE } from "../../src/settings/global-defaults-card.js";
+import { FakeDesktopInstallation } from "../support/fake-desktop-installation.js";
 import { DEFAULT_REMINDERS } from "../support/fake-settings-lookups.js";
 import { trashBatch } from "../support/fake-trash-handlers.js";
 import { renderApp } from "../support/render-app.js";
-import { matchShellAtBothSizes, THEMES } from "../support/screenshots.js";
+import { matchShellAtBothSizes, settleTheme, THEMES } from "../support/screenshots.js";
 
 const TICKS_PER_HOUR = 36_000_000_000n;
 const daysTicks = (count: number) => String(BigInt(count) * 24n * TICKS_PER_HOUR);
@@ -20,6 +22,8 @@ const saveButton = () => page.getByTestId("save-global-settings");
 const cardColumns = () => page.getByRole("combobox", { name: "Cards per row" });
 const backButton = () => page.getByTestId("app-settings-back");
 const appSettingsHeading = () => page.getByRole("heading", { level: 1, name: "App Settings" });
+const startWithSystemBox = () =>
+  page.getByRole("checkbox", { name: "Start Task Tracker when I sign in" });
 
 async function openAppSettings(options: Parameters<typeof renderApp>[0] = {}) {
   const app = await renderApp(options);
@@ -27,6 +31,125 @@ async function openAppSettings(options: Parameters<typeof renderApp>[0] = {}) {
   await expect.element(page.getByRole("heading", { level: 1, name: "App Settings" })).toBeVisible();
   return app;
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+/** Opens App Settings in an installed desktop build that offers start with system. */
+async function openInstalledSettings(
+  options: Parameters<typeof renderApp>[0] = {},
+  available = true,
+) {
+  const desktop = new FakeDesktopInstallation().install();
+  desktop.installation = { ...desktop.installation, startWithSystemAvailable: available };
+  const app = await openAppSettings(options);
+  await expect.element(page.getByTestId("about-card")).toBeVisible();
+  return { ...app, desktop };
+}
+
+describe("Start with system", () => {
+  it("Is hidden where the build does not offer it", async () => {
+    await openInstalledSettings({}, false);
+
+    await expect.element(page.getByTestId("global-keep-running-in-tray")).toBeVisible();
+    await expect.element(startWithSystemBox()).not.toBeInTheDocument();
+  });
+
+  it("Is hidden outside the desktop app", async () => {
+    await openAppSettings();
+
+    await expect.element(page.getByTestId("global-keep-running-in-tray")).toBeVisible();
+    await expect.element(startWithSystemBox()).not.toBeInTheDocument();
+  });
+
+  it("Ticking it with Space and saving persists it and writes the entry", async () => {
+    const { store, desktop } = await openInstalledSettings();
+    await expect.element(startWithSystemBox()).not.toBeChecked();
+
+    startWithSystemBox().element().focus();
+    await userEvent.keyboard(" ");
+    await expect.element(startWithSystemBox()).toBeChecked();
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.startWithSystem).toBe(true);
+    expect(desktop.applied).toEqual([true]);
+    await expect.element(page.getByTestId("global-settings-error")).not.toBeInTheDocument();
+  });
+
+  it("Turning it off removes the entry", async () => {
+    const { store, desktop } = await openInstalledSettings({
+      configure: (appStore) =>
+        appStore.settingsAndLookups.setGlobalSettings({ startWithSystem: true }),
+    });
+    await expect.element(startWithSystemBox()).toBeChecked();
+
+    await startWithSystemBox().click();
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.startWithSystem).toBe(false);
+    expect(desktop.applied).toEqual([false]);
+  });
+
+  it("Saving other defaults rewrites the entry to match the stored choice", async () => {
+    const { desktop } = await openInstalledSettings({
+      configure: (appStore) =>
+        appStore.settingsAndLookups.setGlobalSettings({ startWithSystem: true }),
+    });
+
+    await yellowAmount().fill("4");
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    expect(desktop.applied).toEqual([true]);
+  });
+
+  it("Where it is unavailable, saving neither changes nor applies the stored choice", async () => {
+    const { store, desktop } = await openInstalledSettings(
+      {
+        configure: (appStore) =>
+          appStore.settingsAndLookups.setGlobalSettings({ startWithSystem: true }),
+      },
+      false,
+    );
+
+    await yellowAmount().fill("4");
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.startWithSystem).toBe(true);
+    expect(desktop.applied).toEqual([]);
+  });
+
+  it("A refused entry change keeps the saved choice and says so", async () => {
+    const { store, desktop } = await openInstalledSettings();
+    desktop.startupSucceeds = false;
+
+    await startWithSystemBox().click();
+    await saveButton().click();
+
+    await expect
+      .element(page.getByTestId("global-settings-error"))
+      .toHaveTextContent(STARTUP_ENTRY_FAILED_MESSAGE);
+    await expect.element(saveButton()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.startWithSystem).toBe(true);
+  });
+
+  describe.each(THEMES)("in the %s theme", (theme) => {
+    it("Matches the reviewed global defaults baseline with start with system", async () => {
+      await openInstalledSettings();
+      await startWithSystemBox().click();
+
+      await settleTheme(theme);
+
+      await expect
+        .element(page.getByTestId("global-defaults-card"))
+        .toMatchScreenshot(`global-defaults-startup-${theme}`);
+    });
+  });
+});
 
 describe("AppSettingsPage", () => {
   it("Opens from the sidebar Settings link and marks it as the current page", async () => {
@@ -75,6 +198,7 @@ describe("AppSettingsPage", () => {
       workspaceCardColumns: 4,
       reminders: DEFAULT_REMINDERS,
       keepRunningInTray: false,
+      startWithSystem: false,
     });
   });
 
@@ -250,6 +374,7 @@ describe("AppSettingsPage", () => {
       workspaceCardColumns: 4,
       reminders: DEFAULT_REMINDERS,
       keepRunningInTray: false,
+      startWithSystem: false,
     });
   });
 
@@ -293,6 +418,7 @@ describe("AppSettingsPage", () => {
       workspaceCardColumns: 4,
       reminders: DEFAULT_REMINDERS,
       keepRunningInTray: false,
+      startWithSystem: false,
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });

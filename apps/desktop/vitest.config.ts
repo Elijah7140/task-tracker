@@ -14,6 +14,7 @@ export default defineConfig({
       "apps/desktop/test/server-messages.test.ts",
       "apps/desktop/test/tray-close-decision.test.ts",
       "apps/desktop/test/tray-host-probe.test.ts",
+      "apps/desktop/test/installation/**/*.test.ts",
     ],
     // Give packaged Electron launches exclusive use of the native desktop session on Windows and macOS.
     fileParallelism: process.platform === "linux",

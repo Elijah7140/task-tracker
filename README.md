@@ -90,6 +90,11 @@ repository.
 To uninstall, use **Settings → Apps → Installed apps → Task Tracker → Uninstall**
 on Windows, delete the AppImage on Linux, or move **Task Tracker.app** to the
 Trash on macOS. The database and its backups live in a separate directory.
+The Windows uninstaller also removes the start-with-system entry. On Linux,
+turn **Start Task Tracker when I sign in** off before deleting the AppImage, or
+delete `~/.config/autostart/task-tracker.desktop` (under `$XDG_CONFIG_HOME`
+when that is an absolute path) afterwards. The saved preference stays in the
+database, and saving App Settings in a reinstalled build writes the entry again.
 
 | System  | Default data directory                                                                |
 | ------- | ------------------------------------------------------------------------------------- |
@@ -99,8 +104,26 @@ Trash on macOS. The database and its backups live in a separate directory.
 
 Keep custom `TASKTRACKER_DB_PATH` files and their backups outside the installed
 app, AppImage, and package output directories. The first launch backs up a
-recognized database before migrating it. In-app updating and start-with-system
-are tracked in [WP42](docs/MIGRATION.md#wp42--updates-about-and-start-with-system).
+recognized database before migrating it.
+
+### Updates and start with system
+
+The installed Windows build and the Linux AppImage offer **Check for updates**,
+**Download** and **Restart to update** in **App Settings → About**, and the
+**Start Task Tracker when I sign in** option. Development, unpacked and macOS
+builds show the version only. The app checks only when asked. It reads the
+stable channel (`latest.yml` or `latest-linux.yml`), so prereleases are never
+offered. It downloads the installer into its profile and keeps it only when
+its size and SHA-512 match the release metadata, and checks it again just
+before installing. Restart to update replaces the AppImage in place and
+relaunches it, or runs the Windows installer silently as an update. A declined
+restart installs the download at the next launch.
+
+The feed is the folder that holds the release metadata and installers. Packaged
+builds use `https://github.com/<owner>/<repo>/releases/latest/download/`, which
+needs public release assets, or the `TASKTRACKER_UPDATE_FEED_URL` value set when
+packaging. Setting `TASKTRACKER_UPDATE_FEED_URL` when launching the app
+overrides it. Feeds must use HTTPS, except on the loopback interface.
 
 ## Verify a release
 

@@ -73,3 +73,14 @@ it("Card columns default to four and ignore project overrides", () => {
   expect(resolved.workspaceCardColumns).toEqual({ value: 5, source: "Global" });
   expect(SettingsCatalogue.workspaceCardColumns.projectOverridable).toBe(false);
 });
+
+it("Start with system defaults to off and cannot be overridden per project", () => {
+  const definition = SettingsCatalogue.startWithSystem;
+
+  const initial = definition.defaultValue;
+
+  expect(initial).toBe(false);
+  expect(definition.key).toBe("startWithSystem");
+  expect(definition.projectOverridable).toBe(false);
+  expect(() => definition.formatOverride(true)).toThrow();
+});

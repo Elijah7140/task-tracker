@@ -80,12 +80,14 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         workspaceCardColumns: 4,
         reminders: DEFAULT_REMINDERS,
         keepRunningInTray: false,
+        startWithSystem: false,
       });
       expect(result).toEqual({ kind: "applied" });
       expect(saved).toEqual({
         ...settings,
         reminders: DEFAULT_REMINDERS,
         keepRunningInTray: false,
+        startWithSystem: false,
       });
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },
@@ -115,6 +117,31 @@ it.effect("Saves the tray choice with the global defaults and keeps it when a sa
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },
         { Key: "keepRunningInTray", Value: "true" },
+      ]);
+    }),
+  ),
+);
+
+it.effect("Saves start with system outside undo history and keeps it when a save omits it", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const defaults = yield* client.LoadGlobalSettings();
+
+      yield* client.SaveGlobalSettings({ settings: { ...defaults, startWithSystem: true } });
+      const history = yield* client.GetHistory();
+      const { startWithSystem: _omitted, ...withoutStartup } = defaults;
+      yield* client.SaveGlobalSettings({
+        settings: { ...withoutStartup, autoCompleteParents: false },
+      });
+      const saved = yield* client.LoadGlobalSettings();
+
+      expect(history.undo).toBeNull();
+      expect(saved.startWithSystem).toBe(true);
+      expect(saved.autoCompleteParents).toBe(false);
+      expect(yield* storedRows("GlobalSetting")).toEqual([
+        { Key: "autoCompleteParents", Value: "false" },
+        { Key: "startWithSystem", Value: "true" },
       ]);
     }),
   ),

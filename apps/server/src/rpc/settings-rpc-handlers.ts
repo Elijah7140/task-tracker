@@ -20,10 +20,11 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
     return SettingsRpcs.of({
       LoadGlobalSettings: () =>
         settings.loadGlobal().pipe(
-          Effect.map(({ settings: values, reminders, keepRunningInTray }) => ({
+          Effect.map(({ settings: values, reminders, keepRunningInTray, startWithSystem }) => ({
             ...projectGlobalSettings(values),
             reminders: projectReminderDefaults(reminders),
             keepRunningInTray,
+            startWithSystem,
           })),
           mapOperationError,
         ),
@@ -47,6 +48,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
             values.workspaceCardColumns,
             parseReminderDefaults(values.reminders),
             values.keepRunningInTray,
+            values.startWithSystem,
           ),
         ).pipe(mapOperationError),
       SaveProjectSettings: ({ projectId, overrides, approval }) =>

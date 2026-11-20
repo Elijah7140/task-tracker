@@ -1,6 +1,7 @@
 import { beforeEach } from "vitest";
 import { configure } from "vitest-browser-react/pure";
 import "../../src/styles.css";
+import { appUpdateStore, initialAppUpdateValues } from "../../src/state/app-update-store.js";
 import { dialogStore } from "../../src/state/dialog-store.js";
 import { initialItemEditorState, useItemEditorStore } from "../../src/state/item-editor-store.js";
 import {
@@ -23,5 +24,6 @@ beforeEach(() => {
   useReturnPageStore.setState(initialReturnPageState);
   useReminderPanelStore.setState(initialReminderPanelState);
   useTransferStore.setState(initialTransferState);
+  appUpdateStore.setState(initialAppUpdateValues);
   delete document.documentElement.dataset["theme"];
 });

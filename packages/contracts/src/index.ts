@@ -118,3 +118,4 @@ export {
   ReminderActivation,
   ServerToDesktopMessage,
 } from "./desktop-channel.js";
+export { AppVersionText, DesktopInstallation, UpdateCheckResult } from "./desktop-installation.js";

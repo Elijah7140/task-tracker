@@ -267,6 +267,7 @@ export class FakeSettingsAndLookups {
     workspaceCardColumns: 4,
     reminders: DEFAULT_REMINDERS,
     keepRunningInTray: false,
+    startWithSystem: false,
   };
   itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
@@ -474,10 +475,12 @@ export class FakeSettingsAndLookups {
     }
     const reminders = next.reminders ?? this.globalSettings.reminders;
     const keepRunningInTray = next.keepRunningInTray ?? this.globalSettings.keepRunningInTray;
+    const startWithSystem = next.startWithSystem ?? this.globalSettings.startWithSystem;
     this.globalSettings = {
       ...next,
       ...(reminders === undefined ? {} : { reminders }),
       ...(keepRunningInTray === undefined ? {} : { keepRunningInTray }),
+      ...(startWithSystem === undefined ? {} : { startWithSystem }),
     };
     this.applyReconciliation(enabledProjects);
     return Effect.succeed({ kind: "applied" });

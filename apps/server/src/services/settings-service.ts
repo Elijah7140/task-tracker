@@ -30,6 +30,7 @@ const {
   defaultReminderOffset,
   dateOnlyReminderTime,
   keepRunningInTray,
+  startWithSystem,
 } = SettingsCatalogue;
 
 /** Reminder defaults saved with the global settings form (§7.12). */
@@ -108,6 +109,15 @@ function reminderOverrideEntries(reminders: ReminderOverridesInput): [string, st
 }
 
 const globalSettingsLabel = "Edit global settings";
+
+/**
+ * Undo snapshots of the global settings leave out the start-with-system choice: its OS
+ * entry is written outside the transaction and can fail on its own (§7.8, §7.13).
+ */
+const undoableGlobalSettings = (sql: SqlClient.SqlClient): UndoSource => ({
+  table: "GlobalSetting",
+  where: sql`Key <> ${startWithSystem.key}`,
+});
 const projectSettingsLabel = "Edit project settings";
 
 const make = Effect.gen(function* () {
@@ -148,7 +158,7 @@ const make = Effect.gen(function* () {
     return yield* readEffectiveSettings(settings, project.id);
   }, sql.withTransaction);
 
-  /** Global values, reminder defaults and the tray choice from one snapshot. */
+  /** Global values, reminder defaults and the tray and startup choices from one snapshot. */
   const loadGlobal = Effect.fnUntraced(function* () {
     const global = yield* settings.global();
     const resolved = yield* checkRules(() => SettingsResolver.resolve(global, noOverrides));
@@ -156,6 +166,7 @@ const make = Effect.gen(function* () {
       settings: resolved,
       reminders: resolveReminderSettings(global, noOverrides),
       keepRunningInTray: parseOrDefault(keepRunningInTray, global.get(keepRunningInTray.key)),
+      startWithSystem: parseOrDefault(startWithSystem, global.get(startWithSystem.key)),
     };
   }, sql.withTransaction);
 
@@ -256,7 +267,7 @@ const make = Effect.gen(function* () {
       return { kind: "needs-confirmation" as const, preview };
     }
 
-    yield* captureSettings(globalSettingsLabel, { table: "GlobalSetting" }, enabled);
+    yield* captureSettings(globalSettingsLabel, undoableGlobalSettings(sql), enabled);
     for (const [Key, Value] of updates) {
       yield* settings.setGlobal({ Key, Value });
     }
@@ -313,7 +324,10 @@ const make = Effect.gen(function* () {
     /** Set a single global value, subject to project constraints and reconciliation. */
     setGlobal: <T>(definition: SettingDefinition<T>, value: T, approval?: ReconciliationApproval) =>
       updateGlobal(() => new Map([[definition.key, definition.format(value)]]), approval),
-    /** Save the global defaults together, writing only values that change. */
+    /**
+     * Save the global defaults together, writing only values that change. An omitted
+     * optional value keeps the stored one.
+     */
     saveGlobal: (
       autoComplete: boolean,
       yellow: DurationTicks,
@@ -322,6 +336,7 @@ const make = Effect.gen(function* () {
       cardColumns?: number,
       reminders?: ReminderDefaultsInput,
       keepRunning?: boolean,
+      startup?: boolean,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -338,6 +353,9 @@ const make = Effect.gen(function* () {
         }
         if (keepRunning !== undefined) {
           proposeGlobal(proposed, current, keepRunningInTray, keepRunning);
+        }
+        if (startup !== undefined) {
+          proposeGlobal(proposed, current, startWithSystem, startup);
         }
         return proposed;
       }, approval),

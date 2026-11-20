@@ -50,6 +50,7 @@ export default defineConfig({
             "apps/desktop/test/server-messages.test.ts",
             "apps/desktop/test/tray-close-decision.test.ts",
             "apps/desktop/test/tray-host-probe.test.ts",
+            "apps/desktop/test/installation/**/*.test.ts",
           ],
         },
       },

@@ -17,4 +17,15 @@ electron.contextBridge.exposeInMainWorld("taskTrackerDesktop", {
       electron.ipcRenderer.off("task-tracker:reminder-activated", forward);
     };
   },
+  // Installed-build controls (§7.13). Main owns the feed, downloads and OS entry.
+  getInstallation: (): Promise<unknown> =>
+    electron.ipcRenderer.invoke("task-tracker:get-installation"),
+  checkForUpdates: (): Promise<unknown> =>
+    electron.ipcRenderer.invoke("task-tracker:check-for-updates"),
+  downloadUpdate: (): Promise<unknown> =>
+    electron.ipcRenderer.invoke("task-tracker:download-update"),
+  restartToUpdate: (): Promise<unknown> =>
+    electron.ipcRenderer.invoke("task-tracker:restart-to-update"),
+  applyStartWithSystem: (enabled: boolean): Promise<unknown> =>
+    electron.ipcRenderer.invoke("task-tracker:apply-start-with-system", enabled === true),
 });

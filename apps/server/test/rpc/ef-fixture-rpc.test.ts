@@ -120,6 +120,7 @@ function assertSharedFixtureState(
     workspaceCardColumns: 4,
     reminders: DEFAULT_REMINDERS,
     keepRunningInTray: false,
+    startWithSystem: false,
   });
   expect(projectSettings).toEqual({
     projectId,
@@ -402,6 +403,7 @@ it.effect(
               workspaceCardColumns: 4,
               reminders: DEFAULT_REMINDERS,
               keepRunningInTray: false,
+              startWithSystem: false,
             });
             expect(projectSettings).toEqual({
               projectId,
@@ -771,6 +773,7 @@ it.effect(
               workspaceCardColumns: 4,
               reminders: DEFAULT_REMINDERS,
               keepRunningInTray: false,
+              startWithSystem: false,
             });
             expect(projectSettings).toEqual({
               projectId,
