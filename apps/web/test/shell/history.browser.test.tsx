@@ -1,10 +1,11 @@
 import { expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { chooseMenuCommand, menuTrigger } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
 const item = (title: string) => page.getByRole("treeitem", { name: title, exact: true });
-const editMenu = () => page.getByRole("button", { name: "Edit", exact: true });
+const editMenu = () => menuTrigger("edit");
 const status = () => page.getByTestId("history-status");
 const undo = () => userEvent.keyboard("{Control>}z{/Control}");
 
@@ -136,7 +137,7 @@ it("Blocks replay after leaving a pending lookup name in App Settings", async ()
   await page.getByTestId("quick-add-input").click();
   await userEvent.keyboard("New task{Enter}");
   await expect.element(item("New task")).toBeVisible();
-  await page.getByTestId("sidebar-settings").click();
+  await chooseMenuCommand("file", "menu-app-settings");
   const input = page.getByRole("textbox", { name: "New priority level name" });
   await input.fill("Draft priority");
 
@@ -307,7 +308,7 @@ it("Refuses redo while App Settings holds an unsaved default", async () => {
   await expect.element(item("Completed (1)")).toBeVisible();
   await undo();
   await expect.element(item("Report")).toBeVisible();
-  await page.getByTestId("sidebar-settings").click();
+  await chooseMenuCommand("file", "menu-app-settings");
   const defaultValue = page.getByTestId("global-yellow-amount");
   await defaultValue.fill("4");
 

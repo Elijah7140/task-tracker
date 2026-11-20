@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import type { FakeProjectStore } from "../support/fake-task-tracker-server.js";
 import { renderApp, type RenderAppOptions } from "../support/render-app.js";
+import { chooseTransferCommand } from "../support/menu-bar.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
 const TOKEN = "C".repeat(43);
@@ -75,8 +76,7 @@ async function renderHome(options: RenderAppOptions = {}) {
 }
 
 async function startImport() {
-  await page.getByTestId("transfer-menu-button").click();
-  await page.getByTestId("transfer-import-csv").click();
+  await chooseTransferCommand("transfer-import-csv");
 }
 
 /** Chooses a project, then (for Billing DB) a folder, with simulated clicks. */

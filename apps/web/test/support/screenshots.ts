@@ -7,12 +7,12 @@ import { useThemeStore } from "../../src/state/theme-store.js";
 export const THEMES: ReadonlyArray<ResolvedTheme> = ["light", "dark"];
 
 /**
- * Applies a theme, parks the pointer on the sidebar brand so no hover styles
+ * Applies a theme, parks the pointer on the title bar mark so no hover styles
  * show, and waits until fonts and the next frame have rendered.
  */
 export async function settleTheme(theme: ResolvedTheme) {
   useThemeStore.setState({ preference: theme });
-  await userEvent.hover(page.getByTestId("sidebar-brand"), { force: true });
+  await userEvent.hover(page.getByTestId("title-bar-brand"), { force: true });
   await document.fonts.ready;
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }

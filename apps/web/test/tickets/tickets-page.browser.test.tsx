@@ -2,6 +2,7 @@ import type {} from "@vitest/browser-playwright";
 import { expect, it, onTestFinished } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 import type { FakeProjectStore, SeedProject } from "../support/fake-task-tracker-server.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 import { createTestClock } from "../support/test-clock.js";
@@ -87,7 +88,7 @@ async function openTickets({ configure, clock, projects }: OpenOptions = {}) {
     ...(clock === undefined ? {} : { clock }),
     ...(configure === undefined ? {} : { configure }),
   });
-  await page.getByTestId("sidebar-tickets").click();
+  await chooseMenuCommand("view", "menu-tickets");
   await expect.element(heading()).toBeVisible();
   return app;
 }
@@ -137,15 +138,14 @@ async function openRowMenu(title: string) {
   await expect.element(menu()).toBeVisible();
 }
 
-it("Opens from the sidebar and Ctrl+Shift+K over the same return page, focusing the filter", async () => {
+it("Opens from the View menu and Ctrl+Shift+K over the same return page, focusing the filter", async () => {
   await renderApp({ projects: [billing(), portal] });
   const home = page.getByRole("heading", { name: "Projects", exact: true, level: 1 });
   await expect.element(home).toBeVisible();
 
-  await page.getByTestId("sidebar-tickets").click();
+  await chooseMenuCommand("view", "menu-tickets");
   await expect.element(filter()).toHaveFocus();
   await expect.element(filter()).toHaveTextContent("All projects");
-  await expect.element(page.getByTestId("sidebar-tickets")).toHaveAttribute("aria-current", "page");
   await back().click();
   await expect.element(home).toBeVisible();
   await shortcut();

@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { MouseEvent, ReactNode } from "react";
 import { cx } from "../ui/class-names.js";
-import type { AppSettingsSearch } from "../app/router.js";
 import { leaveCoveringPageForNavigation, useReturnPageStore } from "../state/return-page-store.js";
 import type { AreaTarget } from "../workspace/area-route.js";
 
@@ -12,10 +11,7 @@ function leaveCoveringPage(event: MouseEvent<HTMLAnchorElement>) {
 }
 
 /** A route the sidebar can link to. */
-export type SidebarTarget =
-  | { readonly to: "/" }
-  | { readonly to: "/settings"; readonly search: AppSettingsSearch }
-  | AreaTarget;
+export type SidebarTarget = { readonly to: "/" } | AreaTarget;
 
 /** Props for {@link SidebarLink}. */
 export interface SidebarLinkProps {
@@ -38,13 +34,11 @@ const ROW_CLASS =
 const CURRENT_CLASS =
   "aria-[current=page]:bg-pressed aria-[current=page]:font-medium aria-[current=page]:text-fg";
 
-/** The shared sidebar row style, also used by rows that act instead of navigating. */
-export const SIDEBAR_ROW_CLASS = `${ROW_CLASS} ${CURRENT_CLASS}`;
+const SIDEBAR_ROW_CLASS = `${ROW_CLASS} ${CURRENT_CLASS}`;
 
 /**
  * A sidebar navigation row. The active route is marked with `aria-current="page"`
- * and highlighted unless a covering page such as Trash hides it. Search params, such as App
- * Settings' return project, do not affect it. Following a link leaves a covering
+ * and highlighted unless a covering page such as Trash hides it. Search params do not affect it. Following a link leaves a covering
  * page, even for the route behind it, unless a change there is still running.
  */
 export function SidebarLink(props: SidebarLinkProps) {

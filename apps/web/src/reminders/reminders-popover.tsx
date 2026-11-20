@@ -1,13 +1,13 @@
 import { Popover } from "@base-ui/react/popover";
-import { Bell } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useReminderActivation } from "../native/use-reminder-activation.js";
+import { focusedElement, focusReturnTarget } from "../shell/focus-return-target.js";
+import { focusedOutsideMenuBar } from "../shell/menu-bar-focus.js";
 import type { ReturnGuard } from "../shell/return-guards.js";
 import { dialogStore } from "../state/dialog-store.js";
 import { isItemEditorOpen } from "../state/item-editor-store.js";
 import { useReminderPanelStore } from "../state/reminder-panel-store.js";
 import { useReturnPageStore } from "../state/return-page-store.js";
-import { Button } from "../ui/button.js";
 import { matchesShortcut } from "../ui/keyboard-shortcut.js";
 import { RemindersPanel } from "./reminders-panel.js";
 import { useReminderActions } from "./use-reminder-actions.js";
@@ -65,13 +65,46 @@ function usePanelShortcut() {
 }
 
 /**
- * The bell that shows how many reminders are pending and opens the Reminders
- * panel, also with Ctrl+Shift+R (§7.12). Escape, a click outside or the close
- * button closes the panel and returns focus to the bell. An open menu or list
- * inside the panel takes Escape first. A clicked native notification opens its
- * item, or the panel for a group.
+ * Remembers what had focus when the panel opened, from the menu, the shortcut
+ * or a notification, and returns the popup's final focus handler. Closing
+ * returns focus there unless the user already put it elsewhere, such as by
+ * clicking outside.
  */
-export function ReminderBell({ runGuards }: { readonly runGuards: ReturnGuard }) {
+function usePanelReturnFocus() {
+  const previous = useRef<HTMLElement | null>(null);
+  useEffect(
+    () =>
+      useReminderPanelStore.subscribe((state, prior) => {
+        if (state.open && !prior.open) {
+          previous.current = focusedOutsideMenuBar();
+        }
+      }),
+    [],
+  );
+  return () => {
+    const active = focusedElement();
+    if (active === null || active.closest('[data-testid="reminders-panel"]') !== null) {
+      focusReturnTarget(previous.current);
+    }
+    previous.current = null;
+    return false;
+  };
+}
+
+/** Props for {@link RemindersPopover}. */
+export interface RemindersPopoverProps {
+  readonly runGuards: ReturnGuard;
+}
+
+/**
+ * The Reminders panel (§7.12), opened from View → Reminders, which shows the
+ * pending count, and with Ctrl+Shift+R. It drops down from the window's top
+ * right corner, under the menu bar. Escape, a click outside or the close
+ * button closes it and returns focus to where it was. An open menu or list
+ * inside the panel takes Escape first. A clicked native notification opens
+ * its item, or the panel for a group.
+ */
+export function RemindersPopover({ runGuards }: RemindersPopoverProps) {
   const retry = useReminderWatch();
   usePanelShortcut();
   const { open, panel, failure, setOpen } = useReminderPanelStore();
@@ -80,45 +113,26 @@ export function ReminderBell({ runGuards }: { readonly runGuards: ReturnGuard })
     openItem: (itemId) => void actions.open({ itemId }),
     openPanel: () => setOpen(true),
   });
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = usePanelReturnFocus();
   const changeOpen = keepingMessageBoxPresses(setOpen);
   const reminders = panel?.reminders ?? [];
-  const count = reminders.length;
   return (
     <Popover.Root open={open} onOpenChange={changeOpen}>
-      <Popover.Trigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={count === 0 ? "Reminders" : `Reminders (${count})`}
-            aria-keyshortcuts="Control+Shift+R"
-            className="relative"
-          />
-        }
-        data-testid="reminder-bell"
-      >
-        <Bell size={15} aria-hidden="true" />
-        {count === 0 ? null : (
-          <span
-            aria-hidden="true"
-            data-testid="reminder-badge"
-            className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-on-accent"
-          >
-            {count > 99 ? "99+" : count}
-          </span>
-        )}
-      </Popover.Trigger>
+      <span ref={anchorRef} aria-hidden="true" className="ml-auto h-full w-0" />
       <Popover.Portal>
         <Popover.Positioner
+          anchor={anchorRef}
           side="bottom"
-          align="start"
+          align="end"
           sideOffset={6}
           className="z-50 outline-none"
         >
           <Popover.Popup
             aria-label="Reminders"
             initialFocus={closeRef}
+            finalFocus={returnFocus}
             data-testid="reminders-panel"
             className="rounded-card border border-line bg-raised p-4 text-fg shadow-raised outline-none transition-[scale,opacity] duration-100 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0"
           >

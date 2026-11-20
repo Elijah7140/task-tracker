@@ -13,6 +13,7 @@ import {
   launch,
   withDesktop,
 } from "./support/desktop-app.js";
+import { openAppSettingsFromMenu } from "./support/workflows.js";
 import { releaseMetadata, startFakeUpdateFeed } from "./support/fake-update-feed.js";
 import { type FakeAppImageInstall, fakeAppImageInstall } from "./support/installed-app.js";
 
@@ -35,7 +36,7 @@ async function startUpdateFeed(install: FakeAppImageInstall) {
 
 /** Checks for updates and downloads the offered release in App Settings. */
 async function downloadUpdate(page: Page) {
-  await page.getByTestId("sidebar-settings").click();
+  await openAppSettingsFromMenu(page);
   await page.getByTestId("about-card").waitFor();
   await page.getByRole("button", { name: "Check for updates" }).click();
   await page.getByText("Version 0.2.0 is available.").waitFor();
@@ -130,7 +131,7 @@ desktopTest.runIf(process.platform === "linux")(
       await withDesktop(
         desktop,
         async (page) => {
-          await page.getByTestId("sidebar-settings").click();
+          await openAppSettingsFromMenu(page);
           await page.getByRole("button", { name: "Check for updates" }).click();
           await page.getByRole("button", { name: "Download", exact: true }).click();
 
@@ -146,7 +147,7 @@ desktopTest.runIf(process.platform === "linux")(
 
       await withDesktop(
         desktop,
-        (page) => page.getByTestId("sidebar-settings").waitFor(),
+        (page) => page.getByTestId("menu-file").waitFor(),
         feedEnvironment(install, feed.url),
       );
 

@@ -6,15 +6,14 @@ import { CalendarPage } from "../calendar/calendar-page.js";
 import { TodayPage } from "../today/today-page.js";
 import { TicketsPage } from "../tickets/tickets-page.js";
 import { TrashPage } from "../trash/trash-page.js";
-import { ReminderBell } from "../reminders/reminder-bell.js";
 import { useDataChangeListener } from "../native/data-change-broadcast.js";
-import { EditMenu } from "./edit-menu.js";
 import { ReturnGuards, useReturnGuardRegistry } from "./return-guards.js";
 import { UndoBlockers } from "./undo-blockers.js";
 import { useCoveringPage } from "./use-covering-page.js";
 import { useHistoryActions } from "./use-history-actions.js";
 import { Sidebar } from "./sidebar.js";
 import { StatusNotice } from "./status-notice.js";
+import { TitleBar } from "./title-bar.js";
 
 /**
  * The undo and redo outcome toast. The live region stays mounted while empty, so
@@ -37,9 +36,10 @@ function HistoryStatus({ message }: { readonly message: string | null }) {
 }
 
 /**
- * The window layout: the navigation sidebar and the routed main pane. A
- * covering page such as Trash replaces the routed page on screen while
- * keeping it mounted, so its state and drafts survive the visit.
+ * The window layout: the title bar with the menu bar across the top, then the
+ * navigation sidebar and the routed main pane. A covering page such as Trash
+ * replaces the routed page on screen while keeping it mounted, so its state
+ * and drafts survive the visit.
  */
 export function AppShell() {
   const blockers = useRef(new Set<() => string | null>());
@@ -60,33 +60,29 @@ export function AppShell() {
   return (
     <UndoBlockers.Provider value={register}>
       <ReturnGuards.Provider value={returnGuards}>
-        <div data-testid="app-shell" className="flex h-dvh bg-canvas text-fg">
-          <Sidebar
-            editMenu={
-              <>
-                <EditMenu {...history} />
-                <ReminderBell runGuards={returnGuards.run} />
-              </>
-            }
-          />
-          <main className="min-w-0 flex-1 overflow-y-auto outline-none">
-            <div className={covering === null ? "contents" : "hidden"}>
-              <Outlet />
-            </div>
-            {covering === "trash" ? <TrashPage onBack={() => void goBack()} /> : null}
-            {covering === "calendar" ? (
-              <CalendarPage onBack={() => void goBack()} runGuards={returnGuards.run} />
-            ) : null}
-            {covering === "search" ? (
-              <SearchPage onBack={() => void goBack()} runGuards={returnGuards.run} />
-            ) : null}
-            {covering === "today" ? (
-              <TodayPage onBack={() => void goBack()} runGuards={returnGuards.run} />
-            ) : null}
-            {covering === "tickets" ? (
-              <TicketsPage onBack={() => void goBack()} runGuards={returnGuards.run} />
-            ) : null}
-          </main>
+        <div data-testid="app-shell" className="flex h-dvh flex-col bg-canvas text-fg">
+          <TitleBar history={history} runGuards={returnGuards.run} goBack={goBack} />
+          <div className="flex min-h-0 flex-1">
+            <Sidebar />
+            <main className="min-w-0 flex-1 overflow-y-auto outline-none">
+              <div className={covering === null ? "contents" : "hidden"}>
+                <Outlet />
+              </div>
+              {covering === "trash" ? <TrashPage onBack={() => void goBack()} /> : null}
+              {covering === "calendar" ? (
+                <CalendarPage onBack={() => void goBack()} runGuards={returnGuards.run} />
+              ) : null}
+              {covering === "search" ? (
+                <SearchPage onBack={() => void goBack()} runGuards={returnGuards.run} />
+              ) : null}
+              {covering === "today" ? (
+                <TodayPage onBack={() => void goBack()} runGuards={returnGuards.run} />
+              ) : null}
+              {covering === "tickets" ? (
+                <TicketsPage onBack={() => void goBack()} runGuards={returnGuards.run} />
+              ) : null}
+            </main>
+          </div>
           <StatusNotice superseded={history.message !== null} />
           <HistoryStatus message={history.message} />
         </div>

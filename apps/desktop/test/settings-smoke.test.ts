@@ -1,13 +1,18 @@
 import type { Page } from "playwright";
 import { expect } from "vitest";
 import { desktopTest, withDesktop } from "./support/desktop-app.js";
-import { expectFocused, expectGone, projectCard } from "./support/workflows.js";
+import {
+  expectFocused,
+  expectGone,
+  openAppSettingsFromMenu,
+  projectCard,
+} from "./support/workflows.js";
 
 const yellowAmount = (page: Page) => page.getByTestId("global-yellow-amount");
 const saveSettings = (page: Page) => page.getByTestId("save-global-settings");
 
 async function openAppSettings(page: Page) {
-  await page.getByTestId("sidebar-settings").click();
+  await openAppSettingsFromMenu(page);
   await yellowAmount(page).waitFor();
 }
 

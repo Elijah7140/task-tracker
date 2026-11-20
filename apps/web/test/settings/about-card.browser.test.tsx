@@ -3,6 +3,7 @@ import { page, userEvent } from "vitest/browser";
 import { UPDATE_TEXT } from "../../src/state/app-update-store.js";
 import { FakeDesktopInstallation } from "../support/fake-desktop-installation.js";
 import { renderApp } from "../support/render-app.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
 const aboutCard = () => page.getByTestId("about-card");
@@ -15,7 +16,7 @@ const discardDialog = () => page.getByRole("alertdialog", { name: "Discard unsav
 
 async function openAppSettings() {
   const app = await renderApp();
-  await page.getByRole("navigation", { name: "Main" }).getByTestId("sidebar-settings").click();
+  await chooseMenuCommand("file", "menu-app-settings");
   await expect.element(page.getByRole("heading", { level: 1, name: "App Settings" })).toBeVisible();
   return app;
 }
@@ -138,7 +139,7 @@ describe("AboutCard", () => {
     await expect.element(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
 
     desktop.releaseDownload();
-    await page.getByRole("navigation", { name: "Main" }).getByTestId("sidebar-settings").click();
+    await chooseMenuCommand("file", "menu-app-settings");
     await restartButton().click();
 
     await expect.element(updateStatus()).toHaveTextContent(UPDATE_TEXT.restarting);

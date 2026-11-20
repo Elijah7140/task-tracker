@@ -109,3 +109,26 @@ export async function saveItemEditor(editor: Locator) {
   await editor.getByTestId("item-editor-save").click();
   await expectGone(editor);
 }
+
+/** A top-level menu of the window's menu bar. */
+export type MenuName = "file" | "edit" | "project" | "view";
+
+/** Opens a menu of the menu bar and clicks one of its commands by test ID. */
+export async function chooseMenuCommand(page: Page, menu: MenuName, command: string) {
+  await page.getByTestId(`menu-${menu}`).click();
+  await page.getByTestId(`${menu}-menu`).getByTestId(command).click();
+}
+
+/** Opens App Settings from File → Settings. */
+export function openAppSettingsFromMenu(page: Page) {
+  return chooseMenuCommand(page, "file", "menu-app-settings");
+}
+
+/** Reads View → Reminders, whose label carries the pending count, and closes the menu. */
+export async function remindersMenuLabel(page: Page) {
+  await page.getByTestId("menu-view").click();
+  const label = await page.getByTestId("menu-reminders").innerText();
+  await page.keyboard.press("Escape");
+  await expectGone(page.getByTestId("view-menu"));
+  return label.split("\n")[0]?.trim();
+}

@@ -262,10 +262,10 @@ describe("SidebarFolderTree", () => {
 
     await expect.element(last).toHaveFocus();
     await expect.element(last).toBeInViewport();
-    await expect.element(page.getByTestId("sidebar-settings")).toBeInViewport();
+    await expect.element(page.getByTestId("theme-system")).toBeInViewport();
     expect(scroller.scrollTop).toBeGreaterThan(0);
     expect(document.scrollingElement?.scrollTop).toBe(0);
-    expect(page.getByTestId("sidebar").element().getBoundingClientRect().height).toBe(
+    expect(page.getByTestId("sidebar").element().getBoundingClientRect().bottom).toBe(
       window.innerHeight,
     );
   });

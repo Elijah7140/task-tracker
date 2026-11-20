@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { MISSING_BATCH_MESSAGE, trashBatch } from "../support/fake-trash-handlers.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
@@ -50,9 +51,8 @@ it("Uses exact shortcuts, opens from the sidebar, and returns Home", async () =>
   await shortcut();
   await userEvent.keyboard("{Escape}");
   await expect.element(heading()).not.toBeInTheDocument();
-  await page.getByTestId("sidebar-trash").click();
+  await chooseMenuCommand("view", "menu-trash");
   await expect.element(heading()).toBeVisible();
-  await expect.element(page.getByTestId("sidebar-trash")).toHaveAttribute("aria-current", "page");
   await expect.element(page.getByTestId("sidebar-home")).toHaveAttribute("data-covered");
   await back().click();
   await expect.element(heading()).not.toBeInTheDocument();
@@ -90,7 +90,7 @@ it("Defaults to the originating folder's project and can widen the scope", async
 it("Restores through RPC and refreshes the original workspace while retaining selection", async () => {
   const { store } = await openWorkspace();
   await item("Current task").getByTestId("item-title").first().click();
-  await page.getByTestId("sidebar-trash").click();
+  await chooseMenuCommand("view", "menu-trash");
   await expect.element(batch("Reconcile invoice")).toBeVisible();
 
   const release = store.hold("RestoreTrashBatch");

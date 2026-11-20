@@ -1,13 +1,11 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import type { ProjectWorkspace } from "@task-tracker/contracts";
-import { Link, Navigate } from "@tanstack/react-router";
+import { Navigate } from "@tanstack/react-router";
 import { AsyncResult } from "effect/reactivity";
-import { Settings, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { projectWorkspaceAtom } from "../rpc/project-queries.js";
 import { serverInfoAtom } from "../rpc/server-info-query.js";
-import { buttonClassName } from "../ui/button.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
@@ -50,28 +48,6 @@ function WorkspaceArea({ workspace, folderId, timeZone }: WorkspaceAreaProps) {
             folders={workspace.folders}
             folderId={folderId}
           />
-        }
-        actions={
-          <>
-            <Link
-              to="/settings"
-              search={{ returnProjectId: workspace.projectId }}
-              data-testid="workspace-app-settings"
-              className={buttonClassName("ghost", "sm")}
-            >
-              <SlidersHorizontal size={14} aria-hidden="true" />
-              App settings
-            </Link>
-            <Link
-              to="/projects/$projectId/settings"
-              params={{ projectId: workspace.projectId }}
-              data-testid="workspace-project-settings"
-              className={buttonClassName("ghost", "sm")}
-            >
-              <Settings size={14} aria-hidden="true" />
-              Project settings
-            </Link>
-          </>
         }
       />
       <AreaItems

@@ -3,6 +3,7 @@ import { page, userEvent } from "vitest/browser";
 import { HOUR_HEIGHT, MORNING_OFFSET } from "../../src/calendar/calendar-metrics.js";
 import { FAKE_LOOKUPS } from "../support/fake-area-items.js";
 import type { SeedProject } from "../support/fake-task-tracker-server.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 import { createTestClock } from "../support/test-clock.js";
@@ -191,9 +192,6 @@ describe("opening and leaving", () => {
 
     await expect.element(page.getByTestId("calendar-scope")).not.toBeInTheDocument();
     await expect.element(page.getByTestId("calendar-month-cell").nth(41)).toBeVisible();
-    await expect
-      .element(page.getByTestId("sidebar-calendar"))
-      .toHaveAttribute("aria-current", "page");
     await userEvent.keyboard("{Escape}");
 
     await expect.element(calendar()).not.toBeInTheDocument();
@@ -245,7 +243,7 @@ describe("opening and leaving", () => {
     await page.getByRole("treeitem", { name: "Invoices" }).click();
     await expect.element(item("Audit ledger")).toBeVisible();
 
-    await page.getByTestId("sidebar-calendar").click();
+    await chooseMenuCommand("view", "menu-calendar");
     await expect.element(page.getByTestId("calendar-scope")).toHaveTextContent("This project");
     await shortcut("w");
     await page.getByTestId("calendar-back").click();
@@ -257,7 +255,7 @@ describe("opening and leaving", () => {
   it("Never stacks with Trash and keeps the original page as the return target", async () => {
     await renderApp({ projects: LAYOUT_PROJECTS });
     await page.getByRole("article", { name: "Billing" }).click();
-    await page.getByTestId("sidebar-calendar").click();
+    await chooseMenuCommand("view", "menu-calendar");
 
     await shortcut("t");
     await expect.element(page.getByRole("heading", { name: "Trash", exact: true })).toBeVisible();
@@ -376,7 +374,7 @@ describe("filters", () => {
   it("Filters by project scope and Include completed", async () => {
     await renderApp({ projects: LAYOUT_PROJECTS });
     await page.getByRole("article", { name: "Billing" }).click();
-    await page.getByTestId("sidebar-calendar").click();
+    await chooseMenuCommand("view", "menu-calendar");
     await expect.element(entry("Audit ledger")).toBeVisible();
     await expect.element(entry("Rotate keys")).not.toBeInTheDocument();
     await expect.element(entry("✓ Done report")).not.toBeInTheDocument();
@@ -504,7 +502,7 @@ describe("entry display", () => {
       })),
       clock: testClock.clock,
     });
-    await page.getByTestId("sidebar-calendar").click();
+    await chooseMenuCommand("view", "menu-calendar");
     await expect
       .element(page.getByTestId("calendar-entry-urgency"))
       .toHaveTextContent("Approaching");

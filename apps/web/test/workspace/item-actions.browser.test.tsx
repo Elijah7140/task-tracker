@@ -475,7 +475,10 @@ describe("Item actions and reorder", () => {
     await focusRow("First");
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
 
-    await expect.element(page.getByTestId("workspace-project-settings")).toHaveFocus();
+    await expect.element(row("First")).not.toHaveFocus();
+    const tree = page.getByRole("tree", { name: "Items in Billing DB" }).element();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(tree.contains(document.activeElement)).toBe(false);
     expect(store.calls).not.toContain("IndentItem");
     expect(store.calls).not.toContain("OutdentItem");
     await expect.element(page.getByRole("alertdialog")).not.toBeInTheDocument();

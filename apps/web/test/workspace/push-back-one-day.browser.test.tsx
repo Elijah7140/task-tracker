@@ -2,6 +2,7 @@ import type { RecurrenceRule } from "@task-tracker/contracts";
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import type { SeedItem } from "../support/fake-area-items.js";
+import { menuTrigger } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
@@ -92,7 +93,7 @@ describe("Push back one day in the workspace", () => {
     await pushBackItem().click();
     await expect.poll(() => stored("Overdue report")?.dueDate).toBe("2026-11-11");
 
-    await page.getByTestId("edit-menu-trigger").click();
+    await menuTrigger("edit").click();
     await page.getByRole("menuitem", { name: "Undo: Push back 'Overdue report'" }).click();
 
     await expect.poll(() => stored("Overdue report")?.dueDate).toBe("2026-11-10");

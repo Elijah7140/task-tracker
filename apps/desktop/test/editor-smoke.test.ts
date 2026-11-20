@@ -2,14 +2,15 @@ import type { Locator, Page } from "playwright";
 import { expect } from "vitest";
 import { desktopTest, withDesktop } from "./support/desktop-app.js";
 import {
+  SMOKE_PROJECT,
   addItem,
   createProject,
   expectGone,
   itemRow,
+  openAppSettingsFromMenu,
   openItemEditor,
   openProject,
   saveItemEditor,
-  SMOKE_PROJECT,
 } from "./support/workflows.js";
 
 const METADATA_ITEM = "Metadata item";
@@ -27,7 +28,7 @@ async function pick(page: Page, control: Locator, option: string) {
 }
 
 async function createCustomFields(page: Page) {
-  await page.getByTestId("sidebar-settings").click();
+  await openAppSettingsFromMenu(page);
   for (const { name, type } of fields) {
     await pick(page, page.getByTestId("field-new-type"), type);
     await page.getByTestId("field-new-name").fill(name);

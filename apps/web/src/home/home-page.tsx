@@ -12,7 +12,6 @@ import { ProjectGrid } from "./project-grid.js";
 import { ProjectGridSkeleton } from "./project-grid-skeleton.js";
 import { SavedSearchesSection } from "./saved-searches-section.js";
 import { TransferActivity } from "./transfer-activity.js";
-import { TransferMenu } from "./transfer-menu.js";
 import { useProjectActions } from "./use-project-actions.js";
 
 function HomeContent() {
@@ -44,7 +43,8 @@ function HomeContent() {
 
 /**
  * The home screen: project cards with open and overdue counts, New project,
- * Import and export with its progress and status, and saved searches.
+ * import and export progress and status, and saved searches. The File and
+ * Project menus hold import and export while Home is on show (§7.9).
  */
 export function HomePage() {
   const { createProject } = useProjectActions();
@@ -54,17 +54,14 @@ export function HomePage() {
         title="Projects"
         description="Choose a space to continue your work."
         actions={
-          <>
-            <TransferMenu />
-            <Button
-              variant="primary"
-              onClick={() => void createProject()}
-              data-testid="new-project-button"
-            >
-              <Plus size={15} aria-hidden="true" />
-              New project
-            </Button>
-          </>
+          <Button
+            variant="primary"
+            onClick={() => void createProject()}
+            data-testid="new-project-button"
+          >
+            <Plus size={15} aria-hidden="true" />
+            New project
+          </Button>
         }
       />
       <TransferActivity />

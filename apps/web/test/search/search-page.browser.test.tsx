@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import type { SeedProject } from "../support/fake-task-tracker-server.js";
+import { chooseMenuCommand, menuTrigger } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
@@ -112,7 +113,6 @@ it("Opens with Ctrl+F or the sidebar, focuses the text box and returns with Back
 
   await expect.element(heading()).toBeVisible();
   await expect.element(searchInput()).toHaveFocus();
-  await expect.element(page.getByTestId("sidebar-search")).toHaveAttribute("aria-current", "page");
   await expect.element(scopeSelect()).toHaveTextContent("All projects");
   await searchInput().fill("audit");
   await addFilter().click();
@@ -121,7 +121,7 @@ it("Opens with Ctrl+F or the sidebar, focuses the text box and returns with Back
   await expect.element(searchInput()).toHaveValue("audit");
   await userEvent.keyboard("{Escape}");
   await expect.element(heading()).not.toBeInTheDocument();
-  await page.getByTestId("sidebar-search").click();
+  await chooseMenuCommand("view", "menu-search");
   await expect.element(heading()).toBeVisible();
   await expect.element(searchInput()).toHaveValue("");
   await back().click();
@@ -390,7 +390,7 @@ it("Refreshes shown results when undo changes an item behind Search", async () =
   await userEvent.keyboard("{Enter}");
   await expect.element(result("Renamed invoice")).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await menuTrigger("edit").click();
   await page.getByRole("menuitem", { name: /^Undo/ }).click();
 
   await expect.element(page.getByText("No items match")).toBeVisible();

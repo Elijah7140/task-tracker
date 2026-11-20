@@ -1216,7 +1216,7 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
     its FTS triggers, recurrence copy and import/export.
   - **React:** the scheduler with a fake Effect Clock, the missed-while-closed grouping and
     the panel actions.
-  - **Headless interaction:** the bell button, Ctrl+Shift+R, snooze, Open, Mark complete, Dismiss,
+  - **Headless interaction:** View → Reminders, Ctrl+Shift+R, snooze, Open, Mark complete, Dismiss,
     Escape (including an open combo box keeping its Escape) and the editor Reminder choice.
   - **Desktop units:** the single-instance name and handshake, the hide-or-minimise decision and
     the notifier cool-down.
@@ -1645,6 +1645,9 @@ The menu bar below it holds app-wide actions. File contains App Settings and app
 and export from Home. Edit contains Undo and Redo. Project contains New Project and project
 import and export on Home, and Project Settings in the workspace. View contains Search,
 Calendar, Today, Tickets, Trash and Reminders. Settings returns to the originating page.
+Alt pressed alone or F10 moves focus to the menu bar and back, Alt with a menu's first letter
+opens it, and Escape on a closed menu returns focus to where it was. A chosen command returns
+focus there too unless it opens a page. The sidebar keeps Home and the project tree.
 
 ## 9. Delivery phases
 

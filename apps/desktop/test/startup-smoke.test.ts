@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Page } from "playwright";
 import { expect } from "vitest";
 import { desktopTest, withDesktop } from "./support/desktop-app.js";
+import { openAppSettingsFromMenu } from "./support/workflows.js";
 import { fakeAppImageInstall } from "./support/installed-app.js";
 
 const startWithSystem = (page: Page) =>
@@ -10,7 +11,7 @@ const startWithSystem = (page: Page) =>
 const saveSettings = (page: Page) => page.getByTestId("save-global-settings");
 
 async function openAppSettings(page: Page) {
-  await page.getByTestId("sidebar-settings").click();
+  await openAppSettingsFromMenu(page);
   await page.getByTestId("about-card").waitFor();
 }
 

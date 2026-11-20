@@ -2,6 +2,7 @@ import { Clock, Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import type { FakeProjectStore, SeedProject } from "../support/fake-task-tracker-server.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 import { createTestClock } from "../support/test-clock.js";
@@ -97,7 +98,6 @@ describe("opening and leaving", () => {
     await expect
       .element(page.getByTestId("today-empty"))
       .toHaveTextContent("Nothing completed today yet.");
-    await expect.element(page.getByTestId("sidebar-today")).toHaveAttribute("aria-current", "page");
     await userEvent.keyboard("{Escape}");
 
     await expect.element(todayPage()).not.toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("opening and leaving", () => {
     await userEvent.keyboard("{Control>}f{/Control}");
     await expect.element(page.getByRole("heading", { name: "Search", level: 1 })).toBeVisible();
 
-    await page.getByTestId("sidebar-today").click();
+    await chooseMenuCommand("view", "menu-today");
     await expect.element(heading()).toBeVisible();
     await page.getByTestId("today-back").click();
 

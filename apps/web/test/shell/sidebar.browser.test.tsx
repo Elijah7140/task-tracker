@@ -7,6 +7,17 @@ const sidebar = () => page.getByRole("navigation", { name: "Main" });
 const sidebarProject = (name: string) => sidebar().getByRole("link", { name });
 
 describe("Sidebar", () => {
+  it("Holds Home and the projects, leaving app-wide pages and settings to the menu bar", async () => {
+    await renderApp({ projects: [{ name: "Billing DB" }] });
+
+    await expect.element(sidebar().getByTestId("sidebar-home")).toBeVisible();
+
+    for (const name of ["Search", "Calendar", "Today", "Tickets", "Trash", "Settings"]) {
+      expect(sidebar().getByText(name, { exact: true }).elements()).toHaveLength(0);
+    }
+    expect(sidebar().element().textContent).not.toContain("Task Tracker");
+  });
+
   it("Lists projects in the server's order", async () => {
     await renderApp({ projects: [{ name: "Billing DB" }, { name: "Website" }] });
 

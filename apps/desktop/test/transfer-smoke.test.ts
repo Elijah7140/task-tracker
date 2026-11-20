@@ -4,18 +4,19 @@ import type { Page } from "playwright";
 import { expect } from "vitest";
 import { desktopTest, withDesktop } from "./support/desktop-app.js";
 import {
+  SMOKE_PROJECT,
   addItem,
+  chooseMenuCommand,
   createProject,
   expectGone,
   itemRow,
   openProject,
   projectCard,
-  SMOKE_PROJECT,
 } from "./support/workflows.js";
 
 const IMPORTED = `${SMOKE_PROJECT} (imported)`;
 
-/** Chooses an item from the home page's Import and export menu. */
+/** Chooses an import or export command from the File or Project menu on Home (§7.9). */
 async function chooseTransfer(
   page: Page,
   item:
@@ -24,8 +25,7 @@ async function chooseTransfer(
     | "transfer-export-project-csv"
     | "transfer-import-csv",
 ) {
-  await page.getByTestId("transfer-menu-button").click();
-  await page.getByTestId(item).click();
+  await chooseMenuCommand(page, item === "transfer-import-json" ? "file" : "project", item);
 }
 
 async function goHome(page: Page) {

@@ -163,6 +163,8 @@ function createWindow(url: string) {
       devTools: !app.isPackaged,
     },
   });
+  // The page draws its own menu bar under the system title bar (§8), so Electron's stays hidden.
+  renderer.setMenuBarVisibility(false);
   renderer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   renderer.webContents.on("render-process-gone", (_event, details) => {
     void handleRendererGone(renderer, url, details.reason);

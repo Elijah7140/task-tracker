@@ -9,6 +9,7 @@ import {
   isCompleted,
   itemRow,
   itemTree,
+  openAppSettingsFromMenu,
   openProject,
 } from "./support/workflows.js";
 
@@ -113,7 +114,7 @@ function pressEscapeOnCard(application: ElectronApplication) {
 }
 
 async function keepRunningInTray(page: Page) {
-  await page.getByTestId("sidebar-settings").click();
+  await openAppSettingsFromMenu(page);
   await page.getByTestId("global-keep-running-in-tray").click();
   const save = page.getByTestId("save-global-settings");
   await save.click();

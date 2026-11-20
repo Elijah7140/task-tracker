@@ -10,6 +10,7 @@ import {
   firstWindow,
   launch,
 } from "./support/desktop-app.js";
+import { openAppSettingsFromMenu } from "./support/workflows.js";
 import { isRunning, serverPid } from "./support/desktop-processes.js";
 import { type FakeSessionBus, startFakeSessionBus } from "./support/fake-tray-host.js";
 
@@ -72,7 +73,7 @@ function closeWindow(application: ElectronApplication) {
 }
 
 async function keepRunningInTray(page: Page) {
-  await page.getByTestId("sidebar-settings").click();
+  await openAppSettingsFromMenu(page);
   await page.getByTestId("global-keep-running-in-tray").click();
   const save = page.getByTestId("save-global-settings");
   await save.click();

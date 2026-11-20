@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { trashBatch } from "../support/fake-trash-handlers.js";
 import { renderApp } from "../support/render-app.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
 const TICKS_PER_HOUR = 36_000_000_000n;
@@ -55,7 +56,7 @@ describe("ProjectSettingsPage", () => {
     await backButton().click();
     await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
 
-    await page.getByTestId("workspace-project-settings").click();
+    await chooseMenuCommand("project", "menu-project-settings");
     await expect
       .element(page.getByRole("heading", { level: 1, name: "Project Settings" }))
       .toBeVisible();
@@ -403,7 +404,7 @@ describe("ProjectSettingsPage", () => {
       },
     });
     await autoOverride().click();
-    await page.getByTestId("sidebar-trash").click();
+    await chooseMenuCommand("view", "menu-trash");
     await page
       .getByRole("article", { name: "Old note" })
       .getByRole("button", { name: "Restore" })

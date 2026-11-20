@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import type { FakeProjectStore } from "../support/fake-task-tracker-server.js";
 import { renderApp } from "../support/render-app.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
 const TICKS_PER_MINUTE = 600_000_000n;
@@ -26,7 +27,7 @@ type Configure = (store: FakeProjectStore) => void;
 
 async function openAppSettings(configure?: Configure) {
   const app = await renderApp(configure === undefined ? {} : { configure });
-  await page.getByRole("navigation", { name: "Main" }).getByTestId("sidebar-settings").click();
+  await chooseMenuCommand("file", "menu-app-settings");
   await expect.element(page.getByRole("heading", { level: 1, name: "App Settings" })).toBeVisible();
   return app;
 }

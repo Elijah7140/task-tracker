@@ -2,6 +2,7 @@ import { NotFound, TransferFailed } from "@task-tracker/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { renderApp, type RenderAppOptions } from "../support/render-app.js";
+import { chooseTransferCommand, openTransferMenu } from "../support/menu-bar.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
 const TOKEN = "T".repeat(43);
@@ -27,8 +28,7 @@ function stubFileDialogs(...fileNames: ReadonlyArray<string | null>) {
 }
 
 async function runCommand(command: MenuCommand) {
-  await page.getByTestId("transfer-menu-button").click();
-  await page.getByTestId(command).click();
+  await chooseTransferCommand(command);
 }
 
 async function renderHome(options: RenderAppOptions = {}) {
@@ -293,7 +293,7 @@ describe("useDataTransfer", () => {
       .element(notice("Import and export"))
       .toHaveAccessibleDescription("The file could not be written: access denied.");
     await page.getByTestId("message-dialog-ok").click();
-    await page.getByTestId("transfer-menu-button").click();
+    await openTransferMenu("transfer-export-all");
     await expect.element(menuItem("transfer-export-all")).not.toHaveAttribute("aria-disabled");
     await expect.element(status()).toHaveTextContent("");
     await expect.element(page.getByTestId("transfer-progress")).not.toBeInTheDocument();

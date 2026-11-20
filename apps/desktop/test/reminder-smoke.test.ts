@@ -4,13 +4,16 @@ import type { ElectronApplication, Locator, Page } from "playwright";
 import { expect } from "vitest";
 import { desktopTest, withDesktop } from "./support/desktop-app.js";
 import {
+  SMOKE_PROJECT,
   addItem,
+  chooseMenuCommand,
   createProject,
+  expectGone,
   itemRow,
   openItemEditor,
   openProject,
+  remindersMenuLabel,
   saveItemEditor,
-  SMOKE_PROJECT,
 } from "./support/workflows.js";
 
 const REMINDER_ITEM = "Call the supplier";
@@ -106,9 +109,9 @@ desktopTest(
       await expect
         .poll(() => editor.getByTestId("item-editor-title").inputValue())
         .toBe(REMINDER_ITEM);
-      expect(await page.getByTestId("reminder-bell").getAttribute("aria-label")).toBe(
-        "Reminders (1)",
-      );
+      await page.keyboard.press("Escape");
+      await expectGone(editor);
+      expect(await remindersMenuLabel(page)).toBe("Reminders (1)");
     });
   },
 );
@@ -155,9 +158,8 @@ desktopTest(
       await addItem(page, SMOKE_PROJECT, REMINDER_ITEM);
       await makeDueNow(page, REMINDER_ITEM);
 
-      const bell = page.getByTestId("reminder-bell");
-      await expect.poll(() => bell.getAttribute("aria-label")).toBe("Reminders (1)");
-      await bell.click();
+      await expect.poll(() => remindersMenuLabel(page)).toBe("Reminders (1)");
+      await chooseMenuCommand(page, "view", "menu-reminders");
       const panel = page.getByTestId("reminders-panel");
       await panel.getByRole("group", { name: REMINDER_ITEM }).waitFor();
       await panel.getByTestId("reminder-dismiss").click();
@@ -165,10 +167,9 @@ desktopTest(
     });
 
     await withDesktop(desktop, async (page) => {
-      await page.getByTestId("reminder-bell").waitFor();
       await page.getByTestId("new-project-button").waitFor();
 
-      expect(await page.getByTestId("reminder-bell").getAttribute("aria-label")).toBe("Reminders");
+      expect(await remindersMenuLabel(page)).toBe("Reminders");
     });
   },
 );

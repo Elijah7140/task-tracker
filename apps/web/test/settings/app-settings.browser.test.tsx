@@ -5,14 +5,14 @@ import { FakeDesktopInstallation } from "../support/fake-desktop-installation.js
 import { DEFAULT_REMINDERS } from "../support/fake-settings-lookups.js";
 import { trashBatch } from "../support/fake-trash-handlers.js";
 import { renderApp } from "../support/render-app.js";
+import { chooseMenuCommand } from "../support/menu-bar.js";
 import { matchShellAtBothSizes, settleTheme, THEMES } from "../support/screenshots.js";
 
 const TICKS_PER_HOUR = 36_000_000_000n;
 const daysTicks = (count: number) => String(BigInt(count) * 24n * TICKS_PER_HOUR);
 const hoursTicks = (count: number) => String(BigInt(count) * TICKS_PER_HOUR);
 
-const sidebarSettings = () =>
-  page.getByRole("navigation", { name: "Main" }).getByTestId("sidebar-settings");
+const openSettingsFromMenu = () => chooseMenuCommand("file", "menu-app-settings");
 const autoCompleteBox = () => page.getByTestId("global-auto-complete");
 const yellowAmount = () => page.getByTestId("global-yellow-amount");
 const yellowUnit = () => page.getByTestId("global-yellow-unit");
@@ -27,7 +27,7 @@ const startWithSystemBox = () =>
 
 async function openAppSettings(options: Parameters<typeof renderApp>[0] = {}) {
   const app = await renderApp(options);
-  await sidebarSettings().click();
+  await openSettingsFromMenu();
   await expect.element(page.getByRole("heading", { level: 1, name: "App Settings" })).toBeVisible();
   return app;
 }
@@ -74,7 +74,7 @@ describe("Start with system", () => {
 
     await expect.element(saveButton()).toBeDisabled();
     expect(store.settingsAndLookups.globalSettings.startWithSystem).toBe(true);
-    expect(desktop.applied).toEqual([true]);
+    await expect.poll(() => desktop.applied).toEqual([true]);
     await expect.element(page.getByTestId("global-settings-error")).not.toBeInTheDocument();
   });
 
@@ -90,7 +90,7 @@ describe("Start with system", () => {
 
     await expect.element(saveButton()).toBeDisabled();
     expect(store.settingsAndLookups.globalSettings.startWithSystem).toBe(false);
-    expect(desktop.applied).toEqual([false]);
+    await expect.poll(() => desktop.applied).toEqual([false]);
   });
 
   it("Saving other defaults rewrites the entry to match the stored choice", async () => {
@@ -103,7 +103,7 @@ describe("Start with system", () => {
     await saveButton().click();
 
     await expect.element(saveButton()).toBeDisabled();
-    expect(desktop.applied).toEqual([true]);
+    await expect.poll(() => desktop.applied).toEqual([true]);
   });
 
   it("Where it is unavailable, saving neither changes nor applies the stored choice", async () => {
@@ -120,7 +120,7 @@ describe("Start with system", () => {
 
     await expect.element(saveButton()).toBeDisabled();
     expect(store.settingsAndLookups.globalSettings.startWithSystem).toBe(true);
-    expect(desktop.applied).toEqual([]);
+    await expect.poll(() => desktop.applied).toEqual([]);
   });
 
   it("A refused entry change keeps the saved choice and says so", async () => {
@@ -152,10 +152,10 @@ describe("Start with system", () => {
 });
 
 describe("AppSettingsPage", () => {
-  it("Opens from the sidebar Settings link and marks it as the current page", async () => {
+  it("Opens from File → Settings", async () => {
     const { history } = await openAppSettings();
 
-    await expect.element(sidebarSettings()).toHaveAttribute("aria-current", "page");
+    await expect.element(appSettingsHeading()).toBeVisible();
     expect(history.location.pathname).toBe("/settings");
   });
 
@@ -430,7 +430,7 @@ describe("AppSettingsPage", () => {
     await expect.element(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
     await expect.element(page.getByTestId("confirm-dialog")).not.toBeInTheDocument();
 
-    await sidebarSettings().click();
+    await openSettingsFromMenu();
     await expect.element(yellowAmount()).toBeVisible();
     await yellowAmount().fill("5");
     await page.getByTestId("sidebar-home").click();
@@ -485,13 +485,13 @@ describe("AppSettingsPage", () => {
     expect(history.location.pathname).toBe("/");
   });
 
-  it("Opens from the workspace header and returns to that project with Back", async () => {
+  it("Opens from the File menu in a workspace and returns to that project with Back", async () => {
     const { store, history } = await renderApp({ projects: [{ name: "Billing DB" }] });
     const projectId = store.summaries[0]!.project.id;
     history.push(`/projects/${projectId}`);
     await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
 
-    await page.getByTestId("workspace-app-settings").click();
+    await openSettingsFromMenu();
     await expect.element(appSettingsHeading()).toBeVisible();
     await backButton().click();
 
@@ -499,7 +499,7 @@ describe("AppSettingsPage", () => {
     expect(history.location.pathname).toBe(`/projects/${projectId}`);
   });
 
-  it("Returns to the open project with Back when opened from the sidebar in a folder", async () => {
+  it("Returns to the open project with Back when opened from the File menu in a folder", async () => {
     const { store, history } = await renderApp({
       projects: [{ name: "Billing DB", folders: [{ name: "Tables" }] }],
     });
@@ -507,9 +507,8 @@ describe("AppSettingsPage", () => {
     history.push(`/projects/${projectId}/folders/${store.folderNamed("Tables").id}`);
     await expect.element(page.getByRole("heading", { level: 1, name: "Tables" })).toBeVisible();
 
-    await sidebarSettings().click();
+    await openSettingsFromMenu();
     await expect.element(appSettingsHeading()).toBeVisible();
-    await expect.element(sidebarSettings()).toHaveAttribute("aria-current", "page");
     await backButton().click();
 
     await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
@@ -536,7 +535,7 @@ describe("AppSettingsPage", () => {
       },
     });
     await yellowAmount().fill("5");
-    await page.getByTestId("sidebar-trash").click();
+    await chooseMenuCommand("view", "menu-trash");
     await page
       .getByRole("article", { name: "Old note" })
       .getByRole("button", { name: "Restore" })
