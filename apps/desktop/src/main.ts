@@ -1,9 +1,14 @@
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { externalLinkAddress, type RpcConnection } from "@task-tracker/contracts";
+import {
+  externalLinkAddress,
+  Guid,
+  type RpcConnection,
+  TRAY_CARD_HASH,
+} from "@task-tracker/contracts";
 import { app, BrowserWindow, dialog, ipcMain, Menu, powerMonitor, session, shell } from "electron";
-import { Effect } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { createAppTray } from "./app-tray.js";
 import { instanceProfile } from "./instance-scope.js";
 import { makeNativeNotifier } from "./native-notifier.js";
@@ -18,6 +23,7 @@ import type { ServerMessage } from "./server-messages.js";
 import { launchServer, type ServerProcess } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
+import { createTrayCardWindow, type TrayCardWindow } from "./tray-card-window.js";
 import { decideTrayClose } from "./tray-close-decision.js";
 
 /** Sends the renderer what a clicked reminder notification opens. */
@@ -38,7 +44,15 @@ const iconPath = app.isPackaged
   ? join(process.resourcesPath, "icon.png")
   : fileURLToPath(new URL("../../../assets/icon.png", import.meta.url));
 
-const tray = createAppTray({ iconPath, onOpen: showWindow, onQuit: () => app.quit() });
+/** The current item card a left click on the tray icon shows (§7.18). */
+let trayCard: TrayCardWindow | undefined;
+
+const tray = createAppTray({
+  iconPath,
+  onOpen: showWindow,
+  onQuit: () => app.quit(),
+  onClick: () => trayCard?.toggle(),
+});
 
 const notifier = makeNativeNotifier(
   createReminderNotifications({
@@ -160,6 +174,8 @@ function createWindow(url: string) {
   renderer.on("focus", requestReminderCheck);
   renderer.once("closed", () => {
     window = undefined;
+    // A hidden card would otherwise keep the app running after its last window.
+    trayCard?.destroy();
   });
   return renderer;
 }
@@ -219,6 +235,8 @@ async function showServerStopped(renderer: BrowserWindow) {
 async function handleCrash(diagnostic: string, address: RendererAddress) {
   server = undefined;
   connection = undefined;
+  // The card's page holds the old connection; the next click opens it afresh.
+  trayCard?.destroy();
   if (quitting || window === undefined) {
     return;
   }
@@ -283,6 +301,11 @@ async function openApplication() {
     servePackagedRenderer(() => connection?.port);
   }
   denyPermissions();
+  trayCard = createTrayCardWindow({
+    url: `${address.url}${TRAY_CARD_HASH}`,
+    preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),
+    devTools: !app.isPackaged,
+  });
   registerRendererHandlers(address);
   powerMonitor.on("resume", requestReminderCheck);
   await start(address);
@@ -306,6 +329,32 @@ function isRendererFrame(event: Electron.IpcMainInvokeEvent, address: RendererAd
   );
 }
 
+/** Limits tray card calls to the main frame of the card window at the card page (§7.18). */
+function isTrayCardFrame(
+  event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent,
+  address: RendererAddress,
+) {
+  const frame = event.senderFrame;
+  return (
+    trayCard?.isSender(event.sender) === true &&
+    frame?.parent === null &&
+    frame.url === `${address.url}${TRAY_CARD_HASH}`
+  );
+}
+
+const decodeItemId = Schema.decodeUnknownOption(Guid);
+
+/** Hides the card and opens a valid item in the main window, as reminder activation does. */
+function openItemFromTrayCard(value: unknown) {
+  const itemId = Option.getOrUndefined(decodeItemId(value));
+  if (itemId === undefined) {
+    return false;
+  }
+  trayCard?.hide();
+  activateReminder(itemId);
+  return true;
+}
+
 function registerRendererHandlers(address: RendererAddress) {
   registerTransferFileHandler({
     isRendererFrame: (event) => isRendererFrame(event, address),
@@ -313,10 +362,18 @@ function registerRendererHandlers(address: RendererAddress) {
     grant: (grant) => server?.send(grant) ?? false,
   });
   ipcMain.handle("task-tracker:get-rpc-connection", (event) => {
-    if (!isRendererFrame(event, address)) {
+    if (!isRendererFrame(event, address) && !isTrayCardFrame(event, address)) {
       throw new Error("RPC connection requested by an unexpected frame.");
     }
     return connection;
+  });
+  ipcMain.handle("task-tracker:open-item-from-tray-card", (event, value: unknown) =>
+    isTrayCardFrame(event, address) ? openItemFromTrayCard(value) : false,
+  );
+  ipcMain.on("task-tracker:tray-card-height", (event, value: unknown) => {
+    if (isTrayCardFrame(event, address)) {
+      trayCard?.resize(value);
+    }
   });
   ipcMain.handle("task-tracker:open-external-link", async (event, value: unknown) => {
     const link = isRendererFrame(event, address) ? externalLinkAddress(value) : undefined;

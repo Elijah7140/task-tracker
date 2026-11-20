@@ -13,6 +13,13 @@ export interface DesktopBridge {
   readonly chooseTransferFile?: (request: typeof TransferFileRequest.Type) => Promise<unknown>;
   /** Calls `listener` when a reminder notification is clicked. Returns the unsubscribe. */
   onReminderActivated?(listener: (activation: unknown) => void): () => void;
+  /**
+   * From the tray card window only: hides the card, brings the main window
+   * forward and opens the item there (§7.18). Resolves false when main refuses.
+   */
+  readonly openItemFromTrayCard?: (itemId: string) => Promise<boolean>;
+  /** From the tray card window only: reports the card's drawn height so main fits the window. */
+  readonly reportTrayCardHeight?: (height: number) => void;
 }
 
 declare global {

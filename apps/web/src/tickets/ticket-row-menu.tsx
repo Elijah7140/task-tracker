@@ -1,5 +1,6 @@
 import type { PriorityLevelProjection, StatusProjection, TicketRow } from "@task-tracker/contracts";
 import { Flag, SquareArrowOutUpRight } from "lucide-react";
+import { CurrentItemMenuItem } from "../current-item/current-item-menu-item.js";
 import { ContextMenuContent, MenuItem } from "../ui/menu.js";
 import { ItemStatusMenu } from "../workspace/item-status-menu.js";
 import { PushBackMenuItem } from "../workspace/push-back-menu-item.js";
@@ -24,7 +25,10 @@ export const ticketPushBackState = (row: Row) => ({
   hasDates: row.dueDate !== null || row.hasSchedule,
 });
 
-/** A ticket's row menu: Open, Set status, Set priority and Push back one day (§7.16). */
+/**
+ * A ticket's row menu: Open, Set status, Set priority, Push back one day (§7.16)
+ * and Set as current item (§7.18).
+ */
 export function TicketRowMenu({
   row,
   actions,
@@ -55,6 +59,7 @@ export function TicketRowMenu({
         testId="item-menu-set-priority"
       />
       <PushBackMenuItem state={ticketPushBackState(row)} onPushBack={() => actions.pushBack(row)} />
+      <CurrentItemMenuItem itemId={row.itemId} mode="set" />
     </ContextMenuContent>
   );
 }

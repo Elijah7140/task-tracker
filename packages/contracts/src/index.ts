@@ -111,10 +111,13 @@ export {
   TransferSummary,
 } from "./transfer.js";
 export { TransferRpcs } from "./transfer-rpcs.js";
+export { CurrentItemCard } from "./current-item.js";
+export { CurrentItemRpcs } from "./current-item-rpcs.js";
 export {
   CheckRemindersCommand,
   DesktopNotification,
   DesktopToServerMessage,
   ReminderActivation,
   ServerToDesktopMessage,
+  TRAY_CARD_HASH,
 } from "./desktop-channel.js";

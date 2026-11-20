@@ -30,5 +30,14 @@ export const CheckRemindersCommand = Schema.Struct({ type: Schema.Literal("check
  */
 export const DesktopToServerMessage = Schema.Union([CheckRemindersCommand, TransferFileGrant]);
 
-/** What a clicked notification asks the renderer to open: an item, or the panel when null. */
+/**
+ * What a clicked notification or the tray card's Open in Task Tracker asks the
+ * main window to open: an item, or the reminders panel when null.
+ */
 export const ReminderActivation = Schema.Struct({ itemId: Schema.NullOr(Guid) });
+
+/**
+ * The location hash of the tray card window (§7.18). Electron main loads the
+ * renderer page with it, and the renderer shows only the card for it.
+ */
+export const TRAY_CARD_HASH = "#/tray-card";

@@ -2,6 +2,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import type { AreaSnapshot } from "@task-tracker/contracts";
 import { CornerLeftUp, X } from "lucide-react";
 import { type RefObject, useEffect, useRef } from "react";
+import { CurrentItemButton } from "../current-item/current-item-button.js";
 import { areaKey } from "../rpc/area-queries.js";
 import {
   carriedItemEditor,
@@ -41,10 +42,12 @@ const backdropClass =
   "fixed inset-0 bg-backdrop transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0";
 
 function EditorHeader({
+  itemId,
   parent,
   onOpenParent,
   onClose,
 }: {
+  readonly itemId: string;
   readonly parent: ItemNode | undefined;
   readonly onOpenParent: (itemId: string) => void;
   readonly onClose: () => void;
@@ -64,13 +67,15 @@ function EditorHeader({
           <span className="truncate">{parent.item.title}</span>
         </button>
       )}
+      <span className="ml-auto">
+        <CurrentItemButton itemId={itemId} />
+      </span>
       <Button
         variant="ghost"
         size="icon"
         aria-label="Close editor"
         onClick={onClose}
         data-testid="item-editor-close"
-        className="ml-auto"
       >
         <X size={15} aria-hidden="true" />
       </Button>
@@ -160,6 +165,7 @@ function EditorContent({
   return (
     <>
       <EditorHeader
+        itemId={node.item.id}
         parent={parentId === null ? undefined : findItemNode(snapshot.items, parentId)}
         onOpenParent={openItem}
         onClose={requestClose}

@@ -140,6 +140,18 @@
     font-feature-settings: "cv11";
   }
 
+  /* The tray card window sizes itself to the card, so the page keeps its content height. */
+  html.tray-card,
+  html.tray-card body,
+  html.tray-card #root {
+    height: auto;
+    overflow: hidden;
+  }
+
+  html.tray-card body {
+    @apply bg-raised;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;

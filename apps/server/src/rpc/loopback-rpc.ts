@@ -28,6 +28,7 @@ import { savedSearchRpcHandlers } from "./saved-search-rpc-handlers.js";
 import { todayRpcHandlers } from "./today-rpc-handlers.js";
 import { reminderRpcHandlers } from "./reminder-rpc-handlers.js";
 import { ticketRpcHandlers } from "./ticket-rpc-handlers.js";
+import { currentItemRpcHandlers } from "./current-item-rpc-handlers.js";
 import { UndoService } from "../services/undo-service.js";
 import { DatabaseBackup } from "../services/transfer/database-backup.js";
 import { TransferFileGrants } from "../services/transfer/transfer-file-grants.js";
@@ -111,6 +112,7 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         Effect.provide(todayRpcHandlers(options.timeZone)),
         Effect.provide(ticketRpcHandlers),
         Effect.provide(transferRpcHandlers),
+        Effect.provide(currentItemRpcHandlers),
         Effect.provide(transferFiles),
         // One session layer supplies the shared UndoService to every handler above.
         Effect.provide(session),

@@ -105,6 +105,7 @@ export { durationCodec } from "./settings/duration-codec.js";
 export { wholeNumberCodec } from "./settings/whole-number-codec.js";
 export { localTimeCodec } from "./settings/local-time-codec.js";
 export { reminderOffsetCodec } from "./settings/reminder-offset-codec.js";
+export { optionalGuidCodec } from "./settings/optional-guid-codec.js";
 export {
   DEFAULT_REMINDER,
   REMINDER_OFFSET_MINUTES,

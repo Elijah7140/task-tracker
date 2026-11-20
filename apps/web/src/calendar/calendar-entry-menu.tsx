@@ -5,6 +5,7 @@ import type {
 } from "@task-tracker/contracts";
 import { Flag } from "lucide-react";
 import { createContext, useContext } from "react";
+import { CurrentItemMenuItem } from "../current-item/current-item-menu-item.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { ItemStatusMenu } from "../workspace/item-status-menu.js";
 import { PushBackMenuItem } from "../workspace/push-back-menu-item.js";
@@ -26,8 +27,8 @@ export interface CalendarEntryMenuActions {
 export const CalendarEntryMenuContext = createContext<CalendarEntryMenuActions | null>(null);
 
 /**
- * The row menu of one calendar entry: Set status, Set priority and Push back
- * one day, as legacy CalendarView had. `day` is the occurrence's date.
+ * The row menu of one calendar entry: Set status, Set priority, Push back one
+ * day and Set as current item, as legacy CalendarView had. `day` is the occurrence's date.
  */
 export function CalendarEntryMenu({ entry, day }: { readonly entry: Entry; readonly day: string }) {
   const actions = useContext(CalendarEntryMenuContext);
@@ -53,6 +54,7 @@ export function CalendarEntryMenu({ entry, day }: { readonly entry: Entry; reado
         state={{ isCompleted: entry.isCompleted, hasDates: true }}
         onPushBack={() => actions.pushBack(entry, day)}
       />
+      <CurrentItemMenuItem itemId={entry.itemId} mode="set" />
     </ContextMenuContent>
   );
 }

@@ -16,6 +16,7 @@ import { TodayRpcs } from "./today-rpcs.js";
 import { ReminderRpcs } from "./reminder-rpcs.js";
 import { TicketRpcs } from "./ticket-rpcs.js";
 import { TransferRpcs } from "./transfer-rpcs.js";
+import { CurrentItemRpcs } from "./current-item-rpcs.js";
 
 const ianaTimeZone = Schema.String.check(
   Schema.makeFilter((zone) => /^[a-z]/i.test(zone) && Option.isSome(DateTime.zoneMakeNamed(zone)), {
@@ -45,4 +46,5 @@ export const TaskTrackerRpcs = RpcGroup.make(
   ReminderRpcs,
   TicketRpcs,
   TransferRpcs,
+  CurrentItemRpcs,
 );

@@ -16,9 +16,11 @@ export interface AppTrayOptions {
   readonly iconPath: string;
   readonly onOpen: () => void;
   readonly onQuit: () => void;
+  /** A left click on the icon, where the desktop reports one. Defaults to `onOpen`. */
+  readonly onClick?: () => void;
 }
 
-function createTray({ iconPath, onOpen, onQuit }: AppTrayOptions) {
+function createTray({ iconPath, onOpen, onQuit, onClick = onOpen }: AppTrayOptions) {
   const tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 32, height: 32 }));
   tray.setToolTip("Task Tracker");
   tray.setContextMenu(
@@ -27,8 +29,9 @@ function createTray({ iconPath, onOpen, onQuit }: AppTrayOptions) {
       { label: "Quit", click: onQuit },
     ]),
   );
-  // WP47 replaces this with the current item card. Until then a click opens the window.
-  tray.on("click", onOpen);
+  // A left click shows the current item card (§7.18). The menu keeps Open and Quit
+  // for desktops that only expose the menu.
+  tray.on("click", onClick);
   return tray;
 }
 

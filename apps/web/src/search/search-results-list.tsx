@@ -4,6 +4,7 @@ import { Check, Search } from "lucide-react";
 import type { HTMLAttributes, KeyboardEvent } from "react";
 import { formatFloatingDate, formatFloatingDateTime } from "../format/item-dates.js";
 import { isContextMenuKey, matchesShortcut } from "../ui/keyboard-shortcut.js";
+import { CurrentItemMenuItem } from "../current-item/current-item-menu-item.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { openContextMenuAt } from "../ui/open-context-menu.js";
 import {
@@ -144,6 +145,7 @@ function ResultRow(props: ResultRowProps) {
       />
       <ContextMenuContent testId="search-result-menu">
         <PushBackMenuItem state={pushBackState(result)} onPushBack={() => onPushBack(result)} />
+        <CurrentItemMenuItem itemId={result.itemId} mode="set" />
       </ContextMenuContent>
     </ContextMenu.Root>
   );
@@ -169,7 +171,8 @@ function ResultsHeader() {
 
 /**
  * One page of results. Clicking a row, or Enter or Space on it, opens the item
- * (§7.2). Its row menu offers Push back one day (§7.14).
+ * (§7.2). Its row menu offers Push back one day (§7.14) and Set as current item
+ * (§7.18).
  */
 export function SearchResultsList({
   page,

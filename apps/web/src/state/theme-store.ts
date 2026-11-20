@@ -34,3 +34,14 @@ export const useThemeStore = create<ThemeState>()((set) => ({
     set({ preference });
   },
 }));
+
+/**
+ * Re-reads the stored preference, for a window that stays open while another
+ * window of the app changes it, such as the hidden tray card (§7.18).
+ */
+export function syncStoredThemePreference() {
+  const preference = readStoredPreference();
+  if (useThemeStore.getState().preference !== preference) {
+    useThemeStore.setState({ preference });
+  }
+}

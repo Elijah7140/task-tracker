@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/contracts";
+import { CurrentItemMenuItem } from "../current-item/current-item-menu-item.js";
 import { MenuItem, MenuSeparator } from "../ui/menu.js";
 import type { ItemNode } from "./item-outline.js";
 import { ItemStatusMenu } from "./item-status-menu.js";
@@ -102,6 +103,7 @@ export function ItemMenuItems({
         state={itemPushBackState(node.item)}
         onPushBack={() => void actions.pushBack(node)}
       />
+      <CurrentItemMenuItem itemId={node.item.id} mode="toggle" />
       <RepeatMenuItems node={node} actions={actions} />
       <MenuItem
         icon={<ListPlus size={14} />}

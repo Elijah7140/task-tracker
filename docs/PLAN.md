@@ -1572,7 +1572,8 @@ the owner is working on.
     and Tickets rows. A workspace card or row menu toggles between **Set as current item** and
     **Clear current item**.
   - Each workspace item card has a ☆ button in its header that makes the item current; the
-    current card shows ★, and clicking it again clears the choice.
+    current card shows ★, and clicking it again clears the choice. The React card reveals ☆ on
+    hover, like its ⋯ button, and always shows ★.
   - The details panel has a **Set as current** / **Current item** button beside its heading.
   - A current sub-item row shows a ★ marker.
   - A deleted item, or an item in a deleted project, is treated as no current item. Restoring
@@ -1586,6 +1587,9 @@ the owner is working on.
   - **Contents:** the title, the project and folder path, a Completed chip, status, priority, due
     date and time, the first lines of the notes, and **Open in Task Tracker**, which brings the
     window forward with the item selected.
+  - **Mark complete** (added in WP47 at the project lead's request) completes an open item with
+    the normal rules. The open sub-items question and any blocked reason appear inside the card,
+    and the main window reloads the change.
   - **Empty state:** with no current item, the card explains how to choose one.
   - **Closing:** clicking elsewhere, Escape, or clicking the icon again hides the card.
   - **Placement:** on Windows the card sits centred above the cursor, kept inside the working

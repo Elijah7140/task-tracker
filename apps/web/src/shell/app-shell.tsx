@@ -7,6 +7,7 @@ import { TodayPage } from "../today/today-page.js";
 import { TicketsPage } from "../tickets/tickets-page.js";
 import { TrashPage } from "../trash/trash-page.js";
 import { ReminderBell } from "../reminders/reminder-bell.js";
+import { useDataChangeListener } from "../native/data-change-broadcast.js";
 import { EditMenu } from "./edit-menu.js";
 import { ReturnGuards, useReturnGuardRegistry } from "./return-guards.js";
 import { UndoBlockers } from "./undo-blockers.js";
@@ -55,6 +56,7 @@ export function AppShell() {
   const returnGuards = useReturnGuardRegistry();
   const { goBack } = useCoveringPage(returnGuards.run);
   const covering = useReturnPageStore((state) => state.covering);
+  useDataChangeListener();
   return (
     <UndoBlockers.Provider value={register}>
       <ReturnGuards.Provider value={returnGuards}>

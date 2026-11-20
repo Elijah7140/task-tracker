@@ -1,5 +1,6 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import type { MouseEvent, PointerEvent, ReactNode } from "react";
+import { CurrentItemStar } from "../current-item/current-item-star.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { ItemMenuItems } from "./item-menu-items.js";
@@ -159,6 +160,7 @@ function CardHeader(props: ItemCardProps & { readonly date: ItemDate; readonly h
         </span>
         <CardTitle node={node} />
         <ItemStatusChip name={statusName(node, lookups)} />
+        <CurrentItemStar itemId={node.item.id} title={node.item.title} />
         <ItemOverflowMenu {...props} revealOn="card" />
       </div>
       <CardMetadata node={node} lookups={lookups} date={date} />
