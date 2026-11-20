@@ -34,9 +34,9 @@ Linux, run the Electron runtime check with `xvfb-run -a` after building.
 Once desktop packaging lands, run `pnpm run package:desktop` before
 `pnpm run test:desktop`.
 
-On Linux, source `scripts/dev-env.sh` for user-local GTK. Before pushing, run the
-local TypeScript gate in [docs/CI.md](docs/CI.md) for any OS without an enabled
-self-hosted runner. GitHub-hosted CI requires the owner's request.
+On Linux, source `scripts/dev-env.sh` for user-local GTK. CI runs on GitHub-hosted
+Linux and Windows runners for every push and pull request ([docs/CI.md](docs/CI.md)).
+The local gate in that file is an optional pre-push check.
 
 ## Code
 

@@ -1,5 +1,7 @@
 name: Release
 
+# A pushed v* tag packages each platform on GitHub-hosted runners, then publishes
+# one verified release. See README "Cut a release" and PLAN §7.13.
 on:
   push:
     tags: ["v*"]
@@ -14,19 +16,23 @@ concurrency:
 jobs:
   package:
     if: github.ref_type == 'tag' && !github.event.deleted
+    name: Package ${{ matrix.target }}
     strategy:
       matrix:
         include:
           - target: win-x64
-            runner: ${{ vars.CI_WINDOWS_SELF_HOSTED == 'true' && '["self-hosted", "windows", "x64"]' || '"windows-latest"' }}
+            runner: windows-latest
           - target: linux-x64
-            runner: ${{ vars.CI_LINUX_SELF_HOSTED == 'true' && '["self-hosted", "linux", "x64"]' || '"ubuntu-latest"' }}
+            runner: ubuntu-latest
+          # Apple silicon. Ad-hoc signed only: there is no Apple Developer ID.
           - target: mac-arm64
-            runner: '"macos-15"'
-    name: Package ${{ matrix.target }}
-    runs-on: ${{ fromJSON(matrix.runner) }}
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -35,10 +41,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Linux browser and Electron dependencies
         if: runner.os == 'Linux'
-        run: pnpm exec playwright install --with-deps chromium
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends xvfb xauth dbus
       - name: Build the tagged package
         shell: bash
         run: pnpm run package:desktop "$GITHUB_REF_NAME"
+      # The packaged Chromium sandbox helper must be setuid root (WP22).
       - name: Run packaged desktop smoke on Linux
         if: runner.os == 'Linux'
         run: |
@@ -49,6 +58,8 @@ jobs:
       - name: Run packaged desktop smoke on Windows and macOS
         if: runner.os != 'Linux'
         run: pnpm run test:desktop
+      # Installers, blockmaps, latest*.yml or beta*.yml, and SHA256SUMS.json from
+      # the native build.
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.target }}
@@ -59,10 +70,14 @@ jobs:
   publish:
     needs: package
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The only job that can write: it creates the draft, uploads and publishes.
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version

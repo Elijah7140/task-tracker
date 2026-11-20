@@ -41,9 +41,10 @@ pass a Vitest project such as `--project core` to `pnpm exec vp test run`.
 The Electron database suite runs the server's SQLite tests under the same
 embedded Node runtime the desktop app ships.
 
-The same gate is available as `pwsh ./scripts/ci-local.ps1` on Windows and
-`bash scripts/ci-local.sh` on Linux. Pushes to main and pull requests use enabled
-self-hosted runners. See [CI setup](docs/CI.md).
+CI runs this gate, plus packaging and the packaged smoke, on GitHub-hosted
+Linux and Windows runners for every push and pull request. See
+[CI](docs/CI.md). To run it before pushing, use `pwsh ./scripts/ci-local.ps1`
+on Windows or `bash scripts/ci-local.sh` on Linux.
 
 ## Package and smoke-test
 
@@ -73,9 +74,9 @@ on Windows and `~/.local/share/TaskTracker` on Linux (or absolute `XDG_DATA_HOME
 ## Install a release
 
 Download the package for your system from the repository's **Releases** page.
-Windows packages are unsigned and macOS packages are ad-hoc signed without
-notarization. Only approve an OS prompt for a release you obtained from this
-repository.
+Windows packages are unsigned. macOS packages are ad-hoc signed, without an
+Apple Developer ID or notarization. Only approve an OS prompt for a release you
+obtained from this repository.
 
 - **Windows x64.** Run `task-tracker-<version>-win-x64.exe`. The per-user
   installer creates Start menu and desktop shortcuts. If SmartScreen prompts,
@@ -112,9 +113,10 @@ recognized database before migrating it.
 The installed Windows build and the Linux AppImage offer **Check for updates**,
 **Download** and **Restart to update** in **App Settings → About**, and the
 **Start Task Tracker when I sign in** option. Development, unpacked and macOS
-builds show the version only. The app checks only when asked. It reads the
-stable channel (`latest.yml` or `latest-linux.yml`), so prereleases are never
-offered. It downloads the installer into its profile and keeps it only when
+builds show the version only. macOS has no auto-update because updating a Mac
+app needs an Apple Developer ID signature, so install a new macOS release by
+hand. The app checks only when asked. It reads the stable channel
+(`latest.yml` or `latest-linux.yml`), so prereleases are never offered. It downloads the installer into its profile and keeps it only when
 its size and SHA-512 match the release metadata, and checks it again just
 before installing. Restart to update replaces the AppImage in place and
 relaunches it, or runs the Windows installer silently as an update. A declined
@@ -131,6 +133,35 @@ builds use `https://github.com/<owner>/<repo>/releases/latest/download/`, which
 needs public release assets, or the `TASKTRACKER_UPDATE_FEED_URL` value set when
 packaging. Setting `TASKTRACKER_UPDATE_FEED_URL` when launching the app
 overrides it. Feeds must use HTTPS, except on the loopback interface.
+
+## Cut a release
+
+1. Make sure CI is green on the commit to release.
+2. Choose the version, such as `v0.2.0`, or `v0.2.0-rc.1` for a prerelease.
+   The tag supplies the version to every package, so no file needs a bump.
+3. Tag the commit and push the tag:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The [release workflow](.github/workflows/release.yml) then builds on
+GitHub-hosted runners, smoke-tests each package and publishes one release.
+
+| Runner           | Assets                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `windows-latest` | `task-tracker-<version>-win-x64.exe`, its `.blockmap`, `latest.yml`                     |
+| `ubuntu-latest`  | `task-tracker-<version>-linux-x64.AppImage`, `latest-linux.yml`                         |
+| `macos-latest`   | `task-tracker-<version>-mac-arm64.dmg` and `.zip`, their `.blockmap`s, `latest-mac.yml` |
+
+A prerelease tag writes `beta*.yml` instead of `latest*.yml` and is marked as a
+prerelease, so installed builds never offer it. A stable release becomes the
+repository's latest release, which is the update feed for Windows and Linux.
+The macOS build is Apple silicon only and has no auto-update (see
+[Updates and start with system](#updates-and-start-with-system)). If a job
+fails for a transient reason, re-run the failed jobs and the publish job resumes
+the draft. A fix that needs a new commit needs a new version tag.
 
 ## Verify a release
 
@@ -159,7 +190,7 @@ smoke-tests before uploading the verified files to one draft and checking the
 uploaded digests. A retry resumes a leftover draft, skipping files already
 uploaded with a matching name and checksum. It refuses a draft holding other
 files and never deletes a release. A published release is left intact. Prereleases use `beta*.yml` and GitHub's prerelease flag.
-Stable releases use `latest*.yml`. See [CI setup](docs/CI.md) for runner selection.
+Stable releases use `latest*.yml`. See [CI](docs/CI.md#release) for the jobs.
 
 For the Windows installer acceptance check, use a disposable standard user.
 Put a copy of the supported legacy database in the default data directory

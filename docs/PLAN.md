@@ -1237,14 +1237,19 @@ Its exact packaging and update decisions are recorded in `legacy-final:docs/PLAN
   the release version to each packager. Upload all verified artifacts before publishing the
   GitHub Release. A retry resumes an incomplete draft by matching uploaded assets by name and
   checksum, refuses a conflicting draft and never deletes a release. A published release stays intact.
-  Prereleases are excluded from stable update checks. PR and main CI build packages for the
-  enabled operating systems as verification. CI must never publish on a PR.
+  Prereleases are excluded from stable update checks. PR and push CI build and smoke-test
+  Windows and Linux packages as verification. CI must never publish on a PR.
+- **Build hosting.** All CI and release jobs run on GitHub-hosted runners (decision 10, §12).
+  A `v*` tag packages Windows x64 on `windows-latest`, Linux x64 on `ubuntu-latest` and macOS
+  arm64 on `macos-latest`. Only the publish job can write to the repository.
 - **Updates.** Installed builds offer manual Check for updates, then Download and Restart to
   update. Uninstalled builds show an informational message and make no request. Display
   unavailable feed and network errors separately. Keep download and ready state across
   navigation. Check the active draft before restarting. If the user declines, defer applying
-  the update until the next normal launch. Accept a configurable feed. The legacy stable feed
-  requires public release assets, and the hosting decision remains open.
+  the update until the next normal launch. Accept a configurable feed. The default feed is the
+  public repository's latest GitHub release, which holds the stable `latest*.yml` files and
+  installers. macOS builds are ad-hoc signed without an Apple Developer ID, so they show the
+  version only and offer no update.
 - **Start with the system.** App Settings offers the option only for installed Windows and Linux
   builds. Default off. After saving, set or clear the per-user entry idempotently, using the
   Windows Run key or a desktop autostart file under absolute `XDG_CONFIG_HOME` or
@@ -1743,7 +1748,8 @@ current platform's electron-builder output and unpacked executable. `test:deskto
 runs Playwright smoke against that executable. On headless Linux, source
 `scripts/dev-env.sh` for user-local GTK and run `xvfb-run -a pnpm run test:desktop`.
 
-CI uses the self-hosted runners and local TypeScript gate in [CI.md](CI.md).
+CI runs on GitHub-hosted runners for every push and pull request. The local gate in
+[CI.md](CI.md) is an optional pre-push check.
 
 ## 12. Owner decisions
 
@@ -1757,11 +1763,15 @@ CI uses the self-hosted runners and local TypeScript gate in [CI.md](CI.md).
 6. **Build/test machines.** Develop on Linux with CI on Windows and Linux and a Windows
    machine for desktop testing.
 7. **Testing standard.** Use the layered standard in §11.1, including owner review.
-8. **CI without billed minutes (18 Nov 2026).** Enable self-hosted Linux and Windows
-   jobs with per-OS repository variables. Run the local gate for an OS whose runner
-   is unavailable. GitHub-hosted CI requires explicit manual selection.
+8. **CI without billed minutes (18 Nov 2026).** Superseded by decision 10. Enable
+   self-hosted Linux and Windows jobs with per-OS repository variables. Run the local
+   gate for an OS whose runner is unavailable.
 9. **Legacy feature port.** Freeze the final .NET behavior at `legacy-final` and
    port it to TypeScript before merging to main.
+10. **GitHub-hosted CI and releases (20 Nov 2026).** The repository is public, so
+    standard GitHub-hosted runners are free. Use no self-hosted runners. CI runs on
+    Linux and Windows for every push and pull request. Releases, including unsigned
+    macOS packaging, run on GitHub-hosted runners.
 
 ## Appendix A. Historical review log
 

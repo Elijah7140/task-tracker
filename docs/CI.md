@@ -1,21 +1,35 @@
 # Continuous integration
 
-Day-to-day CI uses enabled self-hosted runners to avoid billed GitHub-hosted
-minutes. Run the local gate for each OS without an enabled runner.
+All CI and release automation runs on standard GitHub-hosted runners, which are
+free for this public repository. There are no self-hosted runners.
 
-| What | Where it runs | When |
+| Workflow | Jobs and runners | When |
 |---|---|---|
-| Local gate (`scripts/ci-local.*`) | Developer machine | Before pushing if that OS has no enabled runner |
-| `workspace.yml` → `workspace-build.yml`, Linux | `self-hosted, linux, x64` | Push to `main` or pull request when `CI_LINUX_SELF_HOSTED` is `true` |
-| `workspace.yml` → `workspace-build.yml`, Windows | `self-hosted, windows, x64` | Push to `main` or pull request when `CI_WINDOWS_SELF_HOSTED` is `true` |
-| Manual CI on GitHub-hosted runners | GitHub (billed) | From **Actions → CI → Run workflow**, with **Use GitHub-hosted runners** selected |
+| [CI](../.github/workflows/workspace.yml) | Build and test on `ubuntu-latest` and `windows-latest` | Every branch push and pull request, or **Actions → CI → Run workflow** |
+| [Release](../.github/workflows/release.yml) | Package on `windows-latest`, `ubuntu-latest` and `macos-latest`, then publish on `ubuntu-latest` | Push of a `v*` tag |
+| Local gate (`scripts/ci-local.*`) | Developer machine | Optional, before pushing |
 
-Unset variables skip the corresponding PR and main jobs. A push of a valid
-`v*` release tag runs [Release](../.github/workflows/release.yml) separately.
-Release packaging uses enabled self-hosted Windows and Linux runners, with
-GitHub-hosted runners for platforms without configured runners. macOS packaging
-uses a GitHub-hosted Apple silicon runner, and release assembly runs on
-GitHub-hosted Linux. These jobs can use billed minutes. See
+## CI
+
+Each job runs the frozen install, Playwright Chromium, build, the static check
+with `--deny-warnings`, the Vite renderer probe, `vp test run`, the embedded Node
+SQLite tests (`test:server-db:electron`), the Electron runtime check,
+`package:desktop` and the packaged smoke (`test:desktop`). The Linux job runs
+the Electron steps under `xvfb-run -a` and makes the packaged `chrome-sandbox`
+setuid root first, as WP22 introduced. A newer push to the same branch or pull
+request cancels a running build, except on `main`.
+
+Each job uploads its installer as `package-linux-x64` or `package-windows-x64`
+for a week. A failing job uploads differing screenshots as
+`browser-screenshot-diffs-linux` or `browser-screenshot-diffs-windows`.
+
+## Release
+
+See [Cut a release](../README.md#cut-a-release). Each package job builds the
+tagged version on its own OS, runs the packaged smoke and uploads the files
+listed in `release-files.ts` with their native SHA-256 checksums. The publish
+job verifies those checksums, uploads everything to one draft, checks the
+uploaded digests and then publishes. See
 [release verification](../README.md#verify-a-release) for the local dry run.
 
 ## Local gate
@@ -29,62 +43,20 @@ pwsh ./scripts/ci-local.ps1             # Windows with PowerShell 7.4+
 bash scripts/ci-local.sh               # Linux
 ```
 
-The gate runs the frozen install, build, static check, Chromium tests, embedded
-Node SQLite tests, Electron runtime check, packaging and packaged smoke. Select
+The gate runs the same steps as CI except the renderer probe. Select
 `-SkipPack` on Windows or `--skip-pack` on Linux to omit packaging and packaged smoke.
-
-## Linux runner (Docker)
-
-Needs a Linux x64 machine with Docker and Compose. The image is Ubuntu 24.04, the same as GitHub's
-`ubuntu-latest`, with fonts and desktop libraries for Chromium snapshots and Electron smoke.
-Rebuild an existing runner image to pick up these dependencies. The Linux jobs
-use sudo to install browser dependencies and set the packaged Chromium sandbox owner.
-The container has `SYS_ADMIN` so the setuid helper can create PID and network namespaces.
-Run this container on a trusted runner host.
-
-1. On GitHub, open **Settings → Actions → Runners → New self-hosted runner** and copy the token
-   from the `--token` argument. It expires after an hour.
-2. On the server, from a clone of this repository:
-
-   ```sh
-   cd ci/runner-linux
-   RUNNER_TOKEN=<token> docker compose up -d --build
-   ```
-
-   The runner registers on first start and keeps the registration in a Docker volume, so
-   restarts need no token. It restarts with Docker and updates itself.
-3. Check the runner shows as **Idle** under **Settings → Actions → Runners**.
-4. Under **Settings → Secrets and variables → Actions → Variables**, add `CI_LINUX_SELF_HOSTED`
-   with the value `true`.
-
-To remove it: `docker compose down -v`, then delete the runner on the Runners page.
-
-## Windows runner
-
-Needs a Windows x64 machine that stays on while you push. It may be the development PC.
-
-1. Get a registration token as in step 1 above.
-2. In an elevated PowerShell 7 window, from a clone of this repository:
-
-   ```powershell
-   ./ci/install-windows-runner.ps1 -Token <token>
-   ```
-
-   This installs the runner to `C:\actions-runner` as a Windows service that starts with the
-   machine.
-3. Add the repository variable `CI_WINDOWS_SELF_HOSTED` with the value `true`.
-
-To remove it: in `C:\actions-runner`, run `.\svc.cmd uninstall` (if present) and
-`.\config.cmd remove --token <removal token from the Runners page>`.
 
 ## Snapshot baselines
 
-Review Windows baselines on Windows and Linux baselines on Linux. CI uploads
-differences as `browser-screenshot-diffs-linux` or `browser-screenshot-diffs-windows`.
-With no runner enabled, use the received images from a local test run on that OS.
+Review Windows baselines on Windows and Linux baselines on Linux. Use the
+`browser-screenshot-diffs-*` artifact of a failing CI job or the received images
+from a local test run on that OS.
 
 ## Security
 
-Self-hosted runners run whatever a workflow tells them to. That is safe here because the repository
-is private: only collaborators can push branches or open pull requests. If the repository is ever
-made public, remove the runners or limit them to `main` first.
+The repository is public, so anyone can open a pull request. Workflows use
+`pull_request`, never `pull_request_target`, so fork pull requests run without
+secrets and with a read-only token. Both workflows default to
+`contents: read` and check out without persisting credentials. Only the Release
+publish job has `contents: write`, and it runs only for a pushed tag, which
+needs write access to the repository. No workflow uses repository secrets.
