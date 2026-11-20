@@ -14,8 +14,9 @@ import {
 } from "./undo-rows.js";
 import { verifyReplayCompletion } from "./replay-completion.js";
 import { verifyReplayFieldValues } from "./replay-field-values.js";
+import { verifyReplayFields } from "./replay-fields.js";
 import { verifyReplayHierarchy } from "./replay-hierarchy.js";
-import { verifyReplayPriorities } from "./replay-priorities.js";
+import { verifyReplayLookups } from "./replay-lookups.js";
 import { verifyReplaySavedSearches } from "./replay-saved-searches.js";
 import { verifyReplaySettings } from "./replay-settings.js";
 import { verifyReplayStatuses } from "./replay-statuses.js";
@@ -30,8 +31,13 @@ export interface ReplayRow {
 const subjects: Partial<Record<UndoTable, string>> = {
   Project: "project",
   Folder: "folder",
+  ItemType: "item type",
   PriorityLevel: "priority level",
   StatusLevel: "status",
+  FieldDefinition: "field",
+  FieldChoice: "field choice",
+  GlobalSetting: "setting",
+  ProjectSetting: "setting",
   SavedSearch: "saved search",
 };
 
@@ -135,7 +141,8 @@ export const replayRows = Effect.fnUntraced(
     for (const row of rows) {
       yield* verifyRow(sql, row, direction);
     }
-    yield* verifyReplayPriorities(sql, rows);
+    yield* verifyReplayLookups(sql, rows);
+    yield* verifyReplayFields(sql, rows);
     const turnedOn = yield* verifyReplaySettings(
       sql,
       rows,

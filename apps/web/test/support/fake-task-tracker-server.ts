@@ -384,6 +384,9 @@ export class FakeProjectStore {
       autoCompleteByProject: this.autoCompleteByProject,
       values: this.customFields.values,
       priorityLevels: this.settingsAndLookups.priorityLevels,
+      itemTypes: this.settingsAndLookups.itemTypes,
+      fields: this.customFields.fields,
+      choices: this.customFields.choices,
       statuses: this.statuses.rows,
       trash: this.trash.batches,
       links: this.itemLinks.state,
@@ -401,6 +404,9 @@ export class FakeProjectStore {
       autoCompleteByProject,
       values,
       priorityLevels,
+      itemTypes,
+      fields,
+      choices,
       statuses,
       trash,
       links,
@@ -415,6 +421,9 @@ export class FakeProjectStore {
     this.autoCompleteByProject = autoCompleteByProject;
     this.customFields.restoreValues(values);
     this.settingsAndLookups.priorityLevels = priorityLevels;
+    this.settingsAndLookups.itemTypes = itemTypes;
+    this.customFields.fields = fields;
+    this.customFields.choices = choices;
     this.trash.batches = trash;
     this.itemLinks.restore(links);
     this.savedSearches.rows = savedSearches;
@@ -708,16 +717,28 @@ function planReminder(
   });
 }
 
-/** Settings and lookup handlers whose priority list changes record history, as on the server. */
-function trackedPriorityHandlers(
+/** Settings and lookup handlers whose item type and priority changes record history, as on the server. */
+function trackedLookupHandlers(
   store: FakeProjectStore,
   track: ReturnType<typeof fakeHistory>["track"],
 ) {
   const lookups = settingsAndLookupHandlers(store, store.record);
   const title = (id: string) =>
     store.settingsAndLookups.priorityLevels.find((row) => row.id === id.toUpperCase())?.label;
+  const typeName = (id: string) =>
+    store.settingsAndLookups.itemTypes.find((row) => row.id === id.toUpperCase())?.name;
   return {
     ...lookups,
+    AddItemType: (payload: Parameters<typeof lookups.AddItemType>[0]) =>
+      track(lookups.AddItemType(payload), (row) => `Add item type '${row.name}'`),
+    RenameItemType: (payload: Parameters<typeof lookups.RenameItemType>[0]) =>
+      track(lookups.RenameItemType(payload), () => `Rename item type '${typeName(payload.id)}'`),
+    ArchiveItemType: (payload: Parameters<typeof lookups.ArchiveItemType>[0]) =>
+      track(lookups.ArchiveItemType(payload), () => `Archive item type '${typeName(payload.id)}'`),
+    RestoreItemType: (payload: Parameters<typeof lookups.RestoreItemType>[0]) =>
+      track(lookups.RestoreItemType(payload), () => `Restore item type '${typeName(payload.id)}'`),
+    ReorderItemTypes: (payload: Parameters<typeof lookups.ReorderItemTypes>[0]) =>
+      track(lookups.ReorderItemTypes(payload), () => "Reorder item types"),
     AddPriorityLevel: (payload: Parameters<typeof lookups.AddPriorityLevel>[0]) =>
       track(lookups.AddPriorityLevel(payload), (row) => `Add priority '${row.label}'`),
     RenamePriorityLevel: (payload: Parameters<typeof lookups.RenamePriorityLevel>[0]) =>
@@ -730,6 +751,55 @@ function trackedPriorityHandlers(
       track(lookups.ReorderPriorityLevels(payload), () => "Reorder priority levels"),
     SetPriorityNumber: (payload: Parameters<typeof lookups.SetPriorityNumber>[0]) =>
       track(lookups.SetPriorityNumber(payload), () => `Edit priority '${title(payload.id)}'`),
+  };
+}
+
+/** Custom field and choice handlers that record history with the server's labels. */
+function trackedFieldHandlers(
+  store: FakeProjectStore,
+  track: ReturnType<typeof fakeHistory>["track"],
+) {
+  const fields = customFieldHandlers(store, store.record);
+  const data = store.customFields;
+  const fieldName = (id: string) => data.fields.find((row) => row.id === id)?.displayName;
+  const choiceLabel = (id: string) => data.choices.find((row) => row.id === id)?.label;
+  type Payload<Tag extends keyof typeof fields> = Parameters<(typeof fields)[Tag]>[0];
+  return {
+    ...fields,
+    CreateField: (payload: Payload<"CreateField">) =>
+      track(fields.CreateField(payload), (row) => `Add field '${row.displayName}'`),
+    RenameField: (payload: Payload<"RenameField">) =>
+      track(fields.RenameField(payload), () => `Rename field '${fieldName(payload.fieldId)}'`),
+    ChangeFieldType: (payload: Payload<"ChangeFieldType">) =>
+      track(
+        fields.ChangeFieldType(payload),
+        () => `Change type of field '${fieldName(payload.fieldId)}'`,
+      ),
+    ArchiveField: (payload: Payload<"ArchiveField">) =>
+      track(fields.ArchiveField(payload), () => `Archive field '${fieldName(payload.fieldId)}'`),
+    RestoreField: (payload: Payload<"RestoreField">) =>
+      track(fields.RestoreField(payload), () => `Restore field '${fieldName(payload.fieldId)}'`),
+    ReorderFields: (payload: Payload<"ReorderFields">) =>
+      track(fields.ReorderFields(payload), () => "Reorder fields"),
+    AddFieldChoice: (payload: Payload<"AddFieldChoice">) =>
+      track(fields.AddFieldChoice(payload), (row) => `Add choice '${row.label}'`),
+    RenameFieldChoice: (payload: Payload<"RenameFieldChoice">) =>
+      track(
+        fields.RenameFieldChoice(payload),
+        () => `Rename choice '${choiceLabel(payload.choiceId)}'`,
+      ),
+    ArchiveFieldChoice: (payload: Payload<"ArchiveFieldChoice">) =>
+      track(
+        fields.ArchiveFieldChoice(payload),
+        () => `Archive choice '${choiceLabel(payload.choiceId)}'`,
+      ),
+    RestoreFieldChoice: (payload: Payload<"RestoreFieldChoice">) =>
+      track(
+        fields.RestoreFieldChoice(payload),
+        () => `Restore choice '${choiceLabel(payload.choiceId)}'`,
+      ),
+    ReorderFieldChoices: (payload: Payload<"ReorderFieldChoices">) =>
+      track(fields.ReorderFieldChoices(payload), () => "Reorder choices"),
   };
 }
 
@@ -841,8 +911,8 @@ function handlers(store: FakeProjectStore) {
           : null,
       );
     },
-    ...trackedPriorityHandlers(store, history.track),
-    ...customFieldHandlers(store, record),
+    ...trackedLookupHandlers(store, history.track),
+    ...trackedFieldHandlers(store, history.track),
     ...reminderHandlers(store, history.track),
     ...itemLinkHandlers(store, record),
     SetItemPriority: ({ itemId, priorityLevelId }) =>

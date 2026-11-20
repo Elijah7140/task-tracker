@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import type { FakeProjectStore } from "../support/fake-task-tracker-server.js";
+import { openMenu } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
@@ -723,6 +724,81 @@ describe("FieldManagerCard", () => {
       await expect
         .element(inherited().getByRole("listitem", { name: "Story points" }))
         .toBeVisible();
+    });
+  });
+
+  describe("history", () => {
+    it("Names a field rename in the Edit menu and undoes it from there", async () => {
+      const { store } = await openAppSettings((appStore) => {
+        appStore.customFields.addFieldSeed("Effort", "Number");
+      });
+      await fieldRow("Effort").getByTestId("field-rename").click();
+      await userEvent.keyboard("{Control>}a{/Control}Story points{Enter}");
+      await expect.element(fieldRow("Story points")).toBeVisible();
+
+      await openMenu("edit");
+      await page.getByRole("menuitem", { name: "Undo: Rename field 'Story points'" }).click();
+
+      await expect.element(fieldRow("Effort")).toBeVisible();
+      expect(store.customFields.fieldNames(null)).toEqual(["Effort"]);
+      await openMenu("edit");
+      await expect
+        .element(page.getByRole("menuitem", { name: "Redo: Rename field 'Story points'" }))
+        .toBeEnabled();
+    });
+
+    it("Ctrl+Z brings back an archived field and Ctrl+Y archives it again", async () => {
+      await openAppSettings((appStore) => {
+        appStore.customFields.addFieldSeed("Effort", "Number");
+      });
+      await fieldRow("Effort").getByTestId("field-archive").click();
+      await expect.element(fieldRow("Effort")).not.toBeInTheDocument();
+
+      await userEvent.keyboard("{Control>}z{/Control}");
+
+      await expect.element(fieldRow("Effort")).toBeVisible();
+      await userEvent.keyboard("{Control>}y{/Control}");
+      await expect.element(fieldRow("Effort")).not.toBeInTheDocument();
+    });
+
+    it("Names a choice rename in the Edit menu and Ctrl+Z refreshes the open panel", async () => {
+      const { store } = await openAppSettings((appStore) => {
+        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addChoiceSeed(status.id, "Ready");
+      });
+      await choicesToggle("Status").click();
+      await choiceRow("Status", "Ready").getByTestId("choice-rename").click();
+      await userEvent.keyboard("{Control>}a{/Control}Done{Enter}");
+      await expect.element(choiceRow("Status", "Done")).toBeVisible();
+
+      await openMenu("edit");
+      await expect
+        .element(page.getByRole("menuitem", { name: "Undo: Rename choice 'Done'" }))
+        .toBeEnabled();
+      await userEvent.keyboard("{Escape}");
+      await userEvent.keyboard("{Control>}z{/Control}");
+
+      await expect.element(choiceRow("Status", "Ready")).toBeVisible();
+      const status = store.customFields.fieldNamed("Status");
+      expect(store.customFields.choiceLabels(status.id)).toEqual(["Ready"]);
+    });
+
+    it("Blocks undo while a new choice label is typed and leaves the choice unchanged", async () => {
+      const { store } = await openAppSettings((appStore) => {
+        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addChoiceSeed(status.id, "Ready");
+      });
+      await choicesToggle("Status").click();
+      await choiceRow("Status", "Ready").getByTestId("choice-archive").click();
+      await newChoice("Status").fill("Blocked");
+
+      await openMenu("edit");
+      await page.getByRole("menuitem", { name: "Undo: Archive choice 'Ready'" }).click();
+
+      await expect
+        .element(page.getByRole("alertdialog", { name: "Undo and redo" }))
+        .toHaveAccessibleDescription("Save or discard your settings before undoing or redoing.");
+      expect(store.calls).not.toContain("ApplyHistory");
     });
   });
 
