@@ -41,9 +41,15 @@ async function assemble(directory: string) {
 function fakeGitHub() {
   const actions: string[] = [];
   let release: GitHubRelease | undefined;
-  const faults = { failUpload: false, corruptUpload: false };
+  const faults = { failUpload: false, corruptUpload: false, listLags: false };
   const github: GitHubReleases = {
-    find: async () => release && structuredClone(release),
+    find: async () => (faults.listLags ? undefined : release && structuredClone(release)),
+    get: async (id) => {
+      if (release?.id !== id) {
+        throw new Error("Release missing");
+      }
+      return structuredClone(release);
+    },
     createDraft: async (prerelease) => {
       actions.push(`draft (prerelease=${prerelease})`);
       release = { id: 42, draft: true, prerelease, assets: [] };
@@ -139,6 +145,21 @@ releaseTest(
     const published = await github.find();
     expect(published?.draft).toBe(false);
     expect(published?.assets).toHaveLength(assets.length);
+  },
+);
+
+releaseTest(
+  "Publishes a new draft while the release list does not show it yet",
+  async ({ directory }) => {
+    const assets = await assemble(directory);
+    const { actions, github, faults } = fakeGitHub();
+    faults.listLags = true;
+
+    await publishRelease(github, version, assets);
+
+    expect(actions).toEqual(["draft (prerelease=true)", `upload ${assets.length}`, "publish"]);
+    faults.listLags = false;
+    expect((await github.find())?.draft).toBe(false);
   },
 );
 
