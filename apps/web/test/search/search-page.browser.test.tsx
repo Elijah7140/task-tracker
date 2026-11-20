@@ -202,7 +202,7 @@ it("Keeps blank rows and offered fields and drops another project's field when t
   ]);
 });
 
-it("Blocks invalid rows inline, keeps the shown results and searches priority ranges in rank order", async () => {
+it("Blocks invalid rows inline and keeps the shown results", async () => {
   const { store } = await openApp();
   await openProject("Billing");
   await ctrlF();
@@ -224,6 +224,7 @@ it("Blocks invalid rows inline, keeps the shown results and searches priority ra
   await expect.element(result("Root invoice")).toBeVisible();
   expect(store.calls.filter((call) => call === "SearchItems")).toHaveLength(1);
   await estimate.getByRole("button", { name: "Remove filter" }).click();
+  await expect.element(searchButton()).toBeEnabled();
 
   const priority = await addRow("Priority", "between");
   await choose(priority.getByRole("combobox", { name: "Priority from" }), "Low");
@@ -231,6 +232,17 @@ it("Blocks invalid rows inline, keeps the shown results and searches priority ra
   await expect
     .element(priority.getByTestId("filter-error"))
     .toHaveTextContent("Put the more important priority first.");
+  await expect.element(searchButton()).toBeDisabled();
+});
+
+it("Searches priority ranges and comparisons in rank order", async () => {
+  await openApp();
+  await openProject("Billing");
+  await ctrlF();
+  await searchButton().click();
+  await expect.element(result("Root invoice")).toBeVisible();
+
+  const priority = await addRow("Priority", "between");
   await choose(priority.getByRole("combobox", { name: "Priority from" }), "High");
   await choose(priority.getByRole("combobox", { name: "Priority to" }), "Low");
   await searchButton().click();
@@ -589,10 +601,6 @@ it.each(THEMES)("Renders the Search results and filters in %s mode", async (them
   await addRow("Priority", "between");
   await choose(filterRow().getByRole("combobox", { name: "Priority from" }), "Critical");
   await choose(filterRow().getByRole("combobox", { name: "Priority to" }), "Medium");
-  const estimate = await addRow("Estimate", "between");
-  await estimate.getByRole("textbox", { name: "Estimate from" }).fill("8");
-  await estimate.getByRole("textbox", { name: "Estimate to" }).fill("3");
-  await estimate.getByRole("button", { name: "Remove filter" }).click();
   await searchButton().click();
   await expect.element(result("Audit Q4")).toBeVisible();
   await addRow("Estimate", "between");

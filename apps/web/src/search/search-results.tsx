@@ -1,7 +1,7 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import type { ItemQuery, ItemSearchResult, ItemSearchResults } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { SEARCH_RESULT_LIMIT, searchResultsAtom } from "../rpc/search-queries.js";
 import { SearchError } from "./search-error.js";
@@ -46,8 +46,15 @@ function useLastPage(result: AsyncResult.AsyncResult<Page, unknown>) {
 /**
  * The results of a submitted search, read through a query atom per query, so a
  * newer search replaces an older one and undo or redo refreshes the page (§7.2).
+ * It is memoized so typing in the query box, which re-renders the page, leaves
+ * the rows alone while the submitted query and handlers stay the same.
  */
-export function SearchResults({ query, run, onOpen, onPushBack }: SearchResultsProps) {
+export const SearchResults = memo(function SearchResults({
+  query,
+  run,
+  onOpen,
+  onPushBack,
+}: SearchResultsProps) {
   const atom = searchResultsAtom(query);
   const result = useAtomValue(atom);
   const refresh = useAtomRefresh(atom);
@@ -75,4 +82,4 @@ export function SearchResults({ query, run, onOpen, onPushBack }: SearchResultsP
       )}
     </>
   );
-}
+});

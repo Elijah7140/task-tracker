@@ -110,3 +110,52 @@ it.effect("A queued writer acquires the transaction lease after the first writer
     ).toEqual([["committed"]]);
   }).pipe(withSchema),
 );
+
+it.effect("Reads a repeated query in the mode each call asks for", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const select = () => sql`SELECT 1 AS One`;
+
+    const arrays = yield* select().values;
+    const wide = yield* select().pipe(Effect.provideService(SqlClient.SafeIntegers, true));
+    const objects = yield* select();
+
+    expect(arrays).toEqual([[1]]);
+    expect(wide).toEqual([{ One: 1n }]);
+    expect(objects).toEqual([{ One: 1 }]);
+  }).pipe(withDatabase),
+);
+
+it.effect("Runs a repeated write again after the same statement failed", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const insert = (key: string, value: string) =>
+      sql`INSERT INTO GlobalSetting VALUES (${key}, ${value})`;
+
+    yield* insert("first", "one");
+    const failure = yield* Effect.flip(insert("first", "again"));
+    yield* insert("second", "two");
+
+    expect(failure.reason.cause).toMatchObject({ errcode: 1555 });
+    expect(yield* sql`SELECT Key, Value FROM GlobalSetting ORDER BY Key`.values).toEqual([
+      ["first", "one"],
+      ["second", "two"],
+    ]);
+  }).pipe(withSchema),
+);
+
+it.effect("Returns a column added after the same query last ran", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`CREATE TABLE Sample (Id INTEGER PRIMARY KEY)`;
+    yield* sql`INSERT INTO Sample (Id) VALUES (1)`;
+    const select = () => sql`SELECT * FROM Sample`;
+
+    const before = yield* select();
+    yield* sql`ALTER TABLE Sample ADD COLUMN Label TEXT NOT NULL DEFAULT 'added'`;
+    const after = yield* select();
+
+    expect(before).toEqual([{ Id: 1 }]);
+    expect(after).toEqual([{ Id: 1, Label: "added" }]);
+  }).pipe(withDatabase),
+);

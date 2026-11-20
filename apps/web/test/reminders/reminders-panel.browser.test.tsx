@@ -154,6 +154,9 @@ describe("Reminders panel", () => {
     const message = page.getByRole("alertdialog", { name: "Cannot complete item" });
     await expect.element(message).toMatchTextContent("Choose a Done status first.");
     await message.getByRole("button", { name: "OK" }).click();
+    // Reduced motion closes the message at once; its OK must not count as a press outside.
+    await expect.element(message).not.toBeInTheDocument();
+    await expect.element(panel()).toBeVisible();
     await expect.element(rows()).toHaveLength(1);
   });
 

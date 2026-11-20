@@ -196,15 +196,17 @@ it("Shows blocked restores and reports a stale batch or refused purge inline bef
     .element(batch("Earlier").getByText("Restore the folder 'Invoices' first"))
     .toBeVisible();
 
+  // Make "Gone" stale while the list is settled. A failed change reloads the
+  // list with no visible sign, so removing it after one could hide the row first.
+  app.store.trash.remove(trashBatch(3, "", "").batchId);
+  await batch("Gone").getByRole("button", { name: "Restore" }).click();
+  await expect.element(page.getByRole("alert")).toHaveTextContent(MISSING_BATCH_MESSAGE);
+  await expect.element(batch("Gone")).not.toBeInTheDocument();
   await purge("Invoices").click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete permanently" }).click();
 
   await expect.element(page.getByRole("alert")).toHaveTextContent(app.store.trash.purgeRefusal!);
   await expect.element(batch("Invoices")).toBeVisible();
-  app.store.trash.remove(trashBatch(3, "", "").batchId);
-  await batch("Gone").getByRole("button", { name: "Restore" }).click();
-  await expect.element(page.getByRole("alert")).toHaveTextContent(MISSING_BATCH_MESSAGE);
-  await expect.element(batch("Gone")).not.toBeInTheDocument();
   app.store.trash.purgeRefusal = null;
   await purge("Earlier").click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete permanently" }).click();
