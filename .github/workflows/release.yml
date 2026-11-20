@@ -18,6 +18,8 @@ jobs:
     if: github.ref_type == 'tag' && !github.event.deleted
     name: Package ${{ matrix.target }}
     strategy:
+      # One platform's failure must not cancel the others' packaging and smoke.
+      fail-fast: false
       matrix:
         include:
           - target: win-x64
