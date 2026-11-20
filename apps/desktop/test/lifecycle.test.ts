@@ -229,8 +229,8 @@ desktopTest(
         contents?.openDevTools();
         const roles = (items: ReadonlyArray<Electron.MenuItem>): Array<string> =>
           items.flatMap((item) => [
-            ...(item.role === undefined ? [] : [item.role.toLowerCase()]),
-            ...(item.submenu === undefined ? [] : roles(item.submenu.items)),
+            ...(item.role == null ? [] : [item.role.toLowerCase()]),
+            ...(item.submenu == null ? [] : roles(item.submenu.items)),
           ]);
         const menu = Menu.getApplicationMenu();
         return {
