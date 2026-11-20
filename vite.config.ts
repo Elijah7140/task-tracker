@@ -58,6 +58,7 @@ export default defineConfig({
         test: {
           name: "desktop-unit",
           include: [
+            "apps/desktop/test/application-menu.test.ts",
             "apps/desktop/test/renderer.test.ts",
             "apps/desktop/test/server-process.test.ts",
             "apps/desktop/test/relaunch-after-exit.test.ts",

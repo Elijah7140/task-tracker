@@ -16,11 +16,21 @@ import {
 
 const menuBar = (page: Page) => page.getByRole("menubar", { name: "Main menu" });
 
-/** The main window's title and whether Electron shows its own menu bar under the title bar. */
+/**
+ * The main window's title and whether Electron shows its own menu bar. macOS has no
+ * menu bar per window and always reports the system one as visible. There the app
+ * keeps only the system app and clipboard menus, so the check is that no menu
+ * duplicates the in-window File, Project or View menus.
+ */
 function nativeChrome(application: ElectronApplication) {
-  return application.evaluate(({ BrowserWindow }) => {
+  return application.evaluate(({ BrowserWindow, Menu }) => {
     const window = BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible());
-    return { title: window?.getTitle(), nativeMenuBar: window?.isMenuBarVisible() };
+    const duplicates = ["File", "Project", "View"];
+    const nativeMenuBar =
+      process.platform === "darwin"
+        ? (Menu.getApplicationMenu()?.items ?? []).some((item) => duplicates.includes(item.label))
+        : window?.isMenuBarVisible();
+    return { title: window?.getTitle(), nativeMenuBar };
   });
 }
 

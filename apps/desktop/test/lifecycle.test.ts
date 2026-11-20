@@ -227,10 +227,29 @@ desktopTest(
       const state = await application.evaluate(({ BrowserWindow, Menu }) => {
         const contents = BrowserWindow.getAllWindows()[0]?.webContents;
         contents?.openDevTools();
-        return { menu: Menu.getApplicationMenu(), devTools: contents?.isDevToolsOpened() };
+        const roles = (items: ReadonlyArray<Electron.MenuItem>): Array<string> =>
+          items.flatMap((item) => [
+            ...(item.role === undefined ? [] : [item.role.toLowerCase()]),
+            ...(item.submenu === undefined ? [] : roles(item.submenu.items)),
+          ]);
+        const menu = Menu.getApplicationMenu();
+        return {
+          menuRoles: menu === null ? null : roles(menu.items),
+          devTools: contents?.isDevToolsOpened(),
+        };
       });
 
-      expect(state).toEqual({ menu: null, devTools: false });
+      expect(state.devTools).toBe(false);
+      if (process.platform !== "darwin") {
+        expect(state.menuRoles).toBeNull();
+        return;
+      }
+      // macOS keeps a menu for the system shortcuts, without reload, developer tools,
+      // or native undo that would take Cmd+Z from the app's history.
+      const menuRoles = state.menuRoles ?? [];
+      expect(menuRoles).toEqual(expect.arrayContaining(["quit", "cut", "copy", "paste"]));
+      const blocked = ["undo", "redo", "reload", "forcereload", "toggledevtools"];
+      expect(menuRoles.filter((role) => blocked.includes(role))).toEqual([]);
     } finally {
       await application.close();
     }
