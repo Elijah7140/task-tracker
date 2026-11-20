@@ -43,7 +43,13 @@ import type { ServerMessage } from "./server-messages.js";
 import { type RelaunchCommand, relaunchAfterExit } from "./relaunch-after-exit.js";
 import { relaunchCommand } from "./relaunch-command.js";
 import { relaunchOnExit } from "./relaunch-on-exit.js";
-import { launchServer, type ServerProcess } from "./server-process.js";
+import {
+  describeServerStop,
+  launchServer,
+  type ServerExit,
+  type ServerProcess,
+  type ServerStop,
+} from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
 import { createTrayCardWindow, type TrayCardWindow } from "./tray-card-window.js";
@@ -221,10 +227,24 @@ function beforeQuit(event: Electron.Event) {
     return;
   }
   quitting = true;
-  void server.stop().then(() => {
+  const child = server;
+  void child.stop().then(async (stop) => {
+    logServerStop(stop, await child.closed);
     server = undefined;
     app.quit();
   });
+}
+
+/**
+ * A forced stop is a warning with the server's last output, which names what it
+ * was still waiting for: the server did not close its database.
+ */
+function logServerStop(stop: ServerStop, exit: ServerExit) {
+  if (stop.killed) {
+    console.warn(`${describeServerStop(stop)}\n${exit.diagnostic}`);
+  } else {
+    console.info(describeServerStop(stop));
+  }
 }
 
 /** Opens the isolated renderer window and blocks pop-ups and navigation away from `url`. */

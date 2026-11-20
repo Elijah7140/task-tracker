@@ -38,8 +38,8 @@ pnpm run test:server-db:electron
 On a Linux host that needs Chromium system dependencies, use
 `pnpm exec playwright install --with-deps chromium`. For a focused test run,
 pass a Vitest project such as `--project core` to `pnpm exec vp test run`.
-The Electron database suite runs the server's SQLite tests under the same
-embedded Node runtime the desktop app ships.
+The Electron database suite runs the server's SQLite and RPC tests under the
+same embedded Node runtime the desktop app ships.
 
 CI runs this gate, plus packaging and the packaged smoke, on GitHub-hosted
 Linux and Windows runners for every push and pull request. See

@@ -1,5 +1,5 @@
 import { NodeRuntime } from "@effect/platform-node";
-import { Cause, Config, Console, Effect, Layer, Logger } from "effect";
+import { Cause, Config, Console, Effect, Fiber, Layer, Logger, Runtime } from "effect";
 import { resolve } from "node:path";
 import { databaseLayer } from "./db/database-layer.js";
 import { databasePath } from "./db/database-path.js";
@@ -37,10 +37,43 @@ const runDesktopServer = Effect.scoped(
   Effect.flatMap(makeParentChannel(process.stdin, process.stdout), runServer),
 );
 
-const lifetime =
-  process.env.TASKTRACKER_PARENT_PIPE === "1"
-    ? Effect.raceFirst(runDesktopServer, parentPipeClosed)
-    : runServer(undefined);
+/**
+ * Electron main kills a server that has not exited 10 seconds after closing
+ * stdin, before the database is closed. A stop normally takes milliseconds, so
+ * after two seconds the server names the handles that still keep it running.
+ * Main includes this output in its warning about the forced stop.
+ */
+const reportSlowStop = Effect.sleep("2 seconds").pipe(
+  Effect.andThen(
+    Effect.suspend(() =>
+      Effect.logWarning(
+        `Still stopping 2 seconds after the parent pipe closed. Open handles: ${process.getActiveResourcesInfo().join(", ")}.`,
+      ),
+    ),
+  ),
+  Effect.andThen(Effect.never),
+);
+
+/** Runs the server until main closes stdin, then stops it and reports a slow stop. */
+const runUntilParentPipeCloses = Effect.gen(function* () {
+  const server = yield* Effect.forkChild(runDesktopServer);
+  yield* Effect.raceFirst(Fiber.join(server), parentPipeClosed);
+  yield* Effect.raceFirst(Fiber.interrupt(server), reportSlowStop);
+});
+
+/**
+ * Ends the desktop server process as soon as its lifetime ends. The database is
+ * closed by then, and main waits for the exit, so a handle that outlives the
+ * server's scope must not keep the process running.
+ */
+const exitWhenDone: Runtime.Teardown = (exit, onExit) =>
+  Runtime.defaultTeardown(exit, (code) => {
+    onExit(code);
+    process.exit(code);
+  });
+
+const desktop = process.env.TASKTRACKER_PARENT_PIPE === "1";
+const lifetime = desktop ? runUntilParentPipeCloses : runServer(undefined);
 
 NodeRuntime.runMain(
   lifetime.pipe(
@@ -49,5 +82,5 @@ NodeRuntime.runMain(
     ),
     Effect.provideService(Logger.LogToStderr, true),
   ),
-  { disableErrorReporting: true },
+  { disableErrorReporting: true, ...(desktop ? { teardown: exitWhenDone } : {}) },
 );
