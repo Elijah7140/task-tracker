@@ -1,0 +1,35 @@
+{
+  "name": "@task-tracker/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && vp build",
+    "dev": "vp dev"
+  },
+  "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@effect/atom-react": "catalog:",
+    "@fontsource-variable/inter": "catalog:",
+    "@fontsource-variable/jetbrains-mono": "catalog:",
+    "@fontsource/noto-sans-symbols-2": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@task-tracker/contracts": "workspace:*",
+    "effect": "catalog:",
+    "lucide-react": "catalog:",
+    "markdown-it": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "scheduler": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "tailwindcss": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
+    "vitest-browser-react": "catalog:"
+  }
+}

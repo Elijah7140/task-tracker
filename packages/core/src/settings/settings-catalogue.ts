@@ -1,0 +1,64 @@
+import { ticksPerDay, ticksPerHour } from "../time/duration-ticks.js";
+import { booleanCodec } from "./boolean-codec.js";
+import { durationCodec } from "./duration-codec.js";
+import { localTimeCodec } from "./local-time-codec.js";
+import { optionalGuidCodec } from "./optional-guid-codec.js";
+import { reminderOffsetCodec } from "./reminder-offset-codec.js";
+import { SettingDefinition } from "./setting-definition.js";
+import { wholeNumberCodec } from "./whole-number-codec.js";
+
+/** The typed definitions of the built-in global settings and project overrides. */
+export const SettingsCatalogue = {
+  autoCompleteParents: new SettingDefinition("autoCompleteParents", true, true, booleanCodec),
+  urgencyYellowThreshold: new SettingDefinition(
+    "urgencyYellowThreshold",
+    3n * ticksPerDay,
+    true,
+    durationCodec,
+  ),
+  urgencyRedThreshold: new SettingDefinition(
+    "urgencyRedThreshold",
+    ticksPerDay,
+    true,
+    durationCodec,
+  ),
+  workspaceCardColumns: new SettingDefinition(
+    "workspaceCardColumns",
+    4,
+    false,
+    wholeNumberCodec(1, 8),
+  ),
+  /** Whether open dated items remind (§7.12). */
+  remindersEnabled: new SettingDefinition("remindersEnabled", true, true, booleanCodec),
+  /** How long before the due moment an item on the Default choice reminds. */
+  defaultReminderOffset: new SettingDefinition(
+    "defaultReminderOffset",
+    ticksPerHour,
+    true,
+    reminderOffsetCodec,
+  ),
+  /** The local time that stands in for the due moment of a date-only item. */
+  dateOnlyReminderTime: new SettingDefinition(
+    "dateOnlyReminderTime",
+    Temporal.PlainTime.from("09:00"),
+    true,
+    localTimeCodec,
+  ),
+  /** Whether closing the window hides the app to the tray so reminders keep firing. Global only. */
+  keepRunningInTray: new SettingDefinition("keepRunningInTray", false, false, booleanCodec),
+  /**
+   * The item the tray card shows (§7.18). It is chosen from item menus rather than the
+   * settings screen and is written outside undo history. Global only.
+   */
+  currentItemId: new SettingDefinition<string | null>(
+    "currentItemId",
+    null,
+    false,
+    optionalGuidCodec,
+  ),
+  /**
+   * Whether an installed app starts when the user signs in (§7.13). Global only and
+   * kept out of undo history, because the OS entry is written outside the transaction.
+   */
+  startWithSystem: new SettingDefinition("startWithSystem", false, false, booleanCodec),
+} as const;

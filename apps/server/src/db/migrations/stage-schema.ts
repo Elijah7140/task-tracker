@@ -1,0 +1,59 @@
+import { customFieldSchema } from "./add-custom-fields.js";
+import { itemLinkSchema } from "./add-item-links.js";
+import { itemSearchSchema, searchShadowSchema } from "./add-item-search.js";
+import { recurrenceColumns } from "./add-recurrence.js";
+import { reminderColumns } from "./add-reminders.js";
+import { savedSearchSchema } from "./add-saved-searches.js";
+import {
+  itemStatusSchema,
+  priorityNumberColumns,
+  statusColumns,
+  statusLookupSchema,
+} from "./add-statuses-and-priority-numbers.js";
+import { ticketRankColumns } from "./add-ticket-rank.js";
+import { todayCompletionsSchema } from "./index-today-completions.js";
+import { initialSchema } from "./initial-create.js";
+
+function extendTable(statement: string, before: string, columns: readonly string[]) {
+  if (columns.length === 0) {
+    return statement;
+  }
+  // SQLite splices ADD COLUMN definitions before table constraints or the closing parenthesis.
+  return statement.replace(before, `, ${columns.join(", ")}${before}`);
+}
+
+function extendInitialSchema(stage: number) {
+  const itemColumns = [
+    ...(stage >= 6 ? recurrenceColumns : []),
+    ...(stage >= 7 ? reminderColumns : []),
+    ...(stage >= 9 ? statusColumns : []),
+    ...(stage >= 10 ? ticketRankColumns : []),
+  ];
+  return initialSchema
+    .filter(
+      (statement) =>
+        stage < 9 || !statement.startsWith('CREATE UNIQUE INDEX "IX_PriorityLevel_Name"'),
+    )
+    .map((statement) => {
+      if (statement.startsWith('CREATE TABLE "TodoItem"')) {
+        return extendTable(statement, ',\n    CONSTRAINT "CK_TodoItem_DueTime"', itemColumns);
+      }
+      if (stage >= 9 && statement.startsWith('CREATE TABLE "PriorityLevel"')) {
+        return extendTable(statement, ")", priorityNumberColumns);
+      }
+      return statement;
+    });
+}
+
+/** Returns the stored application schema expected at a validated migration prefix. */
+export function stageSchema(stage: number) {
+  return [
+    ...(stage >= 1 ? extendInitialSchema(stage) : []),
+    ...(stage >= 2 ? customFieldSchema : []),
+    ...(stage >= 3 ? [...itemSearchSchema, ...searchShadowSchema] : []),
+    ...(stage >= 4 ? savedSearchSchema : []),
+    ...(stage >= 5 ? itemLinkSchema : []),
+    ...(stage >= 8 ? todayCompletionsSchema : []),
+    ...(stage >= 9 ? [...statusLookupSchema, ...itemStatusSchema] : []),
+  ];
+}

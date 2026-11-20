@@ -1,0 +1,57 @@
+{
+  "preview": {
+    "rowCount": 5,
+    "recognizedColumns": [
+      "Title",
+      "Description",
+      "Ticket"
+    ],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "LF row",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 3,
+        "title": "CR row",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 4,
+        "title": "CRLF row",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 6,
+        "title": "Quoted, title",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 7,
+        "title": "No final newline",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      }
+    ],
+    "issues": [],
+    "canImport": true
+  },
+  "imported": 5
+}

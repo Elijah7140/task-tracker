@@ -1,0 +1,997 @@
+{
+  "format": "task-tracker",
+  "version": 1,
+  "exportedAtUtc": "2026-11-13T12:00:00Z",
+  "scope": "all",
+  "itemTypes": [
+    {
+      "id": "019a0000-0000-7000-8000-000000000001",
+      "name": "Change",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 0
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000002",
+      "name": "Error",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000003",
+      "name": "Discussion",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 2
+    },
+    {
+      "id": "01a1d4c7-6600-7603-b69d-26a0986ab45b",
+      "name": "Spike",
+      "isBuiltIn": false,
+      "isArchived": false,
+      "sortOrder": 3
+    }
+  ],
+  "priorityLevels": [
+    {
+      "id": "019a0000-0000-7000-8000-000000000101",
+      "name": "Critical",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 0
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000102",
+      "name": "High",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000103",
+      "name": "Medium",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 2
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000104",
+      "name": "Low",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 3
+    },
+    {
+      "id": "01a1d4c7-6600-7151-b3eb-353aa03ffb52",
+      "name": "Urgent",
+      "isBuiltIn": false,
+      "isArchived": false,
+      "sortOrder": 4
+    },
+    {
+      "id": "01a1d4c7-6600-766a-af59-944d51fb2217",
+      "name": "Someday",
+      "isBuiltIn": false,
+      "isArchived": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "01a1d4c7-6600-76bb-8cad-c5f01f004e66",
+      "name": "",
+      "number": 7,
+      "isBuiltIn": false,
+      "isArchived": false,
+      "sortOrder": 6
+    },
+    {
+      "id": "01a1d4c7-6600-739a-b0b3-fcbc56be2291",
+      "name": "",
+      "number": 8,
+      "isBuiltIn": false,
+      "isArchived": true,
+      "sortOrder": 7
+    }
+  ],
+  "statuses": [
+    {
+      "id": "019a0000-0000-7000-8000-000000000201",
+      "name": "Queued",
+      "kind": "open",
+      "isArchived": false,
+      "sortOrder": 0
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000202",
+      "name": "In progress",
+      "kind": "open",
+      "isArchived": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000203",
+      "name": "Testing",
+      "kind": "open",
+      "isArchived": false,
+      "sortOrder": 2
+    },
+    {
+      "id": "019a0000-0000-7000-8000-000000000204",
+      "name": "Completed",
+      "kind": "done",
+      "isArchived": false,
+      "sortOrder": 3
+    },
+    {
+      "id": "01a1d4c7-6600-7703-b068-e9de684541b7",
+      "name": "Verification",
+      "kind": "open",
+      "isArchived": false,
+      "sortOrder": 4
+    },
+    {
+      "id": "01a1d4c7-6600-7084-ae1c-b920c0a53f66",
+      "name": "Shipped",
+      "kind": "done",
+      "isArchived": false,
+      "sortOrder": 5
+    }
+  ],
+  "fields": [
+    {
+      "id": "01a1d4c7-6600-7d8a-aafa-3f781347874e",
+      "key": "customer",
+      "displayName": "Customer",
+      "dataType": "Text",
+      "projectId": "01a1d4c7-6600-7dfd-9e17-3009837f8b45",
+      "isArchived": false,
+      "sortOrder": 0,
+      "choices": []
+    },
+    {
+      "id": "01a1d4c7-6600-7e14-8438-b2d67c939b37",
+      "key": "severity",
+      "displayName": "Severity",
+      "dataType": "Choice",
+      "isArchived": false,
+      "sortOrder": 0,
+      "choices": [
+        {
+          "id": "01a1d4c7-6600-70c5-b39b-b9d177434efc",
+          "label": "Minor",
+          "sortOrder": 0,
+          "isArchived": false
+        },
+        {
+          "id": "01a1d4c7-6600-7ffd-bab3-06a678e75011",
+          "label": "Major",
+          "sortOrder": 1,
+          "isArchived": false
+        },
+        {
+          "id": "01a1d4c7-6600-7499-b648-f1cb7d34bf54",
+          "label": "Legacy",
+          "sortOrder": 2,
+          "isArchived": true
+        }
+      ]
+    },
+    {
+      "id": "01a1d4c7-6600-7b5a-94af-8879cf9acaa7",
+      "key": "estimate",
+      "displayName": "Estimate",
+      "dataType": "Number",
+      "isArchived": false,
+      "sortOrder": 1,
+      "choices": []
+    },
+    {
+      "id": "01a1d4c7-6600-714a-bdaf-c28f3e12a95f",
+      "key": "reviewed",
+      "displayName": "Reviewed",
+      "dataType": "Date",
+      "isArchived": false,
+      "sortOrder": 2,
+      "choices": []
+    },
+    {
+      "id": "01a1d4c7-6600-7691-9829-36be408f27d3",
+      "key": "flag",
+      "displayName": "Flag",
+      "dataType": "Boolean",
+      "isArchived": false,
+      "sortOrder": 3,
+      "choices": []
+    },
+    {
+      "id": "01a1d4c7-6600-7379-adb4-8536daa4910e",
+      "key": "notes",
+      "displayName": "Notes",
+      "dataType": "Text",
+      "isArchived": false,
+      "sortOrder": 4,
+      "choices": []
+    },
+    {
+      "id": "01a1d4c7-6600-7b4f-a8ff-46589bedaebf",
+      "key": "old-note",
+      "displayName": "Old note",
+      "dataType": "Text",
+      "isArchived": true,
+      "sortOrder": 5,
+      "choices": []
+    }
+  ],
+  "globalSettings": {},
+  "projects": [
+    {
+      "id": "01a1d4c7-6600-7dfd-9e17-3009837f8b45",
+      "name": "Billing",
+      "sortOrder": 0,
+      "createdAtUtc": "2026-11-13T12:00:00Z",
+      "updatedAtUtc": "2026-11-13T12:00:00Z",
+      "settings": {
+        "urgencyYellowThreshold": "P5D"
+      },
+      "folders": [
+        {
+          "id": "01a1d4c7-6600-70eb-b2e5-5cd6ae7aa1c1",
+          "parentFolderId": "01a1d4c7-6600-7c58-b190-05d6cfc3947f",
+          "name": "Tables",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z"
+        },
+        {
+          "id": "01a1d4c7-6600-7c58-b190-05d6cfc3947f",
+          "name": "dbo",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z"
+        },
+        {
+          "id": "01a1d4c7-6600-7b10-869f-42c0c58137ed",
+          "parentFolderId": "01a1d4c7-6600-7c58-b190-05d6cfc3947f",
+          "name": "Views",
+          "sortOrder": 1,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z"
+        }
+      ],
+      "items": [
+        {
+          "id": "01a1d4c7-6600-7516-9a67-98e44490e8b5",
+          "title": "Fix invoice totals",
+          "description": "Totals are wrong,\nsee the \"Q4\" report",
+          "ticketNumber": "JIRA-1",
+          "itemTypeId": "019a0000-0000-7000-8000-000000000001",
+          "itemType": "Change",
+          "priorityLevelId": "019a0000-0000-7000-8000-000000000102",
+          "priority": "High",
+          "dueDate": "2026-11-20",
+          "dueTime": "15:00:00",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z",
+          "fieldValues": [
+            {
+              "fieldKey": "customer",
+              "text": "Acme, Inc."
+            },
+            {
+              "fieldKey": "estimate",
+              "number": 2.5
+            },
+            {
+              "fieldKey": "flag",
+              "boolean": true
+            },
+            {
+              "fieldKey": "notes",
+              "text": "Needs a look"
+            },
+            {
+              "fieldKey": "reviewed",
+              "date": "2026-11-01"
+            },
+            {
+              "fieldKey": "severity",
+              "choiceId": "01a1d4c7-6600-7ffd-bab3-06a678e75011",
+              "choiceLabel": "Major"
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7be5-b1f9-55fc5bad2f94",
+          "parentItemId": "01a1d4c7-6600-7516-9a67-98e44490e8b5",
+          "title": "Check query plan",
+          "statusId": "019a0000-0000-7000-8000-000000000204",
+          "completedAtUtc": "2026-11-13T12:00:01Z",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:01Z",
+          "updatedAtUtc": "2026-11-13T12:00:01Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7baf-96ba-abc92520ebef",
+          "folderId": "01a1d4c7-6600-70eb-b2e5-5cd6ae7aa1c1",
+          "title": "Add index",
+          "itemTypeId": "01a1d4c7-6600-7603-b69d-26a0986ab45b",
+          "itemType": "Spike",
+          "priorityLevelId": "01a1d4c7-6600-7151-b3eb-353aa03ffb52",
+          "priority": "Urgent",
+          "statusId": "019a0000-0000-7000-8000-000000000204",
+          "dueDate": "2026-11-22",
+          "scheduledStart": "2026-11-21T09:00:00",
+          "scheduledEnd": "2026-11-21T10:30:00",
+          "completedAtUtc": "2026-11-13T12:00:02Z",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:02Z",
+          "updatedAtUtc": "2026-11-13T12:00:02Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7b8d-9586-31b7ba66b6ad",
+          "parentItemId": "01a1d4c7-6600-7516-9a67-98e44490e8b5",
+          "title": "Write regression test",
+          "sortOrder": 1,
+          "createdAtUtc": "2026-11-13T12:00:01Z",
+          "updatedAtUtc": "2026-11-13T12:00:01Z",
+          "fieldValues": []
+        }
+      ]
+    },
+    {
+      "id": "01a1d4c7-6600-7f7e-9230-1a44b20445f4",
+      "name": "Café Überblick \uD83D\uDE80",
+      "sortOrder": 1,
+      "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+      "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+      "settings": {},
+      "folders": [],
+      "items": [
+        {
+          "id": "01a1d4c7-6600-7544-85dd-4ef7dfb49b79",
+          "title": "Tab\there",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7f73-8fdd-fd6925188e7f",
+          "title": "Ctl\u0001\u001F\u007F",
+          "sortOrder": 1,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7cec-ac8b-bcd2f727df11",
+          "title": "LS\u2028PS",
+          "sortOrder": 2,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-709c-9a98-7e5d4ec565d4",
+          "title": "ZW​‍‎",
+          "sortOrder": 3,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7afa-aa5b-37c18d468d14",
+          "title": "NBSP\u00A0­",
+          "sortOrder": 4,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7af9-a9c5-dd89aa5f2571",
+          "title": "BOM\uFEFF",
+          "sortOrder": 5,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7e3b-8ad8-971b41a88ffc",
+          "title": "PUA\uE000",
+          "sortOrder": 6,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7f11-8bde-5b137268f16f",
+          "title": "<html> & 'quotes' \"dq\" back\\slash /",
+          "sortOrder": 7,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7f5b-89a8-75b526945671",
+          "title": "emoji \uD83D\uDE80\uD83D\uDC4D\uD83C\uDFFD",
+          "sortOrder": 8,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-74ad-962b-010d4389dac8",
+          "title": "combining é",
+          "sortOrder": 9,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7769-abb9-f31d3e0e9757",
+          "title": "NEL",
+          "sortOrder": 10,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7ae4-b9d9-da3fd6a6d9b2",
+          "title": "unassigned \u0378",
+          "sortOrder": 11,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7e3e-806a-2c927d21b495",
+          "title": "Han 漢字 Arabic مرحبا",
+          "sortOrder": 12,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7872-9bfc-7cbc790ea20f",
+          "title": "replacement �",
+          "sortOrder": 13,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-70ce-a6ce-faa2eef99b49",
+          "title": "nonchar \uFFFE",
+          "sortOrder": 14,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-748f-871d-d0471ce12293",
+          "title": "ascii `~!@#$%^*()_+-={}[]|:;?,.",
+          "sortOrder": 15,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": []
+        }
+      ]
+    },
+    {
+      "id": "01a1d4c7-6600-7dea-8ca0-37e706ade065",
+      "name": "Home Lab",
+      "sortOrder": 2,
+      "createdAtUtc": "2026-11-13T12:00:00Z",
+      "updatedAtUtc": "2026-11-13T12:00:00Z",
+      "settings": {
+        "autoCompleteParents": "false",
+        "dateOnlyReminderTime": "10:30:00",
+        "defaultReminderOffset": "PT30M",
+        "remindersEnabled": "false"
+      },
+      "folders": [],
+      "items": [
+        {
+          "id": "01a1d4c7-6600-7c1c-acbc-f6e206d8f4b7",
+          "title": "Replace router",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:03Z",
+          "updatedAtUtc": "2026-11-13T12:00:03Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7dcd-b25e-41fb3e594e35",
+          "title": "Review release",
+          "priorityLevelId": "01a1d4c7-6600-76bb-8cad-c5f01f004e66",
+          "priority": "",
+          "statusId": "01a1d4c7-6600-7084-ae1c-b920c0a53f66",
+          "reopenStatusId": "01a1d4c7-6600-7703-b068-e9de684541b7",
+          "completedAtUtc": "2026-11-13T12:00:03.1234567Z",
+          "sortOrder": 1,
+          "createdAtUtc": "2026-11-13T12:00:03.1234567Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1234567Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-7b40-889c-e613c86bb2df",
+          "title": "Being verified",
+          "priorityLevelId": "01a1d4c7-6600-739a-b0b3-fcbc56be2291",
+          "priority": "",
+          "statusId": "01a1d4c7-6600-7703-b068-e9de684541b7",
+          "sortOrder": 2,
+          "createdAtUtc": "2026-11-13T12:00:03.1234567Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1234567Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1d4c7-6600-715e-ad59-9a3c64ff76bd",
+          "title": "Audit",
+          "statusId": "019a0000-0000-7000-8000-000000000204",
+          "dueDate": "2026-11-16",
+          "completedAtUtc": "2026-11-13T12:00:03.1333363Z",
+          "sortOrder": 3,
+          "createdAtUtc": "2026-11-13T12:00:03.1333332Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333363Z",
+          "fieldValues": [],
+          "recurrence": {
+            "frequency": "weekly",
+            "interval": 2,
+            "weekdays": "monday, thursday",
+            "anchor": "dueDate",
+            "endKind": "afterCount",
+            "remaining": 4
+          },
+          "recurrenceSeriesId": "01a1d4c7-6600-740f-aa4a-5a851bbcb348",
+          "recurrenceSuccessorCreated": true
+        },
+        {
+          "id": "01a1d4c7-6600-7223-8ccf-f93740d04950",
+          "title": "Audit",
+          "dueDate": "2026-11-19",
+          "sortOrder": 4,
+          "createdAtUtc": "2026-11-13T12:00:03.1333363Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333363Z",
+          "fieldValues": [],
+          "recurrence": {
+            "frequency": "weekly",
+            "interval": 2,
+            "weekdays": "monday, thursday",
+            "anchor": "dueDate",
+            "endKind": "afterCount",
+            "remaining": 3
+          },
+          "recurrenceSeriesId": "01a1d4c7-6600-740f-aa4a-5a851bbcb348"
+        },
+        {
+          "id": "01a1d4c7-6600-7c21-bd58-f6a8a3f40bee",
+          "title": "Leap check",
+          "dueDate": "2028-02-29",
+          "sortOrder": 5,
+          "createdAtUtc": "2026-11-13T12:00:03.1333363Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333363Z",
+          "fieldValues": [],
+          "recurrence": {
+            "frequency": "yearly",
+            "interval": 1,
+            "monthDay": 29,
+            "month": 2,
+            "anchor": "completionDate",
+            "endKind": "onDate",
+            "endDate": "2030-01-01"
+          },
+          "recurrenceSeriesId": "01a1d4c7-6600-7ed4-97fd-10b5187dc711"
+        },
+        {
+          "id": "01a1d4c7-6600-738f-a765-2090cdb145c9",
+          "title": "Month end",
+          "scheduledStart": "2026-11-30T08:15:30.1234567",
+          "scheduledEnd": "2026-11-30T09:00:30.1234567",
+          "sortOrder": 6,
+          "createdAtUtc": "2026-11-13T12:00:03.1333394Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333394Z",
+          "fieldValues": [],
+          "recurrence": {
+            "frequency": "monthly",
+            "interval": 3,
+            "monthDay": 0,
+            "anchor": "dueDate",
+            "endKind": "never"
+          },
+          "recurrenceSeriesId": "01a1d4c7-6600-709b-807e-8481607dac2e"
+        },
+        {
+          "id": "01a1d4c7-6600-7c99-a089-ebba7c55f540",
+          "title": "Every weekday",
+          "dueDate": "2026-11-20",
+          "dueTime": "07:05:03.5",
+          "sortOrder": 7,
+          "createdAtUtc": "2026-11-13T12:00:03.1333425Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333425Z",
+          "fieldValues": [],
+          "recurrence": {
+            "frequency": "weekly",
+            "interval": 1,
+            "weekdays": "all",
+            "anchor": "dueDate",
+            "endKind": "never"
+          },
+          "recurrenceSeriesId": "01a1d4c7-6600-7b3d-aa8f-3dfcfd07828f"
+        },
+        {
+          "id": "01a1d4c7-6600-791f-9d85-cf0bf3e77bcd",
+          "title": "Daily",
+          "dueDate": "2026-11-21",
+          "sortOrder": 8,
+          "createdAtUtc": "2026-11-13T12:00:03.1333456Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333456Z",
+          "fieldValues": [],
+          "recurrence": {
+            "frequency": "daily",
+            "interval": 5,
+            "anchor": "dueDate",
+            "endKind": "never"
+          },
+          "recurrenceSeriesId": "01a1d4c7-6600-7236-9351-970dfd88e88a"
+        },
+        {
+          "id": "01a1d4c7-6600-7b88-9266-1f51946b1ac6",
+          "title": "Call vendor",
+          "description": "Line one\r\nLine \"two\"\ttabbed",
+          "ticketNumber": "TKT-9",
+          "dueDate": "2026-11-25",
+          "dueTime": "16:45:00",
+          "sortOrder": 9,
+          "createdAtUtc": "2026-11-13T12:00:03.1333487Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333487Z",
+          "fieldValues": [],
+          "reminderMode": "offset",
+          "reminderOffsetMinutes": 15,
+          "links": [
+            {
+              "url": "https://a.example/x?y=1&z=<2>",
+              "title": "Aye ü"
+            },
+            {
+              "url": "mailto:team@example.com"
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7593-a03d-e5191676b2aa",
+          "title": "Quiet",
+          "ticketNumber": "TKT-10",
+          "dueDate": "2026-11-26",
+          "sortOrder": 10,
+          "createdAtUtc": "2026-11-13T12:00:03.1333487Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333487Z",
+          "fieldValues": [],
+          "reminderMode": "none"
+        },
+        {
+          "id": "01a1d4c7-6600-79c4-9a16-b92cddd98c25",
+          "title": "Number 00",
+          "sortOrder": 11,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1E+20
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-727b-a2c2-4bbd9f742722",
+          "title": "Number 01",
+          "sortOrder": 12,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1.5E-07
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-74d2-90c0-aa11233c4132",
+          "title": "Number 02",
+          "sortOrder": 13,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 0.1
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7a57-bb35-caff8217a1c5",
+          "title": "Number 03",
+          "sortOrder": 14,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": -3
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-77e6-a812-bed34881d7b9",
+          "title": "Number 04",
+          "sortOrder": 15,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1000000000000000
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7041-9ff9-5a985d118aa9",
+          "title": "Number 05",
+          "sortOrder": 16,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 999999999999999
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7f73-9b01-ed1238bc4226",
+          "title": "Number 06",
+          "sortOrder": 17,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 0.0001
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7315-9334-122b583d0d66",
+          "title": "Number 07",
+          "sortOrder": 18,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1E-05
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-712a-bc84-aff64a9b8ab4",
+          "title": "Number 08",
+          "sortOrder": 19,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1.7976931348623157E+308
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-77da-958a-d2788423045e",
+          "title": "Number 09",
+          "sortOrder": 20,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 5E-324
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-785f-967b-6cf26bafe8d4",
+          "title": "Number 10",
+          "sortOrder": 21,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 0
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7c9e-b18d-355918fd7140",
+          "title": "Number 11",
+          "sortOrder": 22,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 123.456
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7302-9c9a-8f81aec3d240",
+          "title": "Number 12",
+          "sortOrder": 23,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 0.3333333333333333
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7598-9761-7ade676889f5",
+          "title": "Number 13",
+          "sortOrder": 24,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1.2345678901234567E+19
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-71bd-9fe3-772738a67c15",
+          "title": "Number 14",
+          "sortOrder": 25,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1E-05
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-759b-849a-9bec2d8eac14",
+          "title": "Number 15",
+          "sortOrder": 26,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 4.35
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7d0c-9bb2-6c1df714c3eb",
+          "title": "Number 16",
+          "sortOrder": 27,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 100
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-7c4e-aed6-f217e10a2182",
+          "title": "Number 17",
+          "sortOrder": 28,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 10000000000000000
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-74bc-b22f-339811095c78",
+          "title": "Number 18",
+          "sortOrder": 29,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 1E+21
+            }
+          ]
+        },
+        {
+          "id": "01a1d4c7-6600-77b3-81d7-d8aea2fa44f2",
+          "title": "Number 19",
+          "sortOrder": 30,
+          "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "updatedAtUtc": "2026-11-13T12:00:03.1333494Z",
+          "fieldValues": [
+            {
+              "fieldKey": "estimate",
+              "number": 2E-06
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "savedSearches": [
+    {
+      "id": "01a1d4c7-6600-76cc-b107-8fc001818c9e",
+      "name": "Open major",
+      "queryText": "severity:#01a1d4c7-6600-7ffd-bab3-06a678e75011",
+      "scopeKind": "Project",
+      "projectId": "01a1d4c7-6600-7dfd-9e17-3009837f8b45",
+      "includeSubfolders": true,
+      "includeCompleted": false,
+      "sortOrder": 0,
+      "createdAtUtc": "2026-11-13T12:00:03Z",
+      "updatedAtUtc": "2026-11-13T12:00:03Z"
+    },
+    {
+      "id": "01a1d4c7-6600-79b8-b9f6-df68c03d88e7",
+      "name": "Spikes",
+      "queryText": "type:#01a1d4c7-6600-7603-b69d-26a0986ab45b",
+      "scopeKind": "AllProjects",
+      "includeSubfolders": true,
+      "includeCompleted": true,
+      "sortOrder": 1,
+      "createdAtUtc": "2026-11-13T12:00:03Z",
+      "updatedAtUtc": "2026-11-13T12:00:03Z"
+    },
+    {
+      "id": "01a1d4c7-6600-737d-87f0-ddbbcd8d7045",
+      "name": "Tables only",
+      "queryText": "is:open priority:high",
+      "scopeKind": "Folder",
+      "projectId": "01a1d4c7-6600-7dfd-9e17-3009837f8b45",
+      "folderId": "01a1d4c7-6600-70eb-b2e5-5cd6ae7aa1c1",
+      "includeSubfolders": false,
+      "includeCompleted": true,
+      "sortOrder": 2,
+      "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+      "updatedAtUtc": "2026-11-13T12:00:03.1333494Z"
+    },
+    {
+      "id": "01a1d4c7-6600-7359-a4f6-f8834bd6d809",
+      "name": "Root area",
+      "queryText": "title~invoice",
+      "scopeKind": "Folder",
+      "projectId": "01a1d4c7-6600-7dfd-9e17-3009837f8b45",
+      "includeSubfolders": true,
+      "includeCompleted": false,
+      "sortOrder": 3,
+      "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+      "updatedAtUtc": "2026-11-13T12:00:03.1333494Z"
+    },
+    {
+      "id": "01a1d4c7-6600-7e45-8a14-6442ec908469",
+      "name": "verification",
+      "queryText": "status:Verification priority:#7",
+      "scopeKind": "AllProjects",
+      "includeSubfolders": true,
+      "includeCompleted": true,
+      "sortOrder": 4,
+      "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+      "updatedAtUtc": "2026-11-13T12:00:03.1333494Z"
+    }
+  ]
+}

@@ -1,9 +1,0 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:views="using:TaskTracker.App.Desktop.Views"
-        x:Class="TaskTracker.App.Desktop.Views.CurrentItemCardWindow"
-        Title="Current item" WindowDecorations="None" ShowInTaskbar="False" Topmost="True"
-        CanResize="False" SizeToContent="WidthAndHeight" WindowStartupLocation="Manual"
-        Background="{DynamicResource AppCardBackgroundBrush}">
-  <views:CurrentItemCardView />
-</Window>

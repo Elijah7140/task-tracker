@@ -1,10 +1,10 @@
 # Task Tracker — Project Plan
 
-Status: **Revision 5 — approved, in development** · Owner: Elijah Harris · PM: Claude
+Status: **Revision 7 — TypeScript cutover complete, legacy feature port planned** · Owner: Elijah Harris · PM: Claude
 
 ## 1. Goal
 
-A cross-platform desktop task manager (Windows first), written in C# with Avalonia, that organizes work the way a
+A cross-platform desktop task manager (Windows first) that organizes work the way a
 database or application schema is organized:
 
 ```
@@ -32,76 +32,88 @@ fields today, and must be able to carry more metadata later that users can searc
 | R5 | Item types: Change, Error, Discussion, user-extensible | Stored as data, not an enum, so new types need no code change |
 | R6 | Optional due date (with optional time) | Drives urgency color |
 | R7 | Optional scheduled start/end (for discussions, meetings) | Also drives urgency; feeds the future calendar |
-| R8 | Urgency background color: neutral, yellow, red | Thresholds configurable globally and per project (§6.5). A parent shows the most urgent of itself and its open sub-items |
+| R8 | Urgency indicator: neutral, yellow, red | Thresholds configurable globally and per project (§6.5). A parent shows the most urgent of itself and its open sub-items |
 | R9 | Mark complete / reopen | |
 | R10 | Completed items move to a collapsed "Completed" section in the same area | Applies at every level, including under a parent (§6.2) |
 | R11 | Sub-items, nested to any depth | |
 | R12 | Parent auto-completes when all sub-items complete | Setting, on by default, overridable per project |
-| R13 | **Metadata-ready design** | v1 ships a schema and code structure that custom fields and search slot into without rewrites (§7). Users *adding* fields arrives in Phase 3; *searching* by them in Phase 4 |
-| R14 | Cross-platform UI (Avalonia), Windows as the primary target | See §3–4 |
+| R13 | **Metadata-ready design** | v1 ships a schema and code structure that custom fields and search slot into without rewrites (§7). Custom fields shipped in Phase 3 and carry over in the pivot. Searching by them arrives in Phase 4 |
+| R14 | Cross-platform desktop UI, Windows as the primary target | See §3–4 |
 | R15 | Two-level settings: global defaults, optional per-project overrides | §6.5 |
 
-### Out of scope for v1 (roadmap, §10)
+### Out of scope for the original v1 (roadmap, §10)
 
 Calendar view, custom fields, search UI, reminders/notifications, recurring items,
-multi-user sync, import/export, mobile/web front ends.
+multi-user sync, import/export, standalone mobile or hosted browser clients.
+The TypeScript cutover includes the shipped Phase 3 custom fields. Sections 7.2 and
+7.4–7.18 specify the additional features from the frozen `legacy-final` tag.
+[WP25 onward](MIGRATION.md#wp25--schema-and-legacy-database-adoption) tracks their port.
 
 ## 3. Key decisions
 
 | Decision | Choice | Why |
 |----------|--------|-----|
-| Runtime | .NET 10 (LTS) | Current long-term-support release |
-| UI | **Avalonia 12** (Fluent theme) | Owner's decision: cross-platform from day one (Windows, macOS, Linux) and a framework the team wants to learn. WPF-like XAML, compiled bindings, mature `TreeView`/`Expander` |
-| ViewModels | Separate **UI-agnostic project** (no Avalonia references) | Logic stays testable without a UI, and a future mobile/web head (Avalonia or otherwise) reuses it |
-| MVVM toolkit | CommunityToolkit.Mvvm | Microsoft-maintained, source-generated, framework-neutral |
-| Storage | SQLite via EF Core 10, file in the OS app-data folder (`Environment.SpecialFolder.LocalApplicationData`/TaskTracker) | Local, zero-install, real SQL for metadata queries, migrations built in |
-| IDs | `Guid` (version 7, time-ordered) | Safe for future sync/merge; v7 keeps index locality |
-| Time | `TimeProvider` injected everywhere | Urgency and completion logic testable with a fake clock |
-| DI | Microsoft.Extensions.DependencyInjection | Standard container; composition root in the desktop app |
-| Tests | xUnit, plain asserts | No licensing surprises (FluentAssertions v8 is commercial) |
+| Workspace | Node 26, pnpm 12 workspaces (`apps/*`, `packages/*`), TypeScript in strict mode, ESM, Vite+ (`vp` for Vite, Vitest, Oxlint and Oxfmt) | One toolchain across the local server, renderer and desktop shell |
+| Server | Effect 4.1 (`Effect`, `Context`, `Layer`, `Schema`, `Clock` and `DateTime`) and `@effect/platform-node` | Scoped resources, typed failures and testable service composition |
+| Storage | A project-owned `node:sqlite` adapter for Effect SQL. Effect SQL migrations tracked in `effect_sql_migrations` | Local SQL with existing file continuity (§5.2) |
+| IDs | Uppercase GUID strings on the wire. Normalize on decode. Generate UUIDv7 for new IDs and preserve existing IDs | Time order keeps index locality and leaves room for future sync |
+| Time | Effect `Clock` for current time and timers. Temporal in Core for floating calendar values and explicit zone conversion (§5.4). ISO strings on the wire | Deterministic rules with calendar values kept separate from instants |
+| Boundary | Effect Schema contracts and typed RPC over local WebSocket/HTTP using Effect HTTP and `effect/rpc` | One wire contract for the server and renderer |
+| Web | React 19.3, Vite, TanStack Router, Tailwind 4, `@base-ui/react`, `lucide-react`, `@dnd-kit`, Zustand, `@effect/atom-react`, and `@fontsource-variable/inter` | Accessible primitives, keyboard and pointer interactions, and shared design tokens |
+| Desktop | Electron with embedded Node supporting `node:sqlite` and FTS5, and electron-builder | Windows-first desktop distribution with a local server and narrow native IPC |
+| Tests | Vitest, `@effect/vitest`, `@vitest/browser-playwright`, Playwright | Fast domain and database suites, real browser input and desktop smoke coverage |
 
 Rejected alternatives:
 
-- **WPF** — the Windows standard, but Windows-only; a second view layer would be needed later.
-- **WinUI 3** — modern look, but weaker tooling and Windows-only.
-- **.NET MAUI** — cross-platform, but its desktop story is the weakest of the options.
+- **Keep the .NET backend with a React renderer.** This would retain two runtimes, two
+  service toolchains and a cross-language contract to ship and maintain.
+- **Keep Avalonia, or move to WPF, WinUI 3 or .NET MAUI.** All retain the .NET UI
+  toolchain. WPF and WinUI 3 also limit desktop support to Windows.
+- **Put rules and persistence in the renderer.** Completion, hierarchy and writes
+  need a single authority shared by every client.
 
 ## 4. Architecture
 
-```
-TaskTracker.sln
-├── src/
-│   ├── TaskTracker.Core            Domain model, domain rules, application services,
-│   │                               repository interfaces. No UI, no EF.
-│   ├── TaskTracker.Infrastructure  EF Core DbContext, migrations, repositories,
-│   │                               settings store.
-│   ├── TaskTracker.Presentation    ViewModels (CommunityToolkit.Mvvm), navigation and
-│   │                               dialog abstractions. Targets net10.0. References Core only.
-│   └── TaskTracker.App.Desktop     Avalonia views (AXAML), converters, behaviors, theme, DI bootstrap.
-└── tests/
-    ├── TaskTracker.Core.Tests            Domain + service tests (fake repos, fake clock)
-    ├── TaskTracker.Infrastructure.Tests  Repository tests against real SQLite (in-memory)
-    ├── TaskTracker.Presentation.Tests    ViewModel behaviour tests (no UI framework)
-    └── TaskTracker.App.Desktop.Tests     View smoke tests + screenshots (Avalonia headless, Skia)
+```text
+packages/
+  core/       Pure models, hierarchy, validation, completion, urgency and settings rules
+  contracts/  Effect Schema payloads, results, errors and RPC declarations
+apps/
+  server/     Effect services, SQLite repositories and migrations, RPC handlers
+  web/        React screens, routes, interaction state, and typed RPC client
+  desktop/    Electron main, preload and installer configuration
 ```
 
-Dependency rule: `App.Desktop → Presentation → Core ← Infrastructure`. `App.Desktop` also
-references `Infrastructure` solely to wire up DI.
+Dependency rule — `server → core`, `server → contracts ← web`. Core and contracts are
+independent. Core is pure and receives time and zone as arguments. Contracts contain
+wire schemas and RPC declarations. Dates and times cross the wire as ISO strings.
+Decode GUID strings to uppercase. The renderer formats with `Intl` using the zone
+the server sends and has no Temporal dependency.
 
-Rules that keep the code readable and portable:
+Electron main starts the built server with `process.execPath` and
+`ELECTRON_RUN_AS_NODE=1`, passes its database path, waits for readiness, loads the
+built renderer and stops the server on exit. Packaging keeps Electron's RunAsNode
+fuse enabled for this launch as an accepted risk, because anyone who can already run
+the executable can use it as plain Node, while the NODE_OPTIONS and inspector fuses
+stay disabled. The renderer uses a loopback RPC
+endpoint with a per-launch credential and origin validation. Preload exposes a
+narrow native API, such as clipboard access.
+Electron 45.3.4 embeds Node 24.22.3. The WP1 Linux probe verified SQLite FTS5
+and native Temporal in the child process launched from Electron main.
+Use context isolation and sandboxing with Node integration disabled in the renderer.
 
-- ViewModels never touch UI framework types. Dialogs, navigation and clipboard go through
-  narrow interfaces (`IDialogService`, `INavigationService`) implemented in `App.Desktop`.
-- **Gestures in the view, decisions in the ViewModel.** Drag-and-drop is an Avalonia behavior
-  that only translates a drop into a ViewModel command such as
-  `MoveItem(itemId, targetParentId, targetIndex)`. Tree expansion/selection state lives
-  in the ViewModels, not in `TreeViewItem`s. This keeps a future mobile/web head cheap.
-- Colors live in the view layer. Core computes an `Urgency` value
-  (`None/Approaching/Imminent/Overdue`); a converter maps it to a theme brush.
-- Domain rules (completion, urgency, hierarchy checks) are plain methods on plain
-  objects, testable with no database.
-- One class per file, file-scoped namespaces, nullable enabled, warnings as errors,
-  `.editorconfig` enforced in build.
+- Core decides completion, hierarchy, validation, finished branches and urgency. Server
+  services load data, invoke Core and persist changes. The web renders server
+  projections, including finished sections and urgency attribution. Gestures translate
+  to intents, such as an item ID and drop target. Selection, expansion and drafts stay
+  client-side in Zustand. Use Effect atoms for RPC data and invalidation.
+- Effect Layers compose long-lived services. Each public database operation uses one
+  `SqlClient` transaction. Repository calls share it from validation through commit.
+  The adapter gives each transaction exclusive use of its single connection (§5.2).
+  Queries read a consistent snapshot. Failed or interrupted writes roll back together.
+- Completion and settings confirmations return typed previews. The UI displays the
+  prompt and sends a new request on approval. The server revalidates the preview in
+  the write transaction and requests fresh confirmation if the affected work changed.
 
 ## 5. Domain model
 
@@ -109,11 +121,12 @@ Rules that keep the code readable and portable:
 Project ─1:N─ Folder (self-referencing ParentFolderId, null = top level)
 Project ─1:N─ TodoItem (FolderId null = project root)
 TodoItem ─1:N─ TodoItem (ParentItemId, sub-items)
-TodoItem ─1:N─ ItemLink (web or mail links, §7.10)
+TodoItem ─1:N─ ItemLink (§7.10)
+TodoItem ─N:1─ StatusLevel (§7.15)
 TodoItem ─N:1─ ItemType
 TodoItem ─N:1─ PriorityLevel
 GlobalSetting (key/value);  ProjectSetting (ProjectId, key/value)
-Phase 3: FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1─ FieldDefinition
+FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1─ FieldDefinition
 ```
 
 ### Entities
@@ -126,24 +139,23 @@ Phase 3: FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldVal
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `Id` | Guid | |
-| `ProjectId` | Guid | Needed because root-area items have no folder; also speeds project-wide search |
-| `FolderId` | Guid? | null = project root |
-| `ParentItemId` | Guid? | null = top-level item |
+| `Id` | UUID string | |
+| `ProjectId` | UUID string | Needed because root-area items have no folder; also speeds project-wide search |
+| `FolderId` | UUID string or null | null = project root |
+| `ParentItemId` | UUID string or null | null = top-level item |
 | `Title` | string (required, ≤ 300) | |
-| `Description` | string? | Markdown (a superset of the plain text stored before); previewed read-only in the editor, §7.10 |
-| `TicketRank` | double? | Position in the Tickets priority section (§7.16) |
+| `Description` | string? | Plain text at cutover. Markdown preview in §7.10 |
 | `TicketNumber` | string? (≤ 100) | Free text, e.g. `JIRA-1234`. Indexed, not unique |
-| `PriorityLevelId` | Guid? | null = no priority |
-| `ItemTypeId` | Guid? | |
-| `StatusId` | Guid? | Current workflow status (§7.15) |
-| `ReopenStatusId` | Guid? | Open status remembered while completed (§7.15) |
-| `DueDate` | DateOnly? | |
-| `DueTime` | TimeOnly? | Only valid when `DueDate` is set. Absent = due end of day |
-| `ScheduledStart` / `ScheduledEnd` | DateTime? (floating local, §5.4) | For discussions and meetings. End requires start; end ≥ start |
-| `CompletedAtUtc` | DateTime? | null = open |
-| `SortOrder` | int | Order among siblings |
-| `CreatedAtUtc`, `UpdatedAtUtc` | | |
+| `TicketRank` | number or null | Position within the Tickets priority section (§7.16) |
+| `StatusId` / `ReopenStatusId` | UUID string or null | Workflow status and remembered open status (§7.15) |
+| `PriorityLevelId` | UUID string or null | null = no priority |
+| `ItemTypeId` | UUID string or null | |
+| `DueDate` | calendar date or null | |
+| `DueTime` | wall-clock time or null | Only valid when `DueDate` is set. Absent = due end of day |
+| `ScheduledStart` / `ScheduledEnd` | local date-time or null (§5.4) | For discussions and meetings. End requires start; end ≥ start |
+| `CompletedAtUtc` | UTC instant or null | null = open |
+| `SortOrder` | integer | Order among siblings |
+| `CreatedAtUtc`, `UpdatedAtUtc` | UTC instant | |
 | deletion fields | | §5.3 |
 
 **ItemType** — `Id`, `Name` (unique), `ColorKey?`, `IconKey?`, `IsBuiltIn`, `IsArchived`, `SortOrder`.
@@ -159,22 +171,19 @@ Comparisons such as "priority ≥ High" (sorting now, search in Phase 4) use the
 order, so reordering levels needs no data migration.
 
 `ItemType` and `PriorityLevel` share a small `LookupEntity` base (name, color, sort
-order, archive flag) and one generic "manage list" ViewModel and view.
+order, archive flag) and a shared management component. The port adds optional
+priority numbers and a status lookup (§7.15).
 
-Lookup names (item types, priority levels and statuses) are unique within their list ignoring
-case, **archived entries included**: archiving keeps the name reserved. This is intended. Restoring
-an entry then never collides with a newer one, the database unique indexes need no archive filter,
-and imports and searches that match lookups by name (§7.9, §7.15) always find one entry. Adding or
-renaming to an archived name is refused with "The name 'X' is used by an archived item type.
-Restore it instead." (A number-only priority level has an empty name and reserves nothing.)
-Custom fields differ: their display names are unique only among active fields (§7.1).
+Lookup names are reserved case-insensitively within each list, including archived
+entries. A number-only priority has no name to reserve. Custom field display names
+are reserved only among active fields (§7.1).
 
 **GlobalSetting** — `Key`, `Value` (text). **ProjectSetting** — `ProjectId`, `Key`,
 `Value`. A missing project row means "inherit the global value". See §6.5.
 
 ### 5.1 Hierarchy invariants
 
-Enforced in one place, the Core `ItemTree`/`FolderTree` classes, and covered by tests:
+Enforced in one place, the Core `ItemTree` and `FolderTree` modules, and covered by tests:
 
 1. A folder's parent folder belongs to the same project. A folder cannot be moved into
    itself or any of its descendants.
@@ -188,30 +197,73 @@ Enforced in one place, the Core `ItemTree`/`FolderTree` classes, and covered by 
 memory. Areas are small (tens to hundreds of items), so this is fast and avoids storing a
 denormalized root id that could go stale.
 
-### 5.2 Database specifics (SQLite + EF Core)
+### 5.2 Database specifics and continuity
 
-- `DateOnly`, `TimeOnly`, `DateTime` are stored as ISO-8601 text by the provider, which
-  sorts and compares correctly. `DateTimeOffset` is **not** used (the SQLite provider
-  cannot order or compare it server-side).
-- No `decimal` columns in queried paths (SQLite stores them as text, so range queries
-  break). Numeric metadata uses `double` (REAL).
-- Indexes: `TodoItem(ProjectId, FolderId)`, `TodoItem(ParentItemId)`,
-  `TodoItem(TicketNumber)`, `TodoItem(DueDate)`, `Folder(ProjectId, ParentFolderId)`.
-- Check constraints for simple row rules (e.g. `DueTime` requires `DueDate`;
-  `ScheduledEnd >= ScheduledStart`).
+- Open the existing `TaskTracker/tasktracker.db` **in place**. Honor
+  `TASKTRACKER_DB_PATH` first. Otherwise reuse the legacy local app-data path for both
+  existing and fresh files. The base is Windows Local AppData, macOS
+  `~/Library/Application Support`, or Linux's absolute `XDG_DATA_HOME` with
+  `~/.local/share` as fallback. Close the legacy app before switching.
+  [.NET app-data path resolution](https://source.dot.net/System.Private.CoreLib/src/runtime/src/libraries/System.Private.CoreLib/src/System/Environment.GetFolderPathCore.Unix.cs.html)
+- Preserve names and columns from `20261113163313_InitialCreate`,
+  `20261114032356_AddCustomFields` and `TaskTrackerDbContextModelSnapshot`. The tables are
+  `Project`, `Folder`, `TodoItem`, `ItemType`, `PriorityLevel`, `GlobalSetting`,
+  `ProjectSetting`, `FieldDefinition`, `FieldChoice` and `ItemFieldValue`.
+- Keep uppercase, hyphenated GUIDs in SQLite `TEXT`. Apply the same casing to bound IDs
+  and new primary/foreign keys. Preserve seed IDs and any user changes to lookup rows.
+  [Microsoft.Data.Sqlite GUID binding](https://raw.githubusercontent.com/dotnet/efcore/v10.0.0/src/Microsoft.Data.Sqlite.Core/SqliteValueBinder.cs#L158-L169)
+- Booleans are `INTEGER` 0/1, numeric metadata is `REAL`, and `FieldDefinition.DataType`
+  stores enum names as `TEXT`. Keep settings keys and codecs (§6.5).
+- Dates use `YYYY-MM-DD`, times use `HH:mm:ss` with seven fractional digits when
+  present, and timestamps use `YYYY-MM-DD HH:mm:ss` with up to seven fractional
+  digits. Timestamps have no offset in SQLite. Decode UTC columns explicitly as UTC
+  and scheduled columns as floating values. Write the same formats so date ordering
+  and scheduled range checks work across old and new rows.
+  [Microsoft.Data.Sqlite value binding](https://raw.githubusercontent.com/dotnet/efcore/v10.0.0/src/Microsoft.Data.Sqlite.Core/SqliteValueBinder.cs)
+- Write a small `node:sqlite` adapter using `effect/sql/SqlClient`,
+  `effect/sql/SqlSchema` for row codecs and `effect/sql/SqlError` for errors.
+  T3 Code's MIT-licensed `packages/shared/src/nodeSqliteClient.ts` is a reference.
+  Use one connection with `PRAGMA busy_timeout = 5000` and an `effect/Semaphore`
+  that grants exclusive access for each transaction.
+- Enable foreign keys. Preserve keys, foreign keys and delete
+  actions, check constraints (including due time and scheduled end), and indexes
+  (including `TodoItem(ProjectId, FolderId)`, `TodoItem(ParentItemId)`,
+  `TodoItem(TicketNumber)`, `TodoItem(DueDate)` and `Folder(ProjectId, ParentFolderId)`).
+- Effect owns future migration history. Validate EF history and actual schema before
+  recording equivalent Effect migrations as applied. Leave `__EFMigrationsHistory`
+  intact. A Phase 3 file receives only the Effect baseline. An InitialCreate-only
+  file receives the baseline for its existing schema and the additive custom-field
+  migration. Fresh databases apply both migrations and seed once. Unrecognized or
+  inconsistent files fail startup with a diagnostic. Schema changes and their
+  migration records are atomic. Restart is idempotent.
+- WP25 extends adoption to every recognized legacy schema through AddTicketRank.
+  Validate the matching schema and migration history before adding Effect baseline
+  records. Preserve saved-search rewrites, seed IDs, and FTS mapping and triggers.
+- Back up an existing file before the first Effect baseline or a pending schema
+  migration, using SQLite's online backup API so committed WAL pages are included.
+  Keep the latest five successful migration backups (`tasktracker-<stamp>.db.bak`),
+  including legacy ones. Pruning never removes import or other backups. Abort startup if backup or migration fails. After adoption, reopening
+  the adopted file in .NET is unsupported. Restore the pre-adoption backup to roll back.
+  [Node SQLite backup API](https://nodejs.org/api/sqlite.html#sqlitebackupsourceDb-path-options)
+- Test with disposable copies of fixtures generated by the actual EF migrations for
+  both schema versions (§11.1). Read, edit and reopen them with the new server.
+  Verify hierarchy, completion, timestamps, deletion batches, settings, seeds,
+  archived rows and all custom-value types. Check backups, constraints, rollback,
+  restart and fresh-schema parity.
 
 ### 5.3 Deletion and restore
 
-Soft delete, so a Trash/restore view can be added without schema change.
+Soft deletion records the batches used by Trash (§7.6).
 
 - Deletion fields on Project, Folder, TodoItem: `DeletedAtUtc?`, `DeletionBatchId?`.
 - Deleting a node stamps it **and all its descendants** with the same `DeletionBatchId`
   in one transaction. Rows already deleted earlier keep their original batch.
 - Restore works per batch: it restores exactly what was deleted together. Restoring is
   blocked if the batch's top node's parent is itself deleted ("restore the folder first").
-- An EF global query filter hides deleted rows. Admin/trash queries opt out explicitly.
+- Normal repository queries use shared active-row SQL filters (`DeletedAtUtc IS NULL`).
+  Trash and restore operations use explicit queries that include deleted rows.
 - Uniqueness: folder and item names are **not** unique (duplicates are legitimate).
-  Unique keys that exist (`ItemType.Name`, later `FieldDefinition.Key`) use archive,
+  Unique keys that exist (`ItemType.Name`, `FieldDefinition.Key`) use archive,
   not soft delete, so they never collide with deleted rows.
 - Deleting a sub-item re-runs the completion rule on its ancestors (§6.1).
 
@@ -221,18 +273,22 @@ Soft delete, so a Trash/restore view can be added without schema change.
 - User-entered dates/times are **floating local time**: "due Friday 15:00" means
   15:00 on the user's clock wherever they are, the same way all-day and floating events
   work in calendar apps. This fits a single-user desktop app and avoids surprise shifts.
-- To compare with "now", a `FloatingTime` helper converts a floating value to an instant
-  using a `TimeZoneInfo` **passed in explicitly** (the app supplies `TimeZoneInfo.Local`;
-  tests supply fixed zones). A time in a DST gap becomes the first valid instant after
-  it; an ambiguous (repeated) time uses the earlier instant. Tests cover gap, repeat and
-  end-of-day cases in fixed zones, alongside a fake `TimeProvider` for "now".
+- Temporal models floating dates, times and date-times separately from instants and
+  preserves the sub-millisecond precision of legacy timestamps. Core uses
+  `temporal-polyfill` if Electron's Node lacks Temporal. The server composition root
+  supplies the OS IANA time zone and Effect Clock. Core's `FloatingTime` receives
+  the zone explicitly.
+- Resolve DST gaps to the transition boundary with `getTimeZoneTransition`
+  (e.g. 02:30 → 03:00), preserving legacy `FloatingTime` behavior. For a repeated
+  time, use the earlier instant. A date-only deadline uses local 23:59:59.9999999.
+  Keep regression coverage for these cases.
 - If sync is ever added, we add a `TimeZoneId` column and convert; the field names do not change.
 
 ## 6. Business rules
 
 ### 6.1 Completion and sub-items
 
-Setting: `AutoCompleteParentWhenChildrenComplete` — **default on**.
+Setting: `AutoCompleteParents` — **default on**.
 
 Definitions: an item's **active children** are its non-deleted sub-items. A **leaf** has
 no active children and is completed/reopened manually like any task.
@@ -240,8 +296,8 @@ no active children and is completed/reopened manually like any task.
 With the setting **on**, the invariant is: *an item with active children is complete
 exactly when all of its active children are complete.* After **any** change to a tree —
 complete, reopen, add, delete, restore, move, indent/outdent — the app re-evaluates the
-affected item's ancestors bottom-up and fixes their state. Reparenting evaluates the union of
-both chains, deepest first, using the final tree. Specifically:
+affected item's ancestors bottom-up and fixes their state. Reparenting evaluates both
+ancestor chains deepest first against the final tree. Specifically:
 
 | Action | Result |
 |--------|--------|
@@ -286,7 +342,7 @@ finished items move into a Completed section, so open work is never hidden.
 
 ### 6.3 Urgency color
 
-`UrgencyCalculator.Calculate(item, now, timeZone, thresholds)` in Core. It resolves the
+`calculateUrgency(item, now, timeZone, thresholds)` in Core. It resolves the
 item's floating deadline with `FloatingTime` (§5.4) using the `timeZone` passed in.
 
 **Effective deadline** = the due date/time if set; otherwise the scheduled start if set;
@@ -294,7 +350,7 @@ otherwise none. So a discussion with only a meeting time still turns yellow/red 
 
 | Condition | Urgency | Default color |
 |-----------|---------|---------------|
-| No effective deadline, or item complete | `None` | Neutral (theme background) |
+| No effective deadline, or item complete | `None` | Neutral |
 | Deadline more than *Yellow threshold* away | `None` | Neutral |
 | Deadline within *Yellow threshold* (default 3 days) | `Approaching` | Yellow |
 | Deadline within *Red threshold* (default 24 hours) | `Imminent` | Red |
@@ -304,6 +360,7 @@ otherwise none. So a discussion with only a meeting time still turns yellow/red 
 - Thresholds are settings (§6.5): global defaults, overridable per project. The settings
   forms keep red ≤ yellow for the *effective* values; the calculator also clamps
   defensively, treating yellow as at least red.
+
 **Displayed urgency rolls up.** Each row shows the most urgent of its own urgency and
 its sub-items': `Displayed(item) = max(Own(item), Displayed(child) for each active child)`,
 where `Own` is `None` for a completed item. Completed branches therefore add nothing,
@@ -311,19 +368,20 @@ while an open sub-item under a completed parent (setting off) still shows. When 
 color comes from a sub-item, the row shows a small "from sub-item" marker with a
 tooltip naming it, so the user knows the parent's own deadline isn't the cause.
 
-- The UI re-evaluates urgency on a one-minute timer so colors change without a refresh.
-- Colors are theme resources with readable contrast (pale backgrounds, dark text), and
-  urgency is never shown by color alone (the badge/icon carries it too).
+- The web requests refreshed server urgency once a minute so indicators update without
+  a manual refresh.
+- The indicator uses theme tokens with readable contrast and a label or icon so its
+  meaning is available without color.
 
 ### 6.4 Moving and ordering
 
-- Items reorder among siblings by Alt+↑/↓ or row drag (`SortOrder`, renumbered among
-  siblings on each move; sibling counts are small).
+- Items reorder among siblings by drag-and-drop or Alt+↑/↓ (`SortOrder`, renumbered
+  among siblings on each move; sibling counts are small).
 - Moving a top-level item to another area **in the same project** moves its whole
   subtree (invariant 3). Moving between projects is out of scope for v1; if added later
   it must handle project-scoped custom fields.
 - Sub-items cannot be moved to another area on their own. They can be re-parented
-  within the same area by row drag or Alt+→/← (§7.5).
+  within the same area by indent/outdent on focused rows or by dragging (§7.5).
 - Folders move within the same project only (invariant 1).
 
 ### 6.5 Settings: global and per project
@@ -334,23 +392,20 @@ otherwise the global value.
 
 | Setting | Type | Default | Per-project override |
 |---------|------|---------|----------------------|
-| `AutoCompleteParents` | bool | on | yes |
+| `AutoCompleteParents` | boolean | on | yes |
 | `UrgencyYellowThreshold` | duration | 3 days | yes |
 | `UrgencyRedThreshold` | duration | 24 hours | yes |
 | `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
 
 Design:
 
-- Each setting is declared once in Core as a typed definition, e.g.
-  `public static readonly SettingDefinition<bool> AutoCompleteParents = new("autoCompleteParents", defaultValue: true, projectOverridable: true);`
-  Adding a setting later is one line plus its UI control.
-- `ISettingsService` gives `GetGlobal(def)`, `SetGlobal(def, value)`,
-  `SetProjectOverride(projectId, def, value)`, `ClearProjectOverride(projectId, def)` and
-  `GetEffective(projectId)`, which returns an `EffectiveSettings` record. Each value in
-  it carries its source (`Global`/`Project`) so the UI can show "Inherited from global"
-  with a "Reset to global" button.
-- Values are stored as invariant-culture text (`true`, ISO-8601 durations) and parsed by
-  the definition, so the tables never change when settings are added.
+- Core declares each setting once with a typed definition, storage key, default and
+  override policy. The server settings service reads and writes globals, sets and
+  clears project overrides, and returns effective values with their source
+  (`Global` or `Project`). The UI shows "Inherited from global" and offers "Reset to global".
+- Preserve the storage keys `autoCompleteParents`, `urgencyYellowThreshold` and
+  `urgencyRedThreshold` and their text encodings. Keep the legacy boolean encoding.
+  Read and write durations in .NET `XmlConvert` format (e.g. `P1D`, `PT3H`, `PT0.5S`).
 - **Auto-complete and reconciliation (§6.1)** apply to the *effective* value: a change
   that turns auto-complete on for some projects (a project override, or a global change
   that inheriting projects pick up) runs the reconcile prompt for exactly those projects,
@@ -359,10 +414,10 @@ Design:
   Settings** (from the project's menu) shows each overridable setting with an
   "Override" checkbox.
 
-## 7. Metadata and search design
+## 7. Metadata and feature design
 
-Metadata will grow and search will be built on it. This section is the **design** that
-v1 must not contradict; the code arrives in Phases 3 and 4.
+Phase 3 custom fields were included at cutover. The remaining sections describe
+the planned TypeScript port of the features at `legacy-final`.
 
 ### 7.1 Custom fields (Phase 3)
 
@@ -375,7 +430,7 @@ Values store the choice `Id`, so renaming a label never breaks data or saved sea
 Removing a choice archives it; items keep their value.
 
 **ItemFieldValue** — `ItemId`, `FieldDefinitionId`, and one typed column per data type:
-`TextValue`, `NumberValue` (double), `DateValue` (DateOnly), `BoolValue`, `ChoiceId`.
+`TextValue`, `NumberValue` (SQLite REAL), `DateValue` (calendar date), `BoolValue`, `ChoiceId`.
 
 - Exactly one value column is set, matching the definition's type. Enforced by a
   `FieldValueValidator` in Core at the service boundary, backed by a DB check constraint
@@ -386,21 +441,19 @@ Removing a choice archives it; items keep their value.
 - Items do not move between projects (§6.4), so a project-scoped value can never end up
   on an item in another project.
 - An absent row means "no value". Empty strings are normalized to absent.
-- A field's `DataType` cannot change once any value exists; create a new field instead.
+- A field's `DataType` can change only before any value exists. Create a new field
+  when an existing field with values needs a different type.
 - Indexes on `(FieldDefinitionId, TextValue)`, `(FieldDefinitionId, NumberValue)`,
   `(FieldDefinitionId, DateValue)`, `(FieldDefinitionId, ChoiceId)`.
 - Keys are creation-time lowercase slugs of display names, globally unique with numeric
   collision suffixes, and never change on rename; the database has a unique key index.
-- Built-in search keys (`title`, `ticket`, `type`, `priority`, `due`, `scheduled`,
-  `status`, `completed`, `link`) and the query-syntax keywords (`has`, `no`, `is`, §7.7) are reserved. Custom fields use the next numeric collision suffix.
-  The saved-search migration renames existing keyword keys with the same first-free suffix rule;
-  field ids and values remain unchanged.
+- Search reserves built-in field keys and the query keywords `has`, `no` and `is` (§7.7).
+  Existing colliding keys receive the first free numeric suffix while preserving IDs, values
+  and saved-search meaning.
 - Display names are required and trimmed, and are case-insensitively unique among active
-  fields visible together (global plus project fields). Unlike lookup names (§5), an archived
-  field's name is not reserved; unarchiving rechecks it.
+  fields visible together (global plus project fields).
 - Fields archive instead of deleting; unarchive rechecks name uniqueness, and archived
   fields retain existing values.
-- A field's type changes only before any value exists.
 - Choice labels are required and trimmed, unique case-insensitively among active choices;
   choices can be renamed, reordered, archived and restored without removing item values.
 - Numbers must be finite; text is trimmed, blank text removes the value, and null removes
@@ -415,29 +468,18 @@ Why typed columns instead of a JSON blob: range queries ("severity ≥ 3",
 
 ### 7.2 Search (Phase 4)
 
-**Field registry.** `IFieldRegistry` returns every searchable field as a
+**Field registry.** The field registry returns every searchable field as a
 `SearchableField { Key, DisplayName, DataType, Source }`. `Source` is either a built-in
 column (`title`, `ticket`, `priority`, `type`, `due`, `scheduled`, `status`, `completed`, `link`) or a
 `FieldDefinition`. Search code treats both the same.
 
 **Query model** (Core, storage-agnostic):
 
-```csharp
-public abstract record SearchScope
-{
-    public sealed record AllProjects : SearchScope;
-    public sealed record Project(Guid ProjectId) : SearchScope;
-    public sealed record Area(Guid ProjectId, Guid? FolderId, bool IncludeSubfolders) : SearchScope;
-}
-
-public sealed record ItemQuery(
-    SearchScope Scope,
-    string? Text,                       // title, description, ticket
-    IReadOnlyList<FieldFilter> Filters, // all must match (AND)
-    bool IncludeCompleted);
-
-public sealed record FieldFilter(string FieldKey, FilterOperator Operator, FilterValue? Value);
-```
+- `SearchScope` is a discriminated union of all projects, one project (project ID),
+  or an area (project ID, nullable folder ID, include-subfolders flag).
+- `ItemQuery` carries a scope, optional text across title/description/ticket, field
+  filters combined with AND, and an include-completed flag.
+- `FieldFilter` carries a field key, an operator and an optional typed value.
 
 Operator semantics are fixed up front, including missing values:
 
@@ -449,7 +491,7 @@ Operator semantics are fixed up front, including missing values:
 
 `FilterValue` is a small typed union (text, number, date, bool, choice id), not `object`.
 
-**Implementation** (Infrastructure): `SqlItemSearch` builds one parameterized, bounded
+**Implementation.** The server builds one parameterized, bounded
 SQLite query. Built-in fields map to columns; custom fields use `EXISTS` subqueries on
 `ItemFieldValue`. SQLite's `tt_fold` function provides Unicode-aware case-insensitive
 text comparisons, and `instr` implements literal Contains without LIKE wildcards.
@@ -517,11 +559,11 @@ The text syntax and saved searches are specified in §7.7.
 - Completed entries are hidden by default; Include completed shows them muted and checked. Deleted items, folders, and projects are excluded.
 - Month shows six weeks starting on the culture's first day of week. Days outside the month are dimmed. All-day entries precede timed entries; after three entries, +N more opens that day in Week.
 - Week has seven columns, an all-day row, and a 00:00–24:00 time grid at 48 pixels per hour. It opens scrolled to 07:00. Timed due entries are 30-minute markers and scheduled blocks are exactly as tall as their duration (a block with no end is 30 minutes); entries split width only when their real intervals overlap, so touching blocks do not. A marker that would pass 24:00 is moved up to end at midnight. Blocks shorter than 40 pixels put the urgency label and title on one line. The all-day row grows to hold every all-day entry of the week, and entries fill their day column. Within a day entries are ordered all-day first, then by start, then by title (culture-aware, ignoring case), then by item id.
-- Today comes from the injected TimeProvider and explicit local time zone. Previous, Today, Next, Month and Week control the period. PageUp/PageDown change periods (also with an entry focused, but not while a text box has focus); Ctrl+Shift+M/W switch views.
+- Today comes from the injected Effect Clock and explicit local time zone. Previous, Today, Next, Month and Week control the period. PageUp/PageDown change periods (also with an entry focused, but not while a text box has focus); Ctrl+Shift+M/W switch views. With an entry focused, plain ↑/↓ move through that day's entries, ←/→ go to the nearest day with entries, and Home/End go to the first and last entry shown.
 - The scope is All projects from Home or This project from a workspace. Include completed is available in either scope.
 - Home, workspace, and Ctrl+Shift+C open the calendar. Back or Escape (with no modifiers) restores the previous page. Search and Calendar never stack: opening one from the other disposes it and keeps the original page as the single return target, so Back lands on that page and activating an entry or result asks that page's unsaved-changes guard once. An entry activation still pending when the calendar is left is dropped. Activating an entry opens its current workspace folder and selects it, subject to the unsaved-changes guard. A deleted item reloads the calendar and reports “This item no longer exists”. Month navigation moves from the first day of the month.
 - Entries use their own urgency, refreshed each minute, and show it as a label (Approaching, Imminent, Overdue) with a bold title when overdue, never by colour alone; tooltips show type and priority.
-- Drag to reschedule (Phase 5b). Pointer and keyboard use the same rules, planned in Presentation (`CalendarReschedule`, `CalendarDropMapper`) and saved by `ICalendarRescheduler` (`MoveDueAsync`, `MoveScheduleAsync`; one unit of work each, deleted items fail with a rule error):
+- Drag to reschedule (Phase 5b). Pointer and keyboard use the same rules, with a typed intent from React and a server transaction that revalidates the item and rejects deleted items:
   - A press that moves less than 4 pixels is a click and still opens the item. Past that the entry is dragged; Escape cancels, and releasing outside every day area saves nothing. A drop that lands on the same slot is a no-op and does not save. Completed entries can be dragged too.
   - Month: dropping on another day cell sets a due entry's date and keeps its DueTime; a scheduled entry's start moves to the same time on that day, keeping its length (a schedule without an end stays without one). The cell is outlined while the pointer is over it.
   - Week all-day row: a due entry changes date; a timed due entry also loses its DueTime. A scheduled block cannot be dropped there (ignored, no indicator).
@@ -551,8 +593,8 @@ The text syntax and saved searches are specified in §7.7.
 - Drop feedback: "into" tints the target row with the accent color and shows a
   "Make sub-item" label, so it is distinct from the selection outline; the dragged row
   is dimmed while the drag is active.
-- Alt+→ indents under the previous sibling; Alt+← places the item immediately after
-  its parent. Ctrl+Shift+L opens Move to… for a selected top-level item; the context
+- Alt+→ and Tab indent under the previous sibling. Alt+← and Shift+Tab place
+  the item immediately after its parent. Ctrl+Shift+L opens Move to… for a selected top-level item; the context
   menu offers the same folder picker. Ctrl+Shift+M is already used by Calendar.
 - A move consults the existing unsaved-editor guard before reloading. A cancelled
   guard cancels the move; Save or Discard follows the user's guard choice. The moved
@@ -602,7 +644,7 @@ The trash lists **deletion batches** (§5.3), not individual rows: one row per `
   The confirmation for a project says so ("This also deletes the N entries deleted from this
   project earlier"), because those are separate rows that vanish with it.
 - **Irreversible confirmations** (Delete permanently, Empty trash) use a destructive dialog:
-  `IDialogService.ConfirmAsync(..., cancelIsDefault: true)` makes Cancel the default and focused
+  The confirmation makes Cancel the default and focused
   button, so Enter or Escape cancels and only a click on the confirm button destroys data. Other
   dialogs keep their existing behaviour.
 - **One change at a time.** A second Restore, Delete permanently or Empty trash is ignored
@@ -624,9 +666,8 @@ The trash lists **deletion batches** (§5.3), not individual rows: one row per `
 - **Failures** (a batch already gone, a refused purge) show inline on the page and the list
   reloads. Loads are cancellable: a newer load replaces an older one, and leaving the page
   ignores any load still running.
-- **Code.** Core `TrashService` (`ListAsync`, `RestoreAsync`, `PurgeAsync`, `EmptyAsync`; one
-  unit of work each) over `ITrashRepository`, the only place that queries deleted rows across
-  projects and removes rows.
+- **Code.** The server owns each list, restore, purge or empty transaction and uses
+  explicit queries for deleted rows across projects.
 
 ### 7.7 Query syntax and saved searches
 
@@ -664,7 +705,7 @@ Values: Text as written (quote when it has spaces); Number with the **invariant*
 decimals; a saved search must mean the same on every machine); Boolean `yes|no|true|false`; Choice by
 label (case-insensitive) or by unquoted `#<guid>` id (quote an id-shaped label), and a priority also by its
 unquoted number (`priority:7`, then a level named "7"; §7.15); `status` is Text over status names; Date `yyyy-MM-dd`, `today`, `tomorrow`, `yesterday`, or an
-offset such as `+3d` / `-1w`, resolved with the injected `TimeProvider` and the explicit time zone (§5.4).
+offset such as `+3d` / `-1w`, resolved with the injected Effect Clock and the explicit time zone (§5.4).
 Words that contain `:` and are not a field (`http://x`) are errors until quoted. A bare `has`, `no` or `is`
 word is free text; as `has:`, `no:`, `is:` they are keywords, hence reserved (§7.1).
 
@@ -695,14 +736,14 @@ are deliberately **not** foreign keys.
 - **Stable text.** The stored query is the parser's `StableText`: free text and clauses with every choice
   written as `#<guid>` and dates exactly as typed. Renaming a label never breaks a saved search (§7.1);
   relative dates keep moving. Ids are never shown: opening a saved search shows `DisplayText` (labels).
-- **Opening** (`INavigationService.OpenSavedSearchAsync`) shows the Search page with the saved scope
+- **Opening** shows the Search page with the saved scope
   (a project or folder scope uses it as the page's origin), include-completed, text and rows, and runs it.
   Opened from the Search page it replaces that page and keeps the original return page (§7.4).
 - **Stale searches** show an inline error instead of results: `The saved search 'X' can't be run.` plus the
   reason: an archived or deleted field (unknown field), a deleted choice ("no longer exists"), or a
   deleted project or folder ("Search project does not exist."). A saved search deleted meanwhile reports
   "This saved search no longer exists." and the lists refresh.
-- **`SavedSearchService`** (one unit of work per operation): `ListAsync`, `FindAsync`, `SaveAsync(name,
+- **Saved-search service** (one server transaction per operation): `ListAsync`, `FindAsync`, `SaveAsync(name,
   definition, overwrite)`, `RenameAsync`, `DeleteAsync` (hard delete), `ReorderAsync`. Saving an existing
   name without `overwrite` is a rule error; the UI asks "Replace it?" first. Names clash case-insensitively
   (the database backs this with a `NOCASE` unique index). Saving requires the scope's project to exist.
@@ -713,20 +754,20 @@ are deliberately **not** foreign keys.
 
 ### 7.8 Undo and redo
 
-**History.** `UndoHistory` (Core, singleton) keeps the last 50 undoable steps in memory for the
+**History.** A server-scoped undo history keeps the last 50 undoable steps in memory for the
 session; restarting clears it. One user action is one step however many rows it touches (a
 completion cascade, a deleted branch, a renumbered sibling list). Recording a new step drops
 every step that was undone, so redo is cleared by any new action.
 
 **What is recorded.** Recording is opt-in and explicit. A service that performs an undoable user
-action saves with a label, `unitOfWork.SaveChangesAsync(UndoLabels.Complete(title), ct)`.
+action records a label and publishes the step only after its transaction commits.
 The label names the item the user acted on (completing a child that auto-completes its parent
 is "Complete 'Child'"). A labelled save captures added, modified and deleted items, folders,
 projects, item field values, links, lookups, field definitions and choices, settings, and
 saved searches in one step. Timestamp-only updates are discarded so they do not invalidate
 earlier steps. Reminder delivery markers are excluded from snapshots of item data.
 
-**Applying a step.** Undo and redo write the recorded values back in one unit of work. Before
+**Applying a step.** Undo and redo write the recorded values back in one transaction. Before
 writing, every affected row (soft-deleted ones included) is compared with the values the step left
 behind. If any row differs the whole step is refused and the history position does not move:
 "This item changed since; can't undo." (or "redo"; "folder" or "project" for those rows). A row
@@ -749,8 +790,7 @@ has Undo and Redo entries whose labels name the action ("Undo: Complete 'Write r
 are disabled when there is nothing to do. A status toast at the bottom of the workspace (an
 overlay, so nothing moves) shows "Undid: ...", "Redid: ..." or a refusal. It clears on the next
 recorded action and when the user goes to another screen. Refusals on screens without the toast
-are shown in a message box. `UndoCoordinator` (Presentation) holds this behaviour; the shell
-creates it and hands it to each workspace. A failure other than a refused step is reported
+are shown in a message box. The React shell coordinates these interactions across screens. A failure other than a refused step is reported
 through the shell's unexpected-error message instead of crashing the app. If a write-back would
 break a foreign key (a choice or lookup the step used was removed since), it is refused as
 "This change references something that was removed; can't undo."
@@ -769,6 +809,9 @@ or project settings also block undo and redo until saved or discarded. In App Se
 includes pending lookup entries, number edits and renames.
 
 #### Undo coverage
+
+The operation names in the table refer to the legacy service API at `legacy-final`.
+The TypeScript port carries forward the behavior and coverage.
 
 | Service | Write operation | Label before audit | Coverage | Reason for exclusion |
 |--------|-----------------|--------------------|----------|----------------------|
@@ -812,7 +855,7 @@ global saves skip unchanged effective defaults, so a startup-only save leaves hi
 
 ### 7.9 Import and export
 
-`DataTransferService` (Core, `Transfer`) exports and imports; every public operation is one unit of work.
+The server exports and imports with one transaction per public operation.
 
 **JSON export (full fidelity).** One versioned document: `{"format":"task-tracker","version":1,"exportedAtUtc":...,"scope":"all"|"project",...}`,
 camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\u` escapes). Content, in order:
@@ -903,8 +946,7 @@ every error; nothing is imported while there is an error. Commit re-checks the f
 
 **UI.** From Home, File offers Export everything (JSON) and Import JSON. Project offers Export project (JSON),
 Export project (CSV), and Import CSV into project. A project is chosen from a list, a folder from the usual folder list (only when the project has folders), the file
-through the platform file picker (`IFilePickerService`, implemented with Avalonia's `StorageProvider`; no Avalonia types in
-Presentation). Cancelling any picker or confirmation does nothing. A JSON import first shows the validation errors, or asks
+through the Electron file picker exposed through narrow preload IPC. Cancelling any picker or confirmation does nothing. A JSON import first shows the validation errors, or asks
 "Import N projects ...? ... can't be undone ... a backup is saved first". The CSV preview is a dialog with an Import button only when
 it has no errors; its rows with errors are marked. Home reloads after an import and shows a status line. Reading, checking, exporting and importing run
 off the UI thread; while one runs, transfer commands are disabled and a progress bar shows.
@@ -919,9 +961,7 @@ plain text already stored, so there is no data migration. The item editor shows 
 the multi-line text box; Preview renders the text read-only. Previewing is a view mode only (it never makes the editor dirty, and a
 newly selected item opens in Edit).
 
-- **Parsing** is Markdig 1.5.1 (pinned in `Directory.Packages.props`; 1.6.0 was under two weeks old). `MarkdownParser` (Presentation,
-  `Markdown`) maps Markdig's tree into small display records (`MarkdownParagraph`, `MarkdownList`, ...), so no parser type reaches the
-  view. App.Desktop's `MarkdownView`/`MarkdownControlBuilder` turn those records into ordinary Avalonia controls. No web view, no HTML.
+- **Parsing.** Render a bounded Markdown preview as React content with raw HTML disabled.
 - **Supported:** headings, emphasis and strong, inline code, fenced and indented code blocks, bullet and numbered lists (nested, a
   numbered list keeps its start number), task-list checkboxes (display only: not focusable, clicks do nothing, the stored text never
   changes), links and bare http(s) addresses, block quotes, horizontal rules. Single newlines are kept as line breaks, so existing plain
@@ -931,15 +971,13 @@ newly selected item opens in Edit).
   is shown as a link whose text is the alt text ("image" when empty); it is clickable only under the link rule below.
 - **Limits** keep hostile or huge text from freezing the preview. The source is capped at 100,000 characters. Blocks, list entries
   and inline nodes share a 2,000-node limit and a 100,000-character display text limit that includes expanded link addresses.
-  Containers nested deeper than 16 levels show as plain text. Input Markdig refuses as too deeply nested is shown verbatim as a
+  Containers nested deeper than 16 levels show as plain text. Input the parser refuses as too deeply nested is shown verbatim as a
   code block. A notice line says when the preview was cut short. The stored text is never changed.
 
-**Opening links.** Links in the preview open in the OS default handler through `ILinkLauncher` (Presentation; Avalonia's `Launcher` in
-App.Desktop, a fake in tests), and **only for `http`, `https` and `mailto`** (`LinkPolicy`, Core). Any other scheme (`file:`,
+**Opening links.** Links in the preview open in the OS default handler through Electron main via preload (with a fake in tests), and **only for `http`, `https` and `mailto`** (`LinkPolicy`, Core). Any other scheme (`file:`,
 `javascript:`, `ftp:`, custom schemes, relative paths) is shown as text followed by its address in parentheses and is not clickable; it
 is never launched, and the launcher checks the policy again itself. There is no confirmation dialog: the user wrote or pasted the text,
-and the address is shown in a tooltip. A failed launch shows a message. Both the preview and the Links list use the workspace's
-`OpenLinkCommand`.
+and the address is shown in a tooltip. A failed launch shows a message. Both the preview and the Links list use the same launcher.
 
 **Item links (attachments).** `ItemLink`: `Id` (Guid v7), `ItemId`, `Url` (at most 2000), `Title?` (at most 300), `SortOrder`,
 `CreatedAtUtc`; table `ItemLink`, index `(ItemId, SortOrder)`, foreign key to `TodoItem` with `ON DELETE CASCADE`. The migration is
@@ -956,7 +994,7 @@ in saved searches whose scope includes that field, because `link` is now a built
   editing another link. A message under the boxes explains a rejected link. Link changes are part
   of the item draft: they make the editor dirty, Revert restores the stored list, and Save writes them with the rest of the item. Text
   still in the boxes at Save is added first; if it is invalid, Save is refused with "Fix the link marked in red first.".
-- **Save.** `ItemService.EditAsync(id, edit, values, links)`: a non-null `links` replaces the whole list in the same unit of work
+- **Save.** A non-null `links` replaces the whole list in the same transaction
   (matched by id: updated, removed or added; the list order becomes the sort order); null leaves the links alone. One save is one
   undo step.
 - **Undo (§7.8).** `ItemLink` rows are collected by the undo row collector like item field values, so undo and redo re-insert, update
@@ -1044,7 +1082,7 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   sets that wrap past Sunday, month-end clamping, 29 February, both anchors, every end kind, and
   overdue skipping. They also cover the §6.1 interactions. SQLite tests cover copying, which
   includes links, custom fields and the subtree, plus undo, trash and the migration. The UI has
-  ViewModel tests, headless interaction tests for the Repeat section, Skip and Stop repeating,
+  React component and simulated-input tests for the Repeat section, Skip and Stop repeating,
   snapshot baselines in light and dark, and a smoke step.
 
 - **Implementation decisions.** Weekly intervals use weeks starting on Monday. Monthly and yearly
@@ -1091,14 +1129,14 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - an offset: at the due moment, 5/15/30 minutes, 1/2 hours, 1/2 days or 1 week before.
 
   It is stored as nullable `ReminderMode` and `ReminderOffsetMinutes` columns on `TodoItem`. The
-  migration is additive and follows the AGENTS.md trigger rule. Recurring copies (§7.11) and
+  migration is additive and preserves the FTS mapping and triggers (§7.2). Recurring copies (§7.11) and
   import/export (§7.9, JSON only) carry it. A change is part of the item edit's undo step.
 - **Delivery state.** `ReminderDeliveredFor` records the reminder instant (UTC) that was last
   delivered for the item. A reminder is due when its instant is ≤ now and differs from
   `ReminderDeliveredFor`. Changing the due date, time or offset therefore re-arms the reminder
   without extra bookkeeping. Recording delivery is application state, not user data: it is not
   undoable and not exported.
-- **Scheduler.** `ReminderScheduler` lives in Presentation and uses the injected `TimeProvider`.
+- **Scheduler.** An Effect service schedules reminders using the injected Clock.
   - It checks every 30 seconds, and also immediately after any save, on wake from sleep and on a
     clock change, so long timers can't drift.
   - It reads due reminders with one bounded query and hands them to `IReminderNotifier`.
@@ -1129,45 +1167,30 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
     drag in progress takes Escape first. While the panel is open, Escape closes it before it
     can leave search, the calendar or the trash.
   - If **Mark complete** is blocked, the reason is shown in a message.
-- **OS notifications.** `IReminderNotifier` is implemented in App.Desktop, and the in-app panel
-  always shows reminders as well.
-  - **Windows:** a native notification through the notification-area icon (Shell_NotifyIcon with a
-    balloon, which Windows 10/11 shows as a toast). No packaging and no AUMID registration are
-    needed.
-    - The main window owns one persistent icon, added on the first reminder. It stays hidden
-      except while a balloon shows.
-    - Each balloon is an `NIM_MODIFY` with `NIF_INFO`. A click opens the item of the latest
-      balloon.
-    - The icon is deleted and the window subclass removed when the window closes, at the latest
-      on `WM_DESTROY`. Disposal is idempotent.
-  - **Linux:** the freedesktop `org.freedesktop.Notifications` D-Bus service through a managed D-Bus
-    client. A connection is kept only once it has connected, and a failed call drops it so the
-    next attempt reconnects. `Tmds.DBus.Protocol` is pinned to 0.94.1, the version Avalonia
-    12.1.6 brings in.
-  - **Elsewhere, or when the platform call fails:** in-app only. The failure is logged once.
-    Platform notifications pause for 5 minutes (measured with `TimeProvider`) and are then
-    tried again. The app keeps working throughout.
-  - Clicking a notification brings the window forward and opens the item.
-  - Any new package needs an exact, at least two-weeks-old version in
-    `Directory.Packages.props`. Prefer no new dependency on Windows.
+- **OS notifications.** Electron main delivers native notifications on supported Windows and
+  Linux desktops. The in-app panel is always available. A failed platform call is logged once
+  and pauses native delivery for five minutes, measured with Effect Clock. Clicking a notification
+  brings the window forward and opens the item or the panel for a group.
 - **Tray.** With `KeepRunningInTray` on, closing the window hides it to a notification-area icon
   instead of quitting, so reminders keep firing. The tray menu has **Open** and **Quit**; a left
-  click shows the current item's card (§7.18). Starting with the OS is out of scope; it belongs with installers.
+  click shows the current item's card (§7.18). Start with the OS is covered in §7.13.
   - The window hides only when a tray host really shows the icon. Windows and macOS always
     have one. On Linux, a `StatusNotifierWatcher` must own its name on the session bus.
   - Without a tray host, closing minimises instead, so the window is never unreachable.
     Closing an already minimised window, for example from the taskbar, quits.
-  - The tray re-reads the setting only after a save that changed a global setting
-    (`DataSaved.GlobalSettingsCommitted`), not after every save.
+  - The tray re-reads the setting only after a save that changed a global setting.
 - **Single instance.** One app runs per user and database file.
-  - The first launch holds a named mutex and listens on a named pipe. Both names come from a
-    hash of the user name and the full database path.
-  - A second launch on the same database connects to that pipe, which brings the running
-    window forward, and then exits.
-  - Different databases, such as test and smoke runs with their own `TASKTRACKER_DB_PATH`, run
-    side by side.
-  - If the running instance does not answer within 3 seconds (still starting, or stuck), the
-    new launch starts normally rather than vanish.
+  - Scope the Electron instance lock to the user and resolved database path. A second launch on
+    the same database brings the running window forward and exits. Different database paths,
+    including test overrides, may run side by side.
+    The default database keeps the Electron profile and its lock. A `TASKTRACKER_DB_PATH` override
+    moves the profile to `instances/<hash of user and resolved path>` beneath it before the lock
+    is taken.
+  - Launches take that lock one at a time, under an OS lock on the profile's `LaunchLock` file.
+    On Linux, Chromium checks a lock holder by its `chrome` executable name. A racing launch
+    otherwise deletes the lock of an instance that has not yet bound its socket, and both run.
+  - Legacy used a mutex and pipe with a three-second response deadline. Verify activation while
+    starting or tray-hidden and give the launching user feedback when the instance is unresponsive.
 - **Search (§7.7).** `has:reminder` matches open items whose effective reminder is not None.
 - **Implementation decisions.** Offsets are subtracted in floating local time before converting to UTC.
   The 24-hour startup window includes its lower boundary. The panel keeps a session list, and a
@@ -1175,9 +1198,13 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   different base instant re-arms the item. Undoing a pending snooze restores its panel entry.
   Version 1 JSON carries the optional item choice and project settings. Snoozes are local to the
   database. An existing custom field keyed `reminder` gets a free numeric suffix, and its saved
-  searches are rewritten as for `repeats`. Windows uses system change messages, Linux uses logind
-  for resume where available, and the scheduler checks the wall clock against monotonic time once
-  a second to catch clock jumps. Linux activation uses the notification server's default action.
+  searches are rewritten as for `repeats`. Use desktop resume signals and detect wall-clock jumps so pending reminders are checked promptly.
+  Electron main reports resume and window focus; the server compares Effect Clock wall and
+  monotonic time every five seconds and requests a check on a jump of a quarter second or more.
+  The server and Electron main exchange validated JSON lines over the child's private pipes, each
+  told apart by `type`. The server writes notifications and the tray setting after its readiness
+  line. Main writes reminder checks and transfer file grants (§7.9) to stdin, which one server
+  reader decodes and hands to each subscriber.
 - **Query robustness.**
   - A stored reminder setting that cannot be parsed falls back to its default for that row.
     It does not stop every reminder.
@@ -1190,9 +1217,9 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
     and the effective-setting precedence) and the re-arming rule.
   - **SQLite:** due-reminder query, delivery recording, snooze, undo of snooze, the migration with
     its FTS triggers, recurrence copy and import/export.
-  - **ViewModel:** the scheduler with a fake `TimeProvider`, the missed-while-closed grouping and
+  - **React:** the scheduler with a fake Effect Clock, the missed-while-closed grouping and
     the panel actions.
-  - **Headless interaction:** the bell button, Ctrl+Shift+R, snooze, Open, Mark complete, Dismiss,
+  - **Headless interaction:** View → Reminders, Ctrl+Shift+R, snooze, Open, Mark complete, Dismiss,
     Escape (including an open combo box keeping its Escape) and the editor Reminder choice.
   - **Desktop units:** the single-instance name and handshake, the hide-or-minimise decision and
     the notifier cool-down.
@@ -1202,124 +1229,56 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
 
 ### 7.13 Installers and releases
 
-Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for review):
+Use Electron and electron-builder (§3–4). The legacy implementation used Velopack.
+Its exact packaging and update decisions are recorded in `legacy-final:docs/PLAN.md` §7.13.
 
-- **One tool for every OS: Velopack.** It produces a Windows `Setup.exe` (per-user install, no admin,
-  Start-menu shortcut), a Linux `AppImage` and a macOS `.app` bundle. MSIX is not used: it needs
-  signing and packaging identity, and it would change where the app may write data.
-  - Velopack's `vpk` CLI is a local dotnet tool pinned in `.config/dotnet-tools.json`.
-  - The `Velopack` NuGet package is pinned in `Directory.Packages.props` at an exact stable version at
-    least two weeks old, the same as the CLI version.
-- **Startup hook.** `VelopackApp.Build().Run()` is the first statement in `Main`, before the
-  single-instance guard (§7.12), so install, update and uninstall hooks run without opening a window.
-- **Self-contained publish.** The publish is self-contained, so users need no .NET install. It targets
-  `win-x64`, `linux-x64` and `osx-arm64`. It is not trimmed,
-  because Avalonia and EF Core reflection make trimming risky.
-- **Version.** One `<Version>` in `Directory.Build.props`, `0.1.0` for now. The release workflow takes
-  the version from the tag (`v0.2.0` becomes `0.2.0`) and passes it to both `dotnet publish` and `vpk`.
-  App Settings shows the version in an **About** line.
-- **The default data location is preserved.** The database, its backups and the settings stay in the user's
-  local-app-data folder (`DatabaseInitializer.DefaultPath`). Install, update and uninstall leave that
-  folder alone. A reinstall picks up the existing data. A custom `TASKTRACKER_DB_PATH` inside the
-  install folder can be lost during install, update, or uninstall. Migrations run at startup with a backup
-  first (§11).
-- **Updates.** App Settings has a **Check for updates** button. Velopack's GitHub source checks
-  stable releases anonymously. If a newer version exists, it offers **Download**.
-  - The `TaskTrackerUpdateFeedUrl` MSBuild property defaults to
-    `https://github.com/Elijah7140/task-tracker` in `Directory.Build.props` and is embedded in
-    the desktop assembly metadata. Both pack scripts accept an override. The release workflow
-    reads the optional GitHub Actions repository variable `TASKTRACKER_UPDATE_FEED_URL`.
-  - Auto-update requires releases published to a public repository. The default repository is
-    currently private. Making it public or using a separate public release repository is an
-    open owner decision. The workflow uploads to its own repository.
-  - There is no automatic background check, so the app makes no network call unless the user asks.
-  - HTTP 404 and 401 show “No update feed is available yet. Releases are published to a private or
-    missing repository.” Network failures keep the generic check error. Uninstalled builds have
-    their own message.
-  - The update service sits behind an interface, so tests use a fake.
-- **Start with the OS.** There is a global `StartWithSystem` setting, default off, in App Settings
-  next to `KeepRunningInTray`.
-  - Windows: the per-user `HKCU\...\Run` key.
-  - Linux: a `~/.config/autostart/task-tracker.desktop` file.
-  - macOS: not supported yet, so the setting is hidden.
-  - The setting is only offered when the app is installed; a dev build has no stable path.
-  - Uninstalling removes the entry through the Velopack uninstall hook.
-- **Signing.** The builds are unsigned for now. Windows SmartScreen and macOS Gatekeeper will warn;
-  the README says how to get past that. Signing is a later decision for the owner, as it needs
-  certificates or an Apple developer account.
-- **CI.**
-  - **On pull requests:** a `package` job runs on Windows and Linux, on self-hosted runners
-    (owner decision 8). It publishes and runs `vpk pack`
-    to catch packaging breakage, checks the actual package ids in the release manifest, then uploads
-    the installer as a workflow artifact. Pull requests
-    publish no release.
-  - **On a `v*` tag:** a `release.yml` workflow builds Windows, Linux and macOS packages and creates
-    a GitHub Release with the Velopack release files, which update checks need.
-- **Tests.**
-  - Unit tests: the version text, the update-check states with a fake service (up to date, update
-    available, failure, not installed), and the start-with-system entry writer with a temp folder or
-    a registry abstraction.
-  - Headless tests: the About line, Check for updates and the real discard prompt after an edit
-    made during a download.
-  - App Settings snapshots cover the ready-to-restart state.
-  - The CI pack job proves the package builds.
-  - Installing, updating and uninstalling are checked by hand on Windows; the README has a checklist.
-- **Implementation decisions** (made where the bullets above are silent):
-  - **Velopack 1.2.161** is used for both the package and `vpk`. It was the newest stable release at
-    least two weeks old on 2026-11-17. The GitHub update source (`GithubSource`) ships in the main
-    package.
-  - **The pack id is `TaskTrackerApp`, not `TaskTracker`.** Velopack installs to
-    `%LocalAppData%\<packId>` and deletes that whole folder on uninstall, so the id `TaskTracker`
-    would delete the database. Tests guard the pack id passed to Velopack, and CI checks
-    `Assets[].PackageId` in the generated channel manifest.
-    - The main executable stays `TaskTracker.App.Desktop`, and shortcuts show the title "Task Tracker".
-    - The exe embeds `app.ico`. Linux and macOS packages use Velopack's default icon, because the
-      repository has no `.png` or `.icns` icon yet.
-  - **Packages.**
-    - `osx-x64` is not built: it would share the `osx` update channel with `osx-arm64`.
-    - Releases carry full packages only, with no deltas.
-    - Both scripts run .NET commands from the repository root. They validate the runtime
-      against `win-x64`, `linux-x64` and `osx-arm64` and check both output paths under
-      `artifacts/` before cleaning up. Symlinks and junctions in those paths are rejected.
-    - Each OS packs on its own runner. One `publish` job then uploads the three channels in turn with
-      `vpk upload github --merge` into a draft. Runs for the same tag are serialized. A rerun
-      replaces any package artifacts it rebuilds, deletes a leftover draft and uploads from
-      scratch. The job verifies all three uploaded channel manifests before publishing once.
-      A rerun after a complete publication is a no-op.
-    - A release version containing `-` uses `--pre`, so it is published as a GitHub prerelease
-      and excluded from stable update checks.
-  - **StartWithSystem saving.** **Save defaults** stores it with the other changed preferences.
-    When it is the only change, only the startup preference is saved.
-    - After a successful save, the entry is written or removed. This happens on every save while the
-      option is available; the operation is idempotent.
-    - If the system refuses, the setting stays saved and the page shows a message.
-    - While the option is unavailable, the stored value is left unchanged.
-  - **The entries.**
-    - Windows: a `TaskTracker` value under the `HKCU` `Run` key, holding the quoted path of the running
-      exe. Velopack keeps that path stable across updates (`…\current\`).
-    - Linux: `Exec` uses the AppImage path from Velopack's locator. The path is quoted under the
-      Exec argument rules, then escaped as a desktop entry string value. The mounted copy's path
-      changes on every run.
-    - `XDG_CONFIG_HOME` is used only when it is an absolute path.
-  - **Hooks.** Only Windows has a Velopack uninstall hook, which removes the `Run` value. No install or
-    update hooks are needed, because the exe path does not change on update.
-    - On Linux the user deletes the AppImage, and the README says to delete the autostart file too.
-    - A reinstall keeps the stored setting but not the entry; saving the setting again recreates it.
-  - **Download, then restart.**
-    - While downloading, it shows "Downloading version X…", without a percentage.
-    - When the download completes, App Settings shows "Ready to restart" with a **Restart to
-      update** button. The update state survives navigating away and back.
-    - Restart checks the active page for unsaved changes immediately before the updater handoff.
-      If the user declines, the app stays open and the downloaded update is applied by Velopack
-      on the next normal start. The UI says “The update will be installed the next time Task Tracker starts”.
-    - When approved, the app starts Velopack's updater with `WaitExitThenApplyUpdates` and shuts
-      down normally, so the tray icon, services and single-instance guard are disposed.
-  - **Uninstalled builds** never call the network. They say "Updates are available only in installed
-    builds."
-  - **App Settings layout.** The About card sits between the global defaults and the lookup lists. UI
-    tests use a fixed version (0.1.0) and fakes, so snapshots do not change when the version does.
-  - The tool manifest moved from the repository root to `.config/dotnet-tools.json`. The `dotnet-ef`
-    entry is unchanged.
+- **Packages.** Publish a per-user Windows x64 installer with application shortcuts, a Linux
+  x64 AppImage, and a macOS arm64 app and installer. Keep the install location separate from the
+  database and its backups during install, update, uninstall and reinstall. Verify migration
+  backup before first launch on existing data (§5.2). Build each artifact on its target OS.
+- **Version and publishing.** App Settings shows the build version in About. A `v*` tag supplies
+  the release version to each packager. Upload all verified artifacts before publishing the
+  GitHub Release. A retry resumes an incomplete draft by matching uploaded assets by name and
+  checksum, refuses a conflicting draft and never deletes a release. A published release stays intact.
+  Prereleases are excluded from stable update checks. PR and push CI build and smoke-test
+  Windows and Linux packages as verification. CI must never publish on a PR.
+- **Build hosting.** All CI and release jobs run on GitHub-hosted runners (decision 10, §12).
+  A `v*` tag packages Windows x64 on `windows-latest`, Linux x64 on `ubuntu-latest` and macOS
+  arm64 on `macos-latest`. Only the publish job can write to the repository.
+- **Updates.** Installed builds offer manual Check for updates, then Download and Restart to
+  update. Uninstalled builds show an informational message and make no request. Display
+  unavailable feed and network errors separately. Keep download and ready state across
+  navigation. Check the active draft before restarting. If the user declines, defer applying
+  the update until the next normal launch. Accept a configurable feed. The default feed is the
+  public repository's latest GitHub release, which holds the stable `latest*.yml` files and
+  installers. macOS builds are ad-hoc signed without an Apple Developer ID, so they show the
+  version only and offer no update.
+- **Start with the system.** App Settings offers the option only for installed Windows and Linux
+  builds. Default off. After saving, set or clear the per-user entry idempotently, using the
+  Windows Run key or a desktop autostart file under absolute `XDG_CONFIG_HOME` or
+  `~/.config/autostart`. Linux uses the stable AppImage path. Preserve the stored preference if
+  writing the entry fails and show the error. Uninstall removes the Windows entry. Document
+  Linux cleanup. Keep the preference for reinstall and recreate the entry when saved again.
+  Startup preferences stay outside undo history (§7.8). The legacy app used the Run value
+  `TaskTracker`, while Electron's login item uses the AppUserModelID. On the first launch after
+  upgrading, an installed Windows build deletes a legacy `TaskTracker` value, so the old app stops
+  starting, and writes its own entry when that value existed. Without the value it does nothing,
+  so the step runs once and later choices stand.
+- **Windows identity and cleanup.** Before any window or notification, main sets an
+  AppUserModelID and a fixed toast activator CLSID for each kind of build. The installed build
+  uses `app.tasktracker.desktop`, which matches its installer's Start-menu shortcut. The unpacked
+  test copy and development runs use their own IDs, and the test copy has its own product name.
+  Electron rewrites the Start-menu shortcut named after the product name to point at whichever
+  executable registers it, so no other build ever takes over the installed app's shortcut. Main
+  registers the activator at startup and reads reminder clicks from the toast's launch argument,
+  so clicks from the notification centre still work after the notification object is gone or the
+  app has restarted. A real uninstall, but not an update, also removes the toast activator's COM
+  entry and electron-builder's installer copy in `%LOCALAPPDATA%\task-tracker-updater`. The
+  installed app deletes that copy at each launch, because its updater never reads it.
+- **Signing and verification.** Legacy releases were unsigned. Keep Windows and macOS install
+  instructions aligned with the artifacts and signing status. Test update states and startup
+  registration with fakes. Use UI baselines for the About card and restart-to-update state.
+  Verify install, update, uninstall and data preservation by hand on Windows.
 
 ### 7.14 Push back one day, and the Today view
 
@@ -1379,7 +1338,7 @@ were made autonomously; they are listed for review.
 - Back waits for in-flight Today reopens, calendar moves and push backs, including after a switch
   between transient pages. A commit while the return page is hidden makes Back reload it through
   its existing unsaved-changes guard.
-- Today checks the local date every minute using a `TimeProvider` timer and again on window
+- Today checks the local date every minute using an Effect Clock timer and again on window
   activation, so it catches wall-clock changes and sleep across midnight. These checks query
   only when the date changes.
 
@@ -1387,7 +1346,7 @@ were made autonomously; they are listed for review.
 - **Tests.**
   - Core/SQLite: the day boundaries in fixed zones, including DST days; the reopened-today exclusion;
     the ancestor context rows; and the exclusion of deleted items.
-  - ViewModel: grouping and collapse state, and the midnight rollover with a fake `TimeProvider`.
+  - React: grouping and collapse state, and the midnight rollover with a fake Effect Clock.
   - Headless interaction: Ctrl+Shift+D, Ctrl+Shift+P, the context menu, and unchecking.
   - Light and dark snapshots of the Today view and of the row menu.
   - A smoke scenario.
@@ -1415,7 +1374,7 @@ the decisions below were made autonomously; they are listed for review.
   seeded set is Queued, In progress and Testing (open) plus Completed (done). At least one done
   status must stay active.
 - **On the item.** `TodoItem` gains a nullable `StatusId`. It also gains `ReopenStatusId`, the open
-  status to restore on reopen. Both migrations are additive and follow the AGENTS.md trigger rule.
+  status to restore on reopen. Schema changes preserve the FTS mapping and triggers (§7.2).
 - **Linked to completion (§6.1).**
   - Setting a done status completes the item through the normal completion path, including the
     sub-item confirmation and parent auto-completion.
@@ -1423,7 +1382,7 @@ the decisions below were made autonomously; they are listed for review.
     previous open status.
   - Reopening restores `ReopenStatusId`, or no status.
   - Auto-completed and auto-reopened parents follow the same rules.
-  - Status and completion never disagree; a database check and tests enforce this.
+  - Status and completion stay in sync. The service and database constraints enforce the applicable invariants.
 - **Setting a status or priority.**
   - Every item row menu (workspace tree, Search, Calendar, Today, Tickets) gets **Set status ▸**
     and **Set priority ▸** submenus. Each has a check mark on the current value and a "None" entry.
@@ -1449,7 +1408,7 @@ the decisions below were made autonomously; they are listed for review.
   - Core: the linkage rules for every §6.1 action.
   - SQLite: the migrations, including the saved-search rewrite, plus import/export, the recurrence
     copy and undo.
-  - ViewModel and headless interaction: both submenus from the mouse and the keyboard, and the
+  - React component and simulated-input tests: both submenus from the mouse and the keyboard, and the
     editor combo box.
   - Light and dark snapshots of a row menu with submenus, the editor and the settings lists.
   - A smoke scenario.
@@ -1608,8 +1567,20 @@ below were made while building it and are listed for review.
   section the card swaps with its neighbour. At a section edge it enters the neighbouring
   section: at the end of the section above, or at the start of the section below, taking that
   section's priority. On a sub-item or a completed card, Alt+↑/↓ still reorders siblings.
+- **Implementation decisions.**
+  - A move that keeps a top-level card in its own section is an ordinary sibling drop
+    beside the target card, so finished items keep their saved slots (§6.4). Entering
+    another section, a header drop and sub-item promotion use one combined move and
+    priority write. Both are one undo step.
+  - Archived sections accept moves only from their own cards; Alt+↑/↓ steps over other
+    archived sections. Because empty sections are hidden, a card that empties its section
+    cannot step back into it.
+  - Cards are expanded tree items: their sub-item rows always show, Right moves to the first
+    sub-item and Left does not collapse a card. Each section's cards form a group named by
+    its header. Sub-item rows put the ticket, priority and date on a second line.
+  - The repeat marker joins the card header when recurring items land (§7.11).
 - **Tests.** Core: the move operation on real SQLite, including undo, sub-item promotion and
-  an archived level. ViewModel: the section order (with a 1, 7, 2 numbering), the drop and step
+  an archived level. React: the section order (with a 1, 7, 2 numbering), the drop and step
   mapping, header drops and the setting. Headless: the grid layout, card and header drags, and
   Alt+↓ across a section. Light and dark snapshots of the grid.
 
@@ -1624,299 +1595,199 @@ the owner is working on.
     and Tickets rows. A workspace card or row menu toggles between **Set as current item** and
     **Clear current item**.
   - Each workspace item card has a ☆ button in its header that makes the item current; the
-    current card shows ★, and clicking it again clears the choice.
+    current card shows ★, and clicking it again clears the choice. The React card reveals ☆ on
+    hover, like its ⋯ button, and always shows ★.
   - The details panel has a **Set as current** / **Current item** button beside its heading.
   - A current sub-item row shows a ★ marker.
   - A deleted item, or an item in a deleted project, is treated as no current item. Restoring
     it from the trash makes it current again.
 - **Tray icon.** The tray icon is a drawn checklist: three ticks and lines on a blue tile. The
-  window, taskbar and exe use the same art: `app.ico` is built from the tray drawing at 16–256 px,
-  and a test fails if the two drift (rebuild it with `TASKTRACKER_ACCEPT_SNAPSHOTS=1`). The tray icon
+  window, taskbar and executable use the same checklist art. Generate `assets/icon.ico` and
+  `assets/icon.png` from `assets/icon.svg` with `node apps/desktop/scripts/icons.mjs`. The tray icon
   shows under the same `KeepRunningInTray` rules as before (§7.12). The menu keeps **Open** and
   **Quit**.
 - **Tray card.** A single left click on the icon shows a small borderless card next to it.
   - **Contents:** the title, the project and folder path, a Completed chip, status, priority, due
     date and time, the first lines of the notes, and **Open in Task Tracker**, which brings the
     window forward with the item selected.
+  - **Mark complete** (added in WP47 at the project lead's request) completes an open item with
+    the normal rules. The open sub-items question and any blocked reason appear inside the card,
+    and the main window reloads the change.
   - **Empty state:** with no current item, the card explains how to choose one.
   - **Closing:** clicking elsewhere, Escape, or clicking the icon again hides the card.
   - **Placement:** on Windows the card sits centred above the cursor, kept inside the working
     area of that screen. Elsewhere, where the cursor position isn't read, it goes in the top-right
     corner of the primary screen.
-  - Avalonia reports tray clicks only on Windows and some Linux desktops. Elsewhere the card is
-    unreachable and the icon's menu still works.
+  - When the desktop exposes only the tray menu, Open and Quit remain available.
 - **Tests.**
   - The service against SQLite.
-  - The card and workspace view models.
+  - The card and workspace React components.
   - Headless right-click and button interactions on every surface.
   - Placement rules.
   - Card and icon snapshots.
 
-## 8. User interface (Avalonia)
+## 8. User interface (React)
 
-The desktop menu bar sits below the system title bar on every screen. **File** contains App Settings
-and app-wide import and export from Home. **Edit** contains Undo and Redo. **Project** contains New
-Project and project import and export on Home, and Project Settings in the workspace. **View**
-contains Search, Calendar, Today, Tickets, Trash, and Reminders.
+The replacement UI ships the owner’s Notion-like design directly. Use a clean
+navigation sidebar, rounded controls and surfaces, and density and type tuned for
+1080p and 1440p. Use circular completion controls and a subtle dot, pill or edge
+accent for urgency. Keep the label or icon and sub-item attribution in §6.3.
+The window keeps the legacy 800×500 minimum size. Below 1024 px wide, Search results
+share the row width proportionally and truncate instead of collapsing a column.
 
-### Screens
+1. **Home.** Project cards show name, open count and overdue count, with a New Project
+   action.
+2. **Project workspace.** The sidebar contains the root and nested folder tree, with
+   context actions to create, rename, move and delete. Breadcrumbs show the current
+   area. The main pane shows the open item tree with completion, type, title, ticket,
+   priority, due/scheduled dates and urgency. Completed sections collapse at each
+   level (§6.2). Quick-add is an empty line at the end of the open list. Press Enter to
+   create an item. Right-click → Edit opens a floating panel with metadata and
+   sub-items. Group related fields compactly and keep all five custom-field controls.
+3. **App Settings.** Global auto-complete and urgency thresholds, type and priority
+   lists (add, rename, drag to reorder, archive) and global fields and choices.
+4. **Project Settings.** Per-project overrides (§6.5) and project fields and choices,
+   with inherited global fields visible.
 
-1. **Home** — project cards (name, open count, overdue count) and a status line for the last import or
-   export (§7.9). App Settings returns to the page it was opened from. The **Search** page has an
-   "Export results (CSV)" button.
-2. **Project workspace** — three panes:
-   - **Left:** folder tree (project root at top). Right-click: new folder, rename, move, delete.
-   - **Center:** the selected area's items.
-     - Quick-add box at top (type a title, Enter).
-     - Open top-level items as a grid of cards, grouped into priority sections, "No priority"
-       first (§7.17). A card shows the checkbox, title, status chip, type icon, ticket,
-       due/scheduled date and (rolled-up) urgency, a description preview, and its sub-items as an
-       expandable tree of rows. Cards per row is a setting (default 4); each grid row is as tall
-       as its tallest card. Every item row and card menu here and on Search, Calendar, Today and
-       Tickets has **Set status ▸** and **Set priority ▸** (§7.15).
-     - **Completed (n)** expander at the bottom, collapsed by default, with finished items as
-       cards (§6.2).
-   - **Right:** detail editor for the selected item (all fields, including Status below Priority, the Markdown description with Edit and Preview, links, sub-item list; §7.10, §7.15).
-   - Breadcrumb at top: `Home › Billing DB › dbo › Tables`.
-3. **App Settings** — global auto-complete, urgency thresholds and cards per row; manage item types, priority
-   levels and statuses (add, rename, move up and down, archive). Priority rows have a Number box;
-   the status add row picks Open or Done (§7.15).
-4. **Project Settings** — per-project overrides (§6.5).
-5. **Calendar** — scoped month and week views of due dates and scheduled blocks; activating an entry opens its item (§7.4).
-6. **Trash** — deletion batches with Restore, Delete permanently and Empty trash, scoped to all projects or one (§7.6).
-7. **Search** — query box with text syntax, filter rows, saved searches (§7.2, §7.7); Home lists saved searches.
-8. **Today** — today's completions grouped by project and area, with their ancestor rows (§7.14).
-9. **Tickets** — open numbered items grouped by priority, with a project filter and manual ordering (§7.16).
+Keyboard — Ctrl+N focuses quick-add, Ctrl+Shift+N adds a sub-item, Space toggles
+completion, F2 renames, Delete confirms deletion, and Alt+↑/↓ reorders. On a focused
+item row, Tab indents and Shift+Tab outdents, as in Notion. Ctrl+F opens search in
+Phase 4. The legacy port adds Ctrl+Z and Ctrl+Y or Ctrl+Shift+Z (§7.8),
+Ctrl+Shift+C and the calendar controls (§7.4), Ctrl+Shift+T (Trash),
+Ctrl+Shift+R (Reminders), Ctrl+Shift+D (Today), Ctrl+Shift+P (Push back one day)
+and Ctrl+Shift+K (Tickets). The Menu key and Shift+F10 expose row actions.
 
-### Keyboard
+### Legacy feature port
 
-Ctrl+Z undo, Ctrl+Y or Ctrl+Shift+Z redo (§7.8; not while a text box has focus, where text
-editing keeps its own undo). Ctrl+N new item, Ctrl+Shift+N new sub-item, Space toggle complete, F2 rename,
-Delete delete (with confirm), Alt+↑/↓ reorder (an open card moves in reading order and can cross
-into the next priority section, §7.17), Alt+→ indent, Alt+← outdent,
-Ctrl+Shift+L move to area, Ctrl+F search (Phase 4),
-Ctrl+Shift+C calendar, PageUp/PageDown previous/next calendar period,
-Ctrl+Shift+T trash (§7.6), Ctrl+Shift+D Today and Ctrl+Shift+P push back one day (§7.14),
-Ctrl+Shift+K Tickets, where Alt+↑/↓ moves the focused ticket within or between priority sections (§7.16),
-Ctrl+Shift+M/W month/week calendar view. On the calendar, with an entry focused, Alt+←/→ moves it a day
-and Alt+↑/↓ moves it 15 minutes (§7.4); this is a different screen from the workspace, where
-Alt+↑/↓ reorders items, so the two never clash. The Menu key or Shift+F10 opens a focused row's
-menu; ↓ and → reach Set status ▸ and Set priority ▸, and Enter picks a value (§7.15).
+Keep the React design and floating editor. The workspace gains priority-grouped cards with
+nested rows (§7.17). App Settings adds card columns, status management, priority numbers,
+reminder defaults and About. Search, Calendar, Trash, Today and Tickets use the shared return
+page rules. Home lists saved searches and transfer results.
+
+Port the legacy title-bar navigation and the final File, Edit, Project and View menus. At the
+frozen tag, the system title bar identifies the app and leaves room for native window controls.
+The menu bar below it holds app-wide actions. File contains App Settings and app-wide import
+and export from Home. Edit contains Undo and Redo. Project contains New Project and project
+import and export on Home, and Project Settings in the workspace. View contains Search,
+Calendar, Today, Tickets, Trash and Reminders. Settings returns to the originating page.
+Alt pressed alone or F10 moves focus to the menu bar and back, Alt with a menu's first letter
+opens it, and Escape on a closed menu returns focus to where it was. A chosen command returns
+focus there too unless it opens a page. The sidebar keeps Home and the project tree.
 
 ## 9. Delivery phases
 
-Each phase ends with a working build, passing tests, and a short demo.
+The original TypeScript pivot used legacy Phases 0–3 as its behavior reference.
+The frozen `legacy-final` tree supplies the subsequent feature behavior.
+The owner approved the replacement in [the parity record](PARITY.md).
+[Migration work packages](MIGRATION.md) record the execution order and gates.
 
 | Phase | Deliverable | Exit criteria |
 |-------|-------------|---------------|
-| **0. Foundation** | Solution, projects, `.editorconfig`, analyzers, central package versions, CI (GitHub Actions matrix: `windows-latest` + `ubuntu-latest`, build + test), README with build steps | Empty Avalonia window launches; all tests run |
-| **1. Core + data** | Entities, hierarchy invariants, EF mappings, first migration, repositories, `CompletionService`, `UrgencyCalculator` (incl. roll-up), floating-time helper, two-level settings service, seed item types and priority levels, DB backup before migrating | Domain rules in §5.1, §5.4, §6.1, §6.3, §6.5 covered by unit tests; database behaviour (§5.2 constraints, §5.3 delete/restore and query filters, transactional moves) covered by SQLite integration tests |
-| **2. Main UI** | Home, project workspace, folder tree, item list with sub-items, completed sections, detail editor, urgency colors, app and project settings, delete with confirm, keyboard shortcuts | R1–R15 usable end to end; ViewModel tests pass with no UI framework; every layer of the §11.1 testing standard passes |
-| **3. Custom metadata** | §7.1 tables (additive migration), field manager (global + per-project), custom fields in item editor | Users can add a field of each type and fill it in |
-| **4. Search** | §7.2 query model, FTS5, filter-builder UI, results across a project or all projects | Search by any built-in or custom field with the operator semantics in §7.2 |
-| **5. Calendar** | Month/week view of deadlines and scheduled items; click-through to the item; drag (or Alt+arrows) to reschedule | See §10 |
+| **Pivot A. Foundation** | pnpm workspace, Vite+ and TypeScript, Windows/Linux CI | Build, static checks and test runner work on both OSes |
+| **Pivot B. Rules and data** | Port domain tests and rules, then SQLite persistence and server operations | Domain and database parity, including EF files opened in place (§5.2) |
+| **Pivot C. RPC and web** | Shared contracts, local server RPC and React screens (§8) | All shipped behavior works through the renderer, including custom fields |
+| **Pivot D. Desktop and acceptance** | Electron shell, packaging, browser interaction and visual coverage, desktop smoke | Packaged app launches and preserves data across restarts. Reviewed baselines and Windows smoke pass |
+| **Pivot E. Cutover** | Remove legacy .NET code and tooling | Owner signs off on parity and data continuity. TS checks run without .NET |
+| **4. Search** | §7.2 query model, FTS5, filter builder and results across a project or all projects | Search by built-in or custom fields with the semantics in §7.2 |
+| **5. Calendar** | Month/week view with click-through and drag or keyboard rescheduling | §7.4 |
+| **Legacy feature port** | Database continuity and the remaining features through the final legacy menu bar | WP25 onward and the [parity checklist](PARITY.md) |
 
-Phases 0–2 are v1.
+## 10. Roadmap
 
-## 10. Roadmap (after v1)
+### 10.1 Legacy feature port
 
-### 10.1 Requested by the owner (13 Nov 2026)
-
-When one of these is picked up, its agreed design replaces the sections it conflicts with.
-
-**UI pass: modern, Notion-like look.** The current UI needs a full visual pass.
-
-- Rounded corners on controls and surfaces throughout; a modern, clean style like Notion.
-- A Notion-style sidebar for navigation.
-- Circles, not square checkboxes, to show completion.
-- Urgency/severity as a subtle indicator (dot, pill or edge accent), not a background
-  color across the whole row.
-- Sized for 1080p and 1440p displays (density, font scale, spacing).
-- No long form with one field per row. Quick add by typing into an empty line at the
-  end of the list and pressing Enter; right-click → Edit opens a floating panel for the
-  item's metadata.
-- Conflicts with §8 (checkbox, urgency background, quick-add box at top, right-hand
-  detail pane) and §6.3 (pale row backgrounds).
-
-**Tickets as a separate item kind.**
-
-- Two kinds of item: **ToDo** (general, as today) and **Ticket** (a ToDo header with
-  ticket-specific metadata and features). A ticket's sub-items are ordinary ToDo items.
-- Ticket fields: ticket number, title, description. They are usually copied in from
-  another system, so pasting them in must be low-friction.
-- Paste in: the description is parsed so that each line becomes its own ToDo sub-item.
-- Export to clipboard: copy ticket number, copy title, copy description. Copy
-  description rebuilds the text from the sub-items, one per line, in two forms: with a
-  done/not-done marker on each line, and plain with no markers.
-- Child tickets: a ticket can link child tickets, which sit under the parent ticket
-  the way sub-items sit under a todo item.
-- New item status **Pending**, with a note of what the item is waiting on: a person or
-  another ticket.
-- Touches §5 (`TodoItem` already has `TicketNumber`; `ItemType` is a lookup list, so
-  "ticket" may need to be a real kind rather than an item type), §6.1 (completion
-  roll-up with child tickets and Pending) and §6.3 (does Pending affect urgency?).
-- Open questions: Is Pending a third state beside Open and Completed, and does it block
-  a parent's auto-completion? Is "waiting on a ticket" a link to a ticket in this app,
-  free text, or either? Which line formats does the parser handle (bullets, numbers,
-  `[ ]`/`[x]`, blank and indented lines), and is the original description kept? Which
-  done/not-done marker format on export? How do nested sub-items export?
-
-**Drag-and-drop items** (added 14 Nov 2026).
-
-- Drag a row up or down to change its order among its siblings.
-- Drop it onto another item to make it a sub-item, or drag it out of a parent to
-  promote it.
-- Drop it onto a folder in the folder tree (or sidebar) to move it, with its whole
-  subtree, to that area (list).
-- The rules in §6.4 and §6.1 still apply; the view only translates a drop into the
-  existing reorder, move and move-to-area operations (§4).
-- Needs a drop indicator, a keyboard path for every drop, and headless drag tests
-  (§11.1).
+WP25 onward carries forward the final legacy feature set in §§7.2 and 7.4–7.18. The
+owner defines a ticket for the Tickets view as an open item with a ticket number.
+A separate Ticket kind, one-line paste into sub-items, clipboard reconstruction,
+child tickets and Pending notes remain proposals from 13 Nov 2026. See
+`legacy-final:docs/PLAN.md` §10.1 for the original proposals.
 
 ### 10.2 Other ideas
 
-- **Calendar view** (Phase 5): month and week grids; due dates as all-day or timed
-  entries, scheduled items as blocks; drag to reschedule.
-- **Drag-and-drop items** in the item tree: drag a row up or down to change its order
-  among siblings; onto another item to make it a sub-item (or out of a parent to promote
-  it); onto a folder in the left tree to move it to that area (list) with its subtree.
-  The rules in §6.4 and §6.1 still apply; the view only translates a drop into the
-  existing reorder/move/move-to-area operations (§4). Needs a drop indicator, a
-  keyboard-equivalent path for every drop, and headless drag tests (§11.1).
-- ~~Trash view with restore~~ (done, §7.6).
-- Reminders / OS notifications for approaching deadlines (decisions in §7.12).
-- Recurring items (decisions in §7.11).
-- ~~Markdown descriptions; attachments/links~~ (done, §7.10; file attachments stay out of scope).
-- ~~Saved searches and the text query syntax~~ (done, §7.7).
-- ~~Undo/redo for recent actions~~ (done, §7.8).
-- ~~Import/export (JSON, CSV)~~ (done, §7.9).
-- Packaged installers per OS (decisions in §7.13: Velopack for Windows, Linux and macOS).
-- **Quick reschedule from the context menu** (decisions in §7.14). Right-click an item (tree, search results,
-  calendar) and choose "Push back one day", which moves its due date (and its scheduled
-  block, if any) one day later. A labelled undo step, with a keyboard equivalent.
-- **Tickets view** (decisions in §7.16; numbered levels in §7.15). A list of tickets in the order the owner wants to work on them. A
-  ticket is an open item that has a ticket number (confirmed by the owner; an explicit
-  ticket flag may come later but is not needed now).
-  - **Numbered priority levels.** Extend the existing Priority field (§6.2) so it supports
-    numbered levels (e.g. 1, 2, 3) alongside or instead of the named ones. This is the
-    same Priority used everywhere, not a separate ticket priority.
-  - **A level's number is not its rank.** The number is only a label, and the level's
-    sort order is set separately. For example, the owner's levels rank 1, 7, 2, ...: level
-    7 sits between 1 and 2. Nothing may sort or compare levels by number; the number
-    and the sort order must be editable independently. Tests cover a non-monotonic
-    mapping like 1, 7, 2.
-  - **Ordering.** Items with no priority come first, ordered only by drag and drop. Below
-    them are the prioritized items, grouped into one section per level in level sort
-    order, and within a section by drag-and-drop order. The drag order is stored
-    separately from the tree order.
-  - **Dropping into a section.** Dragging an item to a spot below a prioritized item puts
-    it in that section and sets its Priority to that level. Assumption: dragging an item
-    up into the no-priority group clears its Priority. Every drop has a keyboard
-    equivalent.
-  - **Context menu.** "Set priority" on each item. If the level changes, the item moves to
-    the bottom of the drag order in its new section.
-  - Priority changes made here are labelled undo steps.
-- **Statuses** (decisions in §7.15). The owner asked for this on 2026-11-18; it is built in the same slice as the
-  numbered priority levels and the Tickets view.
-  - **One status per item.** Each item has at most one status, such as Queued, In progress,
-    Testing or Completed. Statuses are mutually exclusive, like priority: one status and one
-    priority at a time. An item may also have no status.
-  - **Context menu.** "Set status" is on each item's context menu, everywhere item rows appear
-    (tree, search, calendar, Today, Tickets), and in the editor. Changes are labelled undo steps.
-  - **Editable list (owner's choice).** Statuses are an editable, reorderable list in App
-    Settings, like item types and priority levels: add, rename, reorder and archive. The
-    starting set is Queued, In progress, Testing and Completed.
-  - **Linked to completion (owner's choice).** Each status is either *open* or *done*; the seeded
-    Completed is done.
-    - Setting a done status completes the item, with all the §6.1 rules.
-    - Checking an item off sets the first done status.
-    - Reopening restores the open status the item had before, or no status if it had none.
-    - Auto-completed parents also get the done status.
-    - Completion and status can therefore never disagree.
-  - **Still to decide when building:**
-    - The query key and filter field. The existing built-in `status` search key means
-      open/completed, so saved searches must keep their meaning; migrate them if the key is
-      reused.
-    - What happens to a user custom field already named "Status". The existing built-in-key
-      collision rules (§7.7) apply.
-    - Import/export and recurrence copy. A copy probably resets to the first open status.
-- **Today view (done today)** (decisions in §7.14). Shows the items completed today (local day, §5.4) that are
-  still completed: an item checked off today and then unchecked does not appear.
-  - Completed sub-items are grouped under their parent and collapsed by default.
-  - A parent that is not itself completed still appears, as context, so its completed
-    children are shown. It is expanded rather than collapsed, and visibly marked as
-    not completed.
-- **Undo everywhere it is feasible.** Audit every operation that changes user data and make
-  it a labelled undo step (§7.8) wherever it can work reliably. This covers settings,
-  lookup and field management, priority levels, links, trash actions and the new views.
-  Each feature added from here on ships with undo unless that is infeasible. Operations
-  left out, such as import (§7.9) and permanent purge, are listed in §7.8 with the
-  reason.
-- **Workspace card grid** (owner, 2026-11-18; decisions in §7.17). The primary area becomes a
-  grid of cards grouped by priority: four across on a 1440p monitor by default, configurable in
-  settings, and about two rows visible. A grid row is as tall as its tallest card.
-- **Task stack.** Requested by the owner; scope and behaviour still to be agreed. Discuss
-  with the owner before designing or building it.
-- Mobile or browser head (Avalonia supports both) reusing the Presentation project.
-- Optional sync/shared database (adds time-zone ids, §5.4).
+- Task stack, requested by the owner. Agree scope and behavior before designing it.
+- Mobile or standalone browser clients reusing the RPC contracts and server rules.
+- Optional sync or shared database with time-zone IDs (§5.4).
 
 ## 11. Quality bar
 
-- Domain rules: a unit test per row in §6.1 and §6.3, multi-level trees, and every
-  hierarchy invariant in §5.1.
-- Repositories and search: integration tests on real SQLite (not the EF in-memory provider).
-- ViewModels: tests for completion flow, completed sections, urgency refresh, move commands.
-- No business logic in code-behind. Code-behind is limited to view-only concerns.
-- Public types and non-obvious methods get XML doc comments; no comments that restate code.
-- Every migration is reviewed and committed; the DB file is backed up before applying one.
+- Cover each case in §6.1 and §6.3, multilevel trees and every invariant in §5.1.
+- Cover completion flow, completed sections, urgency refresh and move commands
+  with web and server behavior tests.
+- Keep domain decisions in Core and server services (§4). Use JSDoc for exported
+  concepts and non-obvious behavior.
+- Review each SQL migration. Test it against real SQLite and back up existing files
+  before applying it (§5.2).
 
 ### 11.1 Testing standard
 
-Every phase is tested at these layers. Most coverage sits in the cheap layers; the
-expensive ones stay small.
+| Layer | Tool | What it covers | When it runs |
+|-------|------|----------------|--------------|
+| Unit | Vitest and `@effect/vitest` | Pure rules, Effect services and controlled clocks | Every build, CI on Windows and Linux |
+| Database integration | Vitest, `@effect/vitest`, `node:sqlite` | Real `:memory:` SQLite for repositories, transactions, migrations and future search. Use temporary files for EF compatibility, backup/WAL and reopen tests | Every build, CI on both OSes |
+| RPC integration | `@effect/vitest` | Schema validation, message round trips, errors and write/confirmation behavior with real SQLite | Every phase once RPC lands, CI on both OSes |
+| Web behavior | Vitest and `@vitest/browser-playwright` | Controller state, mounted React components and real browser input for focus, shortcuts, gestures, click paths and dialogs | Every phase once web work lands, CI on both OSes |
+| Visual baselines | Playwright screenshots in Chromium | Approved key screens and dialogs in light and dark. Review changes before updating images | With browser tests on both OSes |
+| Desktop smoke | Playwright Electron | Launch the packaged app, navigate, perform 5–10 core workflows and verify persistence after restart | CI on Windows and Linux |
+| Owner review | Hands-on demo | Check the phase's deliverable and review changed baselines | End of each phase, before merge |
 
-| Layer | Project | What it covers | When it runs |
-|-------|---------|----------------|--------------|
-| Unit | `Core.Tests` | Domain rules, services with fake repositories and clock | Every build, CI on both OSes |
-| Database integration | `Infrastructure.Tests` | Real SQLite (in-memory connection) | Every build, CI on both OSes |
-| ViewModel | `Presentation.Tests` | Commands, prompts, state, navigation, with fake dialogs | Every build, CI on both OSes |
-| Headless interaction | `App.Desktop.Tests` | Real views on Avalonia's headless platform, driven by simulated keyboard and mouse input: every keyboard shortcut, focus on page open, every click path that bindings or code-behind handle (checkboxes, context menus, buttons, dialogs with Enter/Escape) | Every build, CI on both OSes |
-| Snapshot baselines | `App.Desktop.Tests` | Approved images of each key screen and dialog in light and dark; a change fails the test until the new image is reviewed and approved | Every build, CI on both OSes |
-| End-to-end smoke | `App.Desktop.SmokeTests` (Windows) | The real app on a real desktop through UI Automation (FlaUI), using stable `AutomationProperties.AutomationId`s; 5–10 core scenarios | Before each phase sign-off, on the Windows machine |
-| Owner review | — | A short hands-on pass by the owner | End of each phase, before merge |
+- A new shortcut, gesture or dialog ships with a simulated-input browser test.
+  Use accessible roles/names and stable `data-testid` identifiers on interactive
+  controls. A new or changed screen ships with a reviewed baseline.
+- Fix clock, time zone, locale, Inter font, viewport and seeded data. Run tests with
+  isolated databases. Generate and review Linux baselines on Linux (locally or in
+  CI) and Windows baselines on the Windows machine or in Windows CI. Upload
+  differing screenshots as CI artifacts.
+- A bug found by hand gets a regression test at the lowest layer that catches it.
 
-"CI on both OSes" means the self-hosted runners in `docs/CI.md`, plus the local gate
-(`scripts/ci-local.*`) run on a machine with each OS that has no runner switched on.
+### 11.2 Commands
 
-Rules:
+Run these root commands with Node 26 and pnpm 12.
+Vite+ enables type-aware checking and type diagnostics. Build and
+static checks must finish with zero warnings.
+[Vite+ check](https://www.viteplus.dev/guide/check)
 
-- A new keyboard shortcut, gesture or dialog ships with a headless interaction test.
-- A new or changed screen ships with an updated, reviewed snapshot baseline.
-- Snapshot and interaction tests are deterministic: fixed clock and time zone, embedded
-  Inter font, fixed window size, temp database.
-- A bug found by hand gets a regression test at the lowest layer that can catch it.
-- A phase is done when every layer above passes and the owner has signed off.
+```sh
+pnpm install --frozen-lockfile
+pnpm exec vp check --deny-warnings
+pnpm run build
+pnpm exec playwright install chromium
+pnpm exec vp test run
+pnpm exec vp test run --project core
+pnpm run package:desktop
+pnpm run test:desktop
+```
 
-## 12. Owner decisions (13 Nov 2026)
+`build` builds the workspace in dependency order. `package:desktop` produces the
+current platform's electron-builder output and unpacked executable. `test:desktop`
+runs Playwright smoke against that executable. On headless Linux, source
+`scripts/dev-env.sh` for user-local GTK and run `xvfb-run -a pnpm run test:desktop`.
 
-1. **UI: Avalonia from the start.** The owner wants to learn it; cross-platform comes free.
-2. **Priorities:** start with Critical/High/Medium/Low, stored as reorderable data so
-   levels can be added and reordered later (§5).
-3. **Urgency thresholds:** 3 days / 24 hours as defaults, configurable through two-level
-   settings: global, overridable per project (§6.5).
-4. **Parent urgency:** a row shows the most urgent of itself and its open sub-items (§6.3).
-5. **Item types:** more to come; user-addable in App Settings.
-6. **Build/test machines:** develop and test on Linux (Avalonia runs there); a Windows
-   machine will be added to the T3 Code machine set for Windows testing, plus CI on both OSes.
-7. **Testing standard:** the layered approach in §11.1 (headless interaction tests, snapshot
-   baselines, a Windows end-to-end smoke suite, owner review) is the standard for every phase.
-8. **CI without billed minutes (18 Nov 2026):** the repository is private and the owner does not
-   pay for GitHub Actions. Pushes and pull requests run CI on self-hosted runners only (Linux in
-   Docker on the owner's server, Windows optional), each switched on by a repository variable;
-   the local gate `scripts/ci-local.*` covers the rest. GitHub-hosted runners are used only for
-   tagged releases (`release.yml`, which needs macOS) and manual runs. Details in `docs/CI.md`.
+CI runs on GitHub-hosted runners for every push and pull request. The local gate in
+[CI.md](CI.md) is an optional pre-push check.
 
-## Appendix A. Review log
+## 12. Owner decisions
+
+1. **Stack (18 Nov 2026).** Replace the entire .NET stack with the T3 Code stack in
+   §3. Carry over the shipped product and custom fields. Ship the requested UI pass
+   as part of the React implementation. This supersedes the 13 Nov Avalonia choice.
+2. **Priorities.** Start with Critical/High/Medium/Low as reorderable data (§5).
+3. **Urgency thresholds.** Default to 3 days and 24 hours, with project overrides (§6.5).
+4. **Parent urgency.** Show the most urgent of the item and its open descendants (§6.3).
+5. **Item types.** Users add types in App Settings.
+6. **Build/test machines.** Develop on Linux with CI on Windows and Linux and a Windows
+   machine for desktop testing.
+7. **Testing standard.** Use the layered standard in §11.1, including owner review.
+8. **CI without billed minutes (18 Nov 2026).** Superseded by decision 10. Enable
+   self-hosted Linux and Windows jobs with per-OS repository variables. Run the local
+   gate for an OS whose runner is unavailable.
+9. **Legacy feature port.** Freeze the final .NET behavior at `legacy-final` and
+   port it to TypeScript before merging to main.
+10. **GitHub-hosted CI and releases (20 Nov 2026).** The repository is public, so
+    standard GitHub-hosted runners are free. Use no self-hosted runners. CI runs on
+    Linux and Windows for every push and pull request. Releases, including unsigned
+    macOS packaging, run on GitHub-hosted runners.
+
+## Appendix A. Historical review log
 
 ### Round 1 (gpt-6-sol) → revision 2
 
@@ -1944,7 +1815,7 @@ All round-1 resolutions were confirmed except #1, which was reopened as round-2 
 | 1 | "No" on the enable prompt left the setting on with data that broke its rule | Accepted. Enabling always reconciles in one transaction; Cancel leaves the setting off |
 | 2 | With the setting off, a completed parent with open sub-items would be hidden in Completed | Accepted. Only *finished* items (self + all descendants complete) move to Completed |
 | 3 | Custom-field values not checked against project scope or choice ownership | Accepted. Validator checks both; composite FK for choices; no cross-project item moves |
-| 4 | FTS5 index maintenance unspecified | Accepted. Trigger-maintained index; Phase 4 uses a stable mapping rowid and joins hits back to `TodoItem` |
+| 4 | FTS5 index maintenance unspecified | Accepted. External-content table with triggers; soft-delete handled by joining back to `TodoItem` |
 | 5 | DST rules untestable with only a fake clock | Accepted. Time zone passed explicitly to `FloatingTime`; fixed-zone tests |
 
 ### Round 3 (gpt-6-sol) → revision 4
@@ -1954,5 +1825,14 @@ All round-2 resolutions confirmed consistent with the rest of the plan.
 | # | Finding | Decision |
 |---|---------|----------|
 | 1 | `UrgencyCalculator` had no time-zone input, contradicting §5.4 | Accepted. Time zone added to its signature |
-| 2 | FTS triggers would not index items that existed before Phase 4 | Accepted. Phase 4 migration backfills mapping and FTS rows; test covers pre-existing rows |
+| 2 | FTS triggers would not index items that existed before Phase 4 | Accepted. Migration runs FTS5 `rebuild`; test covers pre-existing rows |
 | 3 | Phase 1 exit asked for *unit* tests of database behaviour | Accepted. Split into unit tests (domain) and SQLite integration tests (database) |
+
+### Revision 6 (18 Nov 2026)
+
+| # | Finding | Decision |
+|---|---------|----------|
+| 1 | Owner chose a full pivot after .NET Phases 0–3 | Adopt the Effect, React and Electron stack. Port shipped behavior before resuming the roadmap |
+| 2 | EF-created files must remain usable | Open in place, adopt the existing schema into Effect migration history and test both legacy schema versions |
+| 3 | UI pass conflicted with the original workspace layout | Make the Notion-like design the initial React UI and keep Tickets on the roadmap |
+| 4 | FTS5 storage needs stable item IDs | §7.2 uses the final legacy mapping table to keep FTS rowids stable |

@@ -1,0 +1,17 @@
+{
+  "name": "@task-tracker/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@task-tracker/contracts": "workspace:*",
+    "@task-tracker/core": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:"
+  }
+}

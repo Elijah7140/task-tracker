@@ -1,0 +1,28 @@
+{
+  "preview": {
+    "rowCount": 1,
+    "recognizedColumns": [
+      "Title",
+      "Type",
+      "Type (field)",
+      "Links",
+      "Links (field)",
+      "Ticket"
+    ],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "Colliding",
+        "type": "Change",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      }
+    ],
+    "issues": [],
+    "canImport": true
+  },
+  "imported": 1
+}

@@ -1,74 +1,99 @@
 # Agent guide
 
-Read `docs/PLAN.md` before changing anything; it is the source of truth for scope,
-business rules and architecture. Section numbers (§6.1 etc.) refer to it.
+Read [docs/PLAN.md](docs/PLAN.md) before changing anything. It defines product scope,
+business rules and architecture. For the stack pivot, read the assigned work package
+in [docs/MIGRATION.md](docs/MIGRATION.md).
 
 ## Roles
 
-- **Owner:** the person running the session. Sets scope, makes product decisions, and does
-  the hands-on review in §11.1.
-- **Project lead:** the top-level agent in the owner's session. Plans the work, briefs
-  subagents and delegates, reviews their changes, commits, opens and merges pull requests,
-  and adds the Linux snapshot baselines. Where this guide says "the project lead", that is you
-  if you are the top-level agent.
-- **Subagents and delegates:** implement and test what the brief asks, then report back.
-  They do not commit, push or merge; the project lead reviews and commits their work.
+- **Owner** sets scope, makes product decisions and reviews the app hands-on (§11.1).
+- **Project lead** plans work, briefs delegates, reviews their changes and owns PR
+  integration. Review and commit Linux snapshots from a Linux run.
+- **Subagents and delegates** implement, test and report on the assigned brief.
+  Commit when the brief requests commits. The project lead handles branch pushes
+  and merges unless the owner delegates those explicitly.
 
 ## Commands
 
+Use the Node 26 and pnpm 12 versions pinned in `.node-version` and `package.json`.
+Run from the workspace root.
+
 ```sh
-dotnet build                 # must finish with 0 warnings (warnings are errors)
-dotnet test                  # Microsoft.Testing.Platform runner (see global.json)
-dotnet test --project tests/TaskTracker.Core.Tests
-pwsh ./scripts/ci-local.ps1  # the full CI gate on this machine (bash scripts/ci-local.sh on Linux)
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm exec vp check --deny-warnings
+pnpm exec playwright install chromium
+pnpm exec vp test run
+pnpm exec vp test run --project core
+pnpm run check:electron
 ```
 
-GitHub-hosted CI minutes are billed, so pushes and pull requests run CI only on self-hosted
-runners, and only for an OS whose runner is switched on (`docs/CI.md`). Run the local gate
-before pushing; never start a GitHub-hosted run unless the owner asks for one.
+Run the static check before finishing. Build and checks must have zero warnings.
+Both `vp check --help` and `vp lint --help` list `--deny-warnings`. On headless
+Linux, run the Electron runtime check with `xvfb-run -a` after building.
+Once desktop packaging lands, run `pnpm run package:desktop` before
+`pnpm run test:desktop`.
 
-On the Linux dev machine, first run `. scripts/dev-env.sh` (puts a user-local .NET SDK
-and ICU library on the path when present).
+On Linux, source `scripts/dev-env.sh` for user-local GTK. CI runs on GitHub-hosted
+Linux and Windows runners for every push and pull request ([docs/CI.md](docs/CI.md)).
+The local gate in that file is an optional pre-push check.
 
-## Rules
+## Code
 
-- Dependencies point inward: `App.Desktop → Presentation → Core ← Infrastructure`.
-  Core references no EF Core and no UI. Presentation references no Avalonia.
-- Package versions live only in `Directory.Packages.props`; `PackageReference`s have no `Version`.
-- One public type per file; file-scoped namespaces; folder = namespace.
-- Readability first: write code a new team member can follow on first read.
-  - One statement per line. Blocks with braces on their own lines (Allman style).
-  - Expression-bodied members only for one simple expression (a getter, a one-line
-    delegate); never to cram logic or a long object initializer onto one line.
-  - Methods short and single-purpose (aim ≤ ~25 lines); extract well-named helpers
-    instead of nesting local functions or long LINQ chains.
-  - Blank line between members. Intention-revealing names; no 1–2 letter names
-    except loop indices and lambda parameters in trivial lambdas.
-  - XML doc comments on public types and non-obvious members; no comments restating code.
-- Run `dotnet format TaskTracker.slnx --verify-no-changes` before finishing.
-- Time comes from an injected `TimeProvider`; time zones are passed explicitly (§5.4).
-  Never call `DateTime.Now`/`UtcNow` or `TimeZoneInfo.Local` outside the composition root.
-- Tests: xUnit v3 with plain `Assert`. One test class per unit under test, in a
-  folder mirroring the source namespace (e.g. `Completion/CompletionServiceTests.cs`).
-  Arrange / act / assert separated by blank lines. Test names read as sentences
-  (`Completing_last_open_sub_item_completes_parent`). Database behaviour is tested
-  against real SQLite (in-memory connection), never the EF in-memory provider.
-- UI changes follow the testing standard in §11.1: a new shortcut, gesture or dialog
-  gets a headless interaction test (simulated input, not a direct command call); a new
-  or changed screen gets a reviewed snapshot baseline; interactive controls get an
-  `AutomationProperties.AutomationId`. A bug found by hand gets a regression test.
-- Snapshot tests run on both Windows and Linux; never skip one on an OS. Approve only the
-  `*.windows.png` baselines locally. The project lead reviews the CI run's
-  `received-snapshots-linux` artifact (or the received images from a Linux machine when no
-  Linux runner is on) and commits the `*.linux.png` baselines from it.
-- A migration that makes EF rebuild `TodoItem` must recreate the `TodoItemSearch`
-  triggers and reconcile `TodoItemSearchRow`/`TodoItemSearch`; the schema test catches
-  a missing trigger.
+- Follow §4. Server depends on Core and contracts. Web depends on contracts and
+  never imports Core or server. Core is pure and imports nothing from the workspace.
+  Business rules live in Core and server.
+- Use strict TypeScript and ESM. Keep shared dependency versions in the pnpm catalog.
+- Use Oxfmt and Oxlint. Keep one exported concept per file where sensible. Write
+  short, single-purpose functions (aim for about 25 lines), one statement per line
+  and intention-revealing names. Use one- or two-letter names only for loop indices
+  and trivial callback parameters. Prefer a named helper over deep nesting.
+- Document exported concepts and non-obvious behavior with JSDoc. Comments should
+  explain intent or constraints.
+- Take current time and timers from Effect Clock. Resolve the OS zone at the server
+  composition root and pass time and zones explicitly (§5.4). Outside that root,
+  do not use `Date.now()`, `new Date()`, `Temporal.Now` or
+  `Intl...resolvedOptions().timeZone`.
 
 ## Application operations
 
-Application services are singletons. Each public operation opens and disposes one
-`IUnitOfWork` from `IUnitOfWorkFactory`; repositories share that operation's fresh
-DbContext. Save once after successful validation and domain changes. A failed operation
-must leave no tracked changes for the next operation to persist. Tests read results
-through a fresh context.
+Compose long-lived services with Effect Layers. Each public database operation
+owns one SQL transaction. Repositories share it from validation through every
+resulting write. Commit once on success and roll back the entire write on failure
+or interruption. Read persisted results through a fresh operation in tests.
+Treat confirmation as a new request and revalidate before applying it.
+
+When a migration rebuilds `TodoItem` after FTS lands, recreate the search triggers
+and reconcile `TodoItemSearchRow` and `TodoItemSearch`. Verify the resulting schema
+and index behavior in SQLite tests (§7.2).
+
+## Tests
+
+- Use Vitest and `@effect/vitest`. Keep one test file per unit under test, mirroring
+  the source layout. Use sentence test names and separate arrange, act and assert
+  with blank lines.
+- Test database behavior against real `node:sqlite`. Use an isolated in-memory
+  connection by default and temporary files for backup, reopen and EF fixture tests.
+- Follow §11.1. Cover new shortcuts, gestures and dialogs with simulated browser
+  input. Give interactive controls accessible names and stable `data-testid`
+  identifiers. Review screenshot baselines for new or changed screens. Add a
+  regression test for each bug found by hand.
+
+Never let a test open the owner's real database. On a machine where the owner uses
+the app (such as `dev-win01`), hand-check installed builds only under a separate OS
+user account. Processes Windows starts itself (the updater relaunch, toast
+activation, Run-key startup) drop `TASKTRACKER_DB_PATH` and other test variables,
+so they fall back to the default data folder. Back that folder up before any hand
+check and confirm it is byte-identical afterwards.
+
+Review baselines on their respective operating systems. Windows baselines come from
+the `windows-latest` CI run's `browser-screenshot-diffs-windows` artifact, because
+DirectWrite output differs between Windows builds. For Linux changes the
+project lead reviews the `browser-screenshot-diffs-linux` CI artifact or the
+received images from a Linux test run.
+
+## Subagents
+
+Start every subagent with full access (for example, `runtimeMode: "full-access"`
+in T3 `delegate_task`), including subagents on linked machines. The owner does
+not want to approve subagent permission requests.

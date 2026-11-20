@@ -1,0 +1,41 @@
+{
+  "preview": {
+    "rowCount": 2,
+    "recognizedColumns": [
+      "Title",
+      "Ticket"
+    ],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "a",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 3,
+        "title": "Fine",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      }
+    ],
+    "issues": [
+      {
+        "path": "Row 2",
+        "message": "Unexpected text after the closing quote of a cell."
+      },
+      {
+        "path": "Row 3",
+        "message": "A quoted cell is never closed."
+      }
+    ],
+    "canImport": false
+  },
+  "imported": null
+}

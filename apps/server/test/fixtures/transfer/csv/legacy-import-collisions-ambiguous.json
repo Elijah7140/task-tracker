@@ -1,0 +1,29 @@
+{
+  "preview": {
+    "rowCount": 1,
+    "recognizedColumns": [
+      "Title",
+      "Links"
+    ],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "Wiki",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": true
+      }
+    ],
+    "issues": [
+      {
+        "path": "Row 2, Links",
+        "message": "The Links column is ambiguous. It expects link addresses. If this column holds values for the custom field, rename the header to \u0027Links (field)\u0027."
+      }
+    ],
+    "canImport": false
+  },
+  "imported": null
+}

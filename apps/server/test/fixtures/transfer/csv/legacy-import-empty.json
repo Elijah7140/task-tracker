@@ -1,0 +1,17 @@
+{
+  "preview": {
+    "rowCount": 0,
+    "recognizedColumns": [],
+    "unknownColumns": [],
+    "ignoredColumns": [],
+    "sampleRows": [],
+    "issues": [
+      {
+        "path": "Row 1",
+        "message": "The file is empty; it needs a header row."
+      }
+    ],
+    "canImport": false
+  },
+  "imported": null
+}

@@ -1,0 +1,81 @@
+{
+  "preview": {
+    "rowCount": 8,
+    "recognizedColumns": [
+      "Title",
+      "Type",
+      "Priority",
+      "Priority reference",
+      "Status",
+      "Ticket",
+      "Due date",
+      "Due time",
+      "Scheduled start",
+      "Scheduled end",
+      "Completed",
+      "Completed at",
+      "Description",
+      "severity",
+      "Estimate",
+      "Reviewed",
+      "Flag",
+      "Notes",
+      "Customer",
+      "Links"
+    ],
+    "unknownColumns": [
+      "Mystery"
+    ],
+    "ignoredColumns": [
+      "Project",
+      "Folder path",
+      "Parent title",
+      "Repeats"
+    ],
+    "sampleRows": [
+      {
+        "rowNumber": 2,
+        "title": "Plan release",
+        "type": "change",
+        "priority": "HIGH",
+        "dueDate": "2026-12-01",
+        "hasError": false
+      },
+      {
+        "rowNumber": 3,
+        "title": "Padded title",
+        "type": "Error",
+        "priority": "",
+        "dueDate": "2026-12-03",
+        "hasError": false
+      },
+      {
+        "rowNumber": 4,
+        "title": "Done with time",
+        "type": "",
+        "priority": "Low",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 5,
+        "title": "Shipped by status",
+        "type": "Spike",
+        "priority": "critical",
+        "dueDate": "",
+        "hasError": false
+      },
+      {
+        "rowNumber": 7,
+        "title": "Completed status only",
+        "type": "",
+        "priority": "",
+        "dueDate": "",
+        "hasError": false
+      }
+    ],
+    "issues": [],
+    "canImport": true
+  },
+  "imported": 8
+}

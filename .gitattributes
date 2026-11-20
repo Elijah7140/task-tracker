@@ -1,2 +1,10 @@
-# Shell scripts keep LF endings even in a Windows checkout, so bash and Docker builds can run them.
-*.sh text eol=lf
+# Check out text with LF on every OS. Oxfmt requires LF, and a Windows Git default of
+# core.autocrlf=true would otherwise rewrite every file to CRLF.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.db binary
+
+# CSV transfer fixtures keep the exact bytes legacy-final read or wrote: CRLF, lone CR and LF.
+apps/server/test/fixtures/transfer/csv/*.csv -text

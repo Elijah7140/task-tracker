@@ -1,10 +1,10 @@
 name: Release
 
-# Pushing a tag such as v0.2.0 builds the Windows, Linux and macOS packages for version 0.2.0 and
-# publishes them as a GitHub Release. Update checks in the app read these release files (§7.13).
+# A pushed v* tag packages each platform on GitHub-hosted runners, then publishes
+# one verified release. See README "Cut a release" and PLAN §7.13.
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
 
 permissions:
   contents: read
@@ -15,63 +15,88 @@ concurrency:
 
 jobs:
   package:
+    if: github.ref_type == 'tag' && !github.event.deleted
+    name: Package ${{ matrix.target }}
     strategy:
-      fail-fast: true
       matrix:
         include:
-          - os: windows-latest
-            runtime: win-x64
-            channel: win
-          - os: ubuntu-latest
-            runtime: linux-x64
-            channel: linux
-          - os: macos-latest
-            runtime: osx-arm64
-            channel: osx
-    runs-on: ${{ matrix.os }}
-    env:
-      UPDATE_FEED_URL: ${{ vars.TASKTRACKER_UPDATE_FEED_URL }}
+          - target: win-x64
+            runner: windows-latest
+          - target: linux-x64
+            runner: ubuntu-latest
+          # Apple silicon. Ad-hoc signed only: there is no Apple Developer ID.
+          - target: mac-arm64
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: global.json
-      - name: Take the version from the tag
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Linux browser and Electron dependencies
+        if: runner.os == 'Linux'
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends xvfb xauth dbus
+      - name: Build the tagged package
         shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-      - name: Pack (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/pack.ps1 -Runtime ${{ matrix.runtime }} -Version $env:VERSION -UpdateFeedUrl $env:UPDATE_FEED_URL
-      - name: Pack (Linux and macOS)
-        if: runner.os != 'Windows'
-        run: bash scripts/pack.sh ${{ matrix.runtime }} "$VERSION" "$UPDATE_FEED_URL"
-      - name: Upload package
-        uses: actions/upload-artifact@v4
+        run: pnpm run package:desktop "$GITHUB_REF_NAME"
+      # The packaged Chromium sandbox helper must be setuid root (WP22).
+      - name: Run packaged desktop smoke on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sandbox=apps/desktop/dist/package/linux-unpacked/chrome-sandbox
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+          xvfb-run -a pnpm run test:desktop
+      - name: Run packaged desktop smoke on Windows and macOS
+        if: runner.os != 'Linux'
+        run: pnpm run test:desktop
+      # Installers, blockmaps, latest*.yml or beta*.yml, and SHA256SUMS.json from
+      # the native build.
+      - uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.channel }}
-          path: artifacts/releases/${{ matrix.runtime }}
+          name: release-${{ matrix.target }}
+          path: apps/desktop/dist/package/release/
           if-no-files-found: error
           overwrite: true
 
-  # One job uploads every channel in turn, so the three packages never race to create the release.
   publish:
     needs: package
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The only job that can write: it creates the draft, uploads and publishes.
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: global.json
-      - run: dotnet tool restore
-      - name: Download packages
-        uses: actions/download-artifact@v4
+          persist-credentials: false
+      - uses: actions/setup-node@v7
         with:
-          pattern: release-*
-          path: artifacts/releases
-      - name: Publish the GitHub Release
+          node-version-file: .node-version
+      # Download each native build's verified payload into its own directory.
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-win-x64
+          path: release-bundles/win-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-linux-x64
+          path: release-bundles/linux-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-mac-arm64
+          path: release-bundles/mac-arm64
+      - name: Verify the release assembly
+        run: node apps/desktop/scripts/publish-release.ts "$GITHUB_REF_NAME" release-bundles
+      - name: Upload and publish the verified draft
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/publish-release.sh
+          GH_TOKEN: ${{ github.token }}
+        run: node apps/desktop/scripts/publish-release.ts "$GITHUB_REF_NAME" release-bundles --publish

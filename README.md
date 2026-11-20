@@ -2,170 +2,211 @@
 
 # Task Tracker
 
-A cross-platform desktop task manager (Windows first) built with C#, .NET 10 and
-[Avalonia](https://avaloniaui.net). Work is organized like a database schema:
-projects → nested folders → todo items → sub-items.
+A cross-platform desktop task manager (Windows first) built with TypeScript,
+React and Electron. Organize work into projects, nested folders, todo items and
+sub-items. See [the project plan](docs/PLAN.md) for the design and roadmap.
 
-See [docs/PLAN.md](docs/PLAN.md) for the full design and roadmap.
+## Develop
 
-## Build and run
-
-Requires the .NET 10 SDK (version pinned in `global.json`).
+Use Node 26.13.0 and pnpm 12.16.1, pinned in `.node-version` and `package.json`.
+Run commands from the workspace root.
 
 ```sh
-dotnet build
-dotnet run --project src/TaskTracker.App.Desktop
-dotnet test
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-On Linux, .NET needs the ICU library (`libicu`) installed.
-Set `TASKTRACKER_DB_PATH` to use a different SQLite file, such as a temporary database
-for a launch check. The default is `LocalApplicationData/TaskTracker/tasktracker.db`.
+`pnpm dev` opens Electron with the Vite renderer and a local RPC server. Set
+`TASKTRACKER_DB_PATH` to develop against an isolated SQLite file. The app uses
+the existing Task Tracker data path by default and backs up recognized legacy
+databases before adopting them. Support for the final .NET schema is tracked in WP25. For path and rollback details, see
+[database continuity](docs/PLAN.md#52-database-specifics-and-continuity).
 
-## Install
+On Linux, Electron requires GTK 3. If installed user-locally under
+`~/.local/task-tracker-gtk`, load it with `. scripts/dev-env.sh`.
 
-Download the file for your system from the
-[latest release](https://github.com/Elijah7140/task-tracker/releases/latest). The builds are not
-code-signed yet, so Windows and macOS warn the first time you open them; the steps below get past that.
+## Build and test
 
-- **Windows (x64):** run `TaskTrackerApp-win-Setup.exe`. It installs for your user only (no admin
-  rights) into `%LocalAppData%\TaskTrackerApp` and adds Start-menu and desktop shortcuts.
-  If SmartScreen shows "Windows protected your PC", choose **More info → Run anyway**.
-  `TaskTrackerApp-win-Portable.zip` is the same app without an installer.
-- **Linux (x64):** download the `.AppImage` file, make it executable and run it:
+```sh
+pnpm exec playwright install chromium
+pnpm run build
+pnpm exec vp check --deny-warnings
+pnpm exec vp test run
+pnpm run test:server-db:electron
+```
 
-  ```sh
-  chmod +x TaskTrackerApp.AppImage
-  ./TaskTrackerApp.AppImage
-  ```
+On a Linux host that needs Chromium system dependencies, use
+`pnpm exec playwright install --with-deps chromium`. For a focused test run,
+pass a Vitest project such as `--project core` to `pnpm exec vp test run`.
+The Electron database suite runs the server's SQLite tests under the same
+embedded Node runtime the desktop app ships.
 
-  If it reports a FUSE error, install your distribution's `libfuse2` package.
-- **macOS (Apple silicon):** open the `osx` `.pkg` installer, or unzip the `osx` portable zip and move
-  **Task Tracker** to Applications. Gatekeeper blocks unsigned apps on first launch: **right-click (or
-  Control-click) the app → Open → Open**. On macOS 15 or later, instead open the app once, then choose
+CI runs this gate, plus packaging and the packaged smoke, on GitHub-hosted
+Linux and Windows runners for every push and pull request. See
+[CI](docs/CI.md). To run it before pushing, use `pwsh ./scripts/ci-local.ps1`
+on Windows or `bash scripts/ci-local.sh` on Linux.
+
+## Package and smoke-test
+
+```sh
+pnpm run package:desktop
+pnpm run test:desktop
+```
+
+The installer and unpacked executable are written to `apps/desktop/dist/package`.
+Playwright runs the unpacked executable against temporary databases. On headless
+Linux, run the smoke suite with `xvfb-run -a pnpm run test:desktop`. The packaged
+executable needs a working Chromium sandbox. The Linux tray smoke starts a private
+session bus with `dbus-daemon` and checks it with `dbus-send`.
+
+For end-to-end tests only, the JSON and CSV import and export file dialogs answer
+with a fixed path when both `TASKTRACKER_SMOKE=1` and `TASKTRACKER_TEST_FILE_PATH`
+are set.
+Without both, the native dialog is always shown, so a normal run cannot overwrite
+or read a file by accident.
+
+On Windows, `pwsh ./scripts/pull-build-run.ps1` closes this checkout's unpacked
+app, fast-forward pulls the current branch, packages Electron and runs the
+unpacked build. When installing or rebuilding, keep the database and backups
+outside the install or build directory. Defaults are `%LocalAppData%/TaskTracker`
+on Windows and `~/.local/share/TaskTracker` on Linux (or absolute `XDG_DATA_HOME`).
+
+## Install a release
+
+Download the package for your system from the repository's **Releases** page.
+Windows packages are unsigned. macOS packages are ad-hoc signed, without an
+Apple Developer ID or notarization. Only approve an OS prompt for a release you
+obtained from this repository.
+
+- **Windows x64.** Run `task-tracker-<version>-win-x64.exe`. The per-user
+  installer creates Start menu and desktop shortcuts. If SmartScreen prompts,
+  use **More info → Run anyway**.
+- **Linux x64.** Make `task-tracker-<version>-linux-x64.AppImage` executable
+  with `chmod +x` and run it. If mounting fails, install your distribution's
+  FUSE 2 compatibility library or launch with `APPIMAGE_EXTRACT_AND_RUN=1`.
+- **macOS Apple silicon.** Open `task-tracker-<version>-mac-arm64.dmg` and
+  drag **Task Tracker** to Applications, or unzip the app and move it there.
+  If Gatekeeper blocks the first launch, try opening the app and then use
   **System Settings → Privacy & Security → Open Anyway**.
 
-**The default data location is preserved.** The database and its backups live in `LocalApplicationData/TaskTracker`
-(`%LocalAppData%\TaskTracker` on Windows, `~/.local/share/TaskTracker` on Linux), outside the install
-folder. Installing, updating and uninstalling preserve that location, and a reinstall picks it up
-again. A custom `TASKTRACKER_DB_PATH` inside the install folder can be lost during install, update, or uninstall.
+To uninstall, use **Settings → Apps → Installed apps → Task Tracker → Uninstall**
+on Windows, delete the AppImage on Linux, or move **Task Tracker.app** to the
+Trash on macOS. The database and its backups live in a separate directory.
+The Windows uninstaller also removes the start-with-system entry. On Linux,
+turn **Start Task Tracker when I sign in** off before deleting the AppImage, or
+delete `~/.config/autostart/task-tracker.desktop` (under `$XDG_CONFIG_HOME`
+when that is an absolute path) afterwards. The saved preference stays in the
+database, and saving App Settings in a reinstalled build writes the entry again.
 
-**Updates:** App Settings → **Check for updates**. If a newer release exists, **Download and restart**
-downloads it. Use **Restart to update** when ready. If you keep working, Velopack applies the
-downloaded update the next time Task Tracker starts. The app checks only on request, in installed
-builds, and considers stable releases only. Auto-update requires releases published to a public
-GitHub repository. The default repository is currently private. Making it public or choosing a
-separate public release repository is an open owner decision.
+| System  | Default data directory                                                                |
+| ------- | ------------------------------------------------------------------------------------- |
+| Windows | `%LocalAppData%/TaskTracker`                                                          |
+| Linux   | `~/.local/share/TaskTracker` or `$XDG_DATA_HOME/TaskTracker` if that base is absolute |
+| macOS   | `~/Library/Application Support/TaskTracker`                                           |
 
-**Start with the system:** App Settings → **Start Task Tracker when I sign in** (installed builds on
-Windows and Linux). On Windows it adds a `TaskTracker` value under
-`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. On Linux it writes
-`~/.config/autostart/task-tracker.desktop` (or under `$XDG_CONFIG_HOME`).
+Keep custom `TASKTRACKER_DB_PATH` files and their backups outside the installed
+app, AppImage, and package output directories. The first launch backs up a
+recognized database before migrating it.
 
-**Uninstall:**
-- **Windows:** Settings → Apps → Installed apps → Task Tracker → Uninstall. This also removes the
-  start-with-system entry.
-- **Linux:** delete the AppImage, and `~/.config/autostart/task-tracker.desktop` if you turned on
-  Start with the system.
-- **macOS:** move the app to the Trash.
+### Updates and start with system
 
-## Packaging and releases
+The installed Windows build and the Linux AppImage offer **Check for updates**,
+**Download** and **Restart to update** in **App Settings → About**, and the
+**Start Task Tracker when I sign in** option. Development, unpacked and macOS
+builds show the version only. macOS has no auto-update because updating a Mac
+app needs an Apple Developer ID signature, so install a new macOS release by
+hand. The app checks only when asked. It reads the stable channel
+(`latest.yml` or `latest-linux.yml`), so prereleases are never offered. It downloads the installer into its profile and keeps it only when
+its size and SHA-512 match the release metadata, and checks it again just
+before installing. Restart to update replaces the AppImage in place and
+relaunches it, or runs the Windows installer silently as an update. A declined
+restart installs the download at the next launch.
 
-[Velopack](https://velopack.io) builds the installers (§7.13 in the plan). Its `vpk` CLI is a local
-dotnet tool pinned in `.config/dotnet-tools.json`; the scripts restore it.
+The legacy app started with Windows through a `TaskTracker` value under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. The first launch of the
+installed Windows build deletes that value, so the old app no longer starts at
+sign-in, and if it was there writes the new app's own entry instead. Later
+launches find no legacy value and leave the setting alone.
+
+The feed is the folder that holds the release metadata and installers. Packaged
+builds use `https://github.com/<owner>/<repo>/releases/latest/download/`, which
+needs public release assets, or the `TASKTRACKER_UPDATE_FEED_URL` value set when
+packaging. Setting `TASKTRACKER_UPDATE_FEED_URL` when launching the app
+overrides it. Feeds must use HTTPS, except on the loopback interface.
+
+## Cut a release
+
+1. Make sure CI is green on the commit to release.
+2. Choose the version, such as `v0.2.0`, or `v0.2.0-rc.1` for a prerelease.
+   The tag supplies the version to every package, so no file needs a bump.
+3. Tag the commit and push the tag:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The [release workflow](.github/workflows/release.yml) then builds on
+GitHub-hosted runners, smoke-tests each package and publishes one release.
+
+| Runner           | Assets                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `windows-latest` | `task-tracker-<version>-win-x64.exe`, its `.blockmap`, `latest.yml`                     |
+| `ubuntu-latest`  | `task-tracker-<version>-linux-x64.AppImage`, `latest-linux.yml`                         |
+| `macos-latest`   | `task-tracker-<version>-mac-arm64.dmg` and `.zip`, their `.blockmap`s, `latest-mac.yml` |
+
+A prerelease tag writes `beta*.yml` instead of `latest*.yml` and is marked as a
+prerelease, so installed builds never offer it. A stable release becomes the
+repository's latest release, which is the update feed for Windows and Linux.
+The macOS build is Apple silicon only and has no auto-update (see
+[Updates and start with system](#updates-and-start-with-system)). If a job
+fails for a transient reason, re-run the failed jobs and the publish job resumes
+the draft. A fix that needs a new commit needs a new version tag.
+
+## Verify a release
+
+Build on native Windows x64, Linux x64, and macOS arm64 using the same version
+tag and revision. A local build can use an example tag without creating it.
 
 ```sh
-./scripts/pack.ps1                  # Windows: win-x64, version from Directory.Build.props
-./scripts/pack.ps1 -Version 0.2.0
-./scripts/pack.ps1 -UpdateFeedUrl https://github.com/example/task-tracker-releases
-bash scripts/pack.sh                # Linux: linux-x64; macOS: osx-arm64
-bash scripts/pack.sh linux-x64 0.2.0
-bash scripts/pack.sh linux-x64 0.2.0 https://github.com/example/task-tracker-releases
+pnpm run package:desktop v0.2.0-rc.1
+pnpm run test:desktop
 ```
 
-Each script runs from the repository root regardless of the caller's directory. It publishes a
-self-contained, untrimmed build to `artifacts/publish/<runtime>` and writes the
-release files to `artifacts/releases/<runtime>`. `artifacts/` is git-ignored. Velopack packs only for the
-OS it runs on. The pack id is `TaskTrackerApp`, not `TaskTracker`: on Windows, Velopack deletes
-`%LocalAppData%\<packId>` on uninstall, and that must never be the data folder.
-
-The desktop build embeds the `TaskTrackerUpdateFeedUrl` MSBuild property from `Directory.Build.props`.
-The examples above override it at pack time. Tagged builds use the GitHub Actions repository
-variable `TASKTRACKER_UPDATE_FEED_URL` when set. The workflow publishes to the repository that runs
-it. If you configure a separate public feed, publish the release assets to that repository too.
-
-On every pull request and push to `main`, CI runs on self-hosted runners (see
-[docs/CI.md](docs/CI.md); GitHub-hosted minutes are billed). Its `package` job packs for each OS with
-a runner and uploads the result as the `package-win-x64` and `package-linux-x64` workflow artifacts.
-It never publishes a release. `scripts/ci-local.ps1` and `scripts/ci-local.sh` run the same checks
-on your machine.
-
-**Cutting a release:** when `main` is green, tag it and push the tag:
+On Linux, source `scripts/dev-env.sh` before packaging and use
+`xvfb-run -a pnpm run test:desktop` on a headless machine. Copy
+`apps/desktop/dist/package/release/` from each build into a directory named
+`win-x64`, `linux-x64`, or `mac-arm64` under one common parent. Verify the
+complete assembly locally.
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+node apps/desktop/scripts/publish-release.ts v0.2.0-rc.1 release-bundles
 ```
 
-`.github/workflows/release.yml` takes the version from the tag (`v0.2.0` → `0.2.0`), packs win-x64,
-linux-x64 and osx-arm64, and uploads all three feeds to a draft before publishing the GitHub Release.
-A rerun rebuilds an incomplete draft. A version containing a hyphen, such as `0.2.0-rc.1`, is
-published as a GitHub prerelease and skipped by the app's stable update check.
-`<Version>` in `Directory.Build.props` is only the version of local builds.
+This dry run checks that every installer, archive, blockmap and update
+metadata file matches its native build checksum. Pushing a valid `v*` tag
+starts the [release workflow](.github/workflows/release.yml). It packages and
+smoke-tests before uploading the verified files to one draft and checking the
+uploaded digests. A retry resumes a leftover draft, skipping files already
+uploaded with a matching name and checksum. It refuses a draft holding other
+files and never deletes a release. A published release is left intact. Prereleases use `beta*.yml` and GitHub's prerelease flag.
+Stable releases use `latest*.yml`. See [CI](docs/CI.md#release) for the jobs.
 
-### Manual install, update and uninstall checklist (Windows)
+For the Windows installer acceptance check, use a disposable standard user.
+Put a copy of the supported legacy database in the default data directory
+before launching the app. Install without elevation, verify the shortcuts,
+then launch and confirm the legacy data appears and a readable pre-migration
+backup is present. Close the app, record hashes of the database and backup,
+uninstall via Settings, and compare both hashes. Reinstall and verify the same
+data opens. On Linux and macOS, repeat the data checks while replacing or
+removing the AppImage or app bundle.
 
-Run this on a Windows machine before signing off a release. Back up `%LocalAppData%\TaskTracker` first.
+## Workspace layout
 
-1. **Install:** run `TaskTrackerApp-win-Setup.exe` from the release (or the `package-win-x64` CI
-   artifact). Get past SmartScreen with **More info → Run anyway**. The app opens, a **Task Tracker**
-   Start-menu shortcut exists, and the app is in `%LocalAppData%\TaskTrackerApp`.
-2. **Existing data:** projects created earlier, for example with a build run from source, appear.
-3. **About:** App Settings shows "Task Tracker version X" for the installed version.
-4. **Up to date:** on the newest release, **Check for updates** says "Task Tracker is up to date."
-5. **Offline:** with the network off, **Check for updates** shows the plain "Couldn't check" message.
-6. **Start with the system:** tick **Start Task Tracker when I sign in** and save. Under
-   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, the `TaskTracker` value is the quoted path to
-   `%LocalAppData%\TaskTrackerApp\current\TaskTracker.App.Desktop.exe`. Sign out and in: the app starts.
-   Untick and save: the value is gone.
-7. **Update:** with an older release installed and a newer stable one published to the configured
-   public feed, **Check for updates** shows "Version Y is available." Choose **Download**, wait for
-   "Ready to restart," then choose **Restart to update**. About shows Y after the app reopens,
-   the data is intact, and a ticked start-with-system entry still works.
-8. **Uninstall:** Settings → Apps → Task Tracker → Uninstall. `%LocalAppData%\TaskTrackerApp` and the
-   `Run` value are gone. `%LocalAppData%\TaskTracker\tasktracker.db` and its backups are still there.
-9. **Reinstall:** install again; the data is back. The start-with-system box may still be ticked from
-   before. Untick, save, tick and save to recreate the entry.
-
-## Solution layout
-
-| Project | Purpose |
-|---------|---------|
-| `src/TaskTracker.Core` | Domain model, business rules, application services. No UI, no database code. |
-| `src/TaskTracker.Infrastructure` | EF Core + SQLite persistence. |
-| `src/TaskTracker.Presentation` | ViewModels. No UI framework references, so any front end can reuse them. |
-| `src/TaskTracker.App.Desktop` | Avalonia views and the composition root. |
-| `tests/*` | One test project per source project. UI tests use Avalonia's headless platform. |
-
-Set `TASKTRACKER_SCREENSHOT_DIR` when running the UI tests to save rendered screenshots.
-
-## Windows desktop smoke tests
-
-On an interactive Windows desktop, build the solution and run the UI Automation smoke suite:
-
-```powershell
-dotnet build
-$env:TASKTRACKER_SMOKE = '1'
-dotnet test --project tests/TaskTracker.App.Desktop.SmokeTests
-```
-
-The smoke scenarios are skipped without `TASKTRACKER_SMOKE=1`. Failure screenshots are
-saved in the smoke project's `bin/<Configuration>/net10.0-windows/Failures` directory.
-
-### Test-only file picker hook
-
-The import/export smoke scenario cannot drive the native Windows file dialog reliably, so the app has a
-test-only hook: when **both** `TASKTRACKER_TEST_FILE_PATH` (a file path) **and** `TASKTRACKER_SMOKE=1` are set,
-`CompositionRoot` replaces the file dialogs with a picker that answers every save and open with that one path
-and shows nothing. With either variable missing the real dialogs are used, so a normal run can never silently
-overwrite or read that file. Do not set these variables outside the smoke tests.
+| Package              | Purpose                                   |
+| -------------------- | ----------------------------------------- |
+| `packages/core`      | Pure domain models and business rules     |
+| `packages/contracts` | Shared schemas and RPC contracts          |
+| `apps/server`        | SQLite persistence, services and RPC      |
+| `apps/web`           | React renderer                            |
+| `apps/desktop`       | Electron shell, packaging and smoke tests |
