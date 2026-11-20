@@ -1,3 +1,4 @@
+import { isBlankText } from "@task-tracker/contracts";
 import { useAtomSet } from "@effect/atom-react";
 import { Exit } from "effect";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
@@ -50,7 +51,7 @@ function useCreateItemActions(scope: ItemActionScope) {
   const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
 
   const quickAdd = async (title: string): Promise<boolean> => {
-    if (title.trim().length === 0) {
+    if (isBlankText(title)) {
       return false;
     }
     const exit = await create({

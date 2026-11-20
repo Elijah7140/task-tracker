@@ -1,7 +1,8 @@
-import { nameKey, trimMetadataText } from "../metadata/names.js";
+import { nameKey } from "../metadata/names.js";
+import { trimText, trimTextEnd } from "../text/dotnet-white-space.js";
 
 function shorten(name: string, length: number): string {
-  return name.length <= length ? name : name.slice(0, length).replace(/\p{White_Space}+$/u, "");
+  return name.length <= length ? name : trimTextEnd(name.slice(0, length));
 }
 
 /**
@@ -13,7 +14,7 @@ export function uniqueImportedName(
   isTaken: (candidate: string) => boolean,
   maxLength: number,
 ): string {
-  const trimmed = trimMetadataText(name);
+  const trimmed = trimText(name);
   if (!isTaken(trimmed)) {
     return trimmed;
   }

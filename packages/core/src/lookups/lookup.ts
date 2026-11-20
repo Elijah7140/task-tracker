@@ -1,5 +1,6 @@
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
-import { nameKey, normalizeName, trimMetadataText } from "../metadata/names.js";
+import { nameKey, normalizeName } from "../metadata/names.js";
+import { trimText } from "../text/dotnet-white-space.js";
 import { orderRows } from "../metadata/order-rows.js";
 import type { ItemType } from "./item-type.js";
 import type { LookupEntity } from "./lookup-entity.js";
@@ -101,7 +102,7 @@ export function renameLookup<Row extends Lookup>(
   name: string,
   rows: readonly Lookup[],
 ): LookupChange<Row, "name"> {
-  if ("number" in row && row.number !== null && trimMetadataText(name) === "") {
+  if ("number" in row && row.number !== null && trimText(name) === "") {
     return { ...row, name: "" };
   }
   const normalized = normalizeName(name, "Name", false);

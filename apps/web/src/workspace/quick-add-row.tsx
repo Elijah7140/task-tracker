@@ -1,3 +1,4 @@
+import { isBlankText } from "@task-tracker/contracts";
 import { Plus } from "lucide-react";
 import { type KeyboardEvent, type Ref, useState } from "react";
 
@@ -16,7 +17,7 @@ export function QuickAddRow({ inputRef, onSubmit }: QuickAddRowProps) {
   const [pending, setPending] = useState(false);
 
   const submit = async () => {
-    if (pending || value.trim().length === 0) {
+    if (pending || isBlankText(value)) {
       return;
     }
     setPending(true);

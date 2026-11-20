@@ -4,12 +4,18 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { app, net } from "electron";
 import { displayVersion } from "./app-version.js";
-import { detectInstalledApp } from "./installed-app.js";
+import { detectInstalledApp, type InstalledApp } from "./installed-app.js";
+import { replaceLegacyStartupEntry } from "./legacy-startup-entry.js";
 import { startupEntryFor } from "./startup-entries.js";
-import { createStartupRegistration, type StartupRegistration } from "./startup-registration.js";
+import {
+  createStartupRegistration,
+  type StartupEntry,
+  type StartupRegistration,
+} from "./startup-registration.js";
 import type { UpdateHandoff } from "./update-handoff.js";
 import { resolveUpdateFeed } from "./update-feed.js";
 import { createUpdateService, type UpdateService } from "./update-service.js";
+import { systemRegRunner, windowsRunKey } from "./windows-run-key.js";
 
 /** The installed-build services App Settings uses (§7.13). */
 export interface DesktopInstallationServices {
@@ -43,6 +49,18 @@ function packagedFeed(): string | undefined {
 }
 
 /**
+ * On an installed Windows build, replaces a leftover legacy `TaskTracker` Run value
+ * with this app's entry in the background (§7.13). Other builds are left alone.
+ */
+function replaceLegacyStartupOnWindows(installed: InstalledApp | undefined, entry?: StartupEntry) {
+  if (installed?.kind !== "windows-installer" || entry === undefined) {
+    return;
+  }
+  const runKey = windowsRunKey(systemRegRunner(process.env.SystemRoot ?? "C:\\Windows"));
+  void replaceLegacyStartupEntry(runKey, entry, (message) => console.warn(message));
+}
+
+/**
  * Builds the version, update service and start-with-system registration. Call
  * it after the profile path is final, because downloads live in the profile.
  */
@@ -71,6 +89,7 @@ export function createDesktopInstallation(): DesktopInstallationServices {
       get: (query) => app.getLoginItemSettings({ ...query, args: [...query.args] }),
     },
   });
+  replaceLegacyStartupOnWindows(installed, entry);
   const startup = createStartupRegistration(entry, (message) => console.warn(message));
   return { version, updates, startup };
 }

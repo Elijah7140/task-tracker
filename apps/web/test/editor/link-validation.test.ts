@@ -56,4 +56,17 @@ describe("linkProblem", () => {
 
     expect(titles).toEqual([null, null, "Spec"]);
   });
+
+  describe(".NET trimming", () => {
+    it("Trims titles and addresses like .NET, keeping a byte-order mark", () => {
+      const title = normalizeLinkTitle("\u0085\ufeffSpec\u00a0");
+      const blank = normalizeLinkTitle("\u0085\u2028");
+
+      const problem = linkProblem("\u0085https://example.com\u00a0", "");
+
+      expect(title).toBe("\ufeffSpec");
+      expect(blank).toBeNull();
+      expect(problem).toBeNull();
+    });
+  });
 });

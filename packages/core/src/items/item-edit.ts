@@ -1,3 +1,4 @@
+import { isBlankText, trimText } from "../text/dotnet-white-space.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import { validateReminderChoice, type ReminderChoice } from "../reminders/reminder-choice.js";
 import { itemRecurrence } from "./recurrence/item-recurrence.js";
@@ -40,7 +41,7 @@ export function editItem(
 ): TodoItem {
   const title = itemTitle(edit.title);
   const { ticketNumber, dueDate, dueTime, scheduledStart, scheduledEnd } = edit;
-  if (ticketNumber !== null && ticketNumber.length > 100) {
+  if (ticketNumber !== null && trimText(ticketNumber).length > 100) {
     throw new MetadataRuleError("Ticket number must be at most 100 characters.");
   }
   if (dueDate === null && dueTime !== null) {
@@ -61,7 +62,7 @@ export function editItem(
     ...item,
     title,
     description: edit.description,
-    ticketNumber: ticketNumber?.trim() || null,
+    ticketNumber: isBlankText(ticketNumber) ? null : trimText(ticketNumber!),
     itemTypeId: edit.itemTypeId,
     priorityLevelId: edit.priorityLevelId,
     dueDate,

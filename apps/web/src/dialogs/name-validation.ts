@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import type { PromptValidation } from "../state/dialog-store.js";
 
 /**
@@ -15,7 +16,7 @@ export const NAME_VALIDATION: PromptValidation = {
 
 /** Returns the message for an invalid prompt value, or null when the trimmed value fits. */
 export function validatePromptValue(value: string, validation: PromptValidation): string | null {
-  const length = value.trim().length;
+  const length = trimText(value).length;
   if (length === 0) {
     return validation.emptyMessage;
   }

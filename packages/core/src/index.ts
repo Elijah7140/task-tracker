@@ -1,4 +1,10 @@
 export { EntityMissing } from "./entity-missing.js";
+export {
+  isBlankText,
+  splitOnWhiteSpace,
+  trimText,
+  trimTextEnd,
+} from "./text/dotnet-white-space.js";
 export { HierarchyError } from "./hierarchy/hierarchy-error.js";
 export { ItemTree } from "./items/item-tree.js";
 export type { TodoItem } from "./items/todo-item.js";
@@ -296,12 +302,10 @@ export { ImportIndex } from "./transfer/json/import-index.js";
 export { isNumberOnly, readStatusKind } from "./transfer/json/lookup-validator.js";
 export { IMPORTED_PROJECT_SETTINGS } from "./transfer/json/settings-validator.js";
 export {
-  isBlank as isBlankTransferText,
   NAME_MAX_LENGTH as TRANSFER_NAME_MAX_LENGTH,
   parseDataType as parseTransferDataType,
   parseScopeKind as parseTransferScopeKind,
   QUERY_TEXT_MAX_LENGTH as TRANSFER_QUERY_TEXT_MAX_LENGTH,
-  trimText as trimTransferText,
 } from "./transfer/json/import-checks.js";
 export { nameKey } from "./metadata/names.js";
 export { CSV_COLUMNS, csvFieldHeader, STANDARD_CSV_COLUMNS } from "./transfer/csv/csv-columns.js";

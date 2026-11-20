@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import { useAtomSet } from "@effect/atom-react";
 import type { SavedSearchDefinition, SavedSearchProjection } from "@task-tracker/contracts";
 import { Exit } from "effect";
@@ -26,7 +27,7 @@ const askName = (title: string, confirmLabel: string, initialValue?: string) =>
 
 /** The saved search a name would replace, compared as the server does, ignoring case. */
 const sameName = (all: ReadonlyArray<SavedSearch>, name: string) =>
-  all.find((search) => search.name.toUpperCase() === name.trim().toUpperCase());
+  all.find((search) => search.name.toUpperCase() === trimText(name).toUpperCase());
 
 /** Asks before replacing a saved search with the same name. True means go ahead. */
 async function allowReplace(existing: SavedSearch | undefined) {

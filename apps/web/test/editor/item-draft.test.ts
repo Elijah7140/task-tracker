@@ -122,6 +122,13 @@ describe("itemEdit", () => {
     });
   });
 
+  it("Clears text that is only .NET white space and keeps a byte-order mark", () => {
+    const edit = itemEdit(ITEM, { description: "\u0085\u2028", ticketNumber: "\ufeff" });
+
+    expect(edit.description).toBeNull();
+    expect(edit.ticketNumber).toBe("\ufeff");
+  });
+
   it("Sends a status only when it changed, and None as no status", () => {
     const unchanged = itemEdit(ITEM, { statusId: "" });
     const chosen = itemEdit(ITEM, { statusId: TYPE_ID });

@@ -123,8 +123,15 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
       );
       return connection;
     }),
-  ).pipe(Layer.provide(NodeHttpServer.layerServer(createServer, { host: RPC_HOST, port: 0 })));
+  ).pipe(Layer.provide(NodeHttpServer.layerServer(createServer, listenOptions)));
 }
+
+/**
+ * The renderer always holds a `WatchReminders` request open. A graceful shutdown would
+ * wait for it, so Electron main killed the server instead of letting it close the
+ * database. Stopping interrupts open requests at once; an interrupted write rolls back.
+ */
+const listenOptions = { host: RPC_HOST, port: 0, disablePreemptiveShutdown: true };
 
 function validateOrigin(origin: string) {
   if (origin === DESKTOP_RENDERER_ORIGIN) {

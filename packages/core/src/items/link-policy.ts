@@ -1,3 +1,5 @@
+import { trimText } from "../text/dotnet-white-space.js";
+
 /**
  * Decides which addresses the app stores and opens (§7.10). Only http, https
  * and mailto links are accepted, so a file path or custom scheme can never be
@@ -19,12 +21,12 @@ const webAddress = /^https?:\/\/[^/\\?#]+/i;
 
 /** Trims an address; null becomes empty. */
 export function normalizeUrl(url: string | null | undefined): string {
-  return url?.trim() ?? "";
+  return url == null ? "" : trimText(url);
 }
 
 /** Trims a title; blank becomes null. */
 export function normalizeTitle(title: string | null | undefined): string | null {
-  const trimmed = title?.trim() ?? "";
+  const trimmed = title == null ? "" : trimText(title);
   return trimmed.length === 0 ? null : trimmed;
 }
 

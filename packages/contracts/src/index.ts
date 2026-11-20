@@ -44,6 +44,7 @@ export {
 export { FieldValueInput, ItemFieldValue } from "./field-value.js";
 export { FieldRpcs } from "./field-rpcs.js";
 
+export { isBlankText, trimText } from "./dotnet-white-space.js";
 export { externalLinkAddress } from "./external-link-address.js";
 export { HistoryRpcs, HistoryStatus } from "./history-rpcs.js";
 export { StatusKind, StatusProjection } from "./status-projection.js";

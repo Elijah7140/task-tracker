@@ -4,7 +4,7 @@ import {
   DEFAULT_REMINDER,
   FolderTree,
   ItemTree,
-  isBlankTransferText,
+  isBlankText,
   LinkPolicy,
   listOf,
   nameKey,
@@ -12,7 +12,7 @@ import {
   parseTransferLocal,
   parseTransferTime,
   parseTransferUtc,
-  trimTransferText,
+  trimText,
   type FieldValueDocument,
   type Folder,
   type FolderDocument,
@@ -83,7 +83,7 @@ class ContentImport {
           document.parentFolderId === null
             ? null
             : this.context.map.folders.get(document.parentFolderId)!,
-        name: trimTransferText(document.name!),
+        name: trimText(document.name!),
         sortOrder: document.sortOrder ?? 0,
         ...importTimestamps(document.createdAtUtc, document.updatedAtUtc, this.context.now),
         deletedAtUtc: null,
@@ -115,11 +115,9 @@ class ContentImport {
       projectId,
       folderId: document.folderId === null ? null : map.folders.get(document.folderId)!,
       parentItemId: document.parentItemId === null ? null : map.items.get(document.parentItemId)!,
-      title: trimTransferText(document.title!),
+      title: trimText(document.title!),
       description: document.description,
-      ticketNumber: isBlankTransferText(document.ticketNumber)
-        ? null
-        : trimTransferText(document.ticketNumber!),
+      ticketNumber: isBlankText(document.ticketNumber) ? null : trimText(document.ticketNumber!),
       itemTypeId: this.#lookupId(document, "type"),
       priorityLevelId: this.#lookupId(document, "priority"),
       dueDate: parseTransferDate(document.dueDate),
@@ -143,11 +141,11 @@ class ContentImport {
   #lookupId(document: ItemDocument, lookup: "type" | "priority"): string | null {
     const { index, map } = this.context;
     if (lookup === "type") {
-      const named = document.itemTypeId !== null || !isBlankTransferText(document.itemType);
+      const named = document.itemTypeId !== null || !isBlankText(document.itemType);
       const found = named ? index.findItemType(document) : undefined;
       return found === undefined ? null : map.itemTypes.get(found.id!)!;
     }
-    const named = document.priorityLevelId !== null || !isBlankTransferText(document.priority);
+    const named = document.priorityLevelId !== null || !isBlankText(document.priority);
     const found = named ? index.findPriority(document) : undefined;
     return found === undefined ? null : map.priorityLevels.get(found.id!)!;
   }
@@ -181,7 +179,7 @@ class ContentImport {
 
   #values(itemId: string, values: readonly FieldValueDocument[]): void {
     for (const value of values) {
-      const field = this.context.map.fields.get(nameKey(trimTransferText(value.fieldKey!)))!;
+      const field = this.context.map.fields.get(nameKey(trimText(value.fieldKey!)))!;
       const fieldDocument = this.context.index.findField(value.fieldKey)!;
       const choice =
         field.dataType === "Choice"

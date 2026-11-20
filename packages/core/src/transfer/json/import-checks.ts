@@ -1,5 +1,6 @@
 import type { FieldDataType } from "../../fields/field-data-type.js";
-import { nameKey, trimMetadataText } from "../../metadata/names.js";
+import { nameKey } from "../../metadata/names.js";
+import { isBlankText, trimText } from "../../text/dotnet-white-space.js";
 import type { IssueList } from "../transfer-issue.js";
 
 /** The longest name, title, label or key the domain accepts, measured after trimming. */
@@ -11,13 +12,8 @@ export const TICKET_NUMBER_MAX_LENGTH = 100;
 /** The longest saved query text. */
 export const QUERY_TEXT_MAX_LENGTH = 4000;
 
-/** Trims like .NET `string.Trim`. */
-export const trimText = trimMetadataText;
-
-/** True when the text is missing, empty or only whitespace. */
-export function isBlank(text: string | null | undefined): boolean {
-  return text == null || trimText(text) === "";
-}
+/** The shared .NET-style white-space helpers, under the names the validators use. */
+export { isBlankText as isBlank, trimText };
 
 /** Case-insensitive ordinal equality of two trimmed or untrimmed texts. */
 export function sameText(
@@ -55,7 +51,7 @@ export function checkName(
   path: string,
   issues: IssueList,
 ): value is string {
-  if (isBlank(value)) {
+  if (isBlankText(value)) {
     issues.add(path, "A value is required.");
     return false;
   }

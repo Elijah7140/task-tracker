@@ -1,5 +1,5 @@
 import { priorityLabel } from "../../lookups/priority-level.js";
-import { trimMetadataText as trim } from "../../metadata/names.js";
+import { trimText as trim } from "../../text/dotnet-white-space.js";
 import { CSV_COLUMNS } from "./csv-columns.js";
 import type { CsvImportContext } from "./csv-import-context.js";
 import {

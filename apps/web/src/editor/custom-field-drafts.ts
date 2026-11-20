@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import type {
   FieldChoiceProjection,
   FieldDefinitionProjection,
@@ -82,7 +83,7 @@ export function draftInput(field: Definition, draft: CustomFieldDraft, locale?: 
   const fieldDefinitionId = field.id;
   switch (draft.kind) {
     case "Text":
-      return { fieldDefinitionId, textValue: draft.text.trim() || null };
+      return { fieldDefinitionId, textValue: trimText(draft.text) || null };
     case "Number":
       return { fieldDefinitionId, numberValue: parsedNumber(draft.text, locale) };
     case "Date":

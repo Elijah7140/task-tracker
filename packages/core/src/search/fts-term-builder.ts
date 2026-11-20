@@ -1,3 +1,5 @@
+import { splitOnWhiteSpace } from "../text/dotnet-white-space.js";
+
 const LETTER_OR_DIGIT = /\p{L}|\p{N}/u;
 
 /**
@@ -8,10 +10,7 @@ export function buildFtsTerms(text: string | null | undefined): string | null {
   if (text === null || text === undefined) {
     return null;
   }
-  const terms = text
-    .trim()
-    .split(/\s+/)
-    .filter((term) => term.length > 0 && LETTER_OR_DIGIT.test(term));
+  const terms = splitOnWhiteSpace(text).filter((term) => LETTER_OR_DIGIT.test(term));
   if (terms.length === 0) {
     return null;
   }

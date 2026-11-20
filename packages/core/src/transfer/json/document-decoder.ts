@@ -3,6 +3,7 @@ import {
   RECURRENCE_END_KINDS,
   RECURRENCE_FREQUENCIES,
 } from "../../items/recurrence/recurrence-rule.js";
+import { trimText } from "../../text/dotnet-white-space.js";
 import type { TransferIssue } from "../transfer-issue.js";
 import type {
   ExportDocument,
@@ -166,7 +167,7 @@ function recurrenceName<Name extends string>(names: readonly Name[], type: strin
     if (node.type === "null") {
       return conversionFailure(path, `${RECURRENCE}.${type}`);
     }
-    const wanted = node.type === "string" ? node.value.trim().toLowerCase() : undefined;
+    const wanted = node.type === "string" ? trimText(node.value).toLowerCase() : undefined;
     const name = names.find((candidate) => candidate.toLowerCase() === wanted);
     if (name === undefined) {
       throw new DecodeFailure(path, SINGLE_NAME);
@@ -189,7 +190,7 @@ const WEEKDAY_FLAGS: Readonly<Record<string, number>> = {
 
 const weekdays = orNull((node, path) => {
   const parts =
-    node.type === "string" ? node.value.split(",").map((part) => part.trim().toLowerCase()) : [];
+    node.type === "string" ? node.value.split(",").map((part) => trimText(part).toLowerCase()) : [];
   if (parts.length === 0 || parts.some((part) => WEEKDAY_FLAGS[part] === undefined)) {
     throw new DecodeFailure(path, WEEKDAY_NAMES);
   }
@@ -228,7 +229,7 @@ const recurrence = orNull(
 );
 
 const reminderMode = orNull<ReminderModeName>((node, path) => {
-  const name = node.type === "string" ? node.value.trim().toLowerCase() : "";
+  const name = node.type === "string" ? trimText(node.value).toLowerCase() : "";
   return name === "none" || name === "offset"
     ? name
     : conversionFailure(path, nullable("TaskTracker.Core.Reminders.ReminderMode"));

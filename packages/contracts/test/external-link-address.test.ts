@@ -47,4 +47,13 @@ describe("externalLinkAddress", () => {
     expect(externalLinkAddress(`  ${longestAddress}  `)).toBe(longestAddress);
     expect(externalLinkAddress(longestAddress + "a")).toBeUndefined();
   });
+
+  it("Trims like .NET, so a byte-order mark stays and makes the address invalid", () => {
+    const padded = externalLinkAddress("\u0085https://example.com\u00a0");
+
+    const marked = externalLinkAddress("\ufeffhttps://example.com");
+
+    expect(padded).toBe("https://example.com");
+    expect(marked).toBeUndefined();
+  });
 });

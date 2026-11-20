@@ -98,6 +98,14 @@ describe("evaluateFilterRow", () => {
     expect(outcomes.map((outcome) => outcome.kind)).toEqual(Array(4).fill("incomplete"));
   });
 
+  it("Treats .NET white space as blank text but not a byte-order mark", () => {
+    const blank = evaluateFilterRow(row(title, { first: "\u0085\u2028" }), title);
+    const marked = evaluateFilterRow(row(title, { first: "\ufeff" }), title);
+
+    expect(blank.kind).toBe("incomplete");
+    expect(marked.kind).not.toBe("incomplete");
+  });
+
   it("Requires valid numbers and an in-order number range", () => {
     const outcomes = [
       evaluateFilterRow(row(estimate, { first: "abc" }), estimate),

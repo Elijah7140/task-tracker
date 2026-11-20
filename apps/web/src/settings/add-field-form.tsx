@@ -1,3 +1,4 @@
+import { isBlankText } from "@task-tracker/contracts";
 import { Input } from "@base-ui/react/input";
 import { type FormEvent, useState } from "react";
 import { UNSAVED_SETTINGS_UNDO_MESSAGE, useUndoBlocker } from "../shell/undo-blockers.js";
@@ -21,7 +22,7 @@ export function AddFieldForm({ onCreate }: AddFieldFormProps) {
   const [name, setName] = useState("");
   const [dataType, setDataType] = useState<FieldDataType>("Text");
 
-  useUndoBlocker(name.trim() !== "", UNSAVED_SETTINGS_UNDO_MESSAGE);
+  useUndoBlocker(!isBlankText(name), UNSAVED_SETTINGS_UNDO_MESSAGE);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

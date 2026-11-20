@@ -1,13 +1,9 @@
+import { trimText } from "../text/dotnet-white-space.js";
 import { MetadataRuleError } from "./metadata-rule-error.js";
-
-/** Trims Unicode whitespace using the same character class as legacy names and values. */
-export function trimMetadataText(text: string): string {
-  return text.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
-}
 
 /** Validates and trims user-facing names with the legacy length limit. */
 export function normalizeName(name: string, label: string, trimBeforeMeasuring = true): string {
-  const trimmed = trimMetadataText(name);
+  const trimmed = trimText(name);
   const length = trimBeforeMeasuring ? trimmed.length : name.length;
   if (!trimmed || length > 300) {
     throw new MetadataRuleError(`${label} must be 1 to 300 characters.`);

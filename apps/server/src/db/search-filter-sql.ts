@@ -5,6 +5,7 @@ import {
   type FieldFilter,
   type FilterValue,
   type SearchableField,
+  trimText,
 } from "@task-tracker/core";
 import type { SQLInputValue } from "node:sqlite";
 import { REMINDER_ELIGIBLE_SQL } from "./reminder-sql.js";
@@ -101,7 +102,7 @@ function foldedText(value: FilterValue | null): string {
   if (value?.kind !== "text") {
     throw new Error("Text filters need a text value.");
   }
-  return foldSearchText(value.value.trim());
+  return foldSearchText(trimText(value.value));
 }
 
 /** Trimmed, case-insensitive equality and literal Contains through `instr`, never LIKE. */

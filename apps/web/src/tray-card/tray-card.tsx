@@ -1,3 +1,4 @@
+import { trimText } from "@task-tracker/contracts";
 import type { CurrentItemCard } from "@task-tracker/contracts";
 import { CircleCheck, SquareArrowOutUpRight } from "lucide-react";
 import type { ReactNode, RefObject } from "react";
@@ -98,7 +99,7 @@ export interface TrayCardItemProps {
  * Open in Task Tracker.
  */
 export function TrayCardItem({ card, completion, onOpen }: TrayCardItemProps) {
-  const notes = card.description?.trim() ?? "";
+  const notes = trimText(card.description ?? "");
   return (
     <>
       <div className="flex flex-col gap-0.5">

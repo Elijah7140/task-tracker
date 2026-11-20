@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ItemQuery, SearchableField } from "@task-tracker/core";
+import { foldSearchText, type ItemQuery, type SearchableField } from "@task-tracker/core";
 import { buildSearchSql } from "../../src/db/search-sql-builder.js";
 
 describe("buildSearchSql", () => {
@@ -48,5 +48,30 @@ describe("buildSearchSql", () => {
     );
     expect(parameters).toContain("50%_");
     expect(parameters.at(-1)).toBe(3);
+  });
+
+  it("Trims text filter values like .NET, keeping a byte-order mark", () => {
+    const fieldId = "019A0000-0000-7000-8000-000000000101";
+    const fields: ReadonlyArray<SearchableField> = [
+      {
+        key: "note",
+        displayName: "Note",
+        dataType: "Text",
+        fieldDefinitionId: fieldId,
+        source: { kind: "custom", fieldDefinitionId: fieldId },
+      },
+    ];
+    const value = "\u0085Task\ufeff\u00a0";
+    const query: ItemQuery = {
+      scope: { kind: "allProjects" },
+      text: null,
+      filters: [{ fieldKey: "note", operator: "equals", value: { kind: "text", value } }],
+      includeCompleted: true,
+    };
+
+    const { parameters } = buildSearchSql(query, fields, 2);
+
+    expect(parameters).toContain(foldSearchText("Task\ufeff"));
+    expect(parameters).not.toContain(foldSearchText("Task"));
   });
 });

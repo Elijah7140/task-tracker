@@ -1,3 +1,5 @@
+import { trimText } from "./dotnet-white-space.js";
+
 const maxLength = 2_000;
 const forbiddenCharacters = /[\p{White_Space}\p{Cc}]/u;
 const webAddress = /^https?:\/\/[^/\\?#]+/i;
@@ -7,7 +9,7 @@ export function externalLinkAddress(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
-  const address = value.trim();
+  const address = trimText(value);
   if (address.length > maxLength || forbiddenCharacters.test(address)) {
     return undefined;
   }

@@ -93,6 +93,12 @@ describe("projectExportFileName", () => {
     expect(name).toBe("Billing DB.json");
   });
 
+  it("Trims the name like .NET, keeping a byte-order mark", () => {
+    const name = projectExportFileName("\u0085Billing\ufeff\u00a0");
+
+    expect(name).toBe("Billing\ufeff.json");
+  });
+
   it("Ends a CSV export's suggested name in .csv", () => {
     const name = projectExportFileName("Home Lab", "csv");
 
