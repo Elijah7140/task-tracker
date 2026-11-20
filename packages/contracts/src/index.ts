@@ -121,3 +121,4 @@ export {
   ServerToDesktopMessage,
   TRAY_CARD_HASH,
 } from "./desktop-channel.js";
+export { AppVersionText, DesktopInstallation, UpdateCheckResult } from "./desktop-installation.js";

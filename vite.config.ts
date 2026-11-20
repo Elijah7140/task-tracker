@@ -53,6 +53,7 @@ export default defineConfig({
             "apps/desktop/test/tray-card-placement.test.ts",
             "apps/desktop/test/tray-card-toggle.test.ts",
             "apps/desktop/test/tray-card-height.test.ts",
+            "apps/desktop/test/installation/**/*.test.ts",
           ],
         },
       },

@@ -1,6 +1,7 @@
 import { useAtomSet } from "@effect/atom-react";
 import type { GlobalSettings } from "@task-tracker/contracts";
 import { useCallback, useEffect, useState } from "react";
+import { applyStartWithSystem } from "../native/desktop-installation.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
@@ -41,7 +42,13 @@ type Global = typeof GlobalSettings.Type;
 export interface GlobalDefaultsCardProps {
   readonly initial: Global;
   readonly onDirtyChange: (dirty: boolean) => void;
+  /** Whether this installed build offers start with system (§7.13). */
+  readonly startWithSystemAvailable?: boolean | undefined;
 }
+
+/** Shown when the settings saved but the OS refused the start-with-system entry. */
+export const STARTUP_ENTRY_FAILED_MESSAGE =
+  "Settings were saved, but the system refused to update the start-with-system entry.";
 
 const CARD_COLUMN_OPTIONS = [
   { value: "1", label: "1" },
@@ -62,10 +69,14 @@ interface GlobalDraft {
   readonly cardColumns: number;
   readonly reminders: ReminderDefaultsDraft;
   readonly keepRunningInTray: boolean;
+  readonly startWithSystem: boolean;
 }
 
 /** The saved tray choice, off for a server that sent none (§7.12). */
 const keepRunningInTrayOf = (settings: Global) => settings.keepRunningInTray ?? false;
+
+/** The saved start-with-system choice, off for a server that sent none (§7.13). */
+const startWithSystemOf = (settings: Global) => settings.startWithSystem ?? false;
 
 function sameGlobal(left: Global, right: Global) {
   return (
@@ -74,7 +85,8 @@ function sameGlobal(left: Global, right: Global) {
     left.urgencyRedThreshold === right.urgencyRedThreshold &&
     left.workspaceCardColumns === right.workspaceCardColumns &&
     sameReminderDefaults(reminderDefaultsOf(left), reminderDefaultsOf(right)) &&
-    keepRunningInTrayOf(left) === keepRunningInTrayOf(right)
+    keepRunningInTrayOf(left) === keepRunningInTrayOf(right) &&
+    startWithSystemOf(left) === startWithSystemOf(right)
   );
 }
 
@@ -86,6 +98,7 @@ function draftFrom(settings: Global): GlobalDraft {
     cardColumns: settings.workspaceCardColumns,
     reminders: reminderDraftFrom(reminderDefaultsOf(settings)),
     keepRunningInTray: keepRunningInTrayOf(settings),
+    startWithSystem: startWithSystemOf(settings),
   };
 }
 
@@ -114,6 +127,7 @@ function useGlobalDraft(initial: Global) {
     redTicks !== saved.urgencyRedThreshold ||
     draft.cardColumns !== saved.workspaceCardColumns ||
     draft.keepRunningInTray !== keepRunningInTrayOf(saved) ||
+    draft.startWithSystem !== startWithSystemOf(saved) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
   const validationError =
@@ -148,11 +162,28 @@ function nextGlobal(form: GlobalForm): Global | null {
     workspaceCardColumns: form.draft.cardColumns,
     reminders: form.reminders,
     keepRunningInTray: form.draft.keepRunningInTray,
+    startWithSystem: form.draft.startWithSystem,
   };
 }
 
-/** Saves the draft, confirming parent reconciliation when auto-complete turns on. */
-function useSaveGlobalDefaults(form: GlobalForm) {
+/**
+ * The settings to send. Where start with system is unavailable the choice is
+ * left out, so the server keeps the stored preference (§7.13).
+ */
+function payloadFor(next: Global, startWithSystemAvailable: boolean): Global {
+  if (startWithSystemAvailable) {
+    return next;
+  }
+  const { startWithSystem: _kept, ...rest } = next;
+  return rest;
+}
+
+/**
+ * Saves the draft, confirming parent reconciliation when auto-complete turns on.
+ * After each save where the option is offered, the start-with-system entry is
+ * set or cleared to match, outside the database transaction.
+ */
+function useSaveGlobalDefaults(form: GlobalForm, startWithSystemAvailable: boolean) {
   const [saving, setSaving] = useState(false);
   const previewAutoComplete = useAtomSet(previewGlobalAutoCompleteAtom, { mode: "promiseExit" });
   const saveGlobal = useAtomSet(saveGlobalSettingsAtom, { mode: "promiseExit" });
@@ -171,7 +202,10 @@ function useSaveGlobalDefaults(form: GlobalForm) {
       preview: () => previewAutoComplete({ payload: undefined }),
       save: (approval) =>
         saveGlobal({
-          payload: approval === undefined ? { settings: next } : { settings: next, approval },
+          payload: {
+            settings: payloadFor(next, startWithSystemAvailable),
+            ...(approval === undefined ? {} : { approval }),
+          },
         }),
     });
     setSaving(false);
@@ -180,6 +214,12 @@ function useSaveGlobalDefaults(form: GlobalForm) {
     } else if (outcome.kind === "applied") {
       form.setSaved(next);
       await invalidateKeys([HISTORY_KEY, SETTINGS_KEY, PROJECTS_KEY]);
+      if (
+        startWithSystemAvailable &&
+        !(await applyStartWithSystem(next.startWithSystem ?? false))
+      ) {
+        form.setServerError(STARTUP_ENTRY_FAILED_MESSAGE);
+      }
     }
   };
 
@@ -266,12 +306,16 @@ function GlobalThresholdRows({ form }: { readonly form: GlobalForm }) {
 }
 
 /**
- * Edits global auto-complete, urgency and reminder defaults and the tray choice. They save together
+ * Edits global auto-complete, urgency and reminder defaults and the tray and startup choices. They save together
  * and prompt when enabling auto-complete changes parent completion states.
  */
-export function GlobalDefaultsCard({ initial, onDirtyChange }: GlobalDefaultsCardProps) {
+export function GlobalDefaultsCard({
+  initial,
+  onDirtyChange,
+  startWithSystemAvailable = false,
+}: GlobalDefaultsCardProps) {
   const form = useGlobalDraft(initial);
-  const { save, saving, canSave } = useSaveGlobalDefaults(form);
+  const { save, saving, canSave } = useSaveGlobalDefaults(form, startWithSystemAvailable);
   const error = form.validationError ?? form.serverError;
 
   useEffect(() => {
@@ -300,6 +344,15 @@ export function GlobalDefaultsCard({ initial, onDirtyChange }: GlobalDefaultsCar
         >
           Keep running in the tray when the window closes
         </Checkbox>
+        {startWithSystemAvailable ? (
+          <Checkbox
+            checked={form.draft.startWithSystem}
+            onCheckedChange={(startWithSystem) => form.edit({ startWithSystem })}
+            testId="global-start-with-system"
+          >
+            Start Task Tracker when I sign in
+          </Checkbox>
+        ) : null}
         {error === null ? null : (
           <p role="alert" data-testid="global-settings-error" className="text-[13px] text-danger">
             {error}

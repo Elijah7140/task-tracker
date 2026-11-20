@@ -20,6 +20,16 @@ export interface DesktopBridge {
   readonly openItemFromTrayCard?: (itemId: string) => Promise<boolean>;
   /** From the tray card window only: reports the card's drawn height so main fits the window. */
   readonly reportTrayCardHeight?: (height: number) => void;
+  /** The build version and installed-build state, as `DesktopInstallation` (§7.13). */
+  readonly getInstallation?: () => Promise<unknown>;
+  /** Asks main to check the release feed. Resolves with an `UpdateCheckResult`. */
+  readonly checkForUpdates?: () => Promise<unknown>;
+  /** Downloads and verifies the update the last check found. Resolves true when ready. */
+  readonly downloadUpdate?: () => Promise<unknown>;
+  /** Quits and installs the verified update. Resolves true once main is quitting. */
+  readonly restartToUpdate?: () => Promise<unknown>;
+  /** Writes or removes the start-with-system entry. Resolves true when it succeeded. */
+  readonly applyStartWithSystem?: (enabled: boolean) => Promise<unknown>;
 }
 
 declare global {

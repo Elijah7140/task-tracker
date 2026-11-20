@@ -600,3 +600,106 @@ it.effect(
       expect(refused.message).toBe("Reminder offsets must be nonnegative.");
     }).pipe(withServices, withSchema),
 );
+
+const { startWithSystem } = SettingsCatalogue;
+
+/** Saves the default global values with only the start-with-system choice supplied. */
+const saveDefaultsWithStartup = Effect.fnUntraced(function* (enabled: boolean | undefined) {
+  const settings = yield* SettingsService;
+  return yield* settings.saveGlobal(
+    true,
+    3n * day,
+    day,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    enabled,
+  );
+});
+
+it.effect("Saving global defaults persists start with system", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+
+    yield* saveDefaultsWithStartup(true);
+
+    expect(yield* settings.getGlobal(startWithSystem)).toBe(true);
+    expect((yield* settings.loadGlobal()).startWithSystem).toBe(true);
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("Saving global defaults without start with system leaves it unchanged", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    yield* settings.setGlobal(startWithSystem, true);
+
+    yield* saveDefaultsWithStartup(undefined);
+
+    expect(yield* settings.getGlobal(startWithSystem)).toBe(true);
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("Start with system defaults to off and cannot be overridden per project", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const project = yield* (yield* ProjectService).create("Project");
+
+    const initial = yield* settings.getGlobal(startWithSystem);
+    const refused = yield* Effect.flip(
+      settings.setProjectOverride(project.id, startWithSystem, true),
+    );
+
+    expect(initial).toBe(false);
+    expect(refused.message).toBe("This setting cannot be overridden.");
+    expect(yield* projectRows).toEqual([]);
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("A startup-only bulk save does not record an undo step", () =>
+  Effect.gen(function* () {
+    const undo = yield* UndoService;
+
+    yield* saveDefaultsWithStartup(true);
+
+    expect(yield* globalRows).toEqual([{ Key: "startWithSystem", Value: "true" }]);
+    expect((yield* undo.status()).undo).toBeNull();
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("Setting start with system on its own records no undo step", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const undo = yield* UndoService;
+
+    yield* settings.setGlobal(startWithSystem, true);
+
+    expect((yield* undo.status()).undo).toBeNull();
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("Undoing a mixed global save keeps the start-with-system preference", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const undo = yield* UndoService;
+    yield* settings.saveGlobal(
+      false,
+      3n * day,
+      day,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+
+    yield* undo.apply("undo");
+
+    expect(yield* globalRows).toEqual([{ Key: "startWithSystem", Value: "true" }]);
+    yield* undo.apply("redo");
+    expect(yield* globalRows).toEqual([
+      { Key: "autoCompleteParents", Value: "false" },
+      { Key: "startWithSystem", Value: "true" },
+    ]);
+  }).pipe(withServices, withSchema),
+);

@@ -11,11 +11,13 @@ import { buttonClassName } from "../ui/button.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
+import { AboutCard } from "./about-card.js";
 import { FieldManagerCard } from "./field-manager-card.js";
 import { areaTarget } from "../workspace/area-route.js";
 import { GlobalDefaultsCard } from "./global-defaults-card.js";
 import { LookupListCard } from "./lookup-list-card.js";
 import { StatusListCard } from "./status-list-card.js";
+import { useDesktopInstallation } from "./use-desktop-installation.js";
 import { useUnsavedSettingsGuard } from "./use-unsaved-settings-guard.js";
 
 const appSettingsRoute = getRouteApi("/settings");
@@ -50,7 +52,8 @@ function SettingsSkeleton() {
 
 /**
  * The App Settings route (`/settings`): global completion and urgency defaults,
- * editable item type, priority level and status lists and the global custom fields.
+ * the desktop About card, editable item type, priority level and status lists
+ * and the global custom fields.
  */
 export function AppSettingsPage() {
   const [dirty, setDirty] = useState(false);
@@ -60,6 +63,7 @@ export function AppSettingsPage() {
     setDraftVersion((version) => version + 1);
   });
 
+  const installation = useDesktopInstallation();
   const globalSettings = useAtomValue(globalSettingsAtom);
   const itemTypes = useAtomValue(itemTypesAtom);
   const priorityLevels = useAtomValue(priorityLevelsAtom);
@@ -110,7 +114,9 @@ export function AppSettingsPage() {
             key={draftVersion}
             initial={globalSettings.value}
             onDirtyChange={setDirty}
+            startWithSystemAvailable={installation?.startWithSystemAvailable}
           />
+          {installation === undefined ? null : <AboutCard installation={installation} />}
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
             <LookupListCard kind="itemTypes" rows={itemTypes.value} />
             <LookupListCard kind="priorityLevels" rows={priorityLevels.value} />

@@ -11,6 +11,12 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, powerMonitor, session, shell
 import { Effect, Option, Schema } from "effect";
 import { createAppTray } from "./app-tray.js";
 import { instanceProfile } from "./instance-scope.js";
+import {
+  createDesktopInstallation,
+  type DesktopInstallationServices,
+  quitAndFinishUpdate,
+} from "./installation/desktop-installation.js";
+import { registerInstallationHandlers } from "./installation/installation-ipc.js";
 import { makeNativeNotifier } from "./native-notifier.js";
 import { createReminderNotifications } from "./reminder-notifications.js";
 import {
@@ -293,7 +299,28 @@ async function startupFailed(error: unknown) {
   app.quit();
 }
 
+/**
+ * Installs an update downloaded in an earlier session before anything opens
+ * (§7.13). True when the app is quitting to finish it.
+ */
+async function finishPendingUpdate(installation: DesktopInstallationServices) {
+  try {
+    const handoff = await installation.updates.takePendingAtStartup();
+    if (handoff !== undefined) {
+      quitAndFinishUpdate(handoff);
+      return true;
+    }
+  } catch (error) {
+    console.warn(`Could not install the downloaded update: ${String(error)}`);
+  }
+  return false;
+}
+
 async function openApplication() {
+  const installation = createDesktopInstallation();
+  if (await finishPendingUpdate(installation)) {
+    return;
+  }
   const address = rendererAddress();
   if (app.isPackaged) {
     // Packaged builds offer no reload or developer tools shortcuts.
@@ -306,7 +333,7 @@ async function openApplication() {
     preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),
     devTools: !app.isPackaged,
   });
-  registerRendererHandlers(address);
+  registerRendererHandlers(address, installation);
   powerMonitor.on("resume", requestReminderCheck);
   await start(address);
 }
@@ -355,7 +382,15 @@ function openItemFromTrayCard(value: unknown) {
   return true;
 }
 
-function registerRendererHandlers(address: RendererAddress) {
+function registerRendererHandlers(
+  address: RendererAddress,
+  installation: DesktopInstallationServices,
+) {
+  registerInstallationHandlers({
+    ...installation,
+    isRendererFrame: (event) => isRendererFrame(event, address),
+    restartWith: quitAndFinishUpdate,
+  });
   registerTransferFileHandler({
     isRendererFrame: (event) => isRendererFrame(event, address),
     window: () => window,

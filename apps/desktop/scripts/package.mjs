@@ -21,6 +21,11 @@ const tag = process.argv[2];
 const version = tag === undefined ? "0.1.0" : releaseVersion(tag);
 const repository = process.env.GITHUB_REPOSITORY ?? "Elijah7140/task-tracker";
 const [owner, repo] = repository.split("/");
+// Installed builds check this folder of release files for updates (§7.13). The
+// latest-release address never serves a draft or a prerelease.
+const updateFeed =
+  process.env.TASKTRACKER_UPDATE_FEED_URL ??
+  `https://github.com/${repository}/releases/latest/download/`;
 
 const desktop = fileURLToPath(new URL("..", import.meta.url));
 const staging = join(desktop, "dist", "staging");
@@ -72,6 +77,7 @@ await Promise.all([
       author: "Elijah Harris",
       main: "main.mjs",
       desktopName: "task-tracker.desktop",
+      taskTrackerUpdateFeed: updateFeed,
     }),
   ),
 ]);
@@ -117,6 +123,8 @@ await buildInstaller({
       createStartMenuShortcut: true,
       createDesktopShortcut: true,
       runAfterFinish: false,
+      // Uninstalling removes the start-with-system entry; updating keeps it.
+      include: join(desktop, "installer", "uninstall-startup.nsh"),
     },
     mac: {
       target: ["dmg", "zip"],

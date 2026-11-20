@@ -56,4 +56,9 @@ export const SettingsCatalogue = {
     false,
     optionalGuidCodec,
   ),
+  /**
+   * Whether an installed app starts when the user signs in (§7.13). Global only and
+   * kept out of undo history, because the OS entry is written outside the transaction.
+   */
+  startWithSystem: new SettingDefinition("startWithSystem", false, false, booleanCodec),
 } as const;

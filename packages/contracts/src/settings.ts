@@ -20,6 +20,11 @@ export const GlobalSettings = Schema.Struct({
    * server always sends it; a save without it keeps it.
    */
   keepRunningInTray: Schema.optionalKey(Schema.Boolean),
+  /**
+   * Whether an installed app starts when the user signs in (§7.13). The server
+   * always sends it; a save without it keeps it, as where the option is unavailable.
+   */
+  startWithSystem: Schema.optionalKey(Schema.Boolean),
 });
 
 /** Project overrides to save together. Null removes an override so the global value applies. */
