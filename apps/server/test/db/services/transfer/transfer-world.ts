@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Effect, Layer, type Scope } from "effect";
 import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
@@ -27,7 +28,7 @@ import { UndoService } from "../../../../src/services/undo-service.js";
 
 /** The fixtures generated with legacy-final (see the folder's README). */
 export const fixturePath = (name: string) =>
-  new URL(`../../../fixtures/transfer/${name}`, import.meta.url).pathname;
+  fileURLToPath(new URL(`../../../fixtures/transfer/${name}`, import.meta.url));
 
 /** A legacy fixture's text. */
 export const fixtureText = (name: string) => readFileSync(fixturePath(name), "utf8");

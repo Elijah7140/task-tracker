@@ -354,7 +354,8 @@ it("Filtering by project hides other tickets and Enter opens the focused ticket"
   await filter().click();
   await page.getByRole("option", { name: "Billing" }).click();
   await expect.element(row(FIX)).not.toBeInTheDocument();
-  expect(titlesIn("No priority")).toEqual([REVIEW]);
+  // The filtered board loads after the old rows go, so wait for its rows.
+  await expect.poll(() => titlesIn("No priority")).toEqual([REVIEW]);
   await focusRow(REVIEW);
   await userEvent.keyboard("{Enter}");
 

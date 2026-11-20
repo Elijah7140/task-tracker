@@ -192,12 +192,7 @@ desktopTest(
 desktopTest(
   "Offers to reload the window after the renderer process is gone",
   async ({ desktop }) => {
-    // Windows VMs with the Basic Display Adapter can stall renderer exit detection
-    // on the GPU path. Exercise the crash and reload with software rendering.
-    const application = await launch(
-      desktop,
-      process.platform === "win32" ? ["--disable-gpu"] : [],
-    );
+    const application = await launch(desktop);
     try {
       const page = await application.firstWindow({ timeout: 10_000 });
       await page.getByTestId("empty-home-create").waitFor();

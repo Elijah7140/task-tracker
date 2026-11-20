@@ -56,7 +56,9 @@ export function usePointerDrag() {
     }
     const { currentTarget: element, pointerId, clientX, clientY, pointerType } = press;
     let dragging = false;
-    let contextMenuMayReleaseCapture = false;
+    // Chromium may drop capture when a second mouse button goes down: on Windows at the press,
+    // elsewhere when it handles the context menu. The left gesture stays alive either way.
+    let secondaryButtonMayReleaseCapture = false;
 
     const end = () => {
       running.current = null;
@@ -83,7 +85,8 @@ export function usePointerDrag() {
         end();
         return;
       }
-      contextMenuMayReleaseCapture = false;
+      // A press or release of another button arrives as a chorded move with that button.
+      secondaryButtonMayReleaseCapture = dragging && event.button > 0;
       if (event.button > 0) {
         return;
       }
@@ -113,6 +116,7 @@ export function usePointerDrag() {
     // A secondary press during a left drag must not focus another control or open a menu.
     const chordDown = (event: MouseEvent) => {
       if (pointerType === "mouse" && event.button !== 0) {
+        secondaryButtonMayReleaseCapture = dragging;
         event.preventDefault();
       }
     };
@@ -131,10 +135,9 @@ export function usePointerDrag() {
       if (event.pointerId !== pointerId) {
         return;
       }
-      // Chromium can release capture when it handles a right click, even if
-      // the context menu was prevented. Keep the original left gesture alive.
-      if (contextMenuMayReleaseCapture && (event.buttons & 1) !== 0) {
-        contextMenuMayReleaseCapture = false;
+      // Capture lost to a secondary button, even a prevented context menu, is taken back.
+      if (secondaryButtonMayReleaseCapture && (event.buttons & 1) !== 0) {
+        secondaryButtonMayReleaseCapture = false;
         element.setPointerCapture(pointerId);
         if (element.hasPointerCapture(pointerId)) {
           return;
@@ -152,7 +155,7 @@ export function usePointerDrag() {
       }
     };
     const contextMenu = (event: MouseEvent) => {
-      contextMenuMayReleaseCapture = dragging && pointerType === "mouse" && event.button === 2;
+      secondaryButtonMayReleaseCapture = dragging && pointerType === "mouse" && event.button === 2;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
