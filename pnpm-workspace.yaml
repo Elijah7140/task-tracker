@@ -28,6 +28,7 @@ catalog:
   playwright: 1.65.1
   react: 19.3.1
   react-dom: 19.3.1
+  resedit: 1.7.2
   scheduler: 0.28.0
   tailwindcss: 4.3.5
   typescript: 7.0.2

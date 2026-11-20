@@ -19,6 +19,7 @@
     "electron": "catalog:",
     "electron-builder": "catalog:",
     "esbuild": "catalog:",
+    "resedit": "catalog:",
     "vite-plus": "catalog:"
   }
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +25,7 @@ import { instanceProfile } from "./instance-scope.js";
 import {
   createDesktopInstallation,
   type DesktopInstallationServices,
+  detectRunningInstallation,
   quitAndFinishUpdate,
 } from "./installation/desktop-installation.js";
 import { registerInstallationHandlers } from "./installation/installation-ipc.js";
@@ -45,6 +47,7 @@ import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
 import { createTrayCardWindow, type TrayCardWindow } from "./tray-card-window.js";
 import { decideTrayClose } from "./tray-close-decision.js";
+import { windowsAppIdentity } from "./windows-app-identity.js";
 
 /** Sends the renderer what a clicked reminder notification opens. */
 const REMINDER_ACTIVATED_CHANNEL = "task-tracker:reminder-activated";
@@ -74,15 +77,19 @@ const tray = createAppTray({
   onClick: () => trayCard?.toggle(),
 });
 
-const notifier = makeNativeNotifier(
-  createReminderNotifications({
-    iconPath,
-    onActivate: activateReminder,
-    onFailure: (error) => Effect.runFork(notifier.reportFailure(error)),
-    platform: Notification,
-  }),
-  (message) => console.warn(message),
-);
+const reminders = createReminderNotifications({
+  iconPath,
+  onActivate: activateReminder,
+  onFailure: (error) => Effect.runFork(notifier.reportFailure(error)),
+  platform: Notification,
+  windowsToasts: process.platform === "win32",
+  newNotificationId: randomUUID,
+});
+
+const notifier = makeNativeNotifier(reminders.show, (message) => console.warn(message));
+
+/** A notification click that arrived before the window existed, as when the click started the app. */
+let pendingActivation: { readonly itemId: string | null } | undefined;
 
 /** Shows a window hidden in the tray or minimised and brings it forward. */
 function showWindow() {
@@ -101,8 +108,38 @@ function showWindow() {
 
 /** Brings the window forward and asks the renderer to open the item, or the panel for a group. */
 function activateReminder(itemId: string | null) {
+  if (window === undefined) {
+    pendingActivation = { itemId };
+    return;
+  }
   showWindow();
-  window?.webContents.send(REMINDER_ACTIVATED_CHANNEL, { itemId });
+  window.webContents.send(REMINDER_ACTIVATED_CHANNEL, { itemId });
+}
+
+/** Opens what a click before the window existed asked for, once the page has loaded. */
+function deliverPendingActivation() {
+  const activation = pendingActivation;
+  pendingActivation = undefined;
+  if (activation !== undefined) {
+    activateReminder(activation.itemId);
+  }
+}
+
+/**
+ * Registers the toast activator now rather than at the first reminder (§7.12).
+ * Electron writes the Start-menu shortcut's CLSID and the COM server entry on a
+ * background thread when notifications are first used, so a first toast would
+ * otherwise race them. Clicks Windows routes through the activator, as from the
+ * notification centre or after a restart, arrive with the toast's launch argument.
+ */
+function registerToastActivation() {
+  if (process.platform !== "win32") {
+    return;
+  }
+  Notification.handleActivation((details) => {
+    reminders.activateFromLaunch(details.arguments);
+  });
+  Notification.isSupported();
 }
 
 /** Asks the server for a reminder check, as after a resume from sleep (§7.12). */
@@ -338,6 +375,7 @@ async function start(address: RendererAddress, child = spawnServer(address)) {
   await window.loadURL(address.url);
   hiddenInTray = false;
   window.show();
+  deliverPendingActivation();
 }
 
 async function startupFailed(error: unknown) {
@@ -404,6 +442,8 @@ async function openApplication(early: EarlyStart | Error) {
   if (await finishPendingUpdate(installation)) {
     return;
   }
+  registerToastActivation();
+  void installation.clearInstallerCache();
   if (app.isPackaged) {
     // Packaged builds offer no reload or developer tools shortcuts.
     Menu.setApplicationMenu(null);
@@ -506,6 +546,20 @@ function registerRendererHandlers(
   });
 }
 
+/**
+ * Sets the AppUserModelID and toast activator CLSID before any window or
+ * notification exists (§7.12). The installed build matches its installer's
+ * Start-menu shortcut; other builds keep to their own, see {@link windowsAppIdentity}.
+ */
+function applyWindowsAppIdentity() {
+  const identity = windowsAppIdentity({
+    isPackaged: app.isPackaged,
+    installed: detectRunningInstallation() !== undefined,
+  });
+  app.setAppUserModelId(identity.appUserModelId);
+  app.setToastActivatorCLSID(identity.toastActivatorClsid);
+}
+
 /** Reads the OS user name for the instance scope, or nothing where the OS has none. */
 function currentUserName() {
   try {
@@ -521,8 +575,7 @@ app.setPath(
   instanceProfile(app.getPath("userData"), process.env.TASKTRACKER_DB_PATH, currentUserName()),
 );
 if (process.platform === "win32") {
-  // Windows attributes toasts to the installed shortcut's application ID.
-  app.setAppUserModelId("app.tasktracker.desktop");
+  applyWindowsAppIdentity();
 }
 
 if (app.requestSingleInstanceLock()) {

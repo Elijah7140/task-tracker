@@ -8,6 +8,7 @@ import runtime from "electron/package.json" with { type: "json" };
 import { build as buildInstaller } from "electron-builder";
 import { build as bundle } from "esbuild";
 import { packageOutput, unpackedExecutable } from "./package-paths.ts";
+import { setProductName, TEST_BUILD_PRODUCT_NAME } from "./product-name.ts";
 import {
   artifactName,
   nativeReleaseTarget,
@@ -145,6 +146,12 @@ await buildInstaller({
     },
   },
 });
+
+// The unpacked copy gets its own product name, so the Start-menu shortcut Electron
+// writes for its notifications never replaces the installed app's “Task Tracker”.
+if (process.platform === "win32") {
+  await setProductName(unpackedExecutable, TEST_BUILD_PRODUCT_NAME);
+}
 
 // The installers above ship every fuse. Playwright attaches to Electron main with
 // --inspect, so re-enable only that fuse in the unpacked copy test:desktop drives.
