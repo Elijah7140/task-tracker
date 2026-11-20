@@ -126,19 +126,23 @@ describe("createUpdateService", () => {
     expect(await readFile(appImage, "utf8")).toBe(PAYLOAD);
   });
 
-  it("A restart that cannot replace the AppImage can be retried without downloading again", async () => {
-    const updates = await downloaded();
-    await chmod(root, 0o555);
+  // A read-only directory blocks the replacement only under POSIX permissions; AppImages are Linux-only.
+  it.skipIf(process.platform === "win32")(
+    "A restart that cannot replace the AppImage can be retried without downloading again",
+    async () => {
+      const updates = await downloaded();
+      await chmod(root, 0o555);
 
-    const refused = await updates.prepareRestart().catch(() => undefined);
-    await chmod(root, 0o755);
-    const retried = await updates.prepareRestart();
+      const refused = await updates.prepareRestart().catch(() => undefined);
+      await chmod(root, 0o755);
+      const retried = await updates.prepareRestart();
 
-    expect(refused).toBeUndefined();
-    expect(retried).toEqual({ kind: "relaunch", executable: appImage });
-    expect(await readFile(appImage, "utf8")).toBe(PAYLOAD);
-    expect(feed.requests.filter(({ path }) => path.endsWith(".AppImage"))).toHaveLength(1);
-  });
+      expect(refused).toBeUndefined();
+      expect(retried).toEqual({ kind: "relaunch", executable: appImage });
+      expect(await readFile(appImage, "utf8")).toBe(PAYLOAD);
+      expect(feed.requests.filter(({ path }) => path.endsWith(".AppImage"))).toHaveLength(1);
+    },
+  );
 
   it("A download changed after verification is never installed", async () => {
     const updates = await downloaded();
