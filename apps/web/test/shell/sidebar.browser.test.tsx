@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
-import { useSidebarStore } from "../../src/state/sidebar-store.js";
+import { readStoredExpanded, useSidebarStore } from "../../src/state/sidebar-store.js";
 import { renderApp } from "../support/render-app.js";
 
 const PROJECT = { name: "Billing DB", folders: [{ name: "dbo" }] };
@@ -43,13 +43,9 @@ describe("Sidebar", () => {
   it("Starts collapsed on a new install with nothing stored", async () => {
     localStorage.clear();
 
-    // A query string gives a fresh module instance, which reads storage as a new launch does.
-    const freshModule = "../../src/state/sidebar-store.js?fresh";
-    const { useSidebarStore: fresh } = (await import(
-      /* @vite-ignore */ freshModule
-    )) as typeof import("../../src/state/sidebar-store.js");
+    const expanded = readStoredExpanded();
 
-    expect(fresh.getState().expanded).toBe(false);
+    expect(expanded).toBe(false);
   });
 
   it("Has no decorative mark beside the menu bar", async () => {

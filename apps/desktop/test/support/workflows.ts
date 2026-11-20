@@ -70,14 +70,20 @@ export async function createProject(page: Page, name = SMOKE_PROJECT) {
 
 /**
  * Expands the navigation sidebar, which starts as an icon rail (§7.19), so the open
- * project's folder tree shows. The choice persists across relaunches of the same profile.
+ * project's folder tree shows, keeping focus where it was. The choice persists across
+ * relaunches of the same profile.
  */
 export async function expandSidebar(page: Page) {
   const sidebar = page.getByTestId("sidebar");
   if ((await sidebar.getAttribute("data-collapsed")) === "true") {
+    // The toggle takes focus when clicked; hand it back so focus checks still see the page's.
+    const focused = await page.evaluateHandle(() => document.activeElement);
     await page.getByTestId("sidebar-toggle").click();
+    await focused.evaluate((element) => (element as HTMLElement | null)?.focus());
   }
   await page.locator('[data-testid="sidebar"][data-collapsed="false"]').waitFor();
+  // The width animates; wait until it settles so later pointer positions stay valid.
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(240);
 }
 
 /** Opens a project from its home card, waits for quick-add and shows its folder tree. */

@@ -78,7 +78,7 @@ export function Sidebar() {
       data-testid="sidebar"
       data-collapsed={collapsed ? "true" : "false"}
       className={cx(
-        "flex shrink-0 flex-col border-r border-line bg-sidebar transition-[width] duration-150",
+        "flex shrink-0 flex-col border-r border-line bg-sidebar transition-[width] duration-150 motion-reduce:transition-none",
         collapsed ? "w-12" : "w-60",
       )}
     >
