@@ -6,6 +6,7 @@ import {
   addItem,
   chooseMenuCommand,
   createProject,
+  expectFocused,
   expectGone,
   itemRow,
   localDate,
@@ -25,11 +26,43 @@ function ticketSection(page: Page, label: string) {
   return page.getByTestId("tickets-page").getByRole("region", { name: label, exact: true });
 }
 
+/**
+ * Says which section holds the ticket, what has focus and any error the
+ * Tickets page shows, so a failed wait reports what actually happened.
+ */
+function describeTicketsPage(page: Page, title: string) {
+  return page.getByTestId("tickets-page").evaluate((root, name) => {
+    const rows = [...root.querySelectorAll("[data-testid=ticket-row]")];
+    const row = rows.find((candidate) => candidate.getAttribute("aria-label") === name);
+    const section = row?.closest("section")?.getAttribute("aria-label") ?? "no section";
+    const active = document.activeElement;
+    const focus =
+      active?.getAttribute("aria-label") ?? active?.getAttribute("data-testid") ?? active?.tagName;
+    const error = root.querySelector("[data-testid=tickets-error]")?.textContent ?? "none";
+    return `"${name}" is in ${section}, focus is on ${focus}, page error: ${error}`;
+  }, title);
+}
+
+/** Waits for the ticket in the named section, or fails naming where it is instead. */
+async function expectTicketIn(page: Page, title: string, label: string) {
+  try {
+    await ticketSection(page, label).getByRole("listitem", { name: title, exact: true }).waitFor();
+  } catch (error) {
+    const actual = await describeTicketsPage(page, title);
+    throw new Error(`Expected "${title}" in ${label}, but ${actual}`, { cause: error });
+  }
+}
+
 /** A row of the Today page with the item's title button. */
 function todayRow(page: Page, title: string) {
   return page
     .getByTestId("today-item-row")
     .filter({ has: page.getByRole("button", { name: title, exact: true }) });
+}
+
+/** Matches exactly `text`, for a filter that waits for a shown value to change. */
+function exactText(text: string) {
+  return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
 }
 
 /** Reads the due date shown in the item's editor and closes it again. */
@@ -83,17 +116,19 @@ desktopTest(
       await saveItemEditor(editor);
 
       await chooseMenuCommand(page, "view", "menu-tickets");
-      await ticketSection(page, "No priority").getByRole("listitem", { name: title }).waitFor();
+      await expectTicketIn(page, title, "No priority");
       await ticketRow(page, title).click();
+      // Alt+Down acts on the focused row, so a key sent before the press focuses it is lost.
+      await expectFocused(ticketRow(page, title));
       await page.keyboard.press("Alt+ArrowDown");
 
-      await ticketSection(page, "Critical").getByRole("listitem", { name: title }).waitFor();
+      await expectTicketIn(page, title, "Critical");
     });
 
     await withDesktop(desktop, async (page) => {
       await chooseMenuCommand(page, "view", "menu-tickets");
 
-      await ticketSection(page, "Critical").getByRole("listitem", { name: title }).waitFor();
+      await expectTicketIn(page, title, "Critical");
       expect(await ticketRow(page, title).innerText()).toContain("PAY-17");
     });
   },
@@ -121,10 +156,18 @@ desktopTest(
       const editor = await openItemEditor(page, itemRow(page, SMOKE_PROJECT, moved));
       await editor.getByLabel("Due date", { exact: true }).fill(due);
       await saveItemEditor(editor);
+      // Push back acts on the row as shown, so wait until the row shows the saved due date.
+      const shownDate = itemRow(page, SMOKE_PROJECT, moved).getByTestId("item-date").first();
+      const savedDateText = await shownDate.innerText();
       await selectItem(page, SMOKE_PROJECT, moved);
       await page.keyboard.press("Control+Shift+P");
 
-      await expect.poll(() => shownDueDate(page, moved)).toBe(localDate(1));
+      await itemRow(page, SMOKE_PROJECT, moved)
+        .getByTestId("item-date")
+        .filter({ hasNotText: exactText(savedDateText) })
+        .first()
+        .waitFor();
+      expect(await shownDueDate(page, moved)).toBe(localDate(1));
     });
 
     await withDesktop(desktop, async (page) => {
