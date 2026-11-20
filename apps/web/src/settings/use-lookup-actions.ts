@@ -91,10 +91,12 @@ function useSaveOrder(isItemType: boolean, reactivityKeys: Array<string>) {
 export function useLookupActions(kind: LookupKind) {
   const isItemType = kind === "itemTypes";
   const singular = isItemType ? "item type" : "priority level";
-  // Priority list changes record undo steps; item type history arrives with WP51.
-  const reactivityKeys = isItemType
-    ? [ITEM_TYPES_KEY, LOOKUPS_KEY]
-    : [PRIORITY_LEVELS_KEY, LOOKUPS_KEY, HISTORY_KEY];
+  // Every list change records an undo step, so the Edit menu label refreshes too.
+  const reactivityKeys = [
+    isItemType ? ITEM_TYPES_KEY : PRIORITY_LEVELS_KEY,
+    LOOKUPS_KEY,
+    HISTORY_KEY,
+  ];
   const mutations = useLookupMutations(isItemType);
   const saveOrder = useSaveOrder(isItemType, reactivityKeys);
 

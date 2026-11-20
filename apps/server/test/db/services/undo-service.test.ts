@@ -309,13 +309,14 @@ it.effect("Refuses to resurrect a removed choice and rolls back the other row wr
 
 it.effect("Refuses to restore a cleared value that no longer matches its field's type", () =>
   Effect.gen(function* () {
-    const { root, items, undo } = yield* setup;
+    const { root, items, undo, sql } = yield* setup;
     const fields = yield* FieldService;
     const notes = yield* fields.create("Notes", "Text", null);
     const item = yield* root("Task");
     yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: notes.id, textValue: "Value" }]);
     yield* items.edit(item.id, edit("Task"), [{ fieldDefinitionId: notes.id }]);
-    yield* fields.changeType(notes.id, "Number");
+    // A type change outside history, as an import can make.
+    yield* sql`UPDATE FieldDefinition SET DataType = 'Number' WHERE Id = ${notes.id}`;
     const before = yield* readItems();
 
     const refusal = yield* Effect.flip(undo.apply("undo"));

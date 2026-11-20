@@ -1,5 +1,5 @@
 import type { Guid } from "@task-tracker/contracts";
-import { HISTORY_REPLAY_KEY } from "./history-queries.js";
+import { HISTORY_KEY, HISTORY_REPLAY_KEY } from "./history-queries.js";
 import { TaskTrackerClient } from "./task-tracker-client.js";
 
 type Id = typeof Guid.Type;
@@ -19,15 +19,20 @@ export const fieldChoicesKey = (fieldId: Id) => `${FIELD_CHOICES_KEY}:${fieldId}
 /** Reactivity key for one item's stored custom-field values. Item edits invalidate it. */
 export const itemFieldValuesKey = (itemId: Id) => `item-field-values:${itemId}`;
 
-/** Keys a field-definition mutation invalidates, so every field list and picker refreshes. */
-export const FIELD_MUTATION_KEYS: ReadonlyArray<string> = [FIELDS_KEY];
+/**
+ * Keys a field-definition mutation invalidates, so every field list and picker refreshes
+ * and the Edit menu names the recorded step.
+ */
+export const FIELD_MUTATION_KEYS: ReadonlyArray<string> = [FIELDS_KEY, HISTORY_KEY];
 
 /**
  * Keys a choice mutation invalidates. Only that field's choice queries refresh,
- * so unsaved text in other fields' choice panels stays untouched.
+ * so unsaved text in other fields' choice panels stays untouched, and the Edit
+ * menu names the recorded step.
  */
 export const choiceMutationKeys = (fieldId: Id): ReadonlyArray<string> => [
   fieldChoicesKey(fieldId),
+  HISTORY_KEY,
 ];
 
 /**

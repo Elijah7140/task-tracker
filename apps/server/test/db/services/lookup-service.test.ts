@@ -6,6 +6,7 @@ import { LookupService } from "../../../src/services/lookup-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
 import { UndoService } from "../../../src/services/undo-service.js";
 import { itemId, readItems, seedItem, withSchema } from "./fixtures.js";
+import { refuseAfterChange, roundTrip, snapshotTables } from "./undo-round-trip.js";
 
 it.effect("Added, renamed and reordered lookups persist", () =>
   Effect.gen(function* () {
@@ -107,7 +108,7 @@ it.effect("Restoring archived lookups preserves their identity and order", () =>
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );
 
-const changePriorityDirectly = (statement: string) =>
+const changeLookupsDirectly = (statement: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     yield* sql.withTransaction(sql.unsafe(statement));
@@ -255,7 +256,7 @@ it.effect.each(Object.entries(priorityOperations))(
       const undone = yield* priorityLevels.list();
       yield* undo.apply("redo");
       const redone = yield* priorityLevels.list();
-      yield* changePriorityDirectly("UPDATE PriorityLevel SET SortOrder = 99 WHERE Number = 42");
+      yield* changeLookupsDirectly("UPDATE PriorityLevel SET SortOrder = 99 WHERE Number = 42");
       const changed = yield* priorityLevels.list();
       const refusal = yield* Effect.flip(undo.apply("undo"));
 
@@ -274,7 +275,7 @@ it.effect("Refuses to redo a priority number claimed by another active level", (
     const original = yield* priorityLevels.add("Original");
     yield* priorityLevels.setNumber(original.id, 42);
     yield* undo.apply("undo");
-    yield* changePriorityDirectly("UPDATE PriorityLevel SET Number = 42 WHERE Name = 'Low'");
+    yield* changeLookupsDirectly("UPDATE PriorityLevel SET Number = 42 WHERE Name = 'Low'");
     const before = yield* priorityLevels.list();
     const history = yield* undo.status();
 
@@ -293,7 +294,7 @@ it.effect("Refuses to undo into a case-equivalent archived priority name", () =>
     const original = yield* priorityLevels.add("Ürgent");
     yield* priorityLevels.archive(builtInPriorityLevels[3].id);
     yield* priorityLevels.rename(original.id, "Renamed");
-    yield* changePriorityDirectly("UPDATE PriorityLevel SET Name = 'ürgent' WHERE Name = 'Low'");
+    yield* changeLookupsDirectly("UPDATE PriorityLevel SET Name = 'ürgent' WHERE Name = 'Low'");
     const before = yield* priorityLevels.list();
     const history = yield* undo.status();
 
@@ -301,6 +302,124 @@ it.effect("Refuses to undo into a case-equivalent archived priority name", () =>
 
     expect(failure.message).toBe("The name 'ürgent' is already used by another priority level.");
     expect(yield* priorityLevels.list()).toEqual(before);
+    expect(yield* undo.status()).toEqual(history);
+  }).pipe(Effect.provide(LookupService.layer), withSchema),
+);
+
+const itemTypeOperations = {
+  add: "Add item type 'Added'",
+  rename: "Rename item type 'Renamed'",
+  archive: "Archive item type 'Custom'",
+  restore: "Restore item type 'Custom'",
+  reorder: "Reorder item types",
+} as const;
+
+it.effect.each(Object.entries(itemTypeOperations))(
+  "Round-trips an item type %s and refuses to undo it after the row changed",
+  ([operation, label]) =>
+    Effect.gen(function* () {
+      const { itemTypes } = yield* LookupService;
+      const projects = yield* ProjectService;
+      const project = yield* projects.create("Project");
+      const type = yield* itemTypes.add("Custom");
+      yield* seedItem(project.id, { Id: itemId, ItemTypeId: type.id });
+      if (operation === "restore") {
+        yield* itemTypes.archive(type.id);
+      }
+      const reversed = (yield* itemTypes.list()).map((row) => row.id).toReversed();
+      const run = {
+        add: () => itemTypes.add("Added"),
+        rename: () => itemTypes.rename(type.id, "Renamed"),
+        archive: () => itemTypes.archive(type.id),
+        restore: () => itemTypes.restore(type.id),
+        reorder: () => itemTypes.reorder(reversed),
+      }[operation as keyof typeof itemTypeOperations];
+      const tables = ["ItemType", "TodoItem"] as const;
+
+      const trip = yield* roundTrip(run(), tables);
+      const refusal = yield* refuseAfterChange(
+        "UPDATE ItemType SET SortOrder = 99 WHERE Name IN ('Custom', 'Renamed', 'Added')",
+        "undo",
+        tables,
+      );
+
+      expect(trip.label).toBe(label);
+      expect(trip.after).not.toEqual(trip.before);
+      expect(trip.undone).toEqual(trip.before);
+      expect(trip.redone).toEqual(trip.after);
+      expect(refusal.failure.message).toBe("This item type changed since; can't undo.");
+      expect(refusal.afterTables).toEqual(refusal.changed);
+      expect(refusal.afterHistory).toEqual(refusal.history);
+    }).pipe(
+      Effect.provide(LookupService.layer),
+      Effect.provide(ProjectService.layer("UTC")),
+      withSchema,
+    ),
+);
+
+const rankedKinds = ["ItemType", "PriorityLevel"] as const;
+
+/** Inserts a lookup the way an import does, appending it at `sortOrder` outside history. */
+const importLookupAtRank = (table: (typeof rankedKinds)[number], sortOrder: number) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const [template] = yield* sql<Record<string, unknown>>`
+          SELECT * FROM ${sql(table)} ORDER BY SortOrder LIMIT 1`;
+        const row = {
+          ...template,
+          Id: "019A0000-0000-7000-8000-00000000F00D",
+          Name: "Imported",
+          IsBuiltIn: 0,
+          SortOrder: sortOrder,
+          ...(table === "PriorityLevel" && { Number: null }),
+        };
+        yield* sql`INSERT INTO ${sql(table)} ${sql.insert(row)}`;
+      }),
+    );
+  });
+
+it.effect.each(rankedKinds)("Refuses to redo a %s rank now used by an imported lookup", (table) =>
+  Effect.gen(function* () {
+    const lookups = yield* LookupService;
+    const undo = yield* UndoService;
+    const added =
+      table === "ItemType"
+        ? yield* lookups.itemTypes.add("Original")
+        : yield* lookups.priorityLevels.add("Original");
+    yield* undo.apply("undo");
+    yield* importLookupAtRank(table, added.sortOrder);
+    const before = yield* snapshotTables([table]);
+    const history = yield* undo.status();
+
+    const failure = yield* Effect.flip(undo.apply("redo"));
+
+    expect(failure.message).toContain("rank");
+    expect(yield* snapshotTables([table])).toEqual(before);
+    expect(yield* undo.status()).toEqual(history);
+  }).pipe(Effect.provide(LookupService.layer), withSchema),
+);
+
+it.effect("Refuses to undo into a case-equivalent archived item type name", () =>
+  Effect.gen(function* () {
+    const { itemTypes } = yield* LookupService;
+    const undo = yield* UndoService;
+    const original = yield* itemTypes.add("Ürgent");
+    yield* itemTypes.rename(original.id, "Review");
+    yield* importLookupAtRank("ItemType", 9);
+    yield* changeLookupsDirectly(
+      "UPDATE ItemType SET Name = 'ürgent', IsArchived = 1 WHERE Name = 'Imported'",
+    );
+    const before = yield* snapshotTables(["ItemType"]);
+    const history = yield* undo.status();
+
+    const failure = yield* Effect.flip(undo.apply("undo"));
+
+    expect(failure.message).toBe(
+      "The name 'Ürgent' is used by an archived item type. Restore or rename that one first.",
+    );
+    expect(yield* snapshotTables(["ItemType"])).toEqual(before);
     expect(yield* undo.status()).toEqual(history);
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );

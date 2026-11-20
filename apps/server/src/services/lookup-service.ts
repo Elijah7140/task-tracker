@@ -35,7 +35,7 @@ interface LookupStore<Row extends Lookup> {
   readonly update: (row: Row) => Effect.Effect<void, StorageError>;
 }
 
-/** How a lookup kind names its undo steps. Kinds without one record no history yet (WP51). */
+/** How a lookup kind names its undo steps, matching the legacy `UndoLabels`. */
 interface LookupHistory<Row extends Lookup> {
   readonly table: UndoTable;
   readonly noun: string;
@@ -50,12 +50,9 @@ function manageLookups<Row extends Lookup>(
   sql: SqlClient.SqlClient,
   undo: UndoService["Service"],
   store: LookupStore<Row>,
-  history?: LookupHistory<Row>,
+  history: LookupHistory<Row>,
 ) {
   const capture = (verb: string, row?: Row) => {
-    if (history === undefined) {
-      return Effect.void;
-    }
     const where = row === undefined ? undefined : sql`Id = ${row.id}`;
     const label =
       row === undefined
@@ -114,6 +111,13 @@ function manageLookups<Row extends Lookup>(
   };
 }
 
+const itemTypeHistory: LookupHistory<ItemType> = {
+  table: "ItemType",
+  noun: "item type",
+  reorderLabel: "Reorder item types",
+  title: (row) => row.name,
+};
+
 const priorityHistory: LookupHistory<PriorityLevel> = {
   table: "PriorityLevel",
   noun: "priority",
@@ -125,7 +129,7 @@ const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const undo = yield* UndoService;
   const repository = lookupRepository(sql);
-  const itemTypes = manageLookups(sql, undo, repository.itemTypes);
+  const itemTypes = manageLookups(sql, undo, repository.itemTypes, itemTypeHistory);
   const priorities = manageLookups(sql, undo, repository.priorityLevels, priorityHistory);
   return {
     statuses: yield* statusOperations(sql),

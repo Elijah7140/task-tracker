@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
+import { openMenu } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
@@ -508,5 +509,55 @@ describe("Priority list history", () => {
       "Medium",
       "Low",
     ]);
+  });
+});
+
+describe("Item type list history", () => {
+  it("Names an item type rename in the Edit menu and Ctrl+Z restores the old name", async () => {
+    const { store } = await openLookups({
+      configure: (appStore) => {
+        appStore.settingsAndLookups.addItemTypeSeed("Review");
+      },
+    });
+    await rowIn(itemTypesCard(), "Review").getByTestId("lookup-rename").click();
+    await userEvent.keyboard("{Control>}a{/Control}Approval{Enter}");
+    await expect.element(rowIn(itemTypesCard(), "Approval")).toBeVisible();
+
+    await openMenu("edit");
+
+    await expect
+      .element(page.getByRole("menuitem", { name: "Undo: Rename item type 'Approval'" }))
+      .toBeEnabled();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard("{Control>}z{/Control}");
+    await expect.element(rowIn(itemTypesCard(), "Review")).toBeVisible();
+    expect(store.settingsAndLookups.itemTypeNames()).toContain("Review");
+    await openMenu("edit");
+    await expect
+      .element(page.getByRole("menuitem", { name: "Redo: Rename item type 'Approval'" }))
+      .toBeEnabled();
+  });
+
+  it("Redoes an item type archive from the Edit menu and shows it archived again", async () => {
+    await openLookups({
+      configure: (appStore) => {
+        appStore.settingsAndLookups.addItemTypeSeed("Review");
+      },
+    });
+    await rowIn(itemTypesCard(), "Review").getByTestId("lookup-archive").click();
+    await expect
+      .element(rowIn(itemTypesCard(), "Review"))
+      .toHaveAttribute("data-testid", "lookup-archived-row");
+    await userEvent.keyboard("{Control>}z{/Control}");
+    await expect
+      .element(rowIn(itemTypesCard(), "Review"))
+      .toHaveAttribute("data-testid", "lookup-row");
+
+    await openMenu("edit");
+    await page.getByRole("menuitem", { name: "Redo: Archive item type 'Review'" }).click();
+
+    await expect
+      .element(rowIn(itemTypesCard(), "Review"))
+      .toHaveAttribute("data-testid", "lookup-archived-row");
   });
 });

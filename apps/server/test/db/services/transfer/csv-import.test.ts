@@ -10,6 +10,7 @@ import {
   readValues,
 } from "./transfer-rows.js";
 import { emptyWorld, seededWorld, type TransferWorld } from "./transfer-world.js";
+import { UndoService } from "../../../../src/services/undo-service.js";
 
 const billingOf = (world: TransferWorld) => projectId(world, "Billing");
 
@@ -234,6 +235,21 @@ describe("CSV import", () => {
         });
         const roots = items.filter((item) => item.FolderId === null && item.ParentItemId === null);
         expect(roots.at(-1)!.Id).toBe(created.Id);
+      }),
+    ),
+  );
+
+  it.effect("Records no undo step and keeps the previous one", () =>
+    seededWorld((world) =>
+      Effect.gen(function* () {
+        const undo = yield* UndoService;
+        const billing = yield* billingOf(world);
+        const before = yield* undo.status();
+
+        const result = yield* world.importCsv("Title\r\nImported\r\n", billing);
+
+        expect(result.kind).toBe("imported");
+        expect(yield* undo.status()).toEqual(before);
       }),
     ),
   );

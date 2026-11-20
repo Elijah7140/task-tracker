@@ -493,6 +493,21 @@ test("Empty permanently removes deletions within scope and leaves live rows", (w
     expect(yield* sql.withTransaction(sql`SELECT Id FROM Folder`)).toEqual([]);
   }));
 
+test("Emptying the trash records no undo step and leaves the delete step unreplayable", (world) =>
+  Effect.gen(function* () {
+    const { items, trash, undo, project, area } = world;
+    const doomed = yield* area("Doomed");
+    yield* items.delete(project.id, null, doomed.id);
+    const history = yield* undo.status();
+
+    yield* trash.empty(null);
+    const refusal = yield* Effect.flip(undo.apply("undo"));
+
+    expect(history.undo).toBe("Delete 'Doomed'");
+    expect(refusal.message).toBe("This item was permanently deleted since; can't undo.");
+    expect(yield* undo.status()).toEqual(history);
+  }));
+
 const unknownBatchId = "019A0000-0000-7000-8000-00000000BEEF";
 
 test("Restore and purge refuse an unknown batch and change nothing", (world) =>

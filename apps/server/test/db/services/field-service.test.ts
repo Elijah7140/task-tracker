@@ -4,10 +4,12 @@ import { Deferred, Effect, Fiber } from "effect";
 import { SqlClient } from "effect/sql";
 import { FieldService } from "../../../src/services/field-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
-import { withSchema } from "./fixtures.js";
+import { UndoService } from "../../../src/services/undo-service.js";
+import { itemId, seedItem, withSchema } from "./fixtures.js";
+import { refuseAfterChange, roundTrip, snapshotTables } from "./undo-round-trip.js";
 
 const withServices = <A, E>(
-  test: Effect.Effect<A, E, FieldService | ProjectService | SqlClient.SqlClient>,
+  test: Effect.Effect<A, E, FieldService | ProjectService | SqlClient.SqlClient | UndoService>,
 ) =>
   test.pipe(
     Effect.provide(FieldService.layer),
@@ -221,6 +223,228 @@ it.effect("Identifies missing fields and choices by entity", () =>
 
       expect(missingField).toMatchObject({ entity: "Field" });
       expect(missingChoice).toMatchObject({ entity: "Choice" });
+    }),
+  ),
+);
+
+const fieldOperations = {
+  create: "Add field 'Added'",
+  rename: "Rename field 'Renamed'",
+  "change type": "Change type of field 'First'",
+  archive: "Archive field 'First'",
+  restore: "Restore field 'First'",
+  reorder: "Reorder fields",
+} as const;
+
+it.effect.each(Object.entries(fieldOperations))(
+  "Round-trips a field %s and refuses to undo it after the row changed",
+  ([operation, label]) =>
+    withServices(
+      Effect.gen(function* () {
+        const fields = yield* FieldService;
+        const first = yield* fields.create("First", "Text", null);
+        const second = yield* fields.create("Second", "Text", null);
+        if (operation === "restore") {
+          yield* fields.archive(first.id);
+        }
+        const run = {
+          create: () => fields.create("Added", "Text", null),
+          rename: () => fields.rename(first.id, "Renamed"),
+          "change type": () => fields.changeType(first.id, "Number"),
+          archive: () => fields.archive(first.id),
+          restore: () => fields.restore(first.id),
+          reorder: () => fields.reorder(null, [second.id, first.id]),
+        }[operation as keyof typeof fieldOperations];
+
+        const trip = yield* roundTrip(run(), ["FieldDefinition"]);
+        const refusal = yield* refuseAfterChange(
+          "UPDATE FieldDefinition SET SortOrder = 99 WHERE Key IN ('first', 'added')",
+          "undo",
+          ["FieldDefinition"],
+        );
+
+        expect(trip.label).toBe(label);
+        expect(trip.after).not.toEqual(trip.before);
+        expect(trip.undone).toEqual(trip.before);
+        expect(trip.redone).toEqual(trip.after);
+        expect(refusal.failure.message).toBe("This field changed since; can't undo.");
+        expect(refusal.afterTables).toEqual(refusal.changed);
+        expect(refusal.afterHistory).toEqual(refusal.history);
+      }),
+    ),
+);
+
+/** A project choice field with two choices and an item whose value is the first. */
+const choiceWorld = Effect.gen(function* () {
+  const fields = yield* FieldService;
+  const projects = yield* ProjectService;
+  const sql = yield* SqlClient.SqlClient;
+  const project = yield* projects.create("Project");
+  const field = yield* fields.create("Choice", "Choice", project.id);
+  const first = yield* fields.addChoice(field.id, "First");
+  const second = yield* fields.addChoice(field.id, "Second");
+  yield* seedItem(project.id, { Id: itemId });
+  yield* sql.withTransaction(
+    sql`INSERT INTO ItemFieldValue ${sql.insert({
+      ItemId: itemId,
+      FieldDefinitionId: field.id,
+      ChoiceId: first.id,
+    })}`,
+  );
+  return { fields, sql, project, field, first, second };
+});
+
+const choiceOperations = {
+  add: "Add choice 'Added'",
+  rename: "Rename choice 'Renamed'",
+  archive: "Archive choice 'First'",
+  restore: "Restore choice 'First'",
+  reorder: "Reorder choices",
+} as const;
+
+const choiceTables = ["FieldDefinition", "FieldChoice", "TodoItem", "ItemFieldValue"] as const;
+
+it.effect.each(Object.entries(choiceOperations))(
+  "Round-trips a choice %s and refuses to undo it after the row changed",
+  ([operation, label]) =>
+    withServices(
+      Effect.gen(function* () {
+        const { fields, sql, field, first, second } = yield* choiceWorld;
+        if (operation === "restore") {
+          yield* fields.archiveChoice(field.id, first.id);
+        }
+        const run = {
+          add: () => fields.addChoice(field.id, "Added"),
+          rename: () => fields.renameChoice(field.id, first.id, "Renamed"),
+          archive: () => fields.archiveChoice(field.id, first.id),
+          restore: () => fields.restoreChoice(field.id, first.id),
+          reorder: () => fields.reorderChoices(field.id, [second.id, first.id]),
+        }[operation as keyof typeof choiceOperations];
+
+        const trip = yield* roundTrip(run(), choiceTables);
+        const refusal = yield* refuseAfterChange(
+          "UPDATE FieldChoice SET SortOrder = 99 WHERE Label IN ('First', 'Renamed', 'Added')",
+          "undo",
+          choiceTables,
+        );
+        const values = yield* sql.withTransaction(sql`SELECT ChoiceId FROM ItemFieldValue`);
+
+        expect(trip.label).toBe(label);
+        expect(trip.after).not.toEqual(trip.before);
+        expect(trip.undone).toEqual(trip.before);
+        expect(trip.redone).toEqual(trip.after);
+        expect(refusal.failure.message).toBe("This field choice changed since; can't undo.");
+        expect(refusal.afterTables).toEqual(refusal.changed);
+        expect(refusal.afterHistory).toEqual(refusal.history);
+        expect(values).toEqual([{ ChoiceId: first.id }]);
+      }),
+    ),
+);
+
+it.effect("Refuses to redo a type change after the field gained values", () =>
+  withServices(
+    Effect.gen(function* () {
+      const fields = yield* FieldService;
+      const projects = yield* ProjectService;
+      const undo = yield* UndoService;
+      const sql = yield* SqlClient.SqlClient;
+      const project = yield* projects.create("Project");
+      const field = yield* fields.create("Estimate", "Text", null);
+      yield* fields.changeType(field.id, "Number");
+      yield* undo.apply("undo");
+      yield* seedItem(project.id, { Id: itemId });
+      const insertValue = sql`INSERT INTO ItemFieldValue ${sql.insert({
+        ItemId: itemId,
+        FieldDefinitionId: field.id,
+        TextValue: "Large",
+      })}`;
+      yield* sql.withTransaction(insertValue);
+      const before = yield* snapshotTables(["FieldDefinition", "ItemFieldValue"]);
+      const history = yield* undo.status();
+
+      const failure = yield* Effect.flip(undo.apply("redo"));
+
+      expect(failure.message).toBe(
+        "This field is now in use. Applying this step would change its type.",
+      );
+      expect(yield* snapshotTables(["FieldDefinition", "ItemFieldValue"])).toEqual(before);
+      expect(yield* undo.status()).toEqual(history);
+    }),
+  ),
+);
+
+it.effect("Refuses to undo a rename when another visible field now uses the old name", () =>
+  withServices(
+    Effect.gen(function* () {
+      const fields = yield* FieldService;
+      const projects = yield* ProjectService;
+      const undo = yield* UndoService;
+      const project = yield* projects.create("Project");
+      const field = yield* fields.create("Impact", "Text", null);
+      yield* fields.rename(field.id, "Effect");
+
+      const refusal = yield* refuseAfterChange(
+        `INSERT INTO FieldDefinition (Id, Key, DisplayName, DataType, ProjectId, IsArchived, SortOrder)
+         VALUES ('019A0000-0000-7000-8000-00000000F1E1', 'imported', 'IMPACT', 'Text',
+                 '${project.id}', 0, 0)`,
+        "undo",
+        ["FieldDefinition"],
+      );
+
+      expect(refusal.failure.message).toBe(
+        "A field with this name is now visible in the same project.",
+      );
+      expect(refusal.afterTables).toEqual(refusal.changed);
+      expect(refusal.afterHistory).toEqual(refusal.history);
+      expect((yield* undo.status()).undo).toBe("Rename field 'Effect'");
+    }),
+  ),
+);
+
+it.effect("Refuses to redo restoring a choice whose label another active choice now uses", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { fields, field, first } = yield* choiceWorld;
+      const undo = yield* UndoService;
+      yield* fields.archiveChoice(field.id, first.id);
+      yield* fields.restoreChoice(field.id, first.id);
+      yield* undo.apply("undo");
+
+      const refusal = yield* refuseAfterChange(
+        `INSERT INTO FieldChoice (Id, FieldDefinitionId, Label, SortOrder, IsArchived)
+         VALUES ('019A0000-0000-7000-8000-00000000F1E2', '${field.id}', 'first', 5, 0)`,
+        "redo",
+        ["FieldChoice"],
+      );
+
+      expect(refusal.failure.message).toBe("This choice label is now used by another choice.");
+      expect(refusal.afterTables).toEqual(refusal.changed);
+      expect(refusal.afterHistory).toEqual(refusal.history);
+    }),
+  ),
+);
+
+it.effect("Refuses to undo adding a field that an item now uses", () =>
+  withServices(
+    Effect.gen(function* () {
+      const fields = yield* FieldService;
+      const projects = yield* ProjectService;
+      const project = yield* projects.create("Project");
+      yield* seedItem(project.id, { Id: itemId });
+      const field = yield* fields.create("Impact", "Text", null);
+
+      const refusal = yield* refuseAfterChange(
+        `INSERT INTO ItemFieldValue (ItemId, FieldDefinitionId, TextValue)
+         VALUES ('${itemId}', '${field.id}', 'High')`,
+        "undo",
+        ["FieldDefinition", "ItemFieldValue"],
+      );
+
+      expect(refusal.failure.message).toBe(
+        "Other data still depends on this field; can't undo its removal.",
+      );
+      expect(refusal.afterTables).toEqual(refusal.changed);
+      expect(refusal.afterHistory).toEqual(refusal.history);
     }),
   ),
 );
