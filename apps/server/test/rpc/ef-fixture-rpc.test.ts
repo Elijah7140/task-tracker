@@ -119,6 +119,7 @@ function assertSharedFixtureState(
     urgencyRedThreshold: ticks.threeHours,
     workspaceCardColumns: 4,
     reminders: DEFAULT_REMINDERS,
+    keepRunningInTray: false,
   });
   expect(projectSettings).toEqual({
     projectId,
@@ -400,6 +401,7 @@ it.effect(
               urgencyRedThreshold: ticks.threeHours,
               workspaceCardColumns: 4,
               reminders: DEFAULT_REMINDERS,
+              keepRunningInTray: false,
             });
             expect(projectSettings).toEqual({
               projectId,
@@ -768,6 +770,7 @@ it.effect(
               urgencyRedThreshold: ticks.sixHours,
               workspaceCardColumns: 4,
               reminders: DEFAULT_REMINDERS,
+              keepRunningInTray: false,
             });
             expect(projectSettings).toEqual({
               projectId,

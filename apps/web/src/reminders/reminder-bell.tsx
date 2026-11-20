@@ -1,6 +1,7 @@
 import { Popover } from "@base-ui/react/popover";
 import { Bell } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { useReminderActivation } from "../native/use-reminder-activation.js";
 import type { ReturnGuard } from "../shell/return-guards.js";
 import { dialogStore } from "../state/dialog-store.js";
 import { isItemEditorOpen } from "../state/item-editor-store.js";
@@ -44,13 +45,18 @@ function usePanelShortcut() {
  * The bell that shows how many reminders are pending and opens the Reminders
  * panel, also with Ctrl+Shift+R (§7.12). Escape, a click outside or the close
  * button closes the panel and returns focus to the bell. An open menu or list
- * inside the panel takes Escape first.
+ * inside the panel takes Escape first. A clicked native notification opens its
+ * item, or the panel for a group.
  */
 export function ReminderBell({ runGuards }: { readonly runGuards: ReturnGuard }) {
   const retry = useReminderWatch();
   usePanelShortcut();
   const { open, panel, failure, setOpen } = useReminderPanelStore();
   const actions = useReminderActions(runGuards);
+  useReminderActivation({
+    openItem: (itemId) => void actions.open({ itemId }),
+    openPanel: () => setOpen(true),
+  });
   const closeRef = useRef<HTMLButtonElement>(null);
   const reminders = panel?.reminders ?? [];
   const count = reminders.length;

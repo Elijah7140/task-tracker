@@ -11,6 +11,8 @@ export interface DesktopBridge {
    * user cancels. Missing in builds without import and export.
    */
   readonly chooseTransferFile?: (request: typeof TransferFileRequest.Type) => Promise<unknown>;
+  /** Calls `listener` when a reminder notification is clicked. Returns the unsubscribe. */
+  onReminderActivated?(listener: (activation: unknown) => void): () => void;
 }
 
 declare global {

@@ -9,10 +9,11 @@ import { projectReminderPanel } from "./reminder-projection.js";
 /**
  * Bind the panel to the session's scheduler, which starts with the server and
  * checks reminders in `timeZone`. A notifier layer may replace the logging one.
+ * The scheduler stays in the output so desktop triggers can request checks.
  */
-export const reminderRpcHandlers = (
+export const reminderRpcHandlers = <R = never>(
   timeZone: string,
-  notifier: Layer.Layer<ReminderNotifier> = ReminderNotifier.logLayer,
+  notifier: Layer.Layer<ReminderNotifier, never, R> = ReminderNotifier.logLayer,
 ) =>
   ReminderRpcs.toLayer(
     Effect.gen(function* () {

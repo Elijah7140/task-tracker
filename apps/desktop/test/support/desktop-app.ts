@@ -35,12 +35,17 @@ export function usePhase3Fixture(desktop: DesktopFixture) {
   return copyFile(phase3Fixture, desktop.database);
 }
 
+/** The environment that points the packaged app at the test database, plus `extra`. */
+export function desktopEnvironment(desktop: DesktopFixture, extra: NodeJS.ProcessEnv = {}) {
+  return { ...process.env, ...extra, TASKTRACKER_DB_PATH: desktop.database };
+}
+
 /** Starts the packaged app against the test database and profile, with any extra variables. */
 export function launch(desktop: DesktopFixture, environment: NodeJS.ProcessEnv = {}) {
   return _electron.launch({
     executablePath: executable,
     args: [`--user-data-dir=${desktop.profile}`],
-    env: { ...process.env, ...environment, TASKTRACKER_DB_PATH: desktop.database },
+    env: desktopEnvironment(desktop, environment),
     chromiumSandbox: true,
     timeout: 10_000,
   });

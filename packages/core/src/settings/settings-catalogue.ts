@@ -43,4 +43,6 @@ export const SettingsCatalogue = {
     true,
     localTimeCodec,
   ),
+  /** Whether closing the window hides the app to the tray so reminders keep firing. Global only. */
+  keepRunningInTray: new SettingDefinition("keepRunningInTray", false, false, booleanCodec),
 } as const;

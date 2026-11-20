@@ -21,7 +21,8 @@ GitHub-hosted Linux. These jobs can use billed minutes. See
 ## Local gate
 
 Install the Node and pnpm versions from the repository pins. On Linux use a machine
-with Chromium dependencies, GTK and Xvfb. Run:
+with Chromium dependencies, GTK, Xvfb and the D-Bus tools (`dbus-daemon`, `dbus-send`).
+Run:
 
 ```sh
 pwsh ./scripts/ci-local.ps1             # Windows with PowerShell 7.4+

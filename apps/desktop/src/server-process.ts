@@ -1,8 +1,14 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
-import { createInterface, type Interface } from "node:readline";
+import { createInterface } from "node:readline";
 import { RpcConnection } from "@task-tracker/contracts";
 import { type Duration, Effect, Option, Schema } from "effect";
+import {
+  decodeServerLine,
+  encodeServerCommand,
+  type ServerCommand,
+  type ServerMessage,
+} from "./server-messages.js";
 
 interface ServerExit {
   readonly diagnostic: string;
@@ -13,8 +19,11 @@ export interface ServerProcess {
   readonly ready: Promise<RpcConnection>;
   readonly closed: Promise<ServerExit>;
   readonly stop: () => Promise<void>;
-  /** Writes one JSON message line to the server's private stdin pipe; false once it has closed. */
-  readonly send: (message: object) => boolean;
+  /**
+   * Writes one validated message line to the server's private stdin pipe. False
+   * once the server has exited, or for a message the protocol does not allow.
+   */
+  readonly send: (command: ServerCommand) => boolean;
 }
 
 /** How long the launcher waits for readiness and for a graceful stop before killing the child. */
@@ -57,11 +66,15 @@ function serverCommand(entry: string) {
   return { executable: process.execPath, args: [entry] };
 }
 
-/** Starts the built server under Electron's Node runtime and reads its private readiness line. */
+/**
+ * Starts the built server under Electron's Node runtime and reads its private
+ * readiness line. Each later valid line goes to `onMessage`; others are ignored.
+ */
 export function launchServer(
   entry: string,
   rendererOrigin: string,
   timeouts: ServerTimeouts = defaultTimeouts,
+  onMessage: (message: ServerMessage) => void = () => {},
 ): ServerProcess {
   const { executable, args } = serverCommand(entry);
   const child = spawn(executable, args, {
@@ -69,20 +82,54 @@ export function launchServer(
     windowsHide: true,
   });
   const closed = observeExit(child);
+  const lines = readServerLines(child, onMessage);
   return {
-    ready: waitForReadiness(child, closed, timeouts.readiness),
+    ready: waitForReadiness(child, lines, closed, timeouts.readiness),
     closed,
     stop: () => stopServer(child, closed, timeouts.stop),
-    send: (message) => sendMessage(child, message),
+    send: (command) => sendCommand(child, command),
   };
 }
 
-function sendMessage(child: ChildProcessWithoutNullStreams, message: object): boolean {
+function sendCommand(child: ChildProcessWithoutNullStreams, command: ServerCommand): boolean {
   if (!child.stdin.writable || child.exitCode !== null) {
     return false;
   }
-  child.stdin.write(`${JSON.stringify(message)}\n`);
+  const line = encodeServerCommand(command);
+  if (Option.isNone(line)) {
+    return false;
+  }
+  child.stdin.write(line.value);
   return true;
+}
+
+interface ServerLines {
+  readonly first: Promise<string>;
+  readonly close: () => void;
+}
+
+/**
+ * Reads stdout from the start with one listener, so messages that arrive in the
+ * same chunk as the readiness line are not lost.
+ */
+function readServerLines(
+  child: ChildProcessWithoutNullStreams,
+  onMessage: (message: ServerMessage) => void,
+): ServerLines {
+  const lines = createInterface({ input: child.stdout, crlfDelay: Number.POSITIVE_INFINITY });
+  let resolveFirst: ((line: string) => void) | undefined;
+  const first = new Promise<string>((resolve) => {
+    resolveFirst = resolve;
+  });
+  lines.on("line", (line) => {
+    if (resolveFirst !== undefined) {
+      resolveFirst(line);
+      resolveFirst = undefined;
+      return;
+    }
+    Option.map(decodeServerLine(line), onMessage);
+  });
+  return { first, close: () => lines.close() };
 }
 
 /** Node reads these at startup to load code or open an inspector, so the server never inherits them. */
@@ -127,9 +174,9 @@ function observeExit(child: ChildProcessWithoutNullStreams): Promise<ServerExit>
 }
 
 /** Resolves the first stdout line, or rejects with the diagnostic if the child exits first. */
-function firstLine(lines: Interface, closed: Promise<ServerExit>) {
+function firstLine(lines: ServerLines, closed: Promise<ServerExit>) {
   return Promise.race([
-    new Promise<string>((resolve) => lines.once("line", resolve)),
+    lines.first,
     closed.then(({ diagnostic }) => Promise.reject(new Error(diagnostic))),
   ]);
 }
@@ -145,10 +192,10 @@ function decodeReadiness(line: string) {
 
 async function waitForReadiness(
   child: ChildProcessWithoutNullStreams,
+  lines: ServerLines,
   closed: Promise<ServerExit>,
   timeout: Duration.Input,
 ) {
-  const lines = createInterface({ input: child.stdout });
   try {
     const line = await Effect.runPromise(
       Effect.promise(() => firstLine(lines, closed)).pipe(Effect.timeoutOption(timeout)),
@@ -158,9 +205,10 @@ async function waitForReadiness(
       throw new Error("Server did not become ready");
     }
     return decodeReadiness(line.value);
-  } finally {
+  } catch (error) {
     lines.close();
     child.stdout.resume();
+    throw error;
   }
 }
 

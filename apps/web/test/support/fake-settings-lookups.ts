@@ -266,6 +266,7 @@ export class FakeSettingsAndLookups {
     urgencyRedThreshold: DEFAULT_RED,
     workspaceCardColumns: 4,
     reminders: DEFAULT_REMINDERS,
+    keepRunningInTray: false,
   };
   itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
@@ -472,7 +473,12 @@ export class FakeSettingsAndLookups {
       return Effect.succeed({ kind: "needs-confirmation", preview });
     }
     const reminders = next.reminders ?? this.globalSettings.reminders;
-    this.globalSettings = { ...next, ...(reminders === undefined ? {} : { reminders }) };
+    const keepRunningInTray = next.keepRunningInTray ?? this.globalSettings.keepRunningInTray;
+    this.globalSettings = {
+      ...next,
+      ...(reminders === undefined ? {} : { reminders }),
+      ...(keepRunningInTray === undefined ? {} : { keepRunningInTray }),
+    };
     this.applyReconciliation(enabledProjects);
     return Effect.succeed({ kind: "applied" });
   }

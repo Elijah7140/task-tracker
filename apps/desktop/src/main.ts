@@ -1,28 +1,98 @@
+import { userInfo } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { externalLinkAddress, type RpcConnection } from "@task-tracker/contracts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, powerMonitor, session, shell } from "electron";
+import { Effect } from "effect";
+import { createAppTray } from "./app-tray.js";
+import { instanceProfile } from "./instance-scope.js";
+import { makeNativeNotifier } from "./native-notifier.js";
+import { createReminderNotifications } from "./reminder-notifications.js";
 import {
   type RendererAddress,
   registerRendererScheme,
   rendererAddress,
   servePackagedRenderer,
 } from "./renderer.js";
+import type { ServerMessage } from "./server-messages.js";
 import { launchServer, type ServerProcess } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
+import { decideTrayClose } from "./tray-close-decision.js";
+
+/** Sends the renderer what a clicked reminder notification opens. */
+const REMINDER_ACTIVATED_CHANNEL = "task-tracker:reminder-activated";
 
 let window: BrowserWindow | undefined;
 let server: ServerProcess | undefined;
 let connection: RpcConnection | undefined;
 let quitting = false;
 let relaunchScheduled = false;
+/** The `KeepRunningInTray` setting as the server last reported it. */
+let keepRunningInTray = false;
+/** Whether a close hid the window to the tray, so only the tray or a new launch shows it. */
+let hiddenInTray = false;
 
-function focusWindow() {
-  if (window?.isMinimized()) {
+/** The checklist art shared by the tray icon and notifications. */
+const iconPath = app.isPackaged
+  ? join(process.resourcesPath, "icon.png")
+  : fileURLToPath(new URL("../../../assets/icon.png", import.meta.url));
+
+const tray = createAppTray({ iconPath, onOpen: showWindow, onQuit: () => app.quit() });
+
+const notifier = makeNativeNotifier(
+  createReminderNotifications({
+    iconPath,
+    onActivate: activateReminder,
+    onFailure: (error) => Effect.runFork(notifier.reportFailure(error)),
+  }),
+  (message) => console.warn(message),
+);
+
+/** Shows a window hidden in the tray or minimised and brings it forward. */
+function showWindow() {
+  if (window === undefined) {
+    return;
+  }
+  hiddenInTray = false;
+  if (!window.isVisible()) {
+    window.show();
+  }
+  if (window.isMinimized()) {
     window.restore();
   }
-  window?.focus();
+  window.focus();
+}
+
+/** Brings the window forward and asks the renderer to open the item, or the panel for a group. */
+function activateReminder(itemId: string | null) {
+  showWindow();
+  window?.webContents.send(REMINDER_ACTIVATED_CHANNEL, { itemId });
+}
+
+/** Asks the server for a reminder check, as after a resume from sleep (§7.12). */
+function requestReminderCheck() {
+  server?.send({ type: "check-reminders" });
+}
+
+/** Follows the tray setting. A window hidden in a tray that went away comes back. */
+async function applyTraySetting(enabled: boolean) {
+  keepRunningInTray = enabled;
+  await tray.setEnabled(enabled);
+  if (!tray.shown() && hiddenInTray) {
+    showWindow();
+  }
+}
+
+function handleServerMessage(message: ServerMessage) {
+  switch (message.type) {
+    case "show-notification":
+      Effect.runFork(notifier.notify(message.notification));
+      return;
+    case "keep-running-in-tray":
+      void applyTraySetting(message.enabled);
+      return;
+  }
 }
 
 /**
@@ -31,7 +101,7 @@ function focusWindow() {
  */
 function onSecondInstance() {
   if (!quitting) {
-    focusWindow();
+    showWindow();
     return;
   }
   if (!relaunchScheduled) {
@@ -44,6 +114,7 @@ function onSecondInstance() {
 function beforeQuit(event: Electron.Event) {
   if (server === undefined) {
     quitting = true;
+    tray.destroy();
     return;
   }
   event.preventDefault();
@@ -81,10 +152,39 @@ function createWindow(url: string) {
       event.preventDefault();
     }
   });
+  renderer.on("close", (event) => handleClose(renderer, event));
+  // Windows reports a sign-out or shutdown here; the app quits as usual then.
+  renderer.on("session-end", () => {
+    quitting = true;
+  });
+  renderer.on("focus", requestReminderCheck);
   renderer.once("closed", () => {
     window = undefined;
   });
   return renderer;
+}
+
+/**
+ * Hides to the tray or minimises instead of closing when reminders should keep
+ * running. Electron does not say why a window closes, so a quit or the end of
+ * the OS session marks `quitting` first and every other close is the user's.
+ */
+function handleClose(renderer: BrowserWindow, event: Electron.Event) {
+  const state = {
+    keepRunningInTray,
+    trayIconShown: tray.shown(),
+    minimized: renderer.isMinimized(),
+    quitting,
+  };
+  const action = decideTrayClose(state, "user");
+  if (action === "hide-to-tray") {
+    event.preventDefault();
+    hiddenInTray = true;
+    renderer.hide();
+  } else if (action === "minimize") {
+    event.preventDefault();
+    renderer.minimize();
+  }
 }
 
 /** Offers to reload the page or quit after the renderer process ends unexpectedly. */
@@ -122,6 +222,7 @@ async function handleCrash(diagnostic: string, address: RendererAddress) {
   if (quitting || window === undefined) {
     return;
   }
+  showWindow();
   await showServerStopped(window);
   if (quitting || window === undefined) {
     return;
@@ -147,7 +248,7 @@ async function start(address: RendererAddress) {
   const entry = app.isPackaged
     ? join(process.resourcesPath, "server.mjs")
     : fileURLToPath(new URL("../../server/dist/main.js", import.meta.url));
-  const child = launchServer(entry, address.origin);
+  const child = launchServer(entry, address.origin, undefined, handleServerMessage);
   server = child;
   connection = await child.ready;
   if (quitting) {
@@ -156,6 +257,7 @@ async function start(address: RendererAddress) {
   void child.closed.then(({ diagnostic }) => handleCrash(diagnostic, address)).catch(startupFailed);
   window ??= createWindow(address.url);
   await window.loadURL(address.url);
+  hiddenInTray = false;
   window.show();
 }
 
@@ -182,6 +284,7 @@ async function openApplication() {
   }
   denyPermissions();
   registerRendererHandlers(address);
+  powerMonitor.on("resume", requestReminderCheck);
   await start(address);
 }
 
@@ -227,6 +330,25 @@ function registerRendererHandlers(address: RendererAddress) {
       return false;
     }
   });
+}
+
+/** Reads the OS user name for the instance scope, or nothing where the OS has none. */
+function currentUserName() {
+  try {
+    return userInfo().username;
+  } catch {
+    return "";
+  }
+}
+
+// One app runs per user and database (§7.12). The profile scopes Electron's lock.
+app.setPath(
+  "userData",
+  instanceProfile(app.getPath("userData"), process.env.TASKTRACKER_DB_PATH, currentUserName()),
+);
+if (process.platform === "win32") {
+  // Windows attributes toasts to the installed shortcut's application ID.
+  app.setAppUserModelId("app.tasktracker.desktop");
 }
 
 if (app.requestSingleInstanceLock()) {

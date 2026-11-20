@@ -106,6 +106,42 @@ describe("Reminder defaults in App Settings", () => {
     );
   });
 
+  it("Keeps the app running in the tray once the choice is saved", async () => {
+    const { store } = await openAppSettings();
+    const keepRunning = page.getByRole("checkbox", {
+      name: "Keep running in the tray when the window closes",
+    });
+    await expect.element(keepRunning).not.toBeChecked();
+
+    await keepRunning.click();
+    await expect.element(saveGlobal()).toBeEnabled();
+    await keepRunning.click();
+    await expect.element(saveGlobal()).toBeDisabled();
+    await page.getByTestId("global-keep-running-in-tray").click();
+    await saveGlobal().click();
+
+    await expect.element(saveGlobal()).toBeDisabled();
+    await expect.element(keepRunning).toBeChecked();
+    expect(store.settingsAndLookups.globalSettings.keepRunningInTray).toBe(true);
+  });
+
+  it("Turns the tray choice off with the keyboard", async () => {
+    const { store } = await openAppSettings((fake) =>
+      fake.settingsAndLookups.setGlobalSettings({ keepRunningInTray: true }),
+    );
+    const keepRunning = page.getByRole("checkbox", {
+      name: "Keep running in the tray when the window closes",
+    });
+    await expect.element(keepRunning).toBeChecked();
+
+    keepRunning.element().focus();
+    await userEvent.keyboard(" ");
+    await saveGlobal().click();
+
+    await expect.element(saveGlobal()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.keepRunningInTray).toBe(false);
+  });
+
   it.each(THEMES)("Matches the global reminder defaults baseline in %s", async (theme) => {
     await openAppSettings();
 

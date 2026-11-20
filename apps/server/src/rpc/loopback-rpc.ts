@@ -32,6 +32,9 @@ import { UndoService } from "../services/undo-service.js";
 import { DatabaseBackup } from "../services/transfer/database-backup.js";
 import { TransferFileGrants } from "../services/transfer/transfer-file-grants.js";
 import { transferRpcHandlers } from "./transfer-rpc-handlers.js";
+import { desktopBridgeLayer } from "../desktop/desktop-bridge.js";
+import { ParentChannel } from "../desktop/parent-channel.js";
+import { parentReminderNotifierLayer } from "../desktop/parent-reminder-notifier.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
 export class LoopbackRpc extends Context.Service<LoopbackRpc, RpcConnection>()(
@@ -46,6 +49,25 @@ interface LoopbackRpcOptions {
    * them no file is granted and imports cannot back up, so they refuse.
    */
   readonly transfer?: Layer.Layer<TransferFileGrants | DatabaseBackup>;
+  /** The pipes to Electron main. Without them reminders only log their notifications. */
+  readonly parent?: ParentChannel["Service"];
+}
+
+/**
+ * Session services live as long as the listener: the history and the reminder
+ * scheduler. Under Electron, main shows the notifications and triggers checks.
+ */
+function sessionLayer(timeZone: string, parent: ParentChannel["Service"] | undefined) {
+  if (parent === undefined) {
+    return reminderRpcHandlers(timeZone).pipe(Layer.provideMerge(UndoService.layer));
+  }
+  const session = reminderRpcHandlers(timeZone, parentReminderNotifierLayer).pipe(
+    Layer.provideMerge(UndoService.layer),
+  );
+  return desktopBridgeLayer.pipe(
+    Layer.provideMerge(session),
+    Layer.provide(Layer.succeed(ParentChannel)(parent)),
+  );
 }
 
 const noTransferFiles = Layer.merge(TransferFileGrants.layer, DatabaseBackup.layer(null));
@@ -65,10 +87,7 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         port: server.address.port,
         credential: randomBytes(32).toString("base64url"),
       };
-      // Session services live as long as the listener: the history and the reminder scheduler.
-      const session = yield* Layer.build(
-        reminderRpcHandlers(options.timeZone).pipe(Layer.provideMerge(UndoService.layer)),
-      );
+      const session = yield* Layer.build(sessionLayer(options.timeZone, options.parent));
       // Built for the listener's lifetime, so a stdin grant listener keeps running.
       const transferFiles = yield* Layer.build(options.transfer ?? noTransferFiles);
       const rpc = yield* RpcServer.toHttpEffect(TaskTrackerRpcs).pipe(

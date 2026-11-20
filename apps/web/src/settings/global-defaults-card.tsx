@@ -61,7 +61,11 @@ interface GlobalDraft {
   readonly red: DurationFieldDraft;
   readonly cardColumns: number;
   readonly reminders: ReminderDefaultsDraft;
+  readonly keepRunningInTray: boolean;
 }
+
+/** The saved tray choice, off for a server that sent none (§7.12). */
+const keepRunningInTrayOf = (settings: Global) => settings.keepRunningInTray ?? false;
 
 function sameGlobal(left: Global, right: Global) {
   return (
@@ -69,7 +73,8 @@ function sameGlobal(left: Global, right: Global) {
     left.urgencyYellowThreshold === right.urgencyYellowThreshold &&
     left.urgencyRedThreshold === right.urgencyRedThreshold &&
     left.workspaceCardColumns === right.workspaceCardColumns &&
-    sameReminderDefaults(reminderDefaultsOf(left), reminderDefaultsOf(right))
+    sameReminderDefaults(reminderDefaultsOf(left), reminderDefaultsOf(right)) &&
+    keepRunningInTrayOf(left) === keepRunningInTrayOf(right)
   );
 }
 
@@ -80,6 +85,7 @@ function draftFrom(settings: Global): GlobalDraft {
     red: createDurationDraft(settings.urgencyRedThreshold, "hours"),
     cardColumns: settings.workspaceCardColumns,
     reminders: reminderDraftFrom(reminderDefaultsOf(settings)),
+    keepRunningInTray: keepRunningInTrayOf(settings),
   };
 }
 
@@ -107,6 +113,7 @@ function useGlobalDraft(initial: Global) {
     yellowTicks !== saved.urgencyYellowThreshold ||
     redTicks !== saved.urgencyRedThreshold ||
     draft.cardColumns !== saved.workspaceCardColumns ||
+    draft.keepRunningInTray !== keepRunningInTrayOf(saved) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
   const validationError =
@@ -140,6 +147,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     urgencyRedThreshold: form.redTicks,
     workspaceCardColumns: form.draft.cardColumns,
     reminders: form.reminders,
+    keepRunningInTray: form.draft.keepRunningInTray,
   };
 }
 
@@ -258,7 +266,7 @@ function GlobalThresholdRows({ form }: { readonly form: GlobalForm }) {
 }
 
 /**
- * Edits global auto-complete, urgency and reminder defaults. They save together
+ * Edits global auto-complete, urgency and reminder defaults and the tray choice. They save together
  * and prompt when enabling auto-complete changes parent completion states.
  */
 export function GlobalDefaultsCard({ initial, onDirtyChange }: GlobalDefaultsCardProps) {
@@ -285,6 +293,13 @@ export function GlobalDefaultsCard({ initial, onDirtyChange }: GlobalDefaultsCar
           draft={form.draft.reminders}
           onChange={(change) => form.edit({ reminders: { ...form.draft.reminders, ...change } })}
         />
+        <Checkbox
+          checked={form.draft.keepRunningInTray}
+          onCheckedChange={(keepRunningInTray) => form.edit({ keepRunningInTray })}
+          testId="global-keep-running-in-tray"
+        >
+          Keep running in the tray when the window closes
+        </Checkbox>
         {error === null ? null : (
           <p role="alert" data-testid="global-settings-error" className="text-[13px] text-danger">
             {error}

@@ -24,7 +24,7 @@ export function useOpenReminder(runGuards: ReturnGuard) {
   const navigate = useNavigate();
   const locate = useAtomSet(locateSearchItemAtom, { mode: "promiseExit" });
 
-  return async (entry: typeof ReminderEntry.Type) => {
+  return async (entry: Pick<typeof ReminderEntry.Type, "itemId">) => {
     if (!(await runGuards())) {
       return;
     }

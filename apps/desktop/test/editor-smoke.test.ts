@@ -84,6 +84,8 @@ desktopTest(
         .toBe("Ready");
     });
   },
+  // Two launches and five field types take most of the default budget on a loaded runner.
+  60_000,
 );
 
 desktopTest(

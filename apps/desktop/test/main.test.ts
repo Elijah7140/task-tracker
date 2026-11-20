@@ -16,6 +16,7 @@ import {
   phase3Fixture,
 } from "./support/desktop-app.js";
 import { isRunning, serverPid } from "./support/desktop-processes.js";
+import { answerPrompt } from "./support/workflows.js";
 
 /** Starts another instance against the same profile and returns its exit code and signal. */
 async function runSecondInstance(desktop: DesktopFixture) {
@@ -52,8 +53,7 @@ desktopTest(
       const page = await firstWindow(application);
 
       await page.getByTestId("empty-home-create").click();
-      await page.keyboard.type("Packaged project");
-      await page.keyboard.press("Enter");
+      await answerPrompt(page, "Project name", "Packaged project");
       await page.getByRole("article", { name: "Packaged project" }).waitFor();
       child = await serverPid(application);
 

@@ -9,6 +9,11 @@ export default defineConfig({
       "apps/desktop/test/server-process.test.ts",
       "apps/desktop/test/transfer-file-dialog.test.ts",
       "apps/desktop/test/scripts/**/*.test.ts",
+      "apps/desktop/test/instance-scope.test.ts",
+      "apps/desktop/test/native-notifier.test.ts",
+      "apps/desktop/test/server-messages.test.ts",
+      "apps/desktop/test/tray-close-decision.test.ts",
+      "apps/desktop/test/tray-host-probe.test.ts",
     ],
     // Give packaged Electron launches exclusive use of the native desktop session on Windows and macOS.
     fileParallelism: process.platform === "linux",

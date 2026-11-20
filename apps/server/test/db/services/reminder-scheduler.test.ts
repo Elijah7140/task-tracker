@@ -1,8 +1,9 @@
 import { expect, it } from "@effect/vitest";
 import type { ReminderNotice } from "@task-tracker/core";
-import { Effect, Exit, Fiber, Layer, Scope } from "effect";
+import { Clock, Duration, Effect, Exit, Fiber, Layer, Scope } from "effect";
 import type { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
+import { CLOCK_JUMP_PULSE } from "../../../src/services/clock-jump.js";
 import { ReminderNotifier } from "../../../src/services/reminder-notifier.js";
 import { ReminderScheduler } from "../../../src/services/reminder-scheduler.js";
 import { ReminderService } from "../../../src/services/reminder-service.js";
@@ -55,6 +56,30 @@ const startScheduler = Effect.fnUntraced(function* (
 });
 
 const project = (svc: ReminderServices, name: string) => svc.projects.create(name);
+
+/**
+ * Runs `body` with a wall clock that can be moved without time elapsing, as when
+ * the user changes the system clock. Sleeps still follow the test clock.
+ */
+const withAdjustableWallClock = <A, E, R>(
+  body: (moveWall: (millis: number) => void) => Effect.Effect<A, E, R>,
+) =>
+  TestClock.testClockWith((testClock) => {
+    let offset = 0;
+    const wallMillis = () => testClock.currentTimeMillisUnsafe() + offset;
+    const wallNanos = () => testClock.currentTimeNanosUnsafe() + BigInt(offset) * 1_000_000n;
+    const shifted: TestClock.TestClock = {
+      ...testClock,
+      currentTimeMillisUnsafe: wallMillis,
+      currentTimeMillis: Effect.sync(wallMillis),
+      currentTimeNanosUnsafe: wallNanos,
+      currentTimeNanos: Effect.sync(wallNanos),
+    };
+    const moveWall = (millis: number) => {
+      offset += millis;
+    };
+    return body(moveWall).pipe(Effect.provideService(Clock.Clock, shifted));
+  });
 
 const panelTitles = (scheduler: ReminderScheduler["Service"]) =>
   scheduler.watch(-1).pipe(Effect.map((panel) => panel.reminders.map((entry) => entry.title)));
@@ -335,4 +360,62 @@ it.effect(
         expect(capture.notices.map((notice) => notice.itemId)).toEqual([item.id]);
       }),
     ),
+);
+
+it.effect("A wall clock jump triggers a check before the next thirty-second tick", () =>
+  withReminders((svc) =>
+    withAdjustableWallClock((moveWall) =>
+      Effect.gen(function* () {
+        const ops = yield* project(svc, "Operations");
+        const item = yield* saveDue(svc, ops.id, "Clock change", START.add({ minutes: 1 }));
+        const capture = captureNotifier();
+        yield* startScheduler(capture.layer);
+
+        moveWall(2 * 60_000);
+        yield* TestClock.adjust(CLOCK_JUMP_PULSE);
+        yield* settle(() => capture.notices.length > 0);
+
+        expect(capture.notices.map((notice) => notice.itemId)).toEqual([item.id]);
+      }),
+    ),
+  ),
+);
+
+it.effect("Setting the clock back checks at once instead of waiting for the old quiet hour", () =>
+  withReminders((svc) =>
+    Effect.gen(function* () {
+      const ops = yield* project(svc, "Operations");
+      const item = yield* svc.items.create(ops.id, null, null, "Imported");
+      const capture = captureNotifier();
+      yield* startScheduler(capture.layer);
+      yield* svc.sql`UPDATE TodoItem SET DueDate = '2026-11-17', DueTime = '11:59:00',
+        ReminderMode = 2, ReminderOffsetMinutes = 0 WHERE Id = ${item.id}`;
+
+      // Test clock sleeps follow the wall clock, so the first pulse wakes one pulse after
+      // START, which is still before the thirty-second tick.
+      yield* TestClock.setTime(START.subtract({ seconds: 30 }).epochMilliseconds);
+      yield* TestClock.adjust(Duration.sum(Duration.seconds(30), CLOCK_JUMP_PULSE));
+      yield* settle(() => capture.notices.length > 0);
+
+      expect(capture.notices.map((notice) => notice.itemId)).toEqual([item.id]);
+    }),
+  ),
+);
+
+it.effect("Steady time without a clock change does not check between ticks", () =>
+  withReminders((svc) =>
+    Effect.gen(function* () {
+      const ops = yield* project(svc, "Operations");
+      const item = yield* svc.items.create(ops.id, null, null, "Imported");
+      const capture = captureNotifier();
+      yield* startScheduler(capture.layer);
+      yield* svc.sql`UPDATE TodoItem SET DueDate = '2026-11-17', DueTime = '11:59:00',
+        ReminderMode = 2, ReminderOffsetMinutes = 0 WHERE Id = ${item.id}`;
+
+      yield* TestClock.adjust("10 minutes");
+      yield* settle();
+
+      expect(capture.notices).toEqual([]);
+    }),
+  ),
 );

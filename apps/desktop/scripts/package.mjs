@@ -35,6 +35,7 @@ for (const path of [join(desktop, "dist"), staging, packageOutput]) {
 await rm(staging, { recursive: true, force: true });
 await rm(packageOutput, { recursive: true, force: true });
 await mkdir(app, { recursive: true });
+await mkdir(resources, { recursive: true });
 
 const nodeBundle = {
   bundle: true,
@@ -59,6 +60,8 @@ await Promise.all([
     outfile: join(resources, "server.mjs"),
   }),
   cp(join(desktop, "dist", "preload.cjs"), join(app, "preload.cjs")),
+  // The tray icon and notifications reuse the checklist art.
+  cp(join(desktop, "..", "..", "assets", "icon.png"), join(resources, "icon.png")),
   cp(join(desktop, "..", "web", "dist"), join(resources, "web"), { recursive: true }),
   writeFile(
     join(app, "package.json"),

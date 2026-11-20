@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
+import type { ServerCommand, ServerMessage } from "../src/server-messages.js";
 import { launchServer, type ServerProcess, type ServerTimeouts } from "../src/server-process.js";
 
 const origin = "tasktracker://app";
@@ -9,8 +10,20 @@ const origin = "tasktracker://app";
 const timeouts: ServerTimeouts = { readiness: "10 seconds", stop: "10 seconds" };
 const credential = "A".repeat(43);
 
+/** A transfer file grant as main writes it after a dialog. */
+const grant = (path: string): ServerCommand => ({
+  type: "transfer-file-grant",
+  token: "B".repeat(43),
+  path,
+  access: "read",
+});
+
 /** Writes a stub server script and launches it the way Electron main launches the real one. */
-type Launch = (source: string, overrides?: Partial<ServerTimeouts>) => Promise<ServerProcess>;
+type Launch = (
+  source: string,
+  overrides?: Partial<ServerTimeouts>,
+  onMessage?: (message: ServerMessage) => void,
+) => Promise<ServerProcess>;
 
 const serverTest = test.extend<{ launch: Launch }>({
   launch: async ({ onTestFinished }, use) => {
@@ -20,10 +33,10 @@ const serverTest = test.extend<{ launch: Launch }>({
     onTestFinished(async () => {
       await Promise.all(started.map((server) => server.stop()));
     });
-    await use(async (source, overrides) => {
+    await use(async (source, overrides, onMessage) => {
       const entry = join(directory, `stub-${started.length}.mjs`);
       await writeFile(entry, source);
-      const server = launchServer(entry, origin, { ...timeouts, ...overrides });
+      const server = launchServer(entry, origin, { ...timeouts, ...overrides }, onMessage);
       started.push(server);
       // Tests that only observe the exit leave readiness unawaited.
       server.ready.catch(() => {});
@@ -135,15 +148,60 @@ serverTest(
     import { createInterface } from "node:readline";
     console.log(JSON.stringify({ port: 4321, credential: "${credential}" }));
     const lines = createInterface({ input: process.stdin });
-    lines.on("line", (line) => { console.error("got " + JSON.parse(line).token); process.exit(0); });
+    lines.on("line", (line) => { console.error("got " + JSON.parse(line).path); process.exit(0); });
   `);
     await server.ready;
 
-    const sent = server.send({ type: "transfer-file-grant", token: "t1" });
+    const sent = server.send(grant("/tmp/first.json"));
     const { diagnostic } = await server.closed;
 
     expect(sent).toBe(true);
-    expect(diagnostic).toBe("got t1");
-    expect(server.send({ type: "transfer-file-grant", token: "t2" })).toBe(false);
+    expect(diagnostic).toBe("got /tmp/first.json");
+    expect(server.send(grant("/tmp/second.json"))).toBe(false);
   },
 );
+
+serverTest(
+  "Delivers valid messages after the readiness line, even in the same write",
+  async ({ launch }) => {
+    const messages: ServerMessage[] = [];
+    const ready = JSON.stringify({ port: 4321, credential });
+    const tray = JSON.stringify({ type: "keep-running-in-tray", enabled: true });
+    const notice = JSON.stringify({
+      type: "show-notification",
+      notification: { title: "Call", body: "Operations", itemId: null },
+    });
+    const server = await launch(
+      `process.stdout.write(${JSON.stringify(`${ready}\n${tray}\nnoise\n{"type":"quit"}\n`)});
+       setTimeout(() => process.stdout.write(${JSON.stringify(`${notice}\n`)}), 50);
+       ${exitOnParentPipe}`,
+      {},
+      (message) => messages.push(message),
+    );
+
+    await server.ready;
+
+    await vi.waitFor(() => expect(messages).toHaveLength(2));
+    expect(messages).toEqual([
+      { type: "keep-running-in-tray", enabled: true },
+      {
+        type: "show-notification",
+        notification: { title: "Call", body: "Operations", itemId: null },
+      },
+    ]);
+  },
+);
+
+serverTest("Sends commands to the server as lines on its stdin pipe", async ({ launch }) => {
+  const server = await launch(
+    `console.log(JSON.stringify({ port: 4321, credential: "${credential}" }));
+     process.stdin.setEncoding("utf8").once("data", (chunk) => {
+       process.stderr.write(chunk.trim(), () => process.exit(0));
+     });`,
+  );
+  await server.ready;
+
+  server.send({ type: "check-reminders" });
+
+  expect(await server.closed).toEqual({ diagnostic: '{"type":"check-reminders"}' });
+});

@@ -17,7 +17,12 @@ export default defineConfig({
   test: {
     projects: [
       { test: { name: "core", include: ["packages/core/test/**/*.test.ts"] } },
-      { test: { name: "server-db", include: ["apps/server/test/db/**/*.test.ts"] } },
+      {
+        test: {
+          name: "server-db",
+          include: ["apps/server/test/db/**/*.test.ts", "apps/server/test/desktop/**/*.test.ts"],
+        },
+      },
       {
         resolve: {
           alias: {
@@ -40,6 +45,11 @@ export default defineConfig({
             "apps/desktop/test/server-process.test.ts",
             "apps/desktop/test/transfer-file-dialog.test.ts",
             "apps/desktop/test/scripts/**/*.test.ts",
+            "apps/desktop/test/instance-scope.test.ts",
+            "apps/desktop/test/native-notifier.test.ts",
+            "apps/desktop/test/server-messages.test.ts",
+            "apps/desktop/test/tray-close-decision.test.ts",
+            "apps/desktop/test/tray-host-probe.test.ts",
           ],
         },
       },

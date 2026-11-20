@@ -5,6 +5,7 @@ import {
 } from "@task-tracker/core";
 import { Context, Duration, Effect, Layer, PubSub, Queue } from "effect";
 import type { ReminderEntry } from "../db/repositories/reminder-repository.js";
+import { watchClockJumps } from "./clock-jump.js";
 import { operationTime } from "./operation-time.js";
 import { makeReminderPanel } from "./reminder-panel.js";
 import { ReminderNotifier } from "./reminder-notifier.js";
@@ -136,6 +137,7 @@ const make = Effect.gen(function* () {
   const commits = yield* PubSub.subscribe(undo.commits);
   yield* Effect.forkScoped(Effect.forever(Effect.andThen(PubSub.take(commits), requestCheck)));
   yield* Effect.forkScoped(run);
+  yield* Effect.forkScoped(watchClockJumps(requestCheck));
 
   return {
     /** Checks soon, as after a save, a resume from sleep or a clock change. */
@@ -153,8 +155,9 @@ const make = Effect.gen(function* () {
 });
 
 /**
- * Delivers reminders on Effect Clock: once at startup, every 30 seconds and soon
- * after each committed change. Checks run one at a time in a scoped fiber (§7.12).
+ * Delivers reminders on Effect Clock: once at startup, every 30 seconds, soon
+ * after each committed change and soon after a wall-clock jump. Checks run one
+ * at a time in a scoped fiber (§7.12).
  */
 export class ReminderScheduler extends Context.Service<ReminderScheduler>()(
   "@task-tracker/server/ReminderScheduler",

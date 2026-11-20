@@ -79,14 +79,42 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         urgencyRedThreshold: "864000000000",
         workspaceCardColumns: 4,
         reminders: DEFAULT_REMINDERS,
+        keepRunningInTray: false,
       });
       expect(result).toEqual({ kind: "applied" });
-      expect(saved).toEqual({ ...settings, reminders: DEFAULT_REMINDERS });
+      expect(saved).toEqual({
+        ...settings,
+        reminders: DEFAULT_REMINDERS,
+        keepRunningInTray: false,
+      });
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },
         { Key: "urgencyRedThreshold", Value: "P1DT6H" },
         { Key: "urgencyYellowThreshold", Value: "P4D" },
         { Key: "workspaceCardColumns", Value: "6" },
+      ]);
+    }),
+  ),
+);
+
+it.effect("Saves the tray choice with the global defaults and keeps it when a save omits it", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const defaults = yield* client.LoadGlobalSettings();
+
+      yield* client.SaveGlobalSettings({ settings: { ...defaults, keepRunningInTray: true } });
+      const { keepRunningInTray: _omitted, ...withoutTray } = defaults;
+      yield* client.SaveGlobalSettings({
+        settings: { ...withoutTray, autoCompleteParents: false },
+      });
+      const saved = yield* client.LoadGlobalSettings();
+
+      expect(saved.keepRunningInTray).toBe(true);
+      expect(saved.autoCompleteParents).toBe(false);
+      expect(yield* storedRows("GlobalSetting")).toEqual([
+        { Key: "autoCompleteParents", Value: "false" },
+        { Key: "keepRunningInTray", Value: "true" },
       ]);
     }),
   ),

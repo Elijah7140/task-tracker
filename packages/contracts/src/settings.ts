@@ -15,6 +15,11 @@ export const GlobalSettings = Schema.Struct({
   workspaceCardColumns: CardColumns,
   /** Reminder defaults. The server always sends them; a save without them keeps them. */
   reminders: Schema.optionalKey(ReminderDefaults),
+  /**
+   * Whether closing the window keeps the app running in the tray (§7.12). The
+   * server always sends it; a save without it keeps it.
+   */
+  keepRunningInTray: Schema.optionalKey(Schema.Boolean),
 });
 
 /** Project overrides to save together. Null removes an override so the global value applies. */

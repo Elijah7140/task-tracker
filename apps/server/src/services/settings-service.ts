@@ -1,6 +1,7 @@
 import {
   describeReconciliation,
   needsReconciliationConfirmation,
+  parseOrDefault,
   resolveReminderSettings,
   SettingsCatalogue,
   SettingsResolver,
@@ -28,6 +29,7 @@ const {
   remindersEnabled,
   defaultReminderOffset,
   dateOnlyReminderTime,
+  keepRunningInTray,
 } = SettingsCatalogue;
 
 /** Reminder defaults saved with the global settings form (§7.12). */
@@ -146,11 +148,21 @@ const make = Effect.gen(function* () {
     return yield* readEffectiveSettings(settings, project.id);
   }, sql.withTransaction);
 
-  /** Global values and reminder defaults from one snapshot. */
+  /** Global values, reminder defaults and the tray choice from one snapshot. */
   const loadGlobal = Effect.fnUntraced(function* () {
     const global = yield* settings.global();
     const resolved = yield* checkRules(() => SettingsResolver.resolve(global, noOverrides));
-    return { settings: resolved, reminders: resolveReminderSettings(global, noOverrides) };
+    return {
+      settings: resolved,
+      reminders: resolveReminderSettings(global, noOverrides),
+      keepRunningInTray: parseOrDefault(keepRunningInTray, global.get(keepRunningInTray.key)),
+    };
+  }, sql.withTransaction);
+
+  /** The tray choice, falling back to off when the stored text is malformed (§7.12). */
+  const loadKeepRunningInTray = Effect.fnUntraced(function* () {
+    const global = yield* settings.global();
+    return parseOrDefault(keepRunningInTray, global.get(keepRunningInTray.key));
   }, sql.withTransaction);
 
   /** An active project's effective values and reminder settings from one snapshot. */
@@ -292,6 +304,7 @@ const make = Effect.gen(function* () {
     /** Read an active project's effective settings and their sources from one snapshot. */
     getEffective,
     loadGlobal,
+    loadKeepRunningInTray,
     loadProject,
     /** Preview enabling automatic completion for active projects that inherit the global value. */
     previewGlobalAutoComplete: () => previewAutoComplete(undefined),
@@ -308,6 +321,7 @@ const make = Effect.gen(function* () {
       approval?: ReconciliationApproval,
       cardColumns?: number,
       reminders?: ReminderDefaultsInput,
+      keepRunning?: boolean,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -321,6 +335,9 @@ const make = Effect.gen(function* () {
           proposeGlobal(proposed, current, remindersEnabled, reminders.enabled);
           proposeGlobal(proposed, current, defaultReminderOffset, reminders.offset);
           proposeGlobal(proposed, current, dateOnlyReminderTime, reminders.dateOnlyTime);
+        }
+        if (keepRunning !== undefined) {
+          proposeGlobal(proposed, current, keepRunningInTray, keepRunning);
         }
         return proposed;
       }, approval),

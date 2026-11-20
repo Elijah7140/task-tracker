@@ -1183,6 +1183,9 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - Scope the Electron instance lock to the user and resolved database path. A second launch on
     the same database brings the running window forward and exits. Different database paths,
     including test overrides, may run side by side.
+    The default database keeps the Electron profile and its lock. A `TASKTRACKER_DB_PATH` override
+    moves the profile to `instances/<hash of user and resolved path>` beneath it before the lock
+    is taken.
   - Legacy used a mutex and pipe with a three-second response deadline. Verify activation while
     starting or tray-hidden and give the launching user feedback when the instance is unresponsive.
 - **Search (§7.7).** `has:reminder` matches open items whose effective reminder is not None.
@@ -1193,6 +1196,12 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   Version 1 JSON carries the optional item choice and project settings. Snoozes are local to the
   database. An existing custom field keyed `reminder` gets a free numeric suffix, and its saved
   searches are rewritten as for `repeats`. Use desktop resume signals and detect wall-clock jumps so pending reminders are checked promptly.
+  Electron main reports resume and window focus; the server compares Effect Clock wall and
+  monotonic time every five seconds and requests a check on a jump of a quarter second or more.
+  The server and Electron main exchange validated JSON lines over the child's private pipes, each
+  told apart by `type`. The server writes notifications and the tray setting after its readiness
+  line. Main writes reminder checks and transfer file grants (§7.9) to stdin, which one server
+  reader decodes and hands to each subscriber.
 - **Query robustness.**
   - A stored reminder setting that cannot be parsed falls back to its default for that row.
     It does not stop every reminder.

@@ -111,3 +111,10 @@ export {
   TransferSummary,
 } from "./transfer.js";
 export { TransferRpcs } from "./transfer-rpcs.js";
+export {
+  CheckRemindersCommand,
+  DesktopNotification,
+  DesktopToServerMessage,
+  ReminderActivation,
+  ServerToDesktopMessage,
+} from "./desktop-channel.js";

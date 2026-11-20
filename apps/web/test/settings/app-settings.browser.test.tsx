@@ -74,6 +74,7 @@ describe("AppSettingsPage", () => {
       urgencyRedThreshold: hoursTicks(30),
       workspaceCardColumns: 4,
       reminders: DEFAULT_REMINDERS,
+      keepRunningInTray: false,
     });
   });
 
@@ -248,6 +249,7 @@ describe("AppSettingsPage", () => {
       urgencyRedThreshold: hoursTicks(24),
       workspaceCardColumns: 4,
       reminders: DEFAULT_REMINDERS,
+      keepRunningInTray: false,
     });
   });
 
@@ -290,6 +292,7 @@ describe("AppSettingsPage", () => {
       urgencyRedThreshold: hoursTicks(24),
       workspaceCardColumns: 4,
       reminders: DEFAULT_REMINDERS,
+      keepRunningInTray: false,
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });

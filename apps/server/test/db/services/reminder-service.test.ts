@@ -76,6 +76,27 @@ it.effect("Moving the due date re-arms a delivered reminder for the new day", ()
   ),
 );
 
+it.effect("Pushing back a delivered item one day re-arms its reminder for the new day", () =>
+  withReminders((svc) =>
+    Effect.gen(function* () {
+      const project = yield* svc.projects.create("Operations");
+      const item = yield* saveDue(svc, project.id, "Prepare report", START);
+      yield* svc.reminders.recordDelivery(yield* svc.reminders.due(START));
+
+      yield* svc.items.pushBackOneDay(item.id);
+
+      expect(yield* svc.reminders.due(START)).toEqual([]);
+      expect(
+        yield* svc.reminders.due(START.add({ hours: 24 }).subtract({ milliseconds: 1 })),
+      ).toEqual([]);
+      const [rearmed] = yield* svc.reminders.due(START.add({ hours: 24 }));
+      expect(rearmed?.itemId).toBe(item.id);
+      expect(rearmed?.instant.toString()).toBe("2026-11-18T12:00:00Z");
+      expect((yield* readReminderColumns(item.id)).ReminderDeliveredFor).toBe(ticksText(START));
+    }),
+  ),
+);
+
 it.effect("A snooze is undoable even after delivery changes the same row", () =>
   withReminders((svc) =>
     Effect.gen(function* () {
