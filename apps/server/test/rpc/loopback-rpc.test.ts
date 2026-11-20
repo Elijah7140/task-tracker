@@ -1,6 +1,7 @@
 import { request as nodeRequest, type IncomingMessage } from "node:http";
+import { connect, type Socket } from "node:net";
 import { expect, it } from "@effect/vitest";
-import { Context, Effect, Exit, Fiber, Layer, Scope } from "effect";
+import { Context, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { rpcUrl } from "@task-tracker/contracts";
 import { makeRpcClient } from "../../../web/src/rpc-client.js";
@@ -180,6 +181,36 @@ it.effect("Stops at once while a reminder watch is waiting for a change", () =>
 
       const watched = yield* Fiber.await(watch);
       expect(Exit.isFailure(watched)).toBe(true);
+    }).pipe(Effect.provideService(FetchHttpClient.Fetch, rendererFetch)),
+  ),
+);
+
+/** Opens a TCP connection that never sends a request, as Chromium's preconnect does. */
+const openSilentConnection = (port: number) =>
+  Effect.acquireRelease(
+    Effect.callback<Socket, Error>((resume) => {
+      const socket = connect({ host: "127.0.0.1", port });
+      socket.once("connect", () => resume(Effect.succeed(socket)));
+      socket.once("error", (error) => resume(Effect.fail(error)));
+    }),
+    (socket) => Effect.sync(() => socket.destroy()),
+  );
+
+it.live("Stops at once while a connection that never sent a request is open", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const serverScope = yield* Scope.make();
+      const services = yield* Layer.buildWithScope(testServer(rendererOrigin), serverScope);
+      const connection = Context.get(services, LoopbackRpc);
+      const client = yield* makeRpcClient(connection);
+      yield* openSilentConnection(connection.port);
+      // A later round trip shows the server has accepted the silent connection.
+      yield* client.GetServerInfo();
+
+      const stopping = yield* Effect.forkChild(Scope.close(serverScope, Exit.void));
+      const stopped = yield* Fiber.await(stopping).pipe(Effect.timeoutOption("2 seconds"));
+
+      expect(Option.isSome(stopped)).toBe(true);
     }).pipe(Effect.provideService(FetchHttpClient.Fetch, rendererFetch)),
   ),
 );

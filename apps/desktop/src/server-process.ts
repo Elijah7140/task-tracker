@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { RpcConnection } from "@task-tracker/contracts";
-import { type Duration, Effect, Option, Schema } from "effect";
+import { Duration, Effect, Option, Schema } from "effect";
 import {
   BASH,
   CLOSE_INHERITED_DESCRIPTORS,
@@ -14,15 +14,22 @@ import {
   type ServerMessage,
 } from "./server-messages.js";
 
-interface ServerExit {
+/** How the server child ended, with its newest output or the spawn error. */
+export interface ServerExit {
   readonly diagnostic: string;
+}
+
+/** How a stop ended: the time from closing stdin to the child's exit, and whether it was killed. */
+export interface ServerStop {
+  readonly duration: Duration.Duration;
+  readonly killed: boolean;
 }
 
 /** A running server child with its readiness, exit and graceful stop. */
 export interface ServerProcess {
   readonly ready: Promise<RpcConnection>;
   readonly closed: Promise<ServerExit>;
-  readonly stop: () => Promise<void>;
+  readonly stop: () => Promise<ServerStop>;
   /**
    * Writes one validated message line to the server's private stdin pipe. False
    * once the server has exited, or for a message the protocol does not allow.
@@ -204,17 +211,35 @@ async function waitForReadiness(
   }
 }
 
-async function stopServer(
+/**
+ * Closes stdin, which tells the server to stop, and kills it if it has not exited
+ * within `timeout`. Resolves once the child has exited.
+ */
+function stopServer(
   child: ChildProcessWithoutNullStreams,
   closed: Promise<ServerExit>,
   timeout: Duration.Input,
-) {
-  child.stdin.end();
-  const graceful = await Effect.runPromise(
-    Effect.promise(() => closed).pipe(Effect.timeoutOption(timeout)),
-  );
-  if (Option.isNone(graceful)) {
+): Promise<ServerStop> {
+  const awaitExit = Effect.promise(() => closed);
+  const stop = Effect.gen(function* () {
+    child.stdin.end();
+    const graceful = yield* awaitExit.pipe(Effect.timeoutOption(timeout));
+    if (Option.isSome(graceful)) {
+      return false;
+    }
     child.kill("SIGKILL");
-    await closed;
-  }
+    yield* awaitExit;
+    return true;
+  });
+  return Effect.runPromise(
+    Effect.timed(stop).pipe(Effect.map(([duration, killed]) => ({ duration, killed }))),
+  );
+}
+
+/** One log line for a server stop, so a slow or forced stop shows in main's output. */
+export function describeServerStop({ duration, killed }: ServerStop): string {
+  const millis = Math.round(Duration.toMillis(duration));
+  return killed
+    ? `Task Tracker server was killed after ${millis} ms because it did not stop.`
+    : `Task Tracker server stopped in ${millis} ms.`;
 }

@@ -1,9 +1,15 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Duration } from "effect";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ServerCommand, ServerMessage } from "../src/server-messages.js";
-import { launchServer, type ServerProcess, type ServerTimeouts } from "../src/server-process.js";
+import {
+  describeServerStop,
+  launchServer,
+  type ServerProcess,
+  type ServerTimeouts,
+} from "../src/server-process.js";
 
 const origin = "tasktracker://app";
 // Generous enough for a loaded machine. Timeout tests shorten only the one they cover.
@@ -98,8 +104,9 @@ serverTest("Stops gracefully when the server closes on the parent pipe", async (
     `process.stdin.once("end", () => { console.error("parent pipe closed"); process.exit(0); }).resume();`,
   );
 
-  await server.stop();
+  const stop = await server.stop();
 
+  expect(stop.killed).toBe(false);
   expect(await server.closed).toEqual({ diagnostic: "parent pipe closed" });
 });
 
@@ -108,8 +115,10 @@ serverTest(
   async ({ launch }) => {
     const server = await launch(runForever, { stop: "500 millis" });
 
-    await server.stop();
+    const stop = await server.stop();
 
+    expect(stop.killed).toBe(true);
+    expect(Duration.toMillis(stop.duration)).toBeGreaterThanOrEqual(500);
     expect(await server.closed).toEqual({ diagnostic: "Server exited (SIGKILL)." });
   },
 );
@@ -204,4 +213,20 @@ serverTest("Sends commands to the server as lines on its stdin pipe", async ({ l
   server.send({ type: "check-reminders" });
 
   expect(await server.closed).toEqual({ diagnostic: '{"type":"check-reminders"}' });
+});
+
+test("Describes a graceful stop with its duration", () => {
+  const stop = { duration: Duration.millis(12.4), killed: false };
+
+  const line = describeServerStop(stop);
+
+  expect(line).toBe("Task Tracker server stopped in 12 ms.");
+});
+
+test("Describes a forced stop as a kill", () => {
+  const stop = { duration: Duration.seconds(10), killed: true };
+
+  const line = describeServerStop(stop);
+
+  expect(line).toBe("Task Tracker server was killed after 10000 ms because it did not stop.");
 });

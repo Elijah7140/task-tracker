@@ -66,7 +66,7 @@ jobs:
           "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
           "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - run: pnpm exec vp test run
-      - name: Run SQLite tests under the Electron runtime
+      - name: Run SQLite and RPC tests under the Electron runtime
         run: pnpm run test:server-db:electron
       # Every installed copy of Electron's sandbox helper must be setuid root, as for the
       # packaged smoke below (WP22).

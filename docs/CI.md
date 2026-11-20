@@ -13,11 +13,19 @@ free for this public repository. There are no self-hosted runners.
 
 Each job runs the frozen install, Playwright Chromium, build, the static check
 with `--deny-warnings`, the Vite renderer probe, `vp test run`, the embedded Node
-SQLite tests (`test:server-db:electron`), the Electron runtime check,
+SQLite and RPC tests (`test:server-db:electron`), the Electron runtime check,
 `package:desktop` and the packaged smoke (`test:desktop`). The Linux job runs
 the Electron steps under `xvfb-run -a` and makes the packaged `chrome-sandbox`
 setuid root first, as WP22 introduced. A newer push to the same branch or pull
 request cancels a running build, except on `main`.
+
+Electron main logs how long each server stop takes. It kills a server that has
+not exited 10 seconds after main closed its stdin, and its warning then includes
+the server's report of the handles it was still waiting on. Node 24 in Electron
+counts a connection that has not sent a request as active, so the server destroys
+its remaining connections once it has interrupted every request. A smoke test
+quits with the main window, the tray card and such a connection open and requires
+the stop to take under 2 seconds.
 
 `vp test run` runs the Node projects first and `web-browser` after them
 (`sequence.groupOrder`). When Chromium ran alongside them on the four-core Windows

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { createServer } from "node:http";
+import { createServer, type Server } from "node:http";
 import { NodeHttpServer } from "@effect/platform-node";
 import {
   DESKTOP_RENDERER_ORIGIN,
@@ -75,55 +75,90 @@ const noTransferFiles = Layer.merge(TransferFileGrants.layer, DatabaseBackup.lay
 
 /** Starts a scoped HTTP RPC server on an ephemeral IPv4 loopback port. */
 export function loopbackRpcLayer(options: LoopbackRpcOptions) {
-  return Layer.effect(LoopbackRpc)(
-    Effect.gen(function* () {
-      const rendererOrigin = yield* validateOrigin(options.rendererOrigin);
-      const info = yield* Schema.decodeUnknownEffect(ServerInfo)({ timeZone: options.timeZone });
-      const server = yield* HttpServer.HttpServer;
-      if (!NetAddress.isInetAddressV4(server.address)) {
-        return yield* Effect.fail(new Error("Expected an IPv4 loopback RPC listener."));
-      }
-
-      const connection = {
-        port: server.address.port,
-        credential: randomBytes(32).toString("base64url"),
-      };
-      const session = yield* Layer.build(sessionLayer(options.timeZone, options.parent));
-      // Built for the listener's lifetime, so a stdin grant listener keeps running.
-      const transferFiles = yield* Layer.build(options.transfer ?? noTransferFiles);
-      const rpc = yield* RpcServer.toHttpEffect(TaskTrackerRpcs).pipe(
-        Effect.provide(
-          TaskTrackerRpcs.toLayerHandler("GetServerInfo", () =>
-            Effect.succeed(info).pipe(mapOperationError),
-          ),
-        ),
-        Effect.provide(projectWorkspaceHandlers(options.timeZone)),
-        Effect.provide(RpcSerialization.layerJson),
-        Effect.provide(itemRpcHandlers(options.timeZone)),
-        Effect.provide(settingsRpcHandlers),
-        Effect.provide(lookupRpcHandlers),
-        Effect.provide(fieldRpcHandlers),
-        Effect.provide(historyRpcHandlers),
-        Effect.provide(trashRpcHandlers(options.timeZone)),
-        Effect.provide(calendarRpcHandlers(options.timeZone)),
-        Effect.provide(searchRpcHandlers),
-        Effect.provide(searchQueryRpcHandlers(options.timeZone)),
-        Effect.provide(savedSearchRpcHandlers),
-        Effect.provide(todayRpcHandlers(options.timeZone)),
-        Effect.provide(ticketRpcHandlers),
-        Effect.provide(transferRpcHandlers),
-        Effect.provide(currentItemRpcHandlers),
-        Effect.provide(transferFiles),
-        // One session layer supplies the shared UndoService to every handler above.
-        Effect.provide(session),
+  return Layer.unwrap(
+    Effect.sync(() => {
+      const listener = createServer();
+      return Layer.effect(LoopbackRpc)(serveRpc(options, listener)).pipe(
+        Layer.provide(NodeHttpServer.layerServer(() => listener, listenOptions)),
       );
-      const host = `${RPC_HOST}:${connection.port}`;
-      yield* server.serve(
-        Effect.interruptible(guardRpcRequest(rpc, { ...connection, host, rendererOrigin })),
-      );
-      return connection;
     }),
-  ).pipe(Layer.provide(NodeHttpServer.layerServer(createServer, listenOptions)));
+  );
+}
+
+/** Serves the RPC handlers on `listener` and publishes the connection details. */
+function serveRpc(options: LoopbackRpcOptions, listener: Server) {
+  return Effect.gen(function* () {
+    const rendererOrigin = yield* validateOrigin(options.rendererOrigin);
+    const info = yield* Schema.decodeUnknownEffect(ServerInfo)({ timeZone: options.timeZone });
+    const server = yield* HttpServer.HttpServer;
+    if (!NetAddress.isInetAddressV4(server.address)) {
+      return yield* Effect.fail(new Error("Expected an IPv4 loopback RPC listener."));
+    }
+
+    const connection = {
+      port: server.address.port,
+      credential: randomBytes(32).toString("base64url"),
+    };
+    const rpc = yield* makeRpcApp(options, info);
+    const host = `${RPC_HOST}:${connection.port}`;
+    // Added before serving, so it runs after the open requests have been interrupted.
+    yield* Effect.addFinalizer(() => Effect.sync(() => closeConnections(listener)));
+    yield* server.serve(
+      Effect.interruptible(guardRpcRequest(rpc, { ...connection, host, rendererOrigin })),
+    );
+    return connection;
+  });
+}
+
+/**
+ * Builds the RPC HTTP app and the services it shares for the listener's lifetime:
+ * the session and the transfer files.
+ */
+function makeRpcApp(options: LoopbackRpcOptions, info: typeof ServerInfo.Type) {
+  return Effect.gen(function* () {
+    const session = yield* Layer.build(sessionLayer(options.timeZone, options.parent));
+    // Built for the listener's lifetime, so a stdin grant listener keeps running.
+    const transferFiles = yield* Layer.build(options.transfer ?? noTransferFiles);
+    return yield* RpcServer.toHttpEffect(TaskTrackerRpcs).pipe(
+      Effect.provide(
+        TaskTrackerRpcs.toLayerHandler("GetServerInfo", () =>
+          Effect.succeed(info).pipe(mapOperationError),
+        ),
+      ),
+      Effect.provide(projectWorkspaceHandlers(options.timeZone)),
+      Effect.provide(RpcSerialization.layerJson),
+      Effect.provide(itemRpcHandlers(options.timeZone)),
+      Effect.provide(settingsRpcHandlers),
+      Effect.provide(lookupRpcHandlers),
+      Effect.provide(fieldRpcHandlers),
+      Effect.provide(historyRpcHandlers),
+      Effect.provide(trashRpcHandlers(options.timeZone)),
+      Effect.provide(calendarRpcHandlers(options.timeZone)),
+      Effect.provide(searchRpcHandlers),
+      Effect.provide(searchQueryRpcHandlers(options.timeZone)),
+      Effect.provide(savedSearchRpcHandlers),
+      Effect.provide(todayRpcHandlers(options.timeZone)),
+      Effect.provide(ticketRpcHandlers),
+      Effect.provide(transferRpcHandlers),
+      Effect.provide(currentItemRpcHandlers),
+      Effect.provide(transferFiles),
+      // One session layer supplies the shared UndoService to every handler above.
+      Effect.provide(session),
+    );
+  });
+}
+
+/**
+ * Stops listening and destroys every remaining connection. Chromium opens spare
+ * connections that may never carry a request. Node 24, which Electron embeds,
+ * counts such a connection as active until its 60-second header timeout, so
+ * `close` alone would wait for it and Electron main would kill the server before
+ * it closed the database. A request that arrives once the handler is removed
+ * would also never be answered. Every request has already been interrupted here.
+ */
+function closeConnections(listener: Server) {
+  listener.close();
+  listener.closeAllConnections();
 }
 
 /**

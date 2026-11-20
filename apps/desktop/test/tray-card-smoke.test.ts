@@ -1,3 +1,4 @@
+import { connect, type Socket } from "node:net";
 import type { ElectronApplication, Page } from "playwright";
 import { expect } from "vitest";
 import { desktopTest, firstWindow, launch } from "./support/desktop-app.js";
@@ -91,7 +92,10 @@ function cardSandboxed(application: ElectronApplication) {
 
 /** The preload bridge as a page sees it; desktop tests have no renderer typings. */
 interface PageWithBridge {
-  readonly taskTrackerDesktop: { openItemFromTrayCard(itemId: string): Promise<boolean> };
+  readonly taskTrackerDesktop: {
+    openItemFromTrayCard(itemId: string): Promise<boolean>;
+    getRpcConnection(): Promise<{ readonly port: number }>;
+  };
 }
 
 /** Node globals and the bridge methods a page can see. */
@@ -145,6 +149,35 @@ async function openCard(application: ElectronApplication) {
   await card.getByTestId("tray-card-title").filter({ hasText: ITEM }).waitFor();
   await expect.poll(() => cardShown(application)).toBe(true);
   return card;
+}
+
+/** Collects what Electron main writes, where it logs how each server stop ended. */
+function collectMainOutput(application: ElectronApplication) {
+  let output = "";
+  const append = (chunk: Buffer) => {
+    output += chunk.toString("utf8");
+  };
+  application.process().stdout?.on("data", append);
+  application.process().stderr?.on("data", append);
+  return () => output;
+}
+
+/**
+ * Opens a connection to the RPC server that never sends a request, like the
+ * spare connections Chromium opens, then waits for an answer on another
+ * connection, so the server has accepted the silent one.
+ */
+async function openSilentConnection(page: Page): Promise<Socket> {
+  const { port } = await page.evaluate(() =>
+    (window as unknown as PageWithBridge).taskTrackerDesktop.getRpcConnection(),
+  );
+  const socket = connect({ host: "127.0.0.1", port });
+  await new Promise<void>((resolve, reject) => {
+    socket.once("connect", resolve).once("error", reject);
+  });
+  const answer = await fetch(`http://127.0.0.1:${port}/`, { headers: { connection: "close" } });
+  expect(answer.status).toBe(404);
+  return socket;
 }
 
 desktopTest(
@@ -229,6 +262,37 @@ desktopTest(
       await editor.waitFor();
       expect(await editor.getByTestId("item-editor-title").inputValue()).toBe(ITEM);
     } finally {
+      await application.close();
+      await bus?.close();
+    }
+  },
+);
+
+desktopTest(
+  "Quitting with the main window and tray card open stops the server within two seconds",
+  async ({ desktop }) => {
+    const bus = await sessionBus();
+    const application = await launch(
+      desktop,
+      bus === undefined ? {} : { DBUS_SESSION_BUS_ADDRESS: bus.address },
+    );
+    const mainOutput = collectMainOutput(application);
+    let silent: Socket | undefined;
+    try {
+      const page = await firstWindow(application);
+      await observeTrayIcon(application);
+      await chooseCurrentItem(page);
+      await openCard(application);
+      silent = await openSilentConnection(page);
+
+      await application.close();
+
+      const output = mainOutput();
+      expect(output).not.toContain("was killed");
+      const stopped = /Task Tracker server stopped in (\d+) ms\./.exec(output);
+      expect(Number(stopped?.[1])).toBeLessThan(2_000);
+    } finally {
+      silent?.destroy();
       await application.close();
       await bus?.close();
     }

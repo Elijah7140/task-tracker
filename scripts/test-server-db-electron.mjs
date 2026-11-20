@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 const requireDesktop = createRequire(new URL("../apps/desktop/package.json", import.meta.url));
 const electron = requireDesktop("electron");
 const vitest = fileURLToPath(new URL("./vitest.mjs", import.meta.resolve("vitest/package.json")));
-const result = spawnSync(electron, [vitest, "run", "--project", "server-db", "--pool", "threads"], {
+// The RPC suites run here too: Electron's Node closes HTTP connections differently from Node 26.
+const projects = ["--project", "server-db", "--project", "server-rpc"];
+const result = spawnSync(electron, [vitest, "run", ...projects, "--pool", "threads"], {
   env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
   stdio: "inherit",
 });
