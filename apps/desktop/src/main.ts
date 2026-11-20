@@ -17,6 +17,7 @@ import {
   quitAndFinishUpdate,
 } from "./installation/desktop-installation.js";
 import { registerInstallationHandlers } from "./installation/installation-ipc.js";
+import type { UpdateHandoff } from "./installation/update-handoff.js";
 import { makeNativeNotifier } from "./native-notifier.js";
 import { createReminderNotifications } from "./reminder-notifications.js";
 import {
@@ -26,7 +27,9 @@ import {
   servePackagedRenderer,
 } from "./renderer.js";
 import type { ServerMessage } from "./server-messages.js";
-import { relaunchAfterExit } from "./relaunch-after-exit.js";
+import { type RelaunchCommand, relaunchAfterExit } from "./relaunch-after-exit.js";
+import { relaunchCommand } from "./relaunch-command.js";
+import { relaunchOnExit } from "./relaunch-on-exit.js";
 import { launchServer, type ServerProcess } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
@@ -127,19 +130,33 @@ function onSecondInstance() {
   }
   if (!relaunchScheduled) {
     relaunchScheduled = true;
-    relaunchOnExit();
+    relaunchAfterQuit(
+      relaunchCommand({
+        executable: process.execPath,
+        args: process.argv.slice(1),
+        environment: process.env,
+      }),
+    );
   }
 }
 
-/**
- * Starts the app again with the same arguments once this process has exited.
- * Linux avoids `app.relaunch()`, whose new instance cannot use the setuid sandbox.
- */
-function relaunchOnExit() {
-  const command = { executable: process.execPath, args: process.argv.slice(1) };
-  if (relaunchAfterExit(command) === undefined) {
+/** Starts `command` once this process has exited, through Electron where the OS needs it. */
+function relaunchAfterQuit(command: RelaunchCommand) {
+  relaunchOnExit(command, { afterExit: relaunchAfterExit, electron: electronRelaunch });
+}
+
+/** Electron's relaunch, with its own default command line when restarting this executable. */
+function electronRelaunch(options: { execPath: string; args: string[] }) {
+  if (options.execPath === process.execPath) {
     app.relaunch();
+  } else {
+    app.relaunch(options);
   }
+}
+
+/** Quits and finishes the update, relaunching a replaced AppImage after the exit. */
+function restartWithUpdate(handoff: UpdateHandoff) {
+  quitAndFinishUpdate(handoff, relaunchAfterQuit);
 }
 
 /** Holds the quit until the server child has closed its database. */
@@ -324,7 +341,7 @@ async function finishPendingUpdate(installation: DesktopInstallationServices) {
   try {
     const handoff = await installation.updates.takePendingAtStartup();
     if (handoff !== undefined) {
-      quitAndFinishUpdate(handoff);
+      restartWithUpdate(handoff);
       return true;
     }
   } catch (error) {
@@ -406,7 +423,7 @@ function registerRendererHandlers(
   registerInstallationHandlers({
     ...installation,
     isRendererFrame: (event) => isRendererFrame(event, address),
-    restartWith: quitAndFinishUpdate,
+    restartWith: restartWithUpdate,
   });
   registerTransferFileHandler({
     isRendererFrame: (event) => isRendererFrame(event, address),

@@ -61,3 +61,25 @@ relaunchTest.skipIf(process.platform !== "linux")(
       .toBe(["released", "NoNewPrivs:\t0", directory, "two words", ""].join("\n"));
   },
 );
+
+relaunchTest.skipIf(process.platform !== "linux")(
+  "Starts the program with the command's environment instead of this process's",
+  async ({ directory }) => {
+    const command = {
+      executable: "/bin/sh",
+      args: [
+        "-c",
+        'printf "%s|%s" "$RELAUNCH_MARKER" "${HOME-unset}" > "$1/started"',
+        "env",
+        directory,
+      ],
+      environment: { RELAUNCH_MARKER: "given" },
+    };
+
+    const pending = relaunchAfterExit(command);
+    pending?.release();
+
+    expect(pending).toBeDefined();
+    await expect.poll(() => readStart(directory)).toBe("given|unset");
+  },
+);

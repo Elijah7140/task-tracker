@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { DesktopFixture } from "./desktop-app.js";
 
@@ -29,4 +29,30 @@ export async function fakeAppImageInstall(desktop: DesktopFixture): Promise<Fake
     folder,
     environment: { HOME: home, XDG_CONFIG_HOME: "", APPIMAGE: appImage, APPDIR: folder },
   };
+}
+
+/**
+ * A stand-in AppImage that records how it was started in `marker`: the kernel's
+ * no-new-privileges flag, the `APPDIR` it inherited and its arguments, one per line.
+ * The real AppImage runtime cannot mount under no-new-privileges, because it
+ * needs the setuid `fusermount3`, and sets `APPDIR` to its own fresh mount.
+ */
+export function recordingAppImage(marker: string) {
+  return `#!/bin/sh
+{
+  grep '^NoNewPrivs:' /proc/self/status
+  echo "APPDIR=\${APPDIR-unset}"
+  for argument in "$@"; do printf '%s\\n' "$argument"; done
+} > '${marker}.tmp'
+mv '${marker}.tmp' '${marker}'
+`;
+}
+
+/** The lines a {@link recordingAppImage} wrote, or nothing before it has started. */
+export async function recordedStart(marker: string) {
+  try {
+    return (await readFile(marker, "utf8")).split("\n").slice(0, -1);
+  } catch {
+    return undefined;
+  }
 }

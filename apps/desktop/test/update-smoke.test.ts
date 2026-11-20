@@ -15,15 +15,22 @@ import {
 } from "./support/desktop-app.js";
 import { openAppSettingsFromMenu } from "./support/workflows.js";
 import { releaseMetadata, startFakeUpdateFeed } from "./support/fake-update-feed.js";
-import { type FakeAppImageInstall, fakeAppImageInstall } from "./support/installed-app.js";
+import {
+  type FakeAppImageInstall,
+  fakeAppImageInstall,
+  recordedStart,
+  recordingAppImage,
+} from "./support/installed-app.js";
 
 const APPIMAGE = "task-tracker-0.2.0-linux-x64.AppImage";
 
 const updateStatus = (page: Page) => page.getByTestId("update-status");
 
-/** A stand-in update: a script that records that the relaunch started it. */
+const relaunchMarker = (install: FakeAppImageInstall) => join(install.folder, "relaunched.txt");
+
+/** A stand-in update: a script that records how the relaunch started it. */
 function updatePayload(install: FakeAppImageInstall) {
-  return `#!/bin/sh\necho relaunched > '${join(install.folder, "relaunched.txt")}'\n`;
+  return recordingAppImage(relaunchMarker(install));
 }
 
 async function startUpdateFeed(install: FakeAppImageInstall) {
@@ -45,10 +52,19 @@ async function downloadUpdate(page: Page) {
 }
 
 const relaunched = (install: FakeAppImageInstall) =>
-  stat(join(install.folder, "relaunched.txt")).then(
+  stat(relaunchMarker(install)).then(
     () => true,
     () => false,
   );
+
+/**
+ * Waits for the relaunch and checks it started the new AppImage the way a fresh
+ * launch would: able to gain privileges for FUSE and without the old mount's `APPDIR`.
+ */
+async function expectFreshRelaunch(install: FakeAppImageInstall) {
+  await expect.poll(() => relaunched(install)).toBe(true);
+  expect(await recordedStart(relaunchMarker(install))).toEqual(["NoNewPrivs:\t0", "APPDIR=unset"]);
+}
 
 function feedEnvironment(install: FakeAppImageInstall, feedUrl: string) {
   return { ...install.environment, TASKTRACKER_UPDATE_FEED_URL: feedUrl };
@@ -93,7 +109,7 @@ desktopTest.runIf(process.platform === "linux")(
       await exited;
 
       expect(await readFile(install.appImage, "utf8")).toBe(payload);
-      await expect.poll(() => relaunched(install)).toBe(true);
+      await expectFreshRelaunch(install);
     } finally {
       await application.close().catch(() => {});
       await feed.close();
@@ -114,7 +130,7 @@ desktopTest.runIf(process.platform === "linux")(
       expect(await launchUntilExit(desktop, environment)).toEqual([0, null]);
 
       expect(await readFile(install.appImage, "utf8")).toBe(payload);
-      await expect.poll(() => relaunched(install)).toBe(true);
+      await expectFreshRelaunch(install);
     } finally {
       await feed.close();
     }

@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -15,6 +15,7 @@ import {
   serverPid,
   signalIfRunning,
 } from "./support/desktop-processes.js";
+import { fakeAppImageInstall, recordedStart, recordingAppImage } from "./support/installed-app.js";
 
 interface DesktopFixture {
   readonly database: string;
@@ -31,11 +32,15 @@ const desktopTest = test.extend<{ desktop: DesktopFixture }>({
   },
 });
 
-function launch(desktop: DesktopFixture, args: readonly string[] = []) {
+function launch(
+  desktop: DesktopFixture,
+  args: readonly string[] = [],
+  environment: NodeJS.ProcessEnv = {},
+) {
   return _electron.launch({
     executablePath: executable,
     args: [`--user-data-dir=${desktop.profile}`, ...args],
-    env: { ...process.env, TASKTRACKER_DB_PATH: desktop.database },
+    env: { ...process.env, ...environment, TASKTRACKER_DB_PATH: desktop.database },
     chromiumSandbox: true,
     timeout: 10_000,
   });
@@ -277,6 +282,24 @@ async function hasNoNewPrivileges(pid: number) {
   return /^NoNewPrivs:\s*1$/m.test(status);
 }
 
+/**
+ * Quits with the server stopped mid-shutdown, starts a second instance during
+ * that window and waits for the quitting instance to exit.
+ */
+async function quitWhileAnotherInstanceStarts(
+  application: ElectronApplication,
+  desktop: DesktopFixture,
+  server: number,
+) {
+  process.kill(server, "SIGSTOP");
+  const exited = once(application.process(), "exit");
+  await application.evaluate(({ app }) => app.quit());
+
+  expect(await runSecondInstance(desktop)).toEqual([0, null]);
+  process.kill(server, "SIGCONT");
+  await exited;
+}
+
 // Holding the stop open needs SIGSTOP, which Windows does not provide.
 desktopTest.skipIf(process.platform === "win32")(
   "Relaunches when a second instance starts while the app is quitting",
@@ -288,13 +311,7 @@ desktopTest.skipIf(process.platform === "win32")(
     const server = await serverPid(application);
     let relaunched: number | undefined;
     try {
-      process.kill(server, "SIGSTOP");
-      const exited = once(application.process(), "exit");
-      await application.evaluate(({ app }) => app.quit());
-
-      expect(await runSecondInstance(desktop)).toEqual([0, null]);
-      process.kill(server, "SIGCONT");
-      await exited;
+      await quitWhileAnotherInstanceStarts(application, desktop, server);
 
       let found: number[] = [];
       await expect
@@ -314,6 +331,32 @@ desktopTest.skipIf(process.platform === "win32")(
       if (relaunched !== undefined) {
         signalIfRunning(relaunched, "SIGKILL");
       }
+      await application.close().catch(() => {});
+    }
+  },
+);
+
+// The AppImage's temporary mount goes away when the app exits, so the relaunch must start
+// the AppImage file. The packaged smoke runs the unpacked app with a stand-in AppImage.
+desktopTest.runIf(process.platform === "linux")(
+  "Relaunches the AppImage file when a second instance starts while an AppImage build is quitting",
+  async ({ desktop }) => {
+    const install = await fakeAppImageInstall(desktop);
+    const marker = join(install.folder, "relaunched.txt");
+    await writeFile(install.appImage, recordingAppImage(marker), { mode: 0o755 });
+    const application = await launch(desktop, [], install.environment);
+    const page = await application.firstWindow({ timeout: 10_000 });
+    await page.getByTestId("empty-home-create").waitFor();
+    const server = await serverPid(application);
+    try {
+      await quitWhileAnotherInstanceStarts(application, desktop, server);
+
+      await expect.poll(() => recordedStart(marker), { timeout: 15_000 }).toBeDefined();
+      const [privileges, appDirectory, ...args] = (await recordedStart(marker)) ?? [];
+      expect([privileges, appDirectory]).toEqual(["NoNewPrivs:\t0", "APPDIR=unset"]);
+      expect(args).toContain(`--user-data-dir=${desktop.profile}`);
+    } finally {
+      signalIfRunning(server, "SIGCONT");
       await application.close().catch(() => {});
     }
   },

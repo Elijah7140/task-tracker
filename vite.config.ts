@@ -60,6 +60,8 @@ export default defineConfig({
             "apps/desktop/test/renderer.test.ts",
             "apps/desktop/test/server-process.test.ts",
             "apps/desktop/test/relaunch-after-exit.test.ts",
+            "apps/desktop/test/relaunch-command.test.ts",
+            "apps/desktop/test/relaunch-on-exit.test.ts",
             "apps/desktop/test/transfer-file-dialog.test.ts",
             "apps/desktop/test/scripts/**/*.test.ts",
             "apps/desktop/test/instance-scope.test.ts",

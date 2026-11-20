@@ -12,6 +12,8 @@ import {
 export interface RelaunchCommand {
   readonly executable: string;
   readonly args: readonly string[];
+  /** The program's environment. This process's environment when left out. */
+  readonly environment?: Readonly<Record<string, string | undefined>>;
 }
 
 /** A started relaunch waiting for this process to exit. */
@@ -52,13 +54,14 @@ function openExitPipe(): ExitPipe {
 }
 
 /** Starts bash in its own session to wait on `reader`, then exec `command` in its place. */
-function startWaitingHelper({ executable, args }: RelaunchCommand, reader: number) {
+function startWaitingHelper({ executable, args, environment }: RelaunchCommand, reader: number) {
   const helper = spawn(
     BASH,
     ["-p", "-c", runAfterExit, "task-tracker-relaunch", executable, ...args],
     {
       detached: true,
       stdio: [reader, "ignore", "ignore"],
+      env: environment ?? process.env,
     },
   );
   helper.on("error", () => {});
@@ -66,9 +69,9 @@ function startWaitingHelper({ executable, args }: RelaunchCommand, reader: numbe
 }
 
 /**
- * Starts `command` with this process's environment once this process has exited
- * and released the single-instance lock. Returns nothing where this OS cannot,
- * so the caller falls back to `app.relaunch()`.
+ * Starts `command` once this process has exited and released the single-instance
+ * lock. Returns nothing where this OS cannot, so the caller falls back to
+ * `app.relaunch()`.
  *
  * Electron's `app.relaunch()` on Linux starts the new instance with the kernel's
  * no-new-privileges flag set. The setuid `chrome-sandbox` helper then cannot gain

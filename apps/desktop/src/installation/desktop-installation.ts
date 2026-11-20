@@ -12,6 +12,8 @@ import {
   type StartupEntry,
   type StartupRegistration,
 } from "./startup-registration.js";
+import type { RelaunchCommand } from "../relaunch-after-exit.js";
+import { relaunchCommand } from "../relaunch-command.js";
 import type { UpdateHandoff } from "./update-handoff.js";
 import { resolveUpdateFeed } from "./update-feed.js";
 import { createUpdateService, type UpdateService } from "./update-service.js";
@@ -96,11 +98,18 @@ export function createDesktopInstallation(): DesktopInstallationServices {
 
 /**
  * Quits normally, so the server closes the database first, and then finishes the
- * update: Linux relaunches the replaced AppImage and Windows starts the installer.
+ * update: Linux relaunches the replaced AppImage with `relaunch` and Windows
+ * starts the installer. The relaunch starts the AppImage file with a fresh
+ * launch's environment, as a second launch while quitting does.
  */
-export function quitAndFinishUpdate(handoff: UpdateHandoff) {
+export function quitAndFinishUpdate(
+  handoff: UpdateHandoff,
+  relaunch: (command: RelaunchCommand) => void,
+) {
   if (handoff.kind === "relaunch") {
-    app.relaunch({ execPath: handoff.executable, args: [] });
+    relaunch(
+      relaunchCommand({ executable: handoff.executable, args: [], environment: process.env }),
+    );
   } else {
     app.once("will-quit", () => {
       spawn(handoff.installer, [...handoff.args], { detached: true, stdio: "ignore" }).unref();
