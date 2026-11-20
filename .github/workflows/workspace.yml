@@ -56,6 +56,15 @@ jobs:
           trap 'kill "$dev_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 \
             --output /dev/null http://127.0.0.1:5173/
+      # %TEMP% sits on the Windows runner's OS disk, where each flush to disk takes about
+      # 4 ms and sometimes seconds. Tests that commit to SQLite files there timed out. The
+      # runner's D: drive (RUNNER_TEMP) flushes in 0.1 ms. See docs/CI.md.
+      - name: Keep temporary files off the Windows OS disk
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - run: pnpm exec vp test run
       - name: Run SQLite tests under the Electron runtime
         run: pnpm run test:server-db:electron
