@@ -16,11 +16,19 @@ import {
 
 const menuBar = (page: Page) => page.getByRole("menubar", { name: "Main menu" });
 
-/** The main window's title and whether Electron shows its own menu bar under the title bar. */
+/**
+ * The main window's title and whether Electron shows its own menu bar. macOS has no
+ * menu bar per window and always reports the system one as visible, so there the
+ * check is whether an application menu would fill that bar.
+ */
 function nativeChrome(application: ElectronApplication) {
-  return application.evaluate(({ BrowserWindow }) => {
+  return application.evaluate(({ BrowserWindow, Menu }) => {
     const window = BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible());
-    return { title: window?.getTitle(), nativeMenuBar: window?.isMenuBarVisible() };
+    const nativeMenuBar =
+      process.platform === "darwin"
+        ? Menu.getApplicationMenu() !== null
+        : window?.isMenuBarVisible();
+    return { title: window?.getTitle(), nativeMenuBar };
   });
 }
 

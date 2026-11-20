@@ -128,6 +128,9 @@ await buildInstaller({
       include: join(desktop, "installer", "uninstall-startup.nsh"),
     },
     mac: {
+      // electron-builder names the macOS bundle and its binary after executableName,
+      // so the Linux and Windows "task-tracker" would ship as task-tracker.app.
+      executableName: "Task Tracker",
       target: ["dmg", "zip"],
       icon: join(assets, "icon.svg"),
       category: "public.app-category.productivity",
