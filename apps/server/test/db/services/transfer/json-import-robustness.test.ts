@@ -156,30 +156,35 @@ describe("JSON import robustness", () => {
     ),
   );
 
-  it.effect("Imports a large hierarchy", () =>
-    emptyWorld((world) =>
-      Effect.gen(function* () {
-        const parentId = randomGuid();
-        const items = [
-          { id: parentId, title: "Parent", sortOrder: 0 },
-          ...Array.from({ length: 2999 }, (_, index) => ({
-            id: randomGuid(),
-            parentItemId: parentId,
-            title: `Child ${index + 1}`,
-            sortOrder: index + 1,
-          })),
-        ];
-        const text = JSON.stringify({
-          format: "task-tracker",
-          version: 1,
-          projects: [{ id: randomGuid(), name: "Wide", items }],
-        });
+  it.effect(
+    "Imports a large hierarchy",
+    () =>
+      emptyWorld((world) =>
+        Effect.gen(function* () {
+          const parentId = randomGuid();
+          const items = [
+            { id: parentId, title: "Parent", sortOrder: 0 },
+            ...Array.from({ length: 2999 }, (_, index) => ({
+              id: randomGuid(),
+              parentItemId: parentId,
+              title: `Child ${index + 1}`,
+              sortOrder: index + 1,
+            })),
+          ];
+          const text = JSON.stringify({
+            format: "task-tracker",
+            version: 1,
+            projects: [{ id: randomGuid(), name: "Wide", items }],
+          });
 
-        const result = yield* world.importJson(text);
+          const result = yield* world.importJson(text);
 
-        expect(result).toMatchObject({ kind: "imported", summary: { items: 3000 } });
-      }),
-    ),
+          expect(result).toMatchObject({ kind: "imported", summary: { items: 3000 } });
+        }),
+      ),
+    // Writes 3,000 rows in one transaction: about 0.75 s alone, but several seconds under
+    // Electron's SQLite when the machine is busy, so it gets more than the 5 s default.
+    30_000,
   );
 
   it.effect("Refuses a file that is not UTF-8 with advice", () =>
