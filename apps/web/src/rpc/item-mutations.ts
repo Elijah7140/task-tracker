@@ -50,3 +50,9 @@ export const stopRepeatingAtom = TaskTrackerClient.mutation("StopRepeating");
 
 /** Moves an open item's due date and scheduled block one calendar day later (§7.14). */
 export const pushBackOneDayAtom = TaskTrackerClient.mutation("PushBackOneDay");
+
+/** Adds a ToDo or Ticket with its fields from quick add or the detailed add view (§7.19). */
+export const addItemAtom = TaskTrackerClient.mutation("AddItem");
+
+/** Appends a comment to a ticket's log (§7.19). */
+export const addTicketCommentAtom = TaskTrackerClient.mutation("AddTicketComment");

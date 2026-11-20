@@ -14,12 +14,18 @@ export interface CardPlacement {
 }
 
 /**
- * True when a placement only reorders a top-level card inside its own section. Such a move
- * keeps finished items in their saved slots, like any sibling reorder (§6.4).
+ * True when a placement only reorders a card inside its own section of the level it sits in:
+ * the area's top level, or a drilled-in item's children (§7.19). Such a move keeps finished
+ * items in their saved slots, like any sibling reorder (§6.4).
  */
-export function keepsSection(source: ItemNode, placement: CardPlacement) {
+export function keepsSection(
+  source: ItemNode,
+  placement: CardPlacement,
+  levelParentId: string | null = null,
+) {
   return (
-    source.item.parentItemId === null && source.item.priorityLevelId === placement.priorityLevelId
+    source.item.parentItemId === levelParentId &&
+    source.item.priorityLevelId === placement.priorityLevelId
   );
 }
 

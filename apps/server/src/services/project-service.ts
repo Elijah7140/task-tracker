@@ -4,6 +4,7 @@ import {
   EntityMissing,
   renameProject,
   reorderProjects,
+  setProjectIcon,
   summarizeProject,
 } from "@task-tracker/core";
 import { Context, Effect, Layer, Option, Schema } from "effect";
@@ -56,6 +57,20 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
       { table: "Project", where: sql`Id = ${project.id}` },
     ]);
     yield* projects.update(renamed);
+  }, undo.record);
+
+  /** Sets or clears the icon on the Home card and in the sidebar (§7.19). */
+  const setIcon = Effect.fnUntraced(function* (id: string, iconKey: string | null) {
+    const project = yield* projects.requireActive(id);
+    if (project.iconKey === iconKey) {
+      return;
+    }
+    const now = yield* operationTime;
+    const updated = yield* checkRules(() => setProjectIcon(project, iconKey, now));
+    yield* undo.capture(undoLabel("Change icon of", project.name), [
+      { table: "Project", where: sql`Id = ${project.id}` },
+    ]);
+    yield* projects.updateIcon(updated);
   }, undo.record);
 
   const reorder = Effect.fnUntraced(function* (ids: readonly string[]) {
@@ -121,7 +136,16 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     yield* reconcile(project.value.id, now);
   }, undo.record);
 
-  return { create, rename, reorder, list, loadWorkspace, delete: deleteProject, restore };
+  return {
+    create,
+    rename,
+    setIcon,
+    reorder,
+    list,
+    loadWorkspace,
+    delete: deleteProject,
+    restore,
+  };
 });
 
 /** Transactional project operations, home summaries and workspace snapshots. */

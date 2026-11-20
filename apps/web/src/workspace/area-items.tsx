@@ -6,11 +6,16 @@ import { type ReactNode, type RefObject, useEffect, useRef, useState } from "rea
 import { areaAtom, areaKey } from "../rpc/area-queries.js";
 import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
 import { urgencyRefreshAtom } from "../rpc/urgency-refresh.js";
+import { Navigate } from "@tanstack/react-router";
+import { AddItemDialog } from "../add/add-item-dialog.js";
+import { useAddItemStore } from "../add/add-item-store.js";
 import { ItemEditor } from "../editor/item-editor.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { closeItemEditorWithArea, dropStrayCarriedEditor } from "../state/item-editor-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
+import { areaTarget } from "./area-route.js";
 import type { Folder } from "./folder-outline.js";
+import { ItemDetailsPanel } from "./item-details-panel.js";
 import {
   EMPTY_SIBLINGS,
   findItemNode,
@@ -39,6 +44,8 @@ export interface AreaItemsProps {
   readonly timeZone: string;
   /** Focuses quick-add once the area loads, as when a project opens (legacy workspace). */
   readonly focusQuickAddOnLoad?: boolean | undefined;
+  /** The drilled-in item whose children show as cards, or null for the area (§7.19). */
+  readonly itemId?: string | null | undefined;
 }
 
 /** A request to focus quick-add once it is rendered. */
@@ -62,14 +69,14 @@ function lookupsFor(snapshot: typeof AreaSnapshot.Type, timeZone: string): ItemR
   };
 }
 
-function EmptyArea() {
+function EmptyArea({ drilledIn = false }: { readonly drilledIn?: boolean }) {
   return (
     <div
       data-testid="empty-area"
       className="flex flex-col items-center gap-3 rounded-card border border-dashed border-line-strong px-6 py-16 text-center text-fg-muted"
     >
       <ListTodo size={20} aria-hidden="true" />
-      <p>No items in this area yet.</p>
+      <p>{drilledIn ? "Nothing under this item yet." : "No items in this area yet."}</p>
     </div>
   );
 }
@@ -166,6 +173,7 @@ function useAreaFocus(items: ItemSiblings, loaded: boolean, focusQuickAddOnLoad:
 
 interface AreaContentProps {
   readonly folderId: string | null;
+  readonly itemId: string | null;
   readonly area: AsyncResult.AsyncResult<typeof AreaSnapshot.Type, RpcFailure>;
   readonly areaName: string;
   readonly sectionKey: string;
@@ -174,6 +182,71 @@ interface AreaContentProps {
   readonly actions: ItemActions;
   readonly quickAdd: ReactNode;
   readonly onRetry: () => void;
+}
+
+/** The card grid for one level: the area's top level, or a drilled-in item's children. */
+function LevelTree({
+  snapshot,
+  nodes,
+  levelParentId,
+  actions,
+  quickAdd,
+  ...props
+}: Omit<AreaContentProps, "area" | "itemId" | "onRetry"> & {
+  readonly snapshot: typeof AreaSnapshot.Type;
+  readonly nodes: ItemSiblings;
+  readonly levelParentId: string | null;
+}) {
+  if (isEmptyLevel(nodes)) {
+    return (
+      <div className="flex flex-col gap-3">
+        {quickAdd}
+        <EmptyArea drilledIn={levelParentId !== null} />
+      </div>
+    );
+  }
+  return (
+    <ItemTree
+      label={`Items in ${props.areaName}`}
+      folderId={props.folderId}
+      nodes={nodes}
+      allNodes={snapshot.items}
+      levelParentId={levelParentId}
+      sectionKey={
+        levelParentId === null ? props.sectionKey : `${props.sectionKey}:${levelParentId}`
+      }
+      cardColumns={snapshot.settings.workspaceCardColumns.value}
+      lookups={lookupsFor(snapshot, props.timeZone)}
+      actions={actions}
+      hasFolders={props.hasFolders}
+      quickAdd={quickAdd}
+    />
+  );
+}
+
+/**
+ * A drilled-in item (§7.19): its children as the card grid and its details beside them. An
+ * item that left the area, such as one deleted or moved elsewhere, returns to the area.
+ */
+function DrilledInItem(props: AreaContentProps & { readonly snapshot: typeof AreaSnapshot.Type }) {
+  const { snapshot, itemId } = props;
+  const node = itemId === null ? undefined : findItemNode(snapshot.items, itemId);
+  if (node === undefined) {
+    return <Navigate {...areaTarget(snapshot.projectId, snapshot.folderId)} replace />;
+  }
+  return (
+    <div
+      data-testid="drilled-in-item"
+      className="grid grid-cols-[minmax(0,1fr)_22rem] items-start gap-6"
+    >
+      <LevelTree {...props} nodes={node.children} levelParentId={node.item.id} />
+      <ItemDetailsPanel
+        node={node}
+        lookups={lookupsFor(snapshot, props.timeZone)}
+        actions={props.actions}
+      />
+    </div>
+  );
 }
 
 /** The loading state, load failure, empty state or item tree of an area. */
@@ -188,21 +261,21 @@ function AreaContent({ area, actions, quickAdd, ...props }: AreaContentProps) {
       />
     ),
     onSuccess: ({ value }) =>
-      isEmptyLevel(value.items) ? (
-        <div className="flex flex-col gap-3">
-          {quickAdd}
-          <EmptyArea />
-        </div>
-      ) : (
-        <ItemTree
-          label={`Items in ${props.areaName}`}
-          folderId={props.folderId}
+      props.itemId === null ? (
+        <LevelTree
+          {...props}
+          snapshot={value}
           nodes={value.items}
-          sectionKey={props.sectionKey}
-          cardColumns={value.settings.workspaceCardColumns.value}
-          lookups={lookupsFor(value, props.timeZone)}
+          levelParentId={null}
           actions={actions}
-          hasFolders={props.hasFolders}
+          quickAdd={quickAdd}
+        />
+      ) : (
+        <DrilledInItem
+          {...props}
+          area={area}
+          snapshot={value}
+          actions={actions}
           quickAdd={quickAdd}
         />
       ),
@@ -275,6 +348,7 @@ function useArea(projectId: string, folderId: string | null) {
  */
 export function AreaItems(props: AreaItemsProps) {
   const { projectId, folderId, focusQuickAddOnLoad = false } = props;
+  const itemId = props.itemId ?? null;
   const { area, refresh, key } = useArea(projectId, folderId);
   const leavingMissingFolder = useMissingFolderFallback(area, projectId);
   const loaded = AsyncResult.isSuccess(area);
@@ -285,6 +359,7 @@ export function AreaItems(props: AreaItemsProps) {
   const [moveError, setMoveError] = useState<string | null>(null);
   const actions = useItemActions({
     ...props,
+    levelParentId: itemId,
     items,
     priorityLevels,
     onFocusItem: focus.onFocusItem,
@@ -334,6 +409,9 @@ export function AreaItems(props: AreaItemsProps) {
     return () => closeItemEditorWithArea();
   }, [key]);
 
+  // An add dialog adds to this area, so leaving it discards the dialog.
+  useEffect(() => () => useAddItemStore.getState().close(), [key]);
+
   const handleQuickAdd = async (title: string) => {
     const waitForNonEmpty = isEmptyLevel(items);
     const created = await actions.quickAdd(title);
@@ -352,6 +430,7 @@ export function AreaItems(props: AreaItemsProps) {
         ) : (
           <AreaContent
             folderId={folderId}
+            itemId={itemId}
             area={area}
             areaName={props.areaName}
             sectionKey={key}
@@ -364,6 +443,7 @@ export function AreaItems(props: AreaItemsProps) {
         )}
       </div>
       {loaded ? <ItemEditor snapshot={area.value} onAddSubItem={actions.addSubItem} /> : null}
+      {loaded ? <AddItemDialog snapshot={area.value} /> : null}
       {deletedBatch === null ? null : (
         <ItemUndoBanner
           batch={deletedBatch}

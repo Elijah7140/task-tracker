@@ -28,6 +28,10 @@ export const SettingsCatalogue = {
     false,
     wholeNumberCodec(1, 8),
   ),
+  /** Whether Add ToDo opens the detailed add view instead of quick add (§7.19). Global only. */
+  todoAddOpensDetails: new SettingDefinition("todoAddOpensDetails", false, false, booleanCodec),
+  /** Whether Add Ticket opens the detailed add view instead of quick add (§7.19). Global only. */
+  ticketAddOpensDetails: new SettingDefinition("ticketAddOpensDetails", false, false, booleanCodec),
   /** Whether open dated items remind (§7.12). */
   remindersEnabled: new SettingDefinition("remindersEnabled", true, true, booleanCodec),
   /** How long before the due moment an item on the Default choice reminds. */

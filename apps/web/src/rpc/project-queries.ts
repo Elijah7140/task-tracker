@@ -29,3 +29,6 @@ export const renameProjectAtom = TaskTrackerClient.mutation("RenameProject");
 
 /** Soft-deletes a project and its contents. */
 export const deleteProjectAtom = TaskTrackerClient.mutation("DeleteProject");
+
+/** Sets or clears a project's icon (§7.19). */
+export const setProjectIconAtom = TaskTrackerClient.mutation("SetProjectIcon");

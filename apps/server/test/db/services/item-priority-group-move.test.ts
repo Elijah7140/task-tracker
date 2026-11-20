@@ -172,3 +172,27 @@ it.effect("Changing priority clears the ticket rank and undo restores it", () =>
     }).pipe(Effect.provide(services)),
   ),
 );
+
+it.effect("Moves a card within a drilled-in item's level and sets its priority (§7.19)", () =>
+  withSchema(
+    Effect.gen(function* () {
+      const { project, items, undo, create } = yield* setup;
+      const parent = yield* create("Parent");
+      const first = yield* create("First", parent.id);
+      const second = yield* create("Second", parent.id);
+
+      yield* items.moveToPriorityGroup(project.id, null, second.id, highId, 0, parent.id);
+      const moved = yield* readRow(second.id);
+      const sibling = yield* readRow(first.id);
+      const { undo: label } = yield* undo.status();
+
+      expect(moved).toMatchObject({
+        ParentItemId: parent.id,
+        PriorityLevelId: highId,
+        SortOrder: 0,
+      });
+      expect(sibling).toMatchObject({ ParentItemId: parent.id, SortOrder: 1 });
+      expect(label).toBe("Set priority of 'Second'");
+    }).pipe(Effect.provide(services)),
+  ),
+);

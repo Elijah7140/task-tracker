@@ -11,6 +11,7 @@ import {
   statusLookupSchema,
 } from "./add-statuses-and-priority-numbers.js";
 import { ticketRankColumns } from "./add-ticket-rank.js";
+import { itemKindColumns, projectIconColumns, ticketSchema } from "./add-tickets.js";
 import { todayCompletionsSchema } from "./index-today-completions.js";
 import { initialSchema } from "./initial-create.js";
 
@@ -28,6 +29,7 @@ function extendInitialSchema(stage: number) {
     ...(stage >= 7 ? reminderColumns : []),
     ...(stage >= 9 ? statusColumns : []),
     ...(stage >= 10 ? ticketRankColumns : []),
+    ...(stage >= 11 ? itemKindColumns : []),
   ];
   return initialSchema
     .filter(
@@ -37,6 +39,9 @@ function extendInitialSchema(stage: number) {
     .map((statement) => {
       if (statement.startsWith('CREATE TABLE "TodoItem"')) {
         return extendTable(statement, ',\n    CONSTRAINT "CK_TodoItem_DueTime"', itemColumns);
+      }
+      if (stage >= 11 && statement.startsWith('CREATE TABLE "Project"')) {
+        return extendTable(statement, ")", projectIconColumns);
       }
       if (stage >= 9 && statement.startsWith('CREATE TABLE "PriorityLevel"')) {
         return extendTable(statement, ")", priorityNumberColumns);
@@ -55,5 +60,6 @@ export function stageSchema(stage: number) {
     ...(stage >= 5 ? itemLinkSchema : []),
     ...(stage >= 8 ? todayCompletionsSchema : []),
     ...(stage >= 9 ? [...statusLookupSchema, ...itemStatusSchema] : []),
+    ...(stage >= 11 ? ticketSchema : []),
   ];
 }

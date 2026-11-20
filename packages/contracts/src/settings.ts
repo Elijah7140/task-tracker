@@ -25,6 +25,13 @@ export const GlobalSettings = Schema.Struct({
    * always sends it; a save without it keeps it, as where the option is unavailable.
    */
   startWithSystem: Schema.optionalKey(Schema.Boolean),
+  /**
+   * Whether Add ToDo and Add Ticket open the detailed add view (§7.19). The server always
+   * sends it; a save without it keeps it.
+   */
+  addOpensDetails: Schema.optionalKey(
+    Schema.Struct({ todo: Schema.Boolean, ticket: Schema.Boolean }),
+  ),
 });
 
 /** Project overrides to save together. Null removes an override so the global value applies. */

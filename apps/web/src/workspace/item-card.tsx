@@ -1,7 +1,9 @@
 import { trimText } from "@task-tracker/contracts";
 import { ContextMenu } from "@base-ui/react/context-menu";
+import { Ticket } from "lucide-react";
 import type { MouseEvent, PointerEvent, ReactNode } from "react";
 import { CurrentItemStar } from "../current-item/current-item-star.js";
+import { CardAddButton } from "./card-add-buttons.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { ItemMenuItems } from "./item-menu-items.js";
@@ -107,7 +109,10 @@ function CardMetadata({
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-6.5 text-xs text-fg-muted">
       {typeName === null ? null : <ItemTypeIcon name={typeName} />}
       {node.item.ticketNumber === null ? null : (
-        <span data-testid="item-ticket" className="tabular-nums">
+        <span data-testid="item-ticket" className="inline-flex items-center gap-1 tabular-nums">
+          {node.item.kind === "Ticket" ? (
+            <Ticket size={12} aria-label="Ticket" className="shrink-0 text-fg-subtle" />
+          ) : null}
           {node.item.ticketNumber}
         </span>
       )}
@@ -161,10 +166,29 @@ function CardHeader(props: ItemCardProps & { readonly date: ItemDate; readonly h
         </span>
         <CardTitle node={node} />
         <ItemStatusChip name={statusName(node, lookups)} />
-        <CurrentItemStar itemId={node.item.id} title={node.item.title} />
-        <ItemOverflowMenu {...props} revealOn="card" />
+        <CardActions {...props} />
       </div>
       <CardMetadata node={node} lookups={lookups} date={date} />
+    </div>
+  );
+}
+
+/**
+ * The card's 2×2 action group (§7.19): ☆ and ⋯ on top, Add ToDo and Add Ticket below, which
+ * add a child of this card's item.
+ */
+function CardActions(props: ItemCardProps) {
+  const { node, actions } = props;
+  const add = (kind: "Todo" | "Ticket") => actions.addItem(kind, node.item.id);
+  return (
+    <div
+      data-testid="item-card-actions"
+      className="-my-0.5 -mr-1 grid shrink-0 grid-cols-2 gap-0.5"
+    >
+      <CurrentItemStar itemId={node.item.id} title={node.item.title} />
+      <ItemOverflowMenu {...props} revealOn="card" />
+      <CardAddButton kind="Todo" title={node.item.title} onAdd={add} />
+      <CardAddButton kind="Ticket" title={node.item.title} onAdd={add} />
     </div>
   );
 }
@@ -201,7 +225,7 @@ export function ItemCard(props: ItemCardProps) {
         }}
         onDoubleClick={(event) => {
           if (isOwnEvent(event)) {
-            actions.editItem(node);
+            actions.openItem(node);
           }
         }}
         onPointerDown={props.onStartDrag}

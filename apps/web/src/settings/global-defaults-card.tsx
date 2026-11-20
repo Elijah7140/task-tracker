@@ -70,7 +70,18 @@ interface GlobalDraft {
   readonly reminders: ReminderDefaultsDraft;
   readonly keepRunningInTray: boolean;
   readonly startWithSystem: boolean;
+  /** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
+  readonly addOpensDetails: AddViewDefaults;
 }
+
+type AddViewDefaults = NonNullable<Global["addOpensDetails"]>;
+
+/** The saved add view choices, quick add for a server that sent none (§7.19). */
+const addOpensDetailsOf = (settings: Global): AddViewDefaults =>
+  settings.addOpensDetails ?? { todo: false, ticket: false };
+
+const sameAddViews = (left: AddViewDefaults, right: AddViewDefaults) =>
+  left.todo === right.todo && left.ticket === right.ticket;
 
 /** The saved tray choice, off for a server that sent none (§7.12). */
 const keepRunningInTrayOf = (settings: Global) => settings.keepRunningInTray ?? false;
@@ -86,7 +97,8 @@ function sameGlobal(left: Global, right: Global) {
     left.workspaceCardColumns === right.workspaceCardColumns &&
     sameReminderDefaults(reminderDefaultsOf(left), reminderDefaultsOf(right)) &&
     keepRunningInTrayOf(left) === keepRunningInTrayOf(right) &&
-    startWithSystemOf(left) === startWithSystemOf(right)
+    startWithSystemOf(left) === startWithSystemOf(right) &&
+    sameAddViews(addOpensDetailsOf(left), addOpensDetailsOf(right))
   );
 }
 
@@ -99,6 +111,7 @@ function draftFrom(settings: Global): GlobalDraft {
     reminders: reminderDraftFrom(reminderDefaultsOf(settings)),
     keepRunningInTray: keepRunningInTrayOf(settings),
     startWithSystem: startWithSystemOf(settings),
+    addOpensDetails: addOpensDetailsOf(settings),
   };
 }
 
@@ -128,6 +141,7 @@ function useGlobalDraft(initial: Global) {
     draft.cardColumns !== saved.workspaceCardColumns ||
     draft.keepRunningInTray !== keepRunningInTrayOf(saved) ||
     draft.startWithSystem !== startWithSystemOf(saved) ||
+    !sameAddViews(draft.addOpensDetails, addOpensDetailsOf(saved)) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
   const validationError =
@@ -150,6 +164,30 @@ function useGlobalDraft(initial: Global) {
 
 type GlobalForm = ReturnType<typeof useGlobalDraft>;
 
+/** Whether the add buttons open quick add or the detailed add view, per kind (§7.19). */
+function AddViewChoices({ form }: { readonly form: GlobalForm }) {
+  const views = form.draft.addOpensDetails;
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1 text-[13px] font-medium text-fg-muted">Adding items</legend>
+      <Checkbox
+        checked={views.todo}
+        onCheckedChange={(todo) => form.edit({ addOpensDetails: { ...views, todo } })}
+        testId="global-todo-add-details"
+      >
+        Add ToDo opens the detailed view with all fields
+      </Checkbox>
+      <Checkbox
+        checked={views.ticket}
+        onCheckedChange={(ticket) => form.edit({ addOpensDetails: { ...views, ticket } })}
+        testId="global-ticket-add-details"
+      >
+        Add Ticket opens the detailed view with all fields
+      </Checkbox>
+    </fieldset>
+  );
+}
+
 /** The settings the draft would save, or null while a threshold is invalid. */
 function nextGlobal(form: GlobalForm): Global | null {
   if (form.yellowTicks === null || form.redTicks === null || form.reminders === null) {
@@ -163,6 +201,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     reminders: form.reminders,
     keepRunningInTray: form.draft.keepRunningInTray,
     startWithSystem: form.draft.startWithSystem,
+    addOpensDetails: form.draft.addOpensDetails,
   };
 }
 
@@ -344,6 +383,7 @@ export function GlobalDefaultsCard({
         >
           Keep running in the tray when the window closes
         </Checkbox>
+        <AddViewChoices form={form} />
         {startWithSystemAvailable ? (
           <Checkbox
             checked={form.draft.startWithSystem}

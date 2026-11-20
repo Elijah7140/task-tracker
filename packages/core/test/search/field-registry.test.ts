@@ -14,6 +14,7 @@ function project(id: string, name: string, sortOrder: number): Project {
     id,
     name,
     description: null,
+    iconKey: null,
     sortOrder,
     createdAtUtc: Temporal.Instant.from("2026-11-14T00:00:00Z"),
     updatedAtUtc: Temporal.Instant.from("2026-11-14T00:00:00Z"),

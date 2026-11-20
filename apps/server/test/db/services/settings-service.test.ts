@@ -703,3 +703,30 @@ it.effect("Undoing a mixed global save keeps the start-with-system preference", 
     ]);
   }).pipe(withServices, withSchema),
 );
+
+it.effect("Loads the add view choices off by default and saves only the changed one", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const defaults = yield* settings.loadGlobal();
+
+    yield* settings.saveGlobal(
+      true,
+      3n * day,
+      day,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        todo: false,
+        ticket: true,
+      },
+    );
+    const saved = yield* settings.loadGlobal();
+
+    expect(defaults.addOpensDetails).toEqual({ todo: false, ticket: false });
+    expect(saved.addOpensDetails).toEqual({ todo: false, ticket: true });
+    expect(yield* globalRows).toEqual([{ Key: "ticketAddOpensDetails", Value: "true" }]);
+  }).pipe(withServices, withSchema),
+);

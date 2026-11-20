@@ -199,6 +199,7 @@ describe("AppSettingsPage", () => {
       reminders: DEFAULT_REMINDERS,
       keepRunningInTray: false,
       startWithSystem: false,
+      addOpensDetails: { todo: false, ticket: false },
     });
   });
 
@@ -375,6 +376,7 @@ describe("AppSettingsPage", () => {
       reminders: DEFAULT_REMINDERS,
       keepRunningInTray: false,
       startWithSystem: false,
+      addOpensDetails: { todo: false, ticket: false },
     });
   });
 
@@ -419,6 +421,7 @@ describe("AppSettingsPage", () => {
       reminders: DEFAULT_REMINDERS,
       keepRunningInTray: false,
       startWithSystem: false,
+      addOpensDetails: { todo: false, ticket: false },
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });

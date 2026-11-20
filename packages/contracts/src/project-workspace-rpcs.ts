@@ -32,6 +32,10 @@ export const ProjectWorkspaceRpcs = RpcGroup.make(
     payload: { projectId: Guid, name: Schema.String },
     error: RpcOperationError,
   }),
+  Rpc.make("SetProjectIcon", {
+    payload: { projectId: Guid, iconKey: Schema.NullOr(Schema.String) },
+    error: RpcOperationError,
+  }),
   Rpc.make("ReorderProjects", {
     payload: { projectIds: Schema.Array(Guid) },
     error: RpcOperationError,

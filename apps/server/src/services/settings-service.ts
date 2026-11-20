@@ -31,7 +31,15 @@ const {
   dateOnlyReminderTime,
   keepRunningInTray,
   startWithSystem,
+  todoAddOpensDetails,
+  ticketAddOpensDetails,
 } = SettingsCatalogue;
+
+/** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
+export interface AddViewDefaults {
+  readonly todo: boolean;
+  readonly ticket: boolean;
+}
 
 /** Reminder defaults saved with the global settings form (§7.12). */
 export interface ReminderDefaultsInput {
@@ -167,6 +175,10 @@ const make = Effect.gen(function* () {
       reminders: resolveReminderSettings(global, noOverrides),
       keepRunningInTray: parseOrDefault(keepRunningInTray, global.get(keepRunningInTray.key)),
       startWithSystem: parseOrDefault(startWithSystem, global.get(startWithSystem.key)),
+      addOpensDetails: {
+        todo: parseOrDefault(todoAddOpensDetails, global.get(todoAddOpensDetails.key)),
+        ticket: parseOrDefault(ticketAddOpensDetails, global.get(ticketAddOpensDetails.key)),
+      } satisfies AddViewDefaults,
     };
   }, sql.withTransaction);
 
@@ -337,6 +349,7 @@ const make = Effect.gen(function* () {
       reminders?: ReminderDefaultsInput,
       keepRunning?: boolean,
       startup?: boolean,
+      addViews?: AddViewDefaults,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -356,6 +369,10 @@ const make = Effect.gen(function* () {
         }
         if (startup !== undefined) {
           proposeGlobal(proposed, current, startWithSystem, startup);
+        }
+        if (addViews !== undefined) {
+          proposeGlobal(proposed, current, todoAddOpensDetails, addViews.todo);
+          proposeGlobal(proposed, current, ticketAddOpensDetails, addViews.ticket);
         }
         return proposed;
       }, approval),

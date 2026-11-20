@@ -251,7 +251,7 @@ describe("SidebarFolderTree", () => {
     expect(store.folders).toHaveLength(4);
   });
 
-  it("Scrolls a tall folder tree inside the sidebar and keeps the footer in view", async () => {
+  it("Scrolls a tall folder tree inside the sidebar and keeps the collapse toggle in view", async () => {
     const folders = Array.from({ length: 60 }, (_, index) => ({ name: `Folder ${index + 1}` }));
     await openProject([{ name: "Billing DB", folders }], "Folder 1");
     const last = folder("Folder 60");
@@ -262,7 +262,7 @@ describe("SidebarFolderTree", () => {
 
     await expect.element(last).toHaveFocus();
     await expect.element(last).toBeInViewport();
-    await expect.element(page.getByTestId("theme-system")).toBeInViewport();
+    await expect.element(page.getByTestId("sidebar-toggle")).toBeInViewport();
     expect(scroller.scrollTop).toBeGreaterThan(0);
     expect(document.scrollingElement?.scrollTop).toBe(0);
     expect(page.getByTestId("sidebar").element().getBoundingClientRect().bottom).toBe(

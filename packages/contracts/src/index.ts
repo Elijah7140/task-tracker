@@ -29,6 +29,15 @@ export { CardColumns } from "./card-columns.js";
 export { DurationTicks } from "./duration-ticks.js";
 export { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
 export { LookupRpcs } from "./lookup-rpcs.js";
+export {
+  ItemKind,
+  TicketCommentProjection,
+  TicketDetailInput,
+  TicketListEntryProjection,
+  TicketListKind,
+  TicketSnapshot,
+} from "./ticket-fields.js";
+export { TicketListRpcs } from "./ticket-list-rpcs.js";
 export { GlobalSettings, ProjectSettingOverrides, ProjectSettings } from "./settings.js";
 export {
   ReconciliationApproval,

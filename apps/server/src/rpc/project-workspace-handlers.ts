@@ -10,6 +10,7 @@ function projectProjection(project: Project) {
     id: project.id,
     name: project.name,
     description: project.description,
+    iconKey: project.iconKey,
     sortOrder: project.sortOrder,
     createdAtUtc: project.createdAtUtc.toString(),
     updatedAtUtc: project.updatedAtUtc.toString(),
@@ -63,6 +64,8 @@ export const projectWorkspaceHandlers = (timeZone: string) =>
             .pipe(Effect.map(folderProjection), mapOperationError),
         RenameProject: ({ projectId, name }) =>
           projects.rename(projectId, name).pipe(mapOperationError),
+        SetProjectIcon: ({ projectId, iconKey }) =>
+          projects.setIcon(projectId, iconKey).pipe(mapOperationError),
         ReorderProjects: ({ projectIds }) => projects.reorder(projectIds).pipe(mapOperationError),
         RenameFolder: ({ projectId, folderId, name }) =>
           folders.rename(projectId, folderId, name).pipe(mapOperationError),

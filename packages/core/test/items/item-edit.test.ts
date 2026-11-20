@@ -48,3 +48,11 @@ describe("editItem", () => {
     );
   });
 });
+
+it("refuses to clear a ticket's number", () => {
+  const ticket = item("ticket", { kind: "Ticket", ticketNumber: "385405" });
+
+  const attempt = () => editItem(ticket, edit(ticket, { ticketNumber: "  " }), now);
+
+  expect(attempt).toThrow("A ticket needs a ticket number.");
+});

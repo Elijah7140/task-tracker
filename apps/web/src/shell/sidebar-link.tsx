@@ -26,6 +26,8 @@ export interface SidebarLinkProps {
    */
   readonly dropArea?: string | undefined;
   readonly dropActive?: boolean | undefined;
+  /** Shows only the icon, as in the collapsed sidebar rail; the name stays the link's name. */
+  readonly iconOnly?: boolean | undefined;
 }
 
 const ROW_CLASS =
@@ -43,6 +45,7 @@ const SIDEBAR_ROW_CLASS = `${ROW_CLASS} ${CURRENT_CLASS}`;
  */
 export function SidebarLink(props: SidebarLinkProps) {
   const { target, icon, children, testId, exact = false, dropArea, dropActive = false } = props;
+  const iconOnly = props.iconOnly ?? false;
   const covered = useReturnPageStore((state) => state.covering !== null);
   return (
     <Link
@@ -53,13 +56,15 @@ export function SidebarLink(props: SidebarLinkProps) {
       data-covered={covered ? "" : undefined}
       data-item-drop-area={dropArea}
       data-drop-active={dropActive ? "true" : undefined}
+      title={iconOnly && typeof children === "string" ? children : undefined}
       className={cx(
         covered ? ROW_CLASS : SIDEBAR_ROW_CLASS,
+        iconOnly && "h-8 justify-center px-0",
         dropActive && "bg-accent-soft text-fg ring-1 ring-accent ring-inset",
       )}
     >
       <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
-      <span className="truncate">{children}</span>
+      <span className={iconOnly ? "sr-only" : "truncate"}>{children}</span>
     </Link>
   );
 }

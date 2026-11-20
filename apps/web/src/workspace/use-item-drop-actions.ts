@@ -31,7 +31,8 @@ function rowDropParent(scope: ItemStructureScope, drop: Extract<ItemDrop, { kind
 function useDropPlans(scope: ItemStructureScope) {
   const dropOnRow = useAtomSet(dropItemAtom, { mode: "promiseExit" });
   const move = useAtomSet(moveItemAtom, { mode: "promiseExit" });
-  const saveCardMove = useSaveCardMove(scope.projectId, scope.folderId);
+  const levelParentId = scope.levelParentId ?? null;
+  const saveCardMove = useSaveCardMove(scope.projectId, scope.folderId, levelParentId);
   const moveToArea = useMoveToArea(scope);
   const area = { projectId: scope.projectId, folderId: scope.folderId };
   const reactivityKeys = [areaKey(scope.projectId, scope.folderId), PROJECTS_KEY, HISTORY_KEY];
@@ -51,12 +52,13 @@ function useDropPlans(scope: ItemStructureScope) {
       case "group":
         return {
           save: () => saveCardMove(source, drop.placement),
-          show: (result) => showMovedItem(scope, source, null, result),
+          show: (result) => showMovedItem(scope, source, levelParentId, result),
         };
       case "root-end":
         return {
-          save: () => move({ payload: { ...area, itemId, parentItemId: null }, reactivityKeys }),
-          show: (result) => showMovedItem(scope, source, null, result),
+          save: () =>
+            move({ payload: { ...area, itemId, parentItemId: levelParentId }, reactivityKeys }),
+          show: (result) => showMovedItem(scope, source, levelParentId, result),
         };
       case "area": {
         let show: (result: MoveResult) => Promise<void> = async () => {};

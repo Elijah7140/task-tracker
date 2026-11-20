@@ -3,12 +3,15 @@ import { isThemePreference, type ThemePreference } from "./theme-preference.js";
 
 const STORAGE_KEY = "task-tracker.theme";
 
+/** A new install starts dark until the user picks another theme in App Settings (§7.19). */
+const DEFAULT_PREFERENCE: ThemePreference = "dark";
+
 function readStoredPreference(): ThemePreference {
   try {
     const stored = globalThis.localStorage?.getItem(STORAGE_KEY);
-    return isThemePreference(stored) ? stored : "system";
+    return isThemePreference(stored) ? stored : DEFAULT_PREFERENCE;
   } catch {
-    return "system";
+    return DEFAULT_PREFERENCE;
   }
 }
 

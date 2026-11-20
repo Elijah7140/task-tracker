@@ -15,10 +15,37 @@ export function areaTarget(projectId: string, folderId: string | null): AreaTarg
     : { to: "/projects/$projectId/folders/$folderId", params: { projectId, folderId } };
 }
 
-/** The open project and folder from the current route, if a project is open. */
+/** A link target for a drilled-in item (§7.19). */
+export type ItemTarget =
+  | {
+      readonly to: "/projects/$projectId/items/$itemId";
+      readonly params: { readonly projectId: string; readonly itemId: string };
+    }
+  | {
+      readonly to: "/projects/$projectId/folders/$folderId/items/$itemId";
+      readonly params: {
+        readonly projectId: string;
+        readonly folderId: string;
+        readonly itemId: string;
+      };
+    };
+
+/** The route that opens an item: its children as cards and its details beside them. */
+export function itemTarget(projectId: string, folderId: string | null, itemId: string): ItemTarget {
+  return folderId === null
+    ? { to: "/projects/$projectId/items/$itemId", params: { projectId, itemId } }
+    : {
+        to: "/projects/$projectId/folders/$folderId/items/$itemId",
+        params: { projectId, folderId, itemId },
+      };
+}
+
+/** The open project, folder and drilled-in item from the current route. */
 export interface CurrentArea {
   readonly projectId: string | undefined;
   readonly folderId: string | null;
+  /** The item whose children show as cards, or null for the area itself (§7.19). */
+  readonly itemId: string | null;
 }
 
 /** Reads the open area from the router. IDs are uppercased to match server GUIDs. */
@@ -27,5 +54,6 @@ export function useCurrentArea(): CurrentArea {
   return {
     projectId: params.projectId?.toUpperCase(),
     folderId: params.folderId?.toUpperCase() ?? null,
+    itemId: params.itemId?.toUpperCase() ?? null,
   };
 }

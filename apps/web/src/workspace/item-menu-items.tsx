@@ -6,11 +6,13 @@ import {
   IndentDecrease,
   IndentIncrease,
   ListPlus,
+  PanelRightOpen,
   Pencil,
   RepeatOff,
   RotateCcw,
   SkipForward,
   SquarePen,
+  TicketPlus,
   Trash2,
 } from "lucide-react";
 import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/contracts";
@@ -111,6 +113,27 @@ export function ItemMenuItems({
         testId="item-menu-add-subitem"
       >
         Add sub-item
+      </MenuItem>
+      <MenuItem
+        icon={<ListPlus size={14} />}
+        onClick={() => actions.addItem("Todo", node.item.id)}
+        testId="item-menu-add-todo"
+      >
+        Add ToDo…
+      </MenuItem>
+      <MenuItem
+        icon={<TicketPlus size={14} />}
+        onClick={() => actions.addItem("Ticket", node.item.id)}
+        testId="item-menu-add-ticket"
+      >
+        Add Ticket…
+      </MenuItem>
+      <MenuItem
+        icon={<PanelRightOpen size={14} />}
+        onClick={() => actions.openItem(node)}
+        testId="item-menu-open"
+      >
+        Open
       </MenuItem>
       <MenuItem
         icon={<Pencil size={14} />}

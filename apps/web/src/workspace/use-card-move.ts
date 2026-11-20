@@ -9,9 +9,14 @@ import type { ItemNode } from "./item-outline.js";
 /**
  * Saves a card drop or Alt+↑/↓ step as one undoable write (§7.17). A reorder inside the
  * card's own section is a sibling drop beside the target card, so finished items keep their
- * slots. Entering another section or promoting a sub-item also sets the priority.
+ * slots. Entering another section or promoting a sub-item also sets the priority. Inside a
+ * drilled-in item the cards are its children, so moves stay under `levelParentId` (§7.19).
  */
-export function useSaveCardMove(projectId: string, folderId: string | null) {
+export function useSaveCardMove(
+  projectId: string,
+  folderId: string | null,
+  levelParentId: string | null = null,
+) {
   const dropBeside = useAtomSet(dropItemAtom, { mode: "promiseExit" });
   const moveToSection = useAtomSet(moveItemToPriorityGroupAtom, { mode: "promiseExit" });
   const area = { projectId, folderId };
@@ -19,11 +24,15 @@ export function useSaveCardMove(projectId: string, folderId: string | null) {
 
   return (source: ItemNode, placement: CardPlacement) => {
     const itemId = source.item.id;
-    if (keepsSection(source, placement)) {
+    if (keepsSection(source, placement, levelParentId)) {
       const { targetId: targetItemId, position } = placement;
       return dropBeside({ payload: { ...area, itemId, targetItemId, position }, reactivityKeys });
     }
     const { priorityLevelId, index } = placement;
-    return moveToSection({ payload: { ...area, itemId, priorityLevelId, index }, reactivityKeys });
+    const level = levelParentId === null ? {} : { levelParentId };
+    return moveToSection({
+      payload: { ...area, itemId, priorityLevelId, index, ...level },
+      reactivityKeys,
+    });
   };
 }

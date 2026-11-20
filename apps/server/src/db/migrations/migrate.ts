@@ -8,6 +8,7 @@ import addReminders from "./add-reminders.js";
 import addSavedSearches from "./add-saved-searches.js";
 import addStatusesAndPriorityNumbers from "./add-statuses-and-priority-numbers.js";
 import addTicketRank from "./add-ticket-rank.js";
+import addTickets from "./add-tickets.js";
 import indexTodayCompletions from "./index-today-completions.js";
 import initialCreate from "./initial-create.js";
 
@@ -23,6 +24,7 @@ export const databaseMigrations = Migrator.fromRecord({
   "8_IndexTodayCompletions": indexTodayCompletions,
   "9_AddStatusesAndPriorityNumbers": addStatusesAndPriorityNumbers,
   "10_AddTicketRank": addTicketRank,
+  "11_AddTickets": addTickets,
 });
 
 /** Records the validated EF stages and applies any remaining migrations in the same transaction. */

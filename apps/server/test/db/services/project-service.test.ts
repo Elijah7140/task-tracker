@@ -4,6 +4,8 @@ import { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
 import { FolderService } from "../../../src/services/folder-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
+import type { UndoService } from "../../../src/services/undo-service.js";
+import { roundTrip } from "./undo-round-trip.js";
 import {
   childItemId,
   itemId,
@@ -15,7 +17,7 @@ import {
 } from "./fixtures.js";
 
 const withServices = <A, E>(
-  test: Effect.Effect<A, E, ProjectService | FolderService | SqlClient.SqlClient>,
+  test: Effect.Effect<A, E, ProjectService | FolderService | SqlClient.SqlClient | UndoService>,
 ) =>
   test.pipe(
     Effect.provide(ProjectService.layer("UTC")),
@@ -134,6 +136,27 @@ it.effect("A failed completion write rolls back the entire project restore", () 
         { Id: itemId, DeletionBatchId: batch, CompletedAtUtc: timestamp },
         { Id: childItemId, DeletionBatchId: batch },
       ]);
+    }),
+  ),
+);
+
+it.effect("Changing a project icon is one undo step and an invalid key changes nothing", () =>
+  withServices(
+    Effect.gen(function* () {
+      const projects = yield* ProjectService;
+      const project = yield* projects.create("Billing DB");
+
+      const { label, after, undone } = yield* roundTrip(projects.setIcon(project.id, "database"), [
+        "Project",
+      ]);
+      const refused = yield* Effect.flip(projects.setIcon(project.id, "Not A Key"));
+      const [listed] = yield* projects.list();
+
+      expect(label).toBe("Change icon of 'Billing DB'");
+      expect(after[0]![0]!["IconKey"]).toBe("database");
+      expect(undone[0]![0]!["IconKey"]).toBeNull();
+      expect(refused.message).toBe("Icon must be a short lowercase name such as 'database'.");
+      expect(listed?.project.iconKey).toBe("database");
     }),
   ),
 );

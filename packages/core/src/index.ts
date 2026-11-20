@@ -168,10 +168,19 @@ export {
   type UrgencyNode,
 } from "./urgency/urgency-calculator.js";
 export { UrgencyThresholds } from "./urgency/urgency-thresholds.js";
-export { createProject, renameProject, reorderProjects } from "./projects/project.js";
+export {
+  createProject,
+  renameProject,
+  reorderProjects,
+  setProjectIcon,
+} from "./projects/project.js";
 export { createFolder, renameFolder } from "./projects/folder.js";
 export { summarizeProject, type ProjectSummary } from "./projects/project-summary.js";
 export { createItem } from "./items/todo-item.js";
+export * from "./items/item-kind.js";
+export * from "./tickets/ticket-list-entry.js";
+export * from "./tickets/ticket-detail.js";
+export * from "./tickets/ticket-comment.js";
 export { editItem, type ItemEdit } from "./items/item-edit.js";
 export type { ItemLink, ItemLinkInput } from "./items/item-link.js";
 export { planItemLinkEdits, type ItemLinkEdits } from "./items/item-link-edits.js";

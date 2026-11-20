@@ -125,13 +125,14 @@ TodoItem ─1:N─ ItemLink (§7.10)
 TodoItem ─N:1─ StatusLevel (§7.15)
 TodoItem ─N:1─ ItemType
 TodoItem ─N:1─ PriorityLevel
+TodoItem ─1:0..1─ TicketDetail ─N:1─ TicketListEntry;  TodoItem ─1:N─ TicketComment (§7.19)
 GlobalSetting (key/value);  ProjectSetting (ProjectId, key/value)
 FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1─ FieldDefinition
 ```
 
 ### Entities
 
-**Project** — `Id`, `Name`, `Description?`, `SortOrder`, timestamps, deletion fields (§5.3).
+**Project** — `Id`, `Name`, `Description?`, `IconKey?` (§7.19), `SortOrder`, timestamps, deletion fields (§5.3).
 
 **Folder** — `Id`, `ProjectId`, `ParentFolderId?`, `Name`, `SortOrder`, timestamps, deletion fields.
 
@@ -145,7 +146,8 @@ FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1
 | `ParentItemId` | UUID string or null | null = top-level item |
 | `Title` | string (required, ≤ 300) | |
 | `Description` | string? | Plain text at cutover. Markdown preview in §7.10 |
-| `TicketNumber` | string? (≤ 100) | Free text, e.g. `JIRA-1234`. Indexed, not unique |
+| `ItemKind` | `Todo` or `Ticket` | Default `Todo` (§7.19) |
+| `TicketNumber` | string? (≤ 100) | Free text, e.g. `JIRA-1234`. Indexed, not unique. Required for a Ticket |
 | `TicketRank` | number or null | Position within the Tickets priority section (§7.16) |
 | `StatusId` / `ReopenStatusId` | UUID string or null | Workflow status and remembered open status (§7.15) |
 | `PriorityLevelId` | UUID string or null | null = no priority |
@@ -396,6 +398,7 @@ otherwise the global value.
 | `UrgencyYellowThreshold` | duration | 3 days | yes |
 | `UrgencyRedThreshold` | duration | 24 hours | yes |
 | `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
+| `TodoAddOpensDetails` / `TicketAddOpensDetails` | boolean | off | no (§7.19) |
 
 Design:
 
@@ -1626,6 +1629,99 @@ the owner is working on.
   - Placement rules.
   - Card and icon snapshots.
 
+### 7.19 Tickets and ToDos, add views and drill-in
+
+Requested by the owner on 20 Nov 2026, with a screenshot of the company ticket system's
+General tab as the reference. This section supersedes the 13 Nov "separate Ticket kind"
+proposal (§10.1). The owner chose the field set, that the ticket number is typed in first,
+that existing numbered items stay ToDos, and that the ToDo quick-add "Description" is the
+item's main text. Other decisions are listed for review.
+
+**Two kinds of item.** `TodoItem.ItemKind` is `Todo` (default) or `Ticket`. Both kinds share
+the tree, completion, urgency, status, priority, reminders, trash and undo. Either kind can
+be the parent of either kind. A kind is chosen when the item is added and does not change.
+
+- **ToDo fields** are today's built-in fields plus the custom fields from the field manager
+  (§7.1). The ToDo's main text is `Title`; the UI labels it **Description** and the longer
+  text **Notes**.
+- **Ticket fields are fixed**, not customizable. Custom fields, item type and repeat do not
+  apply to tickets. The mapping onto shared columns:
+
+  | Ticket field | Storage |
+  |---|---|
+  | Ticket # (required, first field) | `TodoItem.TicketNumber` |
+  | Summary / Detail | `Title` / `Description` |
+  | Priority / Status | `PriorityLevelId` / `StatusId` |
+  | Est. completion date | `DueDate`, so urgency applies (§6.3) |
+  | Parent ticket | `ParentItemId` |
+  | Requestor, Dispatched to, Pending user | `TicketDetail` → **People** list |
+  | Application › Module › Interface | `TicketDetail` → **Ticket levels** tree |
+  | Ticket type | `TicketDetail` → **Ticket types** list |
+  | Version (text), Est. hours (≥ 0), % complete (0–100), Urgent, System outage | `TicketDetail` columns |
+  | Comments | `TicketComment` rows, newest first |
+
+  Site-specific fields from the reference screen (plant, office and cell numbers, Helix and
+  work-order numbers, mill impacted, tested/documented by, testing date) are left out.
+- **Lists in App Settings.** People, Ticket types and Ticket levels are one
+  `TicketListEntry` table (`Id`, `ListKind`, `ParentId?`, `Name`, `IsArchived`,
+  `SortOrder`). Levels nest: an Application has Modules, a Module has Interfaces. Names are
+  unique case-insensitively among siblings of the same list, archived ones included.
+  Archived entries stay on tickets and leave the pickers. Each change is one undo step.
+- **Validation.** A ticket's Module belongs to its Application and its Interface to its
+  Module; choosing a Module fills in its Application. Archived entries can stay on a
+  ticket but cannot be newly chosen. A Done status cannot be chosen while adding.
+- Existing items with a ticket number stay ToDos. The Tickets view (§7.16) still lists
+  every open item with a ticket number, of either kind.
+
+**Adding.** Every item card has a 2×2 group at its top right: the current-item ☆ and ⋯ menu
+on top, **Add ToDo** and **Add Ticket** below. They add a child of that card's item. The
+workspace header has the same two buttons, which add to the area, or to the drilled-in item.
+
+- **Quick add** opens a small dialog. ToDo: Description, Priority, Due date and time,
+  Reminder. Ticket: Ticket #, Summary, Detail, Module, Interface, Dispatched to, Parent
+  ticket, Priority. Enter in a single-line box saves.
+- An **expand** button at its top right switches to the **detailed add view**, keeping what
+  was typed. The ToDo view adds Notes, Type, Status, the scheduled block and custom fields.
+  The Ticket view has every ticket field above, except comments, which are added after.
+- App Settings has **Open the detailed view when adding a ToDo** and **…a Ticket**
+  (`todoAddOpensDetails`, `ticketAddOpensDetails`, global booleans, default off).
+- Parent ticket lists the area's tickets, plus the card's item when that is a ToDo. Saving
+  creates the item, its ticket details and custom values as one step, "Create ⟨title⟩".
+
+**Drill-in.** Double-clicking a card opens that item: the main pane shows its children as
+the card grid (priority sections, drag, Alt+↑/↓ and quick-add at that level). A right-hand
+details panel shows its fields, with **Edit** and, for a ticket, its comments. Double-clicking
+a child card goes one level deeper, with no depth limit. Breadcrumbs show the project,
+folders and item chain. Routes are `/projects/$projectId/items/$itemId` and
+`…/folders/$folderId/items/$itemId`. `MoveItemToPriorityGroup` takes the level's parent.
+Edit stays on the card and row menus and Enter. The item menu also has **Open**, **Add ToDo…** and
+**Add Ticket…**, the keyboard equivalents of double-click and the card buttons, which, like ☆ and
+⋯, show on hover and take no Tab stop. A ticket's editor shows its fixed fields in place of type,
+repeat, the scheduled block and custom fields.
+
+**Shell.**
+- The theme choice (Light, Dark, System) moves from the sidebar to App Settings ›
+  Appearance. It stays a per-device preference in local storage. With nothing stored, the
+  app starts dark.
+- The decorative check mark at the left of the menu bar is removed. It had no action.
+- The sidebar collapses to an icon rail with Home and the project icons, and starts
+  collapsed. A toggle at its top expands it. The state is a per-device preference.
+- **Project icons.** `Project.IconKey` names one of a fixed set of icons. **Change icon…**
+  on the project card menu picks one, or the initial again. The icon shows on the Home card
+  and in the sidebar. The change is one undo step, "Change icon of ⟨name⟩".
+
+**Not yet covered**, and planned as follow-ups: search keys for the kind and ticket fields,
+JSON and CSV transfer of the kind, ticket details, comments, lists and project icons (an
+export currently writes a ticket as a ToDo with its number), and Windows baselines, which
+come from CI.
+
+**Tests.** Core: ticket-list names, nesting and archive rules, ticket detail validation.
+SQLite: the migration on a populated database, adding each kind with undo, ticket edits,
+comments, list management, project icons and moving cards at a nested level. Browser:
+both quick-add dialogs with expand, the setting that opens detailed views, the card buttons,
+drill-in by double-click, the sidebar toggle and the Appearance setting. Light and dark
+baselines for the changed screens.
+
 ## 8. User interface (React)
 
 The replacement UI ships the owner’s Notion-like design directly. Use a clean
@@ -1702,8 +1798,8 @@ The owner approved the replacement in [the parity record](PARITY.md).
 
 WP25 onward carries forward the final legacy feature set in §§7.2 and 7.4–7.18. The
 owner defines a ticket for the Tickets view as an open item with a ticket number.
-A separate Ticket kind, one-line paste into sub-items, clipboard reconstruction,
-child tickets and Pending notes remain proposals from 13 Nov 2026. See
+The Ticket kind and child tickets are designed in §7.19. One-line paste into sub-items,
+clipboard reconstruction and Pending notes remain proposals from 13 Nov 2026. See
 `legacy-final:docs/PLAN.md` §10.1 for the original proposals.
 
 ### 10.2 Other ideas

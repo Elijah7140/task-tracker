@@ -1,6 +1,9 @@
 import { isBlankText } from "@task-tracker/contracts";
 import { useAtomSet } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
 import { Exit } from "effect";
+import type { AddKind } from "../add/add-item-draft.js";
+import { useAddItemStore } from "../add/add-item-store.js";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
 import { requestCompletion } from "../dialogs/request-completion.js";
 import { areaKey } from "../rpc/area-queries.js";
@@ -17,6 +20,7 @@ import { confirm, notify, prompt } from "../state/dialog-store.js";
 import { isItemEditorOpen, openItemEditor } from "../state/item-editor-store.js";
 import { noticeCompletion } from "../state/status-notice-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
+import { itemTarget } from "./area-route.js";
 import { departureFocusIds, isEmptyLevel, itemAncestorIds, type ItemNode } from "./item-outline.js";
 import {
   focusAfterDeparture,
@@ -58,7 +62,7 @@ function useCreateItemActions(scope: ItemActionScope) {
       payload: {
         projectId: scope.projectId,
         folderId: scope.folderId,
-        parentItemId: null,
+        parentItemId: scope.levelParentId ?? null,
         title,
       },
       reactivityKeys: keys,
@@ -241,6 +245,23 @@ function useDeleteAndRestore(scope: ItemActionScope) {
   return { deleteItem, restoreBatch };
 }
 
+/**
+ * Drill-in (§7.19): double-clicking a card shows that item's children as cards with its
+ * details beside them. The item stays selected, so returning to its level keeps it in view.
+ */
+function useOpenItem(scope: ItemActionScope) {
+  const navigate = useNavigate();
+  return (node: ItemNode) => {
+    useWorkspaceStore.getState().selectItem(node.item.id);
+    void navigate(itemTarget(scope.projectId, scope.folderId, node.item.id));
+  };
+}
+
+/** Opens the add dialog for a ToDo or Ticket under `parentItemId` (§7.19). */
+function addItem(kind: AddKind, parentItemId: string | null) {
+  useAddItemStore.getState().open({ kind, parentItemId, detailed: null });
+}
+
 /** Selects an item and opens it in the floating editor (§8). */
 function openEditor(node: ItemNode) {
   useWorkspaceStore.getState().selectItem(node.item.id);
@@ -269,6 +290,8 @@ export function useItemActions(scope: ItemActionScope) {
   };
   return {
     editItem: openEditor,
+    openItem: useOpenItem(scope),
+    addItem,
     quickAdd,
     addSubItem: once("addSubItem", addSubItem),
     renameItem: once("renameItem", useRenameItem(scope)),

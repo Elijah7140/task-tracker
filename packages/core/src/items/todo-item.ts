@@ -2,6 +2,7 @@ import { trimText } from "../text/dotnet-white-space.js";
 import type { DeletionFields } from "../hierarchy/deletion-fields.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import { DEFAULT_REMINDER, type ReminderChoice } from "../reminders/reminder-choice.js";
+import type { ItemKind } from "./item-kind.js";
 import type { RecurrenceRule } from "./recurrence/recurrence-rule.js";
 
 /** A task or sub-item in a single project area. */
@@ -10,6 +11,8 @@ export interface TodoItem extends DeletionFields {
   readonly projectId: string;
   readonly folderId: string | null;
   readonly parentItemId: string | null;
+  /** ToDo or Ticket, chosen when the item is added (§7.19). */
+  readonly kind: ItemKind;
   readonly title: string;
   readonly description: string | null;
   readonly ticketNumber: string | null;
@@ -52,12 +55,14 @@ export function createItem(
   parentItemId: string | null,
   title: string,
   now: Temporal.Instant,
+  kind: ItemKind = "Todo",
 ): TodoItem {
   return {
     id,
     projectId,
     folderId,
     parentItemId,
+    kind,
     title: itemTitle(title),
     description: null,
     ticketNumber: null,

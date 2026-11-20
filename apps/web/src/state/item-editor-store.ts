@@ -4,6 +4,7 @@ import type { CustomFieldDraft } from "../editor/custom-field-drafts.js";
 import type { BuiltInKey, BuiltInOverrides } from "../editor/item-draft.js";
 import { EMPTY_LINK_DRAFT, type LinkDraft } from "../editor/link-draft.js";
 import type { RepeatDraft } from "../editor/repeat-draft.js";
+import type { TicketOverrides, TicketTexts } from "../editor/ticket-draft.js";
 
 /**
  * The floating item editor's open item and draft. The draft holds only what
@@ -20,6 +21,8 @@ export interface ItemEditorState {
   readonly repeat: RepeatDraft | null;
   /** The Reminder choice once the user changes it; null shows the stored choice (§7.12). */
   readonly reminder: typeof ReminderChoice.Type | null;
+  /** A ticket's changed fixed fields, by field (§7.19). */
+  readonly ticket: TicketOverrides;
   /** Why the last save was refused, shown in the editor until the draft changes. */
   readonly error: string | null;
   /** An open item whose draft follows it into the area an item move navigates to. */
@@ -36,6 +39,8 @@ export interface ItemEditorState {
   readonly setRepeat: (draft: RepeatDraft) => void;
   /** Replaces the Reminder choice. */
   readonly setReminder: (choice: typeof ReminderChoice.Type) => void;
+  /** Records changes to a ticket's fixed fields. */
+  readonly setTicket: (change: Partial<TicketTexts>) => void;
   /** Forgets typed values so the stored ones show again, keeping the item open. */
   readonly discard: () => void;
   readonly setError: (error: string | null) => void;
@@ -49,6 +54,7 @@ export const initialItemEditorState = {
   links: EMPTY_LINK_DRAFT,
   repeat: null,
   reminder: null,
+  ticket: {},
   error: null,
   carried: null,
 } as const;
@@ -71,6 +77,7 @@ export const useItemEditorStore = create<ItemEditorState>()((set) => ({
   updateLinks: (change) => set((state) => ({ links: change(state.links), error: null })),
   setRepeat: (repeat) => set({ repeat, error: null }),
   setReminder: (reminder) => set({ reminder, error: null }),
+  setTicket: (change) => set((state) => ({ ticket: { ...state.ticket, ...change }, error: null })),
   discard: () =>
     set({
       builtIn: {},
@@ -78,6 +85,7 @@ export const useItemEditorStore = create<ItemEditorState>()((set) => ({
       links: EMPTY_LINK_DRAFT,
       repeat: null,
       reminder: null,
+      ticket: {},
       error: null,
     }),
   setError: (error) => set({ error }),
@@ -91,9 +99,11 @@ export const isItemEditorOpen = () => useItemEditorStore.getState().openItemId !
 
 /** True when the open editor holds typed values that have not been saved or discarded. */
 export const hasItemEditorEdits = () => {
-  const { openItemId, builtIn, custom, links, repeat, reminder } = useItemEditorStore.getState();
+  const { openItemId, builtIn, custom, links, repeat, reminder, ticket } =
+    useItemEditorStore.getState();
   const typed =
     Object.keys(builtIn).length > 0 ||
+    Object.keys(ticket).length > 0 ||
     Object.keys(custom).length > 0 ||
     links !== EMPTY_LINK_DRAFT ||
     repeat !== null ||

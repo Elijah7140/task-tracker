@@ -268,6 +268,7 @@ export class FakeSettingsAndLookups {
     reminders: DEFAULT_REMINDERS,
     keepRunningInTray: false,
     startWithSystem: false,
+    addOpensDetails: { todo: false, ticket: false },
   };
   itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
@@ -476,8 +477,10 @@ export class FakeSettingsAndLookups {
     const reminders = next.reminders ?? this.globalSettings.reminders;
     const keepRunningInTray = next.keepRunningInTray ?? this.globalSettings.keepRunningInTray;
     const startWithSystem = next.startWithSystem ?? this.globalSettings.startWithSystem;
+    const addOpensDetails = next.addOpensDetails ?? this.globalSettings.addOpensDetails;
     this.globalSettings = {
       ...next,
+      ...(addOpensDetails === undefined ? {} : { addOpensDetails }),
       ...(reminders === undefined ? {} : { reminders }),
       ...(keepRunningInTray === undefined ? {} : { keepRunningInTray }),
       ...(startWithSystem === undefined ? {} : { startWithSystem }),

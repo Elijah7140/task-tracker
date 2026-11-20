@@ -1,7 +1,8 @@
 import { Dialog } from "@base-ui/react/dialog";
 import type { AreaSnapshot } from "@task-tracker/contracts";
 import { CornerLeftUp, X } from "lucide-react";
-import { type RefObject, useEffect, useRef } from "react";
+import type { TicketDetailInput } from "@task-tracker/contracts";
+import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { CurrentItemButton } from "../current-item/current-item-button.js";
 import { areaKey } from "../rpc/area-queries.js";
 import {
@@ -21,6 +22,7 @@ import { LinksSection } from "./links-section.js";
 import { ReminderSection } from "./reminder-section.js";
 import { RepeatSection } from "./repeat-section.js";
 import { SubItemsSection } from "./sub-items-section.js";
+import { TicketEditorSection } from "./ticket-section.js";
 import { useEditorFields } from "./use-editor-fields.js";
 import { useItemLinks } from "./use-item-links.js";
 import { useItemEditorSession } from "./use-item-editor-session.js";
@@ -43,18 +45,22 @@ const backdropClass =
 
 function EditorHeader({
   itemId,
+  ticket,
   parent,
   onOpenParent,
   onClose,
 }: {
   readonly itemId: string;
+  readonly ticket: boolean;
   readonly parent: ItemNode | undefined;
   readonly onOpenParent: (itemId: string) => void;
   readonly onClose: () => void;
 }) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line pr-2.5 pl-5">
-      <Dialog.Title className="text-[13px] font-medium text-fg-muted">Edit item</Dialog.Title>
+      <Dialog.Title className="text-[13px] font-medium text-fg-muted">
+        {ticket ? "Edit ticket" : "Edit item"}
+      </Dialog.Title>
       {parent === undefined ? null : (
         <button
           type="button"
@@ -140,6 +146,12 @@ function EditorContent({
   const store = useItemEditorStore();
   const fields = useEditorFields(snapshot.projectId, node.item.id);
   const links = useItemLinks(node.item.id);
+  const ticket = node.item.kind === "Ticket";
+  const [storedTicket, setStoredTicket] = useState<typeof TicketDetailInput.Type | null>(null);
+  const onStoredTicket = useCallback(
+    (detail: typeof TicketDetailInput.Type | null) => setStoredTicket(detail),
+    [],
+  );
   const status = editorDraftStatus({
     item: node.item,
     builtIn: store.builtIn,
@@ -149,6 +161,7 @@ function EditorContent({
     storedLinks: links.status === "ready" ? links.links : null,
     repeat: store.repeat,
     reminder: store.reminder,
+    ...(ticket ? { ticket: { stored: storedTicket, overrides: store.ticket } } : {}),
   });
   const session = useItemEditorSession({
     projectId: snapshot.projectId,
@@ -166,13 +179,19 @@ function EditorContent({
     <>
       <EditorHeader
         itemId={node.item.id}
+        ticket={ticket}
         parent={parentId === null ? undefined : findItemNode(snapshot.items, parentId)}
         onOpenParent={openItem}
         onClose={requestClose}
       />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem]">
         <div className="flex min-h-0 flex-col gap-6 overflow-y-auto px-6 pt-5 pb-6">
-          <TitleFields texts={texts} onChange={store.setBuiltIn} titleRef={titleRef} />
+          <TitleFields
+            texts={texts}
+            onChange={store.setBuiltIn}
+            titleRef={titleRef}
+            placeholder={ticket ? "Summary" : "Untitled"}
+          />
           <LinksSection state={links} draft={store.links} onChange={store.updateLinks} />
           <SubItemsSection
             node={node}
@@ -192,26 +211,39 @@ function EditorContent({
             statuses={snapshot.statuses}
             onChange={store.setBuiltIn}
           />
-          <RepeatSection
-            item={node.item}
-            draft={store.repeat}
-            summary={status.repeatSummary}
-            error={status.repeatError}
-            onChange={store.setRepeat}
-            onSkip={() =>
-              void session.guarded(async () => void (await repeat.skipRepeat(node.item)))
-            }
-            onStop={() =>
-              void session.guarded(async () => void (await repeat.stopRepeating(node.item)))
-            }
-          />
+          {ticket ? (
+            <TicketEditorSection
+              itemId={node.item.id}
+              overrides={store.ticket}
+              error={status.ticketError}
+              onChange={store.setTicket}
+              onStored={onStoredTicket}
+            />
+          ) : null}
+          {ticket ? null : (
+            <RepeatSection
+              item={node.item}
+              draft={store.repeat}
+              summary={status.repeatSummary}
+              error={status.repeatError}
+              onChange={store.setRepeat}
+              onSkip={() =>
+                void session.guarded(async () => void (await repeat.skipRepeat(node.item)))
+              }
+              onStop={() =>
+                void session.guarded(async () => void (await repeat.stopRepeating(node.item)))
+              }
+            />
+          )}
           <ReminderSection
             item={node.item}
             draft={store.reminder}
             hasDueDate={texts.dueDate.trim() !== ""}
             onChange={store.setReminder}
           />
-          <CustomFieldsSection state={fields} drafts={store.custom} onChange={store.setCustom} />
+          {ticket ? null : (
+            <CustomFieldsSection state={fields} drafts={store.custom} onChange={store.setCustom} />
+          )}
         </aside>
       </div>
       <EditorFooter

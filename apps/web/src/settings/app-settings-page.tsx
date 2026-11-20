@@ -12,11 +12,13 @@ import { LoadFailure } from "../ui/load-failure.js";
 import { PageContainer } from "../ui/page-container.js";
 import { PageHeader } from "../ui/page-header.js";
 import { AboutCard } from "./about-card.js";
+import { AppearanceCard } from "./appearance-card.js";
 import { FieldManagerCard } from "./field-manager-card.js";
 import { areaTarget } from "../workspace/area-route.js";
 import { GlobalDefaultsCard } from "./global-defaults-card.js";
 import { LookupListCard } from "./lookup-list-card.js";
 import { StatusListCard } from "./status-list-card.js";
+import { TicketListsCard } from "./ticket-lists-card.js";
 import { useDesktopInstallation } from "./use-desktop-installation.js";
 import { useUnsavedSettingsGuard } from "./use-unsaved-settings-guard.js";
 
@@ -94,7 +96,7 @@ export function AppSettingsPage() {
     <PageContainer>
       <PageHeader
         title="App Settings"
-        description="Global defaults, item types, priority levels and custom fields."
+        description="Global defaults, appearance, item types, priority levels, ticket lists and custom fields."
         actions={<AppSettingsBack />}
       />
       {failure !== undefined ? (
@@ -116,12 +118,14 @@ export function AppSettingsPage() {
             onDirtyChange={setDirty}
             startWithSystemAvailable={installation?.startWithSystemAvailable}
           />
+          <AppearanceCard />
           {installation === undefined ? null : <AboutCard installation={installation} />}
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
             <LookupListCard kind="itemTypes" rows={itemTypes.value} />
             <LookupListCard kind="priorityLevels" rows={priorityLevels.value} />
             <StatusListCard rows={statuses.value} />
           </div>
+          <TicketListsCard />
           <FieldManagerCard projectId={null} />
         </div>
       )}

@@ -81,6 +81,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         reminders: DEFAULT_REMINDERS,
         keepRunningInTray: false,
         startWithSystem: false,
+        addOpensDetails: { todo: false, ticket: false },
       });
       expect(result).toEqual({ kind: "applied" });
       expect(saved).toEqual({
@@ -88,6 +89,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         reminders: DEFAULT_REMINDERS,
         keepRunningInTray: false,
         startWithSystem: false,
+        addOpensDetails: { todo: false, ticket: false },
       });
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },

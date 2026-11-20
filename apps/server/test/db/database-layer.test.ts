@@ -47,6 +47,7 @@ const completedLedger = [
   { migration_id: 8, name: "IndexTodayCompletions" },
   { migration_id: 9, name: "AddStatusesAndPriorityNumbers" },
   { migration_id: 10, name: "AddTicketRank" },
+  { migration_id: 11, name: "AddTickets" },
 ];
 const childId = "019A0000-0000-7000-8000-000000000CCB";
 const parentId = "019A0000-0000-7000-8000-000000000CCA";
@@ -127,6 +128,15 @@ function schema(path: string) {
   }));
 }
 
+/** Leaves out what the Effect-only tickets stage adds or alters (§7.19). */
+function withoutTicketStage(objects: ReadonlyArray<Readonly<Record<string, unknown>>>) {
+  return objects.filter(
+    (object) =>
+      !["Project", "TodoItem"].includes(String(object["name"])) &&
+      !String(object["tbl_name"]).startsWith("Ticket"),
+  );
+}
+
 function snapshot(path: string) {
   return query(
     path,
@@ -172,10 +182,10 @@ it.effect("Adopts the final EF fixture without changing its rows, schema or inde
     yield* start(path);
     yield* start(fresh.path);
 
-    expect(schema(path)).toEqual(originalSchema);
-    expect(schema(fresh.path)).toEqual(originalSchema);
+    expect(schema(path)).toEqual(schema(fresh.path));
+    expect(withoutTicketStage(schema(path))).toEqual(withoutTicketStage(originalSchema));
     expect(history(path)).toEqual(originalHistory);
-    expect(snapshot(path)).toEqual(before);
+    expectOriginalRows(path, before);
     expect(ledger(path)).toEqual(completedLedger);
     expect(query(path, "SELECT * FROM TodoItemSearchRow ORDER BY RowId")).toEqual(mappings);
     expect(query(path, "SELECT QueryText FROM SavedSearch")).toEqual([
@@ -187,6 +197,8 @@ it.effect("Adopts the final EF fixture without changing its rows, schema or inde
     expect(query(path, "SELECT Url FROM ItemLink")).toEqual([
       { Url: "https://example.test/guide" },
     ]);
+    // Numbered items stay ToDos when the Ticket kind arrives (§7.19).
+    expect(query(path, "SELECT DISTINCT ItemKind FROM TodoItem")).toEqual([{ ItemKind: "Todo" }]);
     expect(
       query(
         path,

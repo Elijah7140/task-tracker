@@ -34,8 +34,10 @@ interface ItemDragOptions {
   readonly treeRef: RefObject<HTMLUListElement | null>;
   /** The open area, so a drop onto its own sidebar entry is ignored. */
   readonly folderId: string | null;
-  /** The area snapshot the drop is validated against before it is sent. */
+  /** The card level's snapshot the drop is validated against before it is sent. */
   readonly nodes: ItemSiblings;
+  /** The drilled-in item whose children are the cards; null or absent for the top level. */
+  readonly levelParentId?: string | null | undefined;
   /** The open priority sections in display order (§7.17). */
   readonly groups: ReadonlyArray<PriorityGroup>;
   readonly onDrop: (source: ItemNode, target: ItemDrop) => void;
@@ -88,6 +90,9 @@ function rowTarget(nodes: ItemSiblings, source: ItemNode, row: HTMLElement, clie
     : ({ kind: "row", id, position } as const);
 }
 
+/** The item whose children are the cards, or null for the area's top level (§7.19). */
+const levelParent = (options: ItemDragOptions) => options.levelParentId ?? null;
+
 /**
  * Whether a placement changes anything the user can see. An archived level cannot be assigned,
  * and a card dropped back into its own place in its section is left alone.
@@ -96,13 +101,15 @@ function isUsefulPlacement(
   groups: ReadonlyArray<PriorityGroup>,
   source: ItemNode,
   placement: CardPlacement,
+  levelParentId: string | null,
 ) {
   const group = groups.find((candidate) => candidate.priorityLevelId === placement.priorityLevelId);
   if (group === undefined) {
     return false;
   }
   const sameSection =
-    source.item.parentItemId === null && source.item.priorityLevelId === group.priorityLevelId;
+    source.item.parentItemId === levelParentId &&
+    source.item.priorityLevelId === group.priorityLevelId;
   if (!sameSection) {
     return !group.isArchived;
   }
@@ -132,7 +139,7 @@ function cardTarget(
     return { kind: "row", id, position };
   }
   const placement = mapCardDrop(nodes, groups, source.item.id, id, position);
-  return placement !== null && isUsefulPlacement(groups, source, placement)
+  return placement !== null && isUsefulPlacement(groups, source, placement, levelParent(options))
     ? { kind: "card", placement }
     : null;
 }
@@ -148,7 +155,7 @@ function groupHeaderTarget(
   const group = groups.find((candidate) => (candidate.priorityLevelId ?? "") === key);
   const placement =
     group === undefined ? null : mapCardDropToGroupEnd(nodes, groups, source.item.id, group);
-  return placement !== null && isUsefulPlacement(groups, source, placement)
+  return placement !== null && isUsefulPlacement(groups, source, placement, levelParent(options))
     ? { kind: "group", placement }
     : null;
 }
@@ -194,7 +201,8 @@ function targetAt(options: ItemDragOptions, source: ItemNode, event: MouseEvent)
   if (area) {
     return areaTarget(options, source, area);
   }
-  const promotes = source.item.parentItemId !== null && isBelowTree(tree, hit, event.clientY);
+  const promotes =
+    source.item.parentItemId !== levelParent(options) && isBelowTree(tree, hit, event.clientY);
   return promotes ? { kind: "root-end" } : null;
 }
 

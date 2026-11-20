@@ -5,6 +5,7 @@ import { requestCompletion } from "../dialogs/request-completion.js";
 import { areaKey } from "../rpc/area-queries.js";
 import { itemFieldValuesKey } from "../rpc/field-queries.js";
 import { itemLinksKey } from "../rpc/item-link-queries.js";
+import { ticketKey } from "../rpc/ticket-field-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { editItemAtom } from "../rpc/item-mutations.js";
@@ -55,6 +56,10 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       setError(status.repeatError);
       return false;
     }
+    if (status.ticketError !== null) {
+      setError(status.ticketError);
+      return false;
+    }
     const payload = {
       itemId: node.item.id,
       fields: status.fields,
@@ -62,6 +67,7 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       ...(status.links === undefined ? {} : { links: status.links }),
       ...(status.recurrence === undefined ? {} : { recurrence: status.recurrence }),
       ...(status.reminder === undefined ? {} : { reminder: status.reminder }),
+      ...(status.ticket === undefined ? {} : { ticket: status.ticket }),
     };
     const exit = await requestCompletion((approval) =>
       edit({
@@ -72,6 +78,7 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
           PROJECTS_KEY,
           itemFieldValuesKey(node.item.id),
           itemLinksKey(node.item.id),
+          ticketKey(node.item.id),
         ],
       }),
     );

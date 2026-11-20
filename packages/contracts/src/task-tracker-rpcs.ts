@@ -15,6 +15,7 @@ import { SavedSearchRpcs } from "./saved-search-rpcs.js";
 import { TodayRpcs } from "./today-rpcs.js";
 import { ReminderRpcs } from "./reminder-rpcs.js";
 import { TicketRpcs } from "./ticket-rpcs.js";
+import { TicketListRpcs } from "./ticket-list-rpcs.js";
 import { TransferRpcs } from "./transfer-rpcs.js";
 import { CurrentItemRpcs } from "./current-item-rpcs.js";
 
@@ -45,6 +46,7 @@ export const TaskTrackerRpcs = RpcGroup.make(
   TodayRpcs,
   ReminderRpcs,
   TicketRpcs,
+  TicketListRpcs,
   TransferRpcs,
   CurrentItemRpcs,
 );

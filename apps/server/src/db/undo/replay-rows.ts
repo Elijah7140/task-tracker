@@ -39,6 +39,9 @@ const subjects: Partial<Record<UndoTable, string>> = {
   GlobalSetting: "setting",
   ProjectSetting: "setting",
   SavedSearch: "saved search",
+  TicketListEntry: "list entry",
+  TicketDetail: "ticket",
+  TicketComment: "comment",
 };
 
 const subject = (table: UndoTable) => subjects[table] ?? "item";

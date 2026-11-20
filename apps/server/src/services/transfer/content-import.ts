@@ -115,6 +115,8 @@ class ContentImport {
       projectId,
       folderId: document.folderId === null ? null : map.folders.get(document.folderId)!,
       parentItemId: document.parentItemId === null ? null : map.items.get(document.parentItemId)!,
+      // Transfer does not carry the kind yet, so every imported item is a ToDo (§7.19).
+      kind: "Todo",
       title: trimText(document.title!),
       description: document.description,
       ticketNumber: isBlankText(document.ticketNumber) ? null : trimText(document.ticketNumber!),

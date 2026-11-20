@@ -65,6 +65,11 @@ Browser tests are in `apps/web/test/`.
 | `DeleteFolder`, `RestoreFolder` | Delete / Restore '⟨name⟩' | Yes | R, H, C | `undo-service` “Replays folder deletion and restoration as separate steps, retaining earlier batches”, “Refuses to redo a folder deletion with newer active contents” |
 | `CreateItem` | Create '⟨title⟩' | Yes | R, D, H, C | `undo-service` “Replays item creation, indentation, outdent and cross-area moves without losing descendants”, “Refuses to remove a created item with a newer link” |
 | `EditItem` | Edit '⟨title⟩'; Set status of, Set repeat for or Stop repeating '⟨title⟩' | Yes | R, D, V, C | `undo-service` “Clearing a custom value and renaming are one step, including field-only edits”, “Refuses to resurrect a removed choice and rolls back the other row writes”; `item-links` “Link changes and field changes are one undo step”; `item-recurrence` “Setting, changing and removing a rule are labelled undo steps”; `reminder-service` “The editor saves the reminder choice and undo restores the previous one”; `editor/links-section` “Undo and redo of a saved link list reload the editor's links” |
+| `AddItem` (§7.19) | Create '⟨title⟩' | Yes | R, D, H, C | `item-add` “Adds a ticket with its fields, levels and rank as one undo step”, “Undo refuses to remove a created ticket once it has a newer comment” |
+| `EditItem` with ticket fields (§7.19) | Edit '⟨title⟩' | Yes | R | `item-add` “Edits a ticket's fields as one step and keeps an archived person already on it” |
+| `AddTicketComment` (§7.19) | Add comment to '⟨title⟩' | Yes | R | `item-add` “Adds comments newest first and refuses comments and ticket fields on a ToDo” |
+| `SetProjectIcon` (§7.19) | Change icon of '⟨name⟩' | Yes | R | `project-service` “Changing a project icon is one undo step and an invalid key changes nothing” |
+| `AddTicketListEntry`, `RenameTicketListEntry`, `ArchiveTicketListEntry`, `RestoreTicketListEntry`, `ReorderTicketListEntries` (§7.19) | Add / Rename / Archive / Restore ⟨kind⟩ '⟨name⟩', such as Add module 'Train'; Reorder people, ticket types, applications, modules or interfaces | Yes | R, D | `ticket-list-service` “Adds an application, module and interface, each as one labelled undo step”, “Renames, archives, restores and reorders entries with their labels” |
 | `SetItemCompleted` | Complete / Reopen '⟨title⟩' | Yes | R, C | `undo-service` “Completing the last child records and replays the whole cascade under the child's name”; `rpc/undo-rpc` “A completion preview leaves RPC history intact and the committed cascade replays together”; `shell/history` “Replays completion using Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z” |
 | `SetItemStatus` | Set status of '⟨title⟩' | Yes | R, S, C | `item-status` “Status lookups and assignments can be undone and redone” |
 | `SetItemPriority` | Set priority of '⟨title⟩' | Yes | R | `item-service` “Setting a priority changes only the priority and clears the ticket rank in one step”; `workspace/priority-menu` “Records the change in history so Edit undo restores the previous priority” |
@@ -103,8 +108,8 @@ behind the history gate where it can conflict with replay.
 | `ImportJson`, `ImportCsv` | Bulk additions use the pre-import database backup for recovery (§7.9). | `transfer/transfer-service` and `transfer/csv-import` “Records no undo step and keeps the previous one” |
 | Seed and migrate | Initializes and upgrades storage outside user history. | `undo-service` “A reopened database retains committed rows and starts with empty history” |
 
-Exports, previews and loads only read. Navigation, selection and theme never reach the
-database.
+Exports, previews and loads only read. Navigation, selection, theme and the sidebar's
+width never reach the database.
 
 ### Renderer refresh
 
@@ -115,8 +120,8 @@ subscribe to `HISTORY_REPLAY_KEY`: projects, workspace areas, item values and li
 lookups and statuses, fields and choices, search metadata, saved searches, settings,
 calendar, Today, Tickets, Trash and the current item card. The reminder stream follows
 every committed replay. Pending lookup
-names, priority numbers, new field names and choice labels, settings drafts and item editor
-drafts block undo through `useUndoBlocker`.
+names, priority numbers, new field names and choice labels, new ticket list names, settings
+drafts and item editor drafts block undo through `useUndoBlocker`.
 
 ## Replay notes
 

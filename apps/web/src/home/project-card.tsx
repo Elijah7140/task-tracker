@@ -27,7 +27,7 @@ export function ProjectCard({ summary, onRename, onDelete }: ProjectCardProps) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
-          <ProjectIcon name={project.name} size="lg" />
+          <ProjectIcon name={project.name} iconKey={project.iconKey ?? null} size="lg" />
           <h2 className="truncate text-[15px] font-semibold tracking-tight">
             <Link
               to="/projects/$projectId"
@@ -40,7 +40,12 @@ export function ProjectCard({ summary, onRename, onDelete }: ProjectCardProps) {
             </Link>
           </h2>
         </div>
-        <ProjectCardMenu project={project} onRename={onRename} onDelete={onDelete} />
+        <ProjectCardMenu
+          project={project}
+          iconKey={project.iconKey ?? null}
+          onRename={onRename}
+          onDelete={onDelete}
+        />
       </div>
       <div className="flex items-center gap-3 text-[13px] text-fg-muted">
         <span data-testid="project-open-count" className="inline-flex items-center gap-1.5">

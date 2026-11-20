@@ -53,6 +53,11 @@ export interface ItemStructureScope {
   readonly onFocusItem: (request: ItemFocusRequest) => void;
   /** Shows or clears the inline failure of a pointer drop in this area. */
   readonly onMoveError: (message: string | null) => void;
+  /**
+   * The drilled-in item whose children show as cards, or null or absent for the area's top
+   * level (§7.19). Card moves and quick-add work at this level.
+   */
+  readonly levelParentId?: string | null | undefined;
 }
 
 /** Shows a failed item action dialog and reports whether the exit succeeded. */
@@ -295,7 +300,8 @@ function useMoveItems(scope: ItemStructureScope) {
 
 function useReorderItems(scope: ItemStructureScope) {
   const reorder = useAtomSet(reorderItemsAtom, { mode: "promiseExit" });
-  const saveCardMove = useSaveCardMove(scope.projectId, scope.folderId);
+  const levelParentId = scope.levelParentId ?? null;
+  const saveCardMove = useSaveCardMove(scope.projectId, scope.folderId, levelParentId);
   const serial = useSerialReorder(scope.items);
   const key = areaKey(scope.projectId, scope.folderId);
 
@@ -314,12 +320,13 @@ function useReorderItems(scope: ItemStructureScope) {
 
   /** Alt+↑/↓ on an open card moves it one place in reading order, across sections (§7.17). */
   const stepOpenCard = async (nodes: ItemSiblings, node: ItemNode, offset: -1 | 1) => {
-    const groups = buildPriorityGroups(nodes.open, scope.priorityLevels);
-    const placement = stepCard(nodes, groups, node.item.id, offset);
+    const level = siblingNodesOf(nodes, levelParentId);
+    const groups = buildPriorityGroups(level.open, scope.priorityLevels);
+    const placement = stepCard(level, groups, node.item.id, offset);
     if (placement === null) {
       return false;
     }
-    if (keepsSection(node, placement)) {
+    if (keepsSection(node, placement, levelParentId)) {
       return swapCards(nodes, node, placement.targetId);
     }
     return finishMove(nodes, node.item.id, await saveCardMove(node, placement));
@@ -331,7 +338,7 @@ function useReorderItems(scope: ItemStructureScope) {
    * insert into the full sibling list and move them (§6.4).
    */
   const swapCards = async (nodes: ItemSiblings, node: ItemNode, targetId: string) => {
-    const allIds = persistedSiblingOrder(siblingNodesOf(nodes, null));
+    const allIds = persistedSiblingOrder(siblingNodesOf(nodes, levelParentId));
     const itemIds = allIds.map((id) =>
       id === node.item.id ? targetId : id === targetId ? node.item.id : id,
     );
@@ -339,7 +346,7 @@ function useReorderItems(scope: ItemStructureScope) {
       payload: {
         projectId: scope.projectId,
         folderId: scope.folderId,
-        parentItemId: null,
+        parentItemId: levelParentId,
         itemIds,
       },
       reactivityKeys: [key, HISTORY_KEY],
@@ -365,7 +372,7 @@ function useReorderItems(scope: ItemStructureScope) {
 
   const reorderByOffset = (node: ItemNode, offset: -1 | 1) =>
     serial.run((nodes) =>
-      node.item.parentItemId === null && !node.isFinished
+      node.item.parentItemId === levelParentId && !node.isFinished
         ? stepOpenCard(nodes, node, offset)
         : swapWithSibling(nodes, node, offset),
     );

@@ -54,7 +54,7 @@ function validItemTitle(title: string): Effect.Effect<string, RuleViolation> {
 }
 
 /** Finds a node along with its parent node (null if root) and containing siblings array. */
-function locateNode(
+export function locateNode(
   nodes: Array<FakeItemNode>,
   itemId: string,
   parent: FakeItemNode | null = null,
@@ -114,7 +114,7 @@ function ancestorNodes(nodes: Array<FakeItemNode>, itemId: string | null): Array
   return result;
 }
 
-function mapTree(
+export function mapTree(
   nodes: ReadonlyArray<FakeItemNode>,
   transform: (node: FakeItemNode) => FakeItemNode,
 ): Array<FakeItemNode> {
@@ -221,6 +221,7 @@ export function applyCreateItem(
         projectId,
         folderId,
         parentItemId,
+        kind: "Todo",
         title: trimmed,
         description: null,
         ticketNumber: null,
@@ -519,6 +520,7 @@ export function applyMoveItemToPriorityGroup(
   priorityLevelId: string | null,
   index: number,
   priorityLevels: ReadonlyArray<{ readonly id: string; readonly isArchived: boolean }>,
+  levelParentId: string | null = null,
 ): Effect.Effect<{ readonly title: string; readonly priorityChanged: boolean }, ItemError> {
   const located = locateNode(area.nodes, itemId);
   if (located === undefined) {
@@ -532,12 +534,16 @@ export function applyMoveItemToPriorityGroup(
   ) {
     return Effect.fail(new RuleViolation({ message: "Priority is missing or archived." }));
   }
-  const remainingRoots = area.nodes.filter((node) => node.item.id !== itemId);
+  const level =
+    levelParentId === null
+      ? area.nodes
+      : (locateNode(area.nodes, levelParentId)?.node.children ?? []);
+  const remainingRoots = level.filter((node) => node.item.id !== itemId);
   if (!Number.isInteger(index) || index < 0 || index > remainingRoots.length) {
     return Effect.fail(new RuleViolation({ message: "Item position is outside its siblings." }));
   }
   const title = located.node.item.title;
-  return moveWithinArea(store, area, projectId, itemId, null, index).pipe(
+  return moveWithinArea(store, area, projectId, itemId, levelParentId, index).pipe(
     Effect.map(() => {
       if (priorityChanged) {
         area.nodes = mapTree(area.nodes, (node) =>

@@ -24,6 +24,9 @@ export interface BuiltInFieldsProps {
   readonly onChange: (key: BuiltInKey, value: string) => void;
 }
 
+/** True for a ticket, whose fields are fixed: no type or scheduled block (§7.19). */
+const isTicket = (item: typeof Item.Type) => item.kind === "Ticket";
+
 type ChangeProps = Pick<BuiltInFieldsProps, "texts" | "onChange">;
 
 /** The item's title, edited in place as the panel's heading, and its description. */
@@ -31,7 +34,9 @@ export function TitleFields({
   texts,
   onChange,
   titleRef,
-}: ChangeProps & Pick<BuiltInFieldsProps, "titleRef">) {
+  placeholder = "Untitled",
+}: ChangeProps &
+  Pick<BuiltInFieldsProps, "titleRef"> & { readonly placeholder?: string | undefined }) {
   return (
     <div className="flex flex-col gap-3">
       <Field.Root className="flex flex-col">
@@ -40,7 +45,7 @@ export function TitleFields({
           ref={titleRef}
           value={texts.title}
           onValueChange={(value: string) => onChange("title", value)}
-          placeholder="Untitled"
+          placeholder={placeholder}
           data-testid="item-editor-title"
           autoComplete="off"
           className="h-10 rounded-control border border-transparent bg-transparent px-2 -mx-2 text-xl font-semibold tracking-tight text-fg outline-none placeholder:text-fg-subtle hover:bg-hover focus-visible:border-accent focus-visible:bg-canvas focus-visible:ring-3 focus-visible:ring-focus"
@@ -93,13 +98,15 @@ function DetailsGroup({
   return (
     <EditorGroup title="Details" testId="item-editor-details">
       <div className="flex flex-col gap-1.5">
-        <LookupSelect
-          label="Type"
-          value={texts.itemTypeId}
-          options={lookupOptions(itemTypes, item.itemTypeId)}
-          testId="item-editor-type"
-          onValueChange={(value) => onChange("itemTypeId", value)}
-        />
+        {isTicket(item) ? null : (
+          <LookupSelect
+            label="Type"
+            value={texts.itemTypeId}
+            options={lookupOptions(itemTypes, item.itemTypeId)}
+            testId="item-editor-type"
+            onValueChange={(value) => onChange("itemTypeId", value)}
+          />
+        )}
         <LookupSelect
           label="Priority"
           value={texts.priorityLevelId}
@@ -148,11 +155,16 @@ const SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
   { key: "scheduledEnd", label: "Scheduled end", type: "datetime-local", testId: "scheduled-end" },
 ];
 
-function ScheduleGroup({ texts, onChange }: ChangeProps) {
+/** A ticket's only date is its estimated completion date, stored as the due date (§7.19). */
+const TICKET_SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
+  { key: "dueDate", label: "Est. comp. date", type: "date", testId: "due-date" },
+];
+
+function ScheduleGroup({ texts, onChange, ticket }: ChangeProps & { readonly ticket: boolean }) {
   return (
     <EditorGroup title="Schedule" testId="item-editor-schedule">
       <div className="flex flex-col gap-1.5">
-        {SCHEDULE_INPUTS.map((input) => (
+        {(ticket ? TICKET_SCHEDULE_INPUTS : SCHEDULE_INPUTS).map((input) => (
           <EditorField key={input.key} label={input.label}>
             <ClearableInput
               type={input.type}
@@ -177,7 +189,7 @@ export function PropertyFields(props: Omit<BuiltInFieldsProps, "titleRef">) {
   return (
     <>
       <DetailsGroup {...props} />
-      <ScheduleGroup texts={props.texts} onChange={props.onChange} />
+      <ScheduleGroup texts={props.texts} onChange={props.onChange} ticket={isTicket(props.item)} />
     </>
   );
 }

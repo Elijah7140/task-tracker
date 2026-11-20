@@ -1,31 +1,37 @@
 import {
+  createTicketComment,
   editItem,
+  emptyTicketDetail,
   MetadataRuleError,
-  planFieldValueEdits,
   planItemLinkEdits,
   planStatusChange,
   sameRecurrence,
+  validateTicketDetail,
   type AppliedCompletion,
   type FieldValueInput,
   type ItemEdit,
   type ItemLinkInput,
+  type TicketDetailInput,
   type TodoItem,
 } from "@task-tracker/core";
 import { Context, Effect, Layer, Schema } from "effect";
 import { SqlClient } from "effect/sql";
-import { fieldRepository } from "../db/repositories/field-repository.js";
 import { itemFieldValueRepository } from "../db/repositories/item-field-value-repository.js";
 import { itemLinkRepository } from "../db/repositories/item-link-repository.js";
 import { itemRepository } from "../db/repositories/item-repository.js";
 import { lookupRepository } from "../db/repositories/lookup-repository.js";
 import { statusRepository } from "../db/repositories/status-repository.js";
 import { settingsRepository } from "../db/repositories/settings-repository.js";
+import { ticketDetailRepository } from "../db/repositories/ticket-detail-repository.js";
+import { ticketListRepository } from "../db/repositories/ticket-list-repository.js";
 import { Guid } from "../db/storage-codecs.js";
 import { projectAreaItems, type AreaSnapshot } from "./area-snapshot.js";
 import { areaUndoSources } from "./area-undo-sources.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
 import { checkRules } from "./check-rules.js";
+import { itemAddOperation } from "./item-add-operation.js";
 import { itemCompletionOperations } from "./item-completion-operations.js";
+import { activePriorityCheck, itemCustomValues } from "./item-custom-values.js";
 import { itemPushBackOperation } from "./item-push-back-operation.js";
 import { itemRecurrenceOperations } from "./item-recurrence-operations.js";
 import { itemStructureOperations } from "./item-structure-operations.js";
@@ -39,20 +45,17 @@ const decodeId = Schema.decodeEffect(Guid);
 const decodeOptionalIds = Schema.decodeEffect(Schema.UndefinedOr(Schema.Array(Guid)));
 const decodeNullableId = Schema.decodeEffect(Schema.NullOr(Guid));
 
-const normalizeFieldIds = Effect.fnUntraced(function* (input: FieldValueInput) {
-  const fieldDefinitionId = yield* decodeId(input.fieldDefinitionId);
-  const choiceId = yield* decodeNullableId(input.choiceId ?? null);
-  return { ...input, fieldDefinitionId, choiceId };
-});
-
 const make = Effect.fnUntraced(function* (timeZone: string) {
   const sql = yield* SqlClient.SqlClient;
   const undo = yield* UndoService;
   const items = itemRepository(sql);
-  const fields = fieldRepository(sql);
   const itemValues = itemFieldValueRepository(sql);
   const itemLinks = itemLinkRepository(sql);
   const lookups = lookupRepository(sql);
+  const ticketLists = ticketListRepository(sql);
+  const ticketDetails = ticketDetailRepository(sql);
+  const customValueWriter = itemCustomValues(sql);
+  const requireActivePriority = activePriorityCheck(sql);
   const statuses = statusRepository(sql);
   const settings = settingsRepository(sql);
 
@@ -64,22 +67,6 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     completion,
     undo,
   );
-
-  const planCustomEdit = Effect.fnUntraced(function* (
-    item: TodoItem,
-    customValues: readonly FieldValueInput[],
-  ) {
-    const inputs = yield* Effect.forEach(customValues, normalizeFieldIds);
-    const definitions = yield* fields.definitions.list();
-    const choiceIds = new Set(
-      inputs.flatMap(({ choiceId }) => (choiceId === null ? [] : [choiceId])),
-    );
-    const choices = choiceIds.size === 0 ? [] : yield* fields.choices.findByIds([...choiceIds]);
-    const existing = yield* itemValues.list(item.id);
-    return yield* checkRules(() =>
-      planFieldValueEdits(item.id, item.projectId, definitions, choices, existing, inputs),
-    );
-  });
 
   /**
    * Plans a status selection against the area tree. An editor save passes its
@@ -187,19 +174,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
       { table: "TodoItem", where: sql`Id = ${item.id}` },
       { table: "ItemFieldValue", where: sql`ItemId = ${item.id}` },
       { table: "ItemLink", where: sql`ItemId = ${item.id}` },
+      { table: "TicketDetail", where: sql`ItemId = ${item.id}` },
     ] as const;
     return numbered ? [...own, ticketUndoSource(sql)] : own;
   };
-
-  const writeCustomValues = Effect.fnUntraced(function* (
-    itemId: string,
-    custom: Effect.Success<ReturnType<typeof planCustomEdit>>,
-  ) {
-    for (const fieldDefinitionId of custom.removals) {
-      yield* itemValues.remove({ itemId, fieldDefinitionId });
-    }
-    yield* Effect.forEach(custom.upserts, itemValues.upsert, { discard: true });
-  });
 
   /** Validates a replacement link list against the stored links (§7.10). */
   const planLinks = Effect.fnUntraced(function* (
@@ -224,6 +202,26 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     yield* Effect.forEach(plan.inserts, itemLinks.insert, { discard: true });
   });
 
+  /** Validates an editor's ticket fields against the lists and the stored fields (§7.19). */
+  const planTicketEdit = Effect.fnUntraced(function* (
+    item: TodoItem,
+    ticket: TicketDetailInput | undefined,
+    customValues: readonly FieldValueInput[],
+  ) {
+    if (item.kind === "Ticket" && customValues.length > 0) {
+      return yield* Effect.fail(new MetadataRuleError("Custom fields apply to ToDos only."));
+    }
+    if (ticket === undefined) {
+      return undefined;
+    }
+    if (item.kind !== "Ticket") {
+      return yield* Effect.fail(new MetadataRuleError("Ticket fields apply to tickets only."));
+    }
+    const previous = yield* ticketDetails.find(item.id);
+    const entries = yield* ticketLists.list();
+    return yield* checkRules(() => validateTicketDetail(item.id, ticket, entries, previous));
+  });
+
   /**
    * Saves the editor's built-in fields, optional repeat rule and reminder choice, changed custom values,
    * optional status and, when `links` is present, the item's whole link list as one
@@ -237,6 +235,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     customValues: readonly FieldValueInput[] = [],
     confirmedOpenItemIds?: readonly string[],
     links?: readonly ItemLinkInput[],
+    ticket?: TicketDetailInput,
   ) {
     const item = yield* items.requireActive(id);
     const now = yield* operationTime;
@@ -246,8 +245,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
       editItem(item, { ...values, itemTypeId, priorityLevelId }, now, () => newId(now)),
     );
     // The connection lease serializes this snapshot and write with definition mutations.
+    const ticketPlan = yield* planTicketEdit(item, ticket, customValues);
     const custom =
-      customValues.length === 0 ? undefined : yield* planCustomEdit(item, customValues);
+      customValues.length === 0 ? undefined : yield* customValueWriter.plan(item, customValues);
     const linkPlan = links === undefined ? undefined : yield* planLinks(item.id, links, now);
     const status = yield* planEditStatus(edited, values.statusId, now, confirmedOpenItemIds);
     const { result } = status;
@@ -263,10 +263,13 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     yield* items.saveRecurrence(edited);
     yield* items.saveReminder(edited);
     if (custom) {
-      yield* writeCustomValues(item.id, custom);
+      yield* customValueWriter.write(item.id, custom);
     }
     if (linkPlan) {
       yield* writeLinks(linkPlan);
+    }
+    if (ticketPlan) {
+      yield* ticketDetails.upsert(ticketPlan);
     }
     if (status.plan !== null) {
       yield* applyStatus(edited, status.statusId, now, { ...status.plan, result });
@@ -276,16 +279,6 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     }
     return result;
   }, undo.record);
-
-  const requireActivePriority = Effect.fnUntraced(function* (priorityLevelId: string | null) {
-    if (priorityLevelId === null) {
-      return;
-    }
-    const levels = yield* lookups.priorityLevels.list();
-    if (!levels.some((level) => level.id === priorityLevelId && !level.isArchived)) {
-      return yield* Effect.fail(new MetadataRuleError("Priority is missing or archived."));
-    }
-  });
 
   const setPriority = Effect.fnUntraced(function* (id: string, priorityId: string | null) {
     const item = yield* items.requireActive(id);
@@ -302,9 +295,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   }, undo.record);
 
   /**
-   * Moves an item to the area's top level at `index` among the other top-level items and assigns
-   * `priorityId` in one undoable transaction (§7.17). Promotes sub-items, reconciles parent
-   * completion, and clears `TicketRank` when the priority changes.
+   * Moves an item under `levelParent` (null for the area's top level, or the drilled-in item,
+   * §7.19) at `index` among that level's other items and assigns `priorityId` in one undoable
+   * transaction (§7.17). Promotes or moves sub-items, reconciles parent completion, and clears
+   * `TicketRank` when the priority changes.
    */
   const moveToPriorityGroup = Effect.fnUntraced(function* (
     projectId: string,
@@ -312,9 +306,11 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     id: string,
     priorityId: string | null,
     index: number,
+    levelParent: string | null = null,
   ) {
     const key = yield* decodeId(id);
     const priorityLevelId = yield* decodeNullableId(priorityId);
+    const levelParentId = yield* decodeNullableId(levelParent);
     const tree = yield* loadAreaTree(projectId, folderId);
     const original = new Map(tree.allRows.map((row) => [row.id, row]));
     const now = yield* operationTime;
@@ -323,8 +319,12 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     if (priorityChanged) {
       yield* requireActivePriority(priorityLevelId);
     }
-    yield* checkRules(() => tree.moveAt(key, null, index, now));
-    const applied = yield* completion.planReconciliation(tree, [item.parentItemId, null], now);
+    yield* checkRules(() => tree.moveAt(key, levelParentId, index, now));
+    const applied = yield* completion.planReconciliation(
+      tree,
+      [item.parentItemId, levelParentId],
+      now,
+    );
     const label = priorityChanged
       ? undoLabel("Set priority of", item.title)
       : undoLabel("Move", item.title);
@@ -334,6 +334,36 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     if (priorityChanged) {
       yield* items.updatePriority({ id: key, updatedAtUtc: now, priorityLevelId });
     }
+  }, undo.record);
+
+  const add = itemAddOperation(sql, undo, { loadAreaTree, saveStructure, completion });
+
+  const requireTicket = Effect.fnUntraced(function* (id: string) {
+    const item = yield* items.requireActive(id);
+    if (item.kind !== "Ticket") {
+      return yield* Effect.fail(new MetadataRuleError("Only tickets have ticket fields."));
+    }
+    return item;
+  });
+
+  /** A ticket's fixed fields, empty when none were saved, and its comments newest first. */
+  const loadTicket = Effect.fnUntraced(function* (id: string) {
+    const item = yield* requireTicket(id);
+    const detail = (yield* ticketDetails.find(item.id)) ?? emptyTicketDetail(item.id);
+    const comments = yield* ticketDetails.listComments(item.id);
+    return { detail, comments };
+  }, sql.withTransaction);
+
+  /** Appends a comment to a ticket's log as one undo step (§7.19). */
+  const addComment = Effect.fnUntraced(function* (id: string, body: string) {
+    const item = yield* requireTicket(id);
+    const now = yield* operationTime;
+    const comment = yield* checkRules(() => createTicketComment(newId(now), item.id, body, now));
+    yield* undo.capture(undoLabel("Add comment to", item.title), [
+      { table: "TicketComment", where: sql`ItemId = ${item.id}` },
+    ]);
+    yield* ticketDetails.insertComment(comment);
+    return comment;
   }, undo.record);
 
   const loadFieldValues = Effect.fnUntraced(function* (id: string) {
@@ -387,6 +417,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     ...structure,
     ...recurrence,
     ...pushBack,
+    add,
+    addComment,
+    loadTicket,
     edit,
     setCompleted,
     setPriority,

@@ -21,6 +21,8 @@ const structureFields = {
   folderId: Schema.NullOr(Guid),
   parentItemId: Schema.NullOr(Guid),
 };
+/** The kind is written on insert only, because it never changes (§7.19). */
+const kindField = { kind: Schema.Literals(["Todo", "Ticket"]) };
 const editFields = {
   title: Schema.String,
   description: Schema.NullOr(Schema.String),
@@ -37,6 +39,7 @@ const columns = {
   projectId: "ProjectId",
   folderId: "FolderId",
   parentItemId: "ParentItemId",
+  kind: "ItemKind",
   title: "Title",
   description: "Description",
   ticketNumber: "TicketNumber",
@@ -61,6 +64,7 @@ export const itemRowColumns = Statement.csv([
 const FlatItemRow = Schema.Struct({
   ...trackedFields,
   ...structureFields,
+  ...kindField,
   ...editFields,
   statusId: Schema.NullOr(Guid),
   reopenStatusId: Schema.NullOr(Guid),

@@ -5,7 +5,8 @@ import { ticketUndoSource } from "./ticket-ranks.js";
 /**
  * The rows an area write can change, including the custom values and links that
  * a next occurrence copies (§7.11) and the ticket ranks its append assigns
- * (§7.16). Each predicate selects them before and after.
+ * (§7.16), and the ticket fields and comments of tickets that an undone creation
+ * removes (§7.19). Each predicate selects them before and after.
  */
 export function areaUndoSources(
   sql: SqlClient.SqlClient,
@@ -17,6 +18,8 @@ export function areaUndoSources(
     { table: "TodoItem", where: sql`ProjectId = ${projectId} AND FolderId IS ${folderId}` },
     { table: "ItemFieldValue", where: sql`ItemId IN (${areaItems})` },
     { table: "ItemLink", where: sql`ItemId IN (${areaItems})` },
+    { table: "TicketDetail", where: sql`ItemId IN (${areaItems})` },
+    { table: "TicketComment", where: sql`ItemId IN (${areaItems})` },
     ticketUndoSource(sql),
   ];
 }

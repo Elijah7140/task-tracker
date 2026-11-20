@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { createItem, MetadataRuleError } from "../../src/index.js";
+import { createItem, MetadataRuleError, requireTicketNumber } from "../../src/index.js";
 import { now } from "../fixtures.js";
 
 const create = (title: string) => createItem("A", "P", null, null, title, now);
@@ -46,4 +46,17 @@ describe("createItem", () => {
     expect(created.title).toBe("a".repeat(300));
     expect(() => create(tooLong)).toThrow(MetadataRuleError);
   });
+});
+
+it("creates a ToDo unless another kind is asked for", () => {
+  const todo = createItem("todo", "project", null, null, "Call Melissa", now);
+  const ticket = createItem("ticket", "project", null, null, "Training data", now, "Ticket");
+
+  expect(todo.kind).toBe("Todo");
+  expect(ticket.kind).toBe("Ticket");
+});
+
+it("requires a ticket number on a ticket only", () => {
+  expect(() => requireTicketNumber("Ticket", null)).toThrow("A ticket needs a ticket number.");
+  expect(() => requireTicketNumber("Todo", null)).not.toThrow();
 });

@@ -10,6 +10,7 @@ export function item(id: string, overrides: Partial<TodoItem> = {}): TodoItem {
     projectId,
     folderId: null,
     parentItemId: null,
+    kind: "Todo",
     title: "Task",
     description: null,
     ticketNumber: null,

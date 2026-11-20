@@ -9,6 +9,7 @@ import {
   useReminderPanelStore,
 } from "../../src/state/reminder-panel-store.js";
 import { initialReturnPageState, useReturnPageStore } from "../../src/state/return-page-store.js";
+import { useSidebarStore } from "../../src/state/sidebar-store.js";
 import { useThemeStore } from "../../src/state/theme-store.js";
 import { initialTransferState, useTransferStore } from "../../src/state/transfer-store.js";
 import { initialWorkspaceState, useWorkspaceStore } from "../../src/state/workspace-store.js";
@@ -20,6 +21,8 @@ beforeEach(() => {
   localStorage.clear();
   dialogStore.setState({ queue: [], nextId: 1 });
   useThemeStore.setState({ preference: "light" });
+  // Most screens are tested with the folder tree showing; sidebar tests cover the collapsed default.
+  useSidebarStore.setState({ expanded: true });
   useWorkspaceStore.setState(initialWorkspaceState);
   useItemEditorStore.setState(initialItemEditorState);
   useReturnPageStore.setState(initialReturnPageState);

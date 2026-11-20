@@ -10,6 +10,7 @@ import {
 } from "./item-projection.js";
 import { parseFieldValueInput, projectItemFieldValue } from "./field-value-projection.js";
 import { projectItemLink } from "./item-link-projection.js";
+import { projectTicket, projectTicketComment } from "./ticket-projection.js";
 
 import { mapOperationError } from "./map-operation-error.js";
 
@@ -21,6 +22,17 @@ export const itemRpcHandlers = (timeZone: string) =>
       return ItemRpcs.of({
         LoadArea: ({ projectId, folderId }) =>
           items.loadArea(projectId, folderId).pipe(Effect.map(projectArea), mapOperationError),
+        AddItem: ({ fields, customValues, reminder, ticket, ...placement }) =>
+          Effect.sync(() => ({
+            ...placement,
+            fields: { ...parseItemEdit(fields), ...(reminder === undefined ? {} : { reminder }) },
+            customValues: customValues?.map(parseFieldValueInput) ?? [],
+            ticket: ticket ?? null,
+          })).pipe(Effect.flatMap(items.add), Effect.map(projectItem), mapOperationError),
+        LoadTicket: ({ itemId }) =>
+          items.loadTicket(itemId).pipe(Effect.map(projectTicket), mapOperationError),
+        AddTicketComment: ({ itemId, body }) =>
+          items.addComment(itemId, body).pipe(Effect.map(projectTicketComment), mapOperationError),
         CreateItem: ({ projectId, folderId, parentItemId, title }) =>
           items
             .create(projectId, folderId, parentItemId, title)
@@ -32,6 +44,7 @@ export const itemRpcHandlers = (timeZone: string) =>
           links,
           recurrence,
           reminder,
+          ticket,
           confirmedOpenItemIds,
         }) =>
           Effect.sync(() => ({
@@ -43,7 +56,7 @@ export const itemRpcHandlers = (timeZone: string) =>
             values: customValues?.map(parseFieldValueInput),
           })).pipe(
             Effect.flatMap(({ edit, values }) =>
-              items.edit(itemId, edit, values, confirmedOpenItemIds, links),
+              items.edit(itemId, edit, values, confirmedOpenItemIds, links, ticket),
             ),
             Effect.map(projectCompletion),
             mapOperationError,
@@ -66,9 +79,23 @@ export const itemRpcHandlers = (timeZone: string) =>
           items.move(projectId, folderId, itemId, parentItemId).pipe(mapOperationError),
         DropItem: ({ projectId, folderId, itemId, targetItemId, position }) =>
           items.drop(projectId, folderId, itemId, targetItemId, position).pipe(mapOperationError),
-        MoveItemToPriorityGroup: ({ projectId, folderId, itemId, priorityLevelId, index }) =>
+        MoveItemToPriorityGroup: ({
+          projectId,
+          folderId,
+          itemId,
+          priorityLevelId,
+          index,
+          levelParentId,
+        }) =>
           items
-            .moveToPriorityGroup(projectId, folderId, itemId, priorityLevelId, index)
+            .moveToPriorityGroup(
+              projectId,
+              folderId,
+              itemId,
+              priorityLevelId,
+              index,
+              levelParentId ?? null,
+            )
             .pipe(mapOperationError),
         ReorderItems: ({ projectId, folderId, parentItemId, itemIds }) =>
           items.reorder(projectId, folderId, parentItemId, itemIds).pipe(mapOperationError),

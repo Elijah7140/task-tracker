@@ -7,6 +7,7 @@ const project: Project = {
   id: projectId,
   name: "Billing",
   description: null,
+  iconKey: null,
   sortOrder: 0,
   createdAtUtc: earlier,
   updatedAtUtc: earlier,

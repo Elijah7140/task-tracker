@@ -9,6 +9,12 @@ import { ItemLink, ItemLinkInput } from "./item-link.js";
 import { RecurrenceRule } from "./recurrence-rule.js";
 import { ReminderChoice } from "./reminder.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
+import {
+  ItemKind,
+  TicketCommentProjection,
+  TicketDetailInput,
+  TicketSnapshot,
+} from "./ticket-fields.js";
 
 const area = { projectId: Guid, folderId: Schema.NullOr(Guid) };
 const areaItem = { ...area, itemId: Guid };
@@ -23,6 +29,32 @@ export const ItemRpcs = RpcGroup.make(
     success: Item,
     error: RpcOperationError,
   }),
+  /** Adds a ToDo or Ticket from quick add or the detailed add view as one step (§7.19). */
+  Rpc.make("AddItem", {
+    payload: {
+      ...area,
+      parentItemId,
+      kind: ItemKind,
+      fields: ItemEdit,
+      customValues: Schema.optionalKey(Schema.Array(FieldValueInput)),
+      reminder: Schema.optionalKey(ReminderChoice),
+      /** The ticket fields; omitted for a ToDo, or for a ticket with none filled in. */
+      ticket: Schema.optionalKey(TicketDetailInput),
+    },
+    success: Item,
+    error: RpcOperationError,
+  }),
+  /** A ticket's fixed fields and comment log (§7.19). */
+  Rpc.make("LoadTicket", {
+    payload: { itemId: Guid },
+    success: TicketSnapshot,
+    error: RpcOperationError,
+  }),
+  Rpc.make("AddTicketComment", {
+    payload: { itemId: Guid, body: Schema.String },
+    success: TicketCommentProjection,
+    error: RpcOperationError,
+  }),
   Rpc.make("EditItem", {
     payload: {
       itemId: Guid,
@@ -34,6 +66,8 @@ export const ItemRpcs = RpcGroup.make(
       recurrence: Schema.optionalKey(Schema.NullOr(RecurrenceRule)),
       /** Replaces the reminder choice when present; omitted keeps it (§7.12). */
       reminder: Schema.optionalKey(ReminderChoice),
+      /** Replaces a ticket's fixed fields when present; omitted keeps them (§7.19). */
+      ticket: Schema.optionalKey(TicketDetailInput),
       confirmedOpenItemIds: approval,
     },
     success: CompletionResult,
@@ -75,6 +109,8 @@ export const ItemRpcs = RpcGroup.make(
       ...areaItem,
       priorityLevelId: Schema.NullOr(Guid),
       index: Schema.Int,
+      /** The level the card moves within: the drilled-in item, or absent for the top level. */
+      levelParentId: Schema.optionalKey(Schema.NullOr(Guid)),
     },
     error: RpcOperationError,
   }),

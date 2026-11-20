@@ -53,12 +53,28 @@ const folderRoute = createRoute({
   component: ProjectPage,
 });
 
+/** A drilled-in item at the project root: its children as cards and its details (§7.19). */
+const rootItemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/$projectId/items/$itemId",
+  component: ProjectPage,
+});
+
+/** A drilled-in item in a folder. */
+const folderItemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/$projectId/folders/$folderId/items/$itemId",
+  component: ProjectPage,
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   appSettingsRoute,
   projectRoute,
   projectSettingsRoute,
   folderRoute,
+  rootItemRoute,
+  folderItemRoute,
 ]);
 
 /**

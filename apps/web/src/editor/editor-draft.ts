@@ -1,5 +1,6 @@
 import type {
   FieldValueInput,
+  TicketDetailInput,
   Item,
   ItemEdit,
   ItemLinkInput,
@@ -28,6 +29,7 @@ import {
 } from "./link-draft.js";
 import { isReminderChanged } from "./reminder-draft.js";
 import { type RepeatDraft, repeatDate, repeatDraftStatus } from "./repeat-draft.js";
+import { type TicketOverrides, ticketDraftStatus } from "./ticket-draft.js";
 
 /** Everything the editor holds for one item, typed and stored. */
 export interface EditorDraftInput {
@@ -44,6 +46,11 @@ export interface EditorDraftInput {
   readonly repeat?: RepeatDraft | null;
   /** The Reminder choice; absent or null means untouched. */
   readonly reminder?: typeof ReminderChoice.Type | null;
+  /** A ticket's stored fixed fields, null while they load, and the user's changes (§7.19). */
+  readonly ticket?: {
+    readonly stored: typeof TicketDetailInput.Type | null;
+    readonly overrides: TicketOverrides;
+  };
 }
 
 /** Whether the draft can be saved and what saving it sends. */
@@ -66,6 +73,10 @@ export interface EditorDraftStatus {
   readonly repeatSummary: string | null;
   /** The replacement reminder choice; undefined keeps the stored one (§7.12). */
   readonly reminder: typeof ReminderChoice.Type | undefined;
+  /** A ticket's replacement fixed fields; undefined keeps the stored ones (§7.19). */
+  readonly ticket: typeof TicketDetailInput.Type | undefined;
+  /** Why the ticket fields cannot be saved, which refuses the save. */
+  readonly ticketError: string | null;
 }
 
 /** Shown when a save is attempted while a custom value cannot be parsed. */
@@ -95,13 +106,15 @@ export function editorDraftStatus(input: EditorDraftInput): EditorDraftStatus {
   const repeat = repeatDraftStatus(input.item, input.repeat ?? null, date);
   const reminderDraft = input.reminder ?? null;
   const reminderChanged = isReminderChanged(input.item, reminderDraft);
+  const ticket = ticketDraftStatus(input.ticket?.stored ?? null, input.ticket?.overrides ?? {});
   return {
     dirty:
       isBuiltInDraftChanged(input.item, input.builtIn) ||
       changed.length > 0 ||
       links.dirty ||
       repeat.changed ||
-      reminderChanged,
+      reminderChanged ||
+      ticket.dirty,
     valid: changed.every(({ draft }) => draftError(draft) === null),
     fields: itemEdit(input.item, input.builtIn),
     customValues: changed.map(({ field, draft }) => draftInput(field.definition, draft)),
@@ -111,5 +124,7 @@ export function editorDraftStatus(input: EditorDraftInput): EditorDraftStatus {
     repeatError: repeat.error,
     repeatSummary: repeat.summary,
     reminder: reminderChanged && reminderDraft !== null ? reminderDraft : undefined,
+    ticket: ticket.ticket,
+    ticketError: ticket.error,
   };
 }

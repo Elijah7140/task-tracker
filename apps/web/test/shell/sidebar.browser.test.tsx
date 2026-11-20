@@ -1,78 +1,61 @@
 import { describe, expect, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { page } from "vitest/browser";
+import { useSidebarStore } from "../../src/state/sidebar-store.js";
 import { renderApp } from "../support/render-app.js";
 
-const sidebar = () => page.getByRole("navigation", { name: "Main" });
+const PROJECT = { name: "Billing DB", folders: [{ name: "dbo" }] };
+const sidebar = () => page.getByTestId("sidebar");
+const toggle = () => page.getByTestId("sidebar-toggle");
 
-const sidebarProject = (name: string) => sidebar().getByRole("link", { name });
+async function openCollapsedProject() {
+  useSidebarStore.setState({ expanded: false });
+  const app = await renderApp({ projects: [PROJECT] });
+  app.history.push(`/projects/${app.store.summaries[0]?.project.id}`);
+  await expect.element(page.getByTestId("quick-add-input")).toBeVisible();
+  return app;
+}
 
 describe("Sidebar", () => {
-  it("Holds Home and the projects, leaving app-wide pages and settings to the menu bar", async () => {
-    await renderApp({ projects: [{ name: "Billing DB" }] });
+  it("Shows only an icon rail when collapsed, keeping each link's name", async () => {
+    await openCollapsedProject();
 
-    await expect.element(sidebar().getByTestId("sidebar-home")).toBeVisible();
-
-    for (const name of ["Search", "Calendar", "Today", "Tickets", "Trash", "Settings"]) {
-      expect(sidebar().getByText(name, { exact: true }).elements()).toHaveLength(0);
-    }
-    expect(sidebar().element().textContent).not.toContain("Task Tracker");
-  });
-
-  it("Lists projects in the server's order", async () => {
-    await renderApp({ projects: [{ name: "Billing DB" }, { name: "Website" }] });
-
-    const links = sidebar().getByTestId("sidebar-project-link");
-
-    await expect.element(links.nth(0)).toHaveAccessibleName("Billing DB");
-    await expect.element(links.nth(1)).toHaveAccessibleName("Website");
-    expect(links.length).toBe(2);
-  });
-
-  it("Opens a project and marks it as the current page", async () => {
-    const { history } = await renderApp({
-      projects: [{ name: "Billing DB" }, { name: "Website" }],
-    });
-
-    await sidebarProject("Website").click();
-
-    await expect.element(sidebarProject("Website")).toHaveAttribute("aria-current", "page");
-    await expect.element(sidebar().getByTestId("sidebar-home")).not.toHaveAttribute("aria-current");
-    expect(history.location.pathname).toMatch(/^\/projects\//);
-  });
-
-  it("Returns home from a project", async () => {
-    const { store, history } = await renderApp({ projects: [{ name: "Billing DB" }] });
-    history.push(`/projects/${store.summaries[0]?.project.id}`);
-    await expect.element(page.getByRole("heading", { level: 1, name: "Billing DB" })).toBeVisible();
-
-    await sidebar().getByTestId("sidebar-home").click();
-
-    await expect.element(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
+    await expect.element(sidebar()).toHaveAttribute("data-collapsed", "true");
     await expect
-      .element(sidebar().getByTestId("sidebar-home"))
-      .toHaveAttribute("aria-current", "page");
+      .element(page.getByRole("tree", { name: "Folders in Billing DB" }))
+      .not.toBeInTheDocument();
+    await expect.element(sidebar().getByRole("link", { name: "Billing DB" })).toBeVisible();
+    await expect.element(sidebar().getByRole("link", { name: "Home" })).toBeVisible();
   });
 
-  it("Creates a project from its New project button", async () => {
-    const { store } = await renderApp();
+  it("Expands from its toggle, remembers the choice and collapses again", async () => {
+    await openCollapsedProject();
 
-    await sidebar().getByRole("button", { name: "New project" }).click();
-    await userEvent.keyboard("Website{Enter}");
+    await toggle().click();
 
-    await expect.element(sidebarProject("Website")).toBeVisible();
-    expect(store.names()).toEqual(["Website"]);
+    await expect.element(sidebar()).toHaveAttribute("data-collapsed", "false");
+    await expect.element(page.getByRole("tree", { name: "Folders in Billing DB" })).toBeVisible();
+    expect(localStorage.getItem("task-tracker.sidebar-expanded")).toBe("true");
+    await toggle().click();
+    await expect.element(sidebar()).toHaveAttribute("data-collapsed", "true");
+    expect(localStorage.getItem("task-tracker.sidebar-expanded")).toBe("false");
   });
 
-  it("Shows a project's new name after a rename on home", async () => {
-    await renderApp({ projects: [{ name: "Billing DB" }] });
-    await page
-      .getByRole("article", { name: "Billing DB" })
-      .getByTestId("project-card-menu")
-      .click();
-    await page.getByTestId("project-rename").click();
+  it("Starts collapsed on a new install with nothing stored", async () => {
+    localStorage.clear();
 
-    await userEvent.keyboard("Accounting{Enter}");
+    // A query string gives a fresh module instance, which reads storage as a new launch does.
+    const freshModule = "../../src/state/sidebar-store.js?fresh";
+    const { useSidebarStore: fresh } = (await import(
+      /* @vite-ignore */ freshModule
+    )) as typeof import("../../src/state/sidebar-store.js");
 
-    await expect.element(sidebarProject("Accounting")).toBeVisible();
+    expect(fresh.getState().expanded).toBe(false);
+  });
+
+  it("Has no decorative mark beside the menu bar", async () => {
+    await renderApp();
+
+    await expect.element(page.getByTestId("title-bar")).toBeVisible();
+    expect(page.getByTestId("title-bar-brand").elements()).toEqual([]);
   });
 });

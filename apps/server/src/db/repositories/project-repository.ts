@@ -9,7 +9,21 @@ const row = Schema.Struct({
   ...trackedFields,
   name: Schema.String,
   description: Schema.NullOr(Schema.String),
-}).pipe(Schema.encodeKeys({ ...trackedColumns, name: "Name", description: "Description" }));
+  iconKey: Schema.NullOr(Schema.String),
+}).pipe(
+  Schema.encodeKeys({
+    ...trackedColumns,
+    name: "Name",
+    description: "Description",
+    iconKey: "IconKey",
+  }),
+);
+
+const iconEdit = Schema.Struct({
+  id: trackedFields.id,
+  iconKey: Schema.NullOr(Schema.String),
+  updatedAtUtc: trackedFields.updatedAtUtc,
+}).pipe(Schema.encodeKeys({ ...trackedColumns, iconKey: "IconKey" }));
 
 const edit = Schema.Struct({
   id: trackedFields.id,
@@ -82,6 +96,12 @@ export function projectRepository(sql: SqlClient.SqlClient) {
       Request: edit,
       execute: ({ Id, ...values }) =>
         sql`UPDATE Project SET ${sql.update(values)} WHERE Id = ${Id}`,
+    }),
+    /** Writes the project's icon choice (§7.19). */
+    updateIcon: SqlSchema.void({
+      Request: iconEdit,
+      execute: ({ Id, ...values }) =>
+        sql`UPDATE Project SET ${sql.update(values)} WHERE Id = ${Id} AND ${activeRow(sql)}`,
     }),
     delete: SqlSchema.void({
       Request: projectBatch,

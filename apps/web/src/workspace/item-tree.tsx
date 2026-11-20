@@ -465,9 +465,9 @@ function RootEndIndicator() {
   );
 }
 
-/** Top-level items are cards, whose sub-items always show. */
-function isCard(nodes: ItemSiblings, id: string) {
-  return findItemNode(nodes, id)?.item.parentItemId === null;
+/** Items at the card level are cards, whose sub-items always show. */
+function isCard(nodes: ItemSiblings, id: string, levelParentId: string | null) {
+  return findItemNode(nodes, id)?.item.parentItemId === levelParentId;
 }
 
 /**
@@ -509,7 +509,12 @@ export interface ItemTreeProps {
   readonly label: string;
   /** The area's folder, or null for the project root, so drops onto it are ignored. */
   readonly folderId: string | null;
+  /** The items shown as cards: the area's top level, or a drilled-in item's children. */
   readonly nodes: ItemSiblings;
+  /** The whole area, for indent and keyboard lookups; defaults to `nodes`. */
+  readonly allNodes?: ItemSiblings | undefined;
+  /** The drilled-in item whose children are the cards, or null for the top level (§7.19). */
+  readonly levelParentId?: string | null | undefined;
   /** Keys the area's Completed section, so its expansion is per area. */
   readonly sectionKey: string;
   /** Global "Cards per row" setting (1–8, default 4). */
@@ -558,11 +563,12 @@ function useTreeContext(
     treeRef,
     folderId: props.folderId,
     nodes,
+    levelParentId: props.levelParentId,
     groups,
     onDrop: (source, target) => void actions.dropItem(source, target),
   });
   const context: TreeContext = {
-    allNodes: nodes,
+    allNodes: props.allNodes ?? nodes,
     cardColumns,
     lookups: props.lookups,
     actions,
@@ -612,10 +618,11 @@ export function ItemTree(props: ItemTreeProps) {
     treeRef,
     { menuFor, setMenuFor },
   );
-  const rowKeys = { allNodes: nodes, actions: props.actions, onMenuFor: setMenuFor };
+  const allNodes = props.allNodes ?? nodes;
+  const rowKeys = { allNodes, actions: props.actions, onMenuFor: setMenuFor };
   const onItemKey = itemKeyHandler(rowKeys, expandedCompleted, onExpandedChange);
   const onKeyExpandedChange = (id: string, expanded: boolean) => {
-    if (expanded || !isCard(nodes, id)) {
+    if (expanded || !isCard(allNodes, id, props.levelParentId ?? null)) {
       onExpandedChange(id, expanded);
     }
   };

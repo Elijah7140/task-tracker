@@ -15,6 +15,9 @@ const keys = {
   GlobalSetting: ["Key"],
   ProjectSetting: ["ProjectId", "Key"],
   SavedSearch: ["Id"],
+  TicketListEntry: ["Id"],
+  TicketDetail: ["ItemId"],
+  TicketComment: ["Id"],
 } as const;
 
 /** User-data tables supported by the row recorder. Derived search data follows its triggers. */

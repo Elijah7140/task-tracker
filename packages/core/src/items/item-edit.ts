@@ -1,6 +1,7 @@
 import { isBlankText, trimText } from "../text/dotnet-white-space.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import { validateReminderChoice, type ReminderChoice } from "../reminders/reminder-choice.js";
+import { requireTicketNumber } from "./item-kind.js";
 import { itemRecurrence } from "./recurrence/item-recurrence.js";
 import type { RecurrenceRule } from "./recurrence/recurrence-rule.js";
 import { itemTitle, type TodoItem } from "./todo-item.js";
@@ -57,12 +58,14 @@ export function editItem(
   const recurrence = itemRecurrence(item, edit, rule, newSeriesId);
   const reminder =
     edit.reminder === undefined ? item.reminder : validateReminderChoice(edit.reminder);
+  const number = isBlankText(ticketNumber) ? null : trimText(ticketNumber!);
+  requireTicketNumber(item.kind, number);
 
   return {
     ...item,
     title,
     description: edit.description,
-    ticketNumber: isBlankText(ticketNumber) ? null : trimText(ticketNumber!),
+    ticketNumber: number,
     itemTypeId: edit.itemTypeId,
     priorityLevelId: edit.priorityLevelId,
     dueDate,

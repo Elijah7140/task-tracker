@@ -12,6 +12,8 @@ export type FakeUrgency = FakeItemNode["ownUrgency"];
 /** An item seeded into a fake area. Urgency and finished flags stand in for the server's rules. */
 export interface SeedItem {
   readonly title: string;
+  /** ToDo unless seeded as a ticket (§7.19). */
+  readonly kind?: "Todo" | "Ticket";
   /** Plain description text, shown as a card preview (§7.17). */
   readonly description?: string;
   readonly ticketNumber?: string;
@@ -152,6 +154,7 @@ export class FakeAreaBuilder {
       title: seed.title,
       description: seed.description ?? null,
       ticketNumber: seed.ticketNumber ?? null,
+      kind: seed.kind ?? "Todo",
       itemTypeId: seed.type === undefined ? null : lookupId(1, TYPES.indexOf(seed.type)),
       priorityLevelId:
         seed.priority === undefined ? null : lookupId(2, PRIORITIES.indexOf(seed.priority)),

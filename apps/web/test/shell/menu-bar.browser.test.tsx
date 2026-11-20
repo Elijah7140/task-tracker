@@ -149,7 +149,7 @@ describe("MenuBar", () => {
     const active = document.activeElement;
     expect(active).not.toBe(document.body);
     expect(menuBar().element().contains(active)).toBe(false);
-    await expect.element(page.getByTestId("sidebar-home")).toHaveFocus();
+    await expect.element(page.getByTestId("sidebar-toggle")).toHaveFocus();
   });
 
   it("Returns focus to the previously focused control after a menu command", async () => {

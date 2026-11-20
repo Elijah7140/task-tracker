@@ -1,5 +1,6 @@
 import {
   type AreaSnapshot,
+  type TicketDetailInput,
   type CompletionResult,
   type FolderProjection,
   type FieldValueInput,
@@ -51,6 +52,7 @@ import { FakeReminders, reminderHandlers } from "./fake-reminder-handlers.js";
 import { FakeTickets, ticketHandlers } from "./fake-ticket-handlers.js";
 import { FakeTransfer, transferHandlers } from "./fake-transfer-handlers.js";
 import { currentItemHandlers, FakeCurrentItem } from "./fake-current-item-handlers.js";
+import { FakeTicketFields, ticketFieldHandlers } from "./fake-ticket-fields.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -178,6 +180,19 @@ export class FakeProjectStore {
 
   /** Item links saved by the editor, which also feed the search `link` field. */
   readonly itemLinks = new FakeItemLinks(this.nextId, this.search.linksByItemId);
+
+  /** People, ticket types, levels, ticket fields and comments (§7.19). */
+  readonly ticketFields = new FakeTicketFields(this.nextId);
+
+  /** Sets a project's icon on its Home summary (§7.19). */
+  setProjectIcon = (projectId: string, iconKey: string | null) =>
+    Effect.sync(() => {
+      this.summaries = this.summaries.map((summary) =>
+        summary.project.id === projectId
+          ? { ...summary, project: { ...summary.project, iconKey } }
+          : summary,
+      );
+    });
 
   /** Custom fields, choices and item values shared by the field manager and item editor. */
   readonly customFields = new FakeCustomFields(this.nextId);
@@ -648,10 +663,12 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
     links,
     recurrence,
     reminder,
+    ticket,
     confirmedOpenItemIds,
   }: {
     itemId: string;
     fields: typeof ItemEdit.Type;
+    ticket?: typeof TicketDetailInput.Type;
     customValues?: ReadonlyArray<typeof FieldValueInput.Type>;
     links?: ReadonlyArray<typeof ItemLinkInput.Type>;
     recurrence?: typeof RecurrenceRule.Type | null;
@@ -689,6 +706,7 @@ function editItemHandler(store: FakeProjectStore, record: (tag: string) => Effec
       Effect.map(({ commit, result }) => {
         if (result.kind === "applied") {
           commit();
+          store.ticketFields.saveEdit(itemId, ticket);
         }
         return store.recurrence.afterCompletion(result);
       }),
@@ -927,16 +945,29 @@ function handlers(store: FakeProjectStore) {
         ),
         () => `Set priority of '${itemTitle(itemId)}'`,
       ),
-    MoveItemToPriorityGroup: ({ projectId, folderId, itemId, priorityLevelId, index }) =>
+    MoveItemToPriorityGroup: ({
+      projectId,
+      folderId,
+      itemId,
+      priorityLevelId,
+      index,
+      levelParentId,
+    }) =>
       history
         .track(
           record("MoveItemToPriorityGroup").pipe(
             Effect.andThen(store.requireArea(projectId, folderId)),
             Effect.flatMap((area) =>
-              applyMoveItemToPriorityGroup(store, area, projectId, itemId, priorityLevelId, index, [
-                ...FAKE_LOOKUPS.priorityLevels,
-                ...store.extraLookups.priorityLevels,
-              ]),
+              applyMoveItemToPriorityGroup(
+                store,
+                area,
+                projectId,
+                itemId,
+                priorityLevelId,
+                index,
+                [...FAKE_LOOKUPS.priorityLevels, ...store.extraLookups.priorityLevels],
+                levelParentId ?? null,
+              ),
             ),
           ),
           ({ title, priorityChanged }) =>
@@ -976,6 +1007,7 @@ function handlers(store: FakeProjectStore) {
     ...ticketHandlers(store, history.track),
     ...transferHandlers(store),
     ...currentItemHandlers(store),
+    ...ticketFieldHandlers(store, record, history.track),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const before = store.recurrence.titleOf(payload.itemId);

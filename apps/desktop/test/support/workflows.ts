@@ -68,10 +68,23 @@ export async function createProject(page: Page, name = SMOKE_PROJECT) {
   await projectCard(page, name).waitFor();
 }
 
-/** Opens a project from its home card and waits for quick-add. */
+/**
+ * Expands the navigation sidebar, which starts as an icon rail (§7.19), so the open
+ * project's folder tree shows. The choice persists across relaunches of the same profile.
+ */
+export async function expandSidebar(page: Page) {
+  const sidebar = page.getByTestId("sidebar");
+  if ((await sidebar.getAttribute("data-collapsed")) === "true") {
+    await page.getByTestId("sidebar-toggle").click();
+  }
+  await page.locator('[data-testid="sidebar"][data-collapsed="false"]').waitFor();
+}
+
+/** Opens a project from its home card, waits for quick-add and shows its folder tree. */
 export async function openProject(page: Page, name = SMOKE_PROJECT) {
   await projectCard(page, name).click();
   await quickAdd(page).waitFor();
+  await expandSidebar(page);
 }
 
 /** Types a title into quick-add, presses Enter and waits for the new row. */

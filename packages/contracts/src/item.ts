@@ -3,6 +3,7 @@ import { Guid } from "./guid.js";
 import { IsoDate, IsoFloatingDateTime, IsoTime, IsoUtcInstant } from "./iso-date-time.js";
 import { RecurrenceRule } from "./recurrence-rule.js";
 import { ReminderChoice } from "./reminder.js";
+import { ItemKind } from "./ticket-fields.js";
 
 // The EF-compatible SQLite storage retains a precision of 100 nanoseconds.
 const tickPrecision = Schema.makeFilter((value: string) => !/\.\d{7}\d*[1-9]/.test(value), {
@@ -34,6 +35,8 @@ export const Item = Schema.Struct({
   projectId: Guid,
   folderId: Schema.NullOr(Guid),
   parentItemId: Schema.NullOr(Guid),
+  /** ToDo or Ticket (§7.19). The server always sends it; absent means ToDo. */
+  kind: Schema.optionalKey(ItemKind),
   sortOrder: Schema.Int,
   createdAtUtc: IsoUtcInstant,
   updatedAtUtc: IsoUtcInstant,
