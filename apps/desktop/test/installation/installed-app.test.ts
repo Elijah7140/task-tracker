@@ -9,13 +9,14 @@ const linux: InstallProbe = {
   isFile: (path) => path === "/home/alex/Apps/TaskTracker.AppImage",
 };
 
+// electron-builder names the NSIS uninstaller after the executable, not the product name.
 const windows: InstallProbe = {
   isPackaged: true,
   platform: "win32",
   executable: "C:\\Users\\alex\\AppData\\Local\\Programs\\task-tracker\\task-tracker.exe",
   environment: {},
   isFile: (path) =>
-    path === "C:\\Users\\alex\\AppData\\Local\\Programs\\task-tracker\\Uninstall Task Tracker.exe",
+    path === "C:\\Users\\alex\\AppData\\Local\\Programs\\task-tracker\\Uninstall task-tracker.exe",
 };
 
 describe("detectInstalledApp", () => {

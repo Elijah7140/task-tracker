@@ -19,11 +19,18 @@ export interface InstallProbe {
   readonly isFile: (path: string) => boolean;
 }
 
-/** The per-user NSIS installation keeps its uninstaller beside the executable (WP41). */
-const WINDOWS_UNINSTALLER = "Uninstall Task Tracker.exe";
+/**
+ * The per-user NSIS installation keeps its uninstaller beside the executable
+ * (WP41). electron-builder names it after the executable, `task-tracker.exe`,
+ * not after the product name.
+ */
+function windowsUninstaller(executable: string) {
+  const name = win32.basename(executable, win32.extname(executable));
+  return win32.join(win32.dirname(executable), `Uninstall ${name}.exe`);
+}
 
 function windowsInstallation(probe: InstallProbe): InstalledApp | undefined {
-  const uninstaller = win32.join(win32.dirname(probe.executable), WINDOWS_UNINSTALLER);
+  const uninstaller = windowsUninstaller(probe.executable);
   return probe.isFile(uninstaller)
     ? { kind: "windows-installer", executable: probe.executable }
     : undefined;
