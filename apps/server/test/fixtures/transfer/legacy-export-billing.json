@@ -1,0 +1,281 @@
+{
+  "format": "task-tracker",
+  "version": 1,
+  "exportedAtUtc": "2026-11-13T12:00:03.1333494Z",
+  "scope": "project",
+  "itemTypes": [
+    {
+      "id": "019a0000-0000-7000-8000-000000000001",
+      "name": "Change",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 0
+    },
+    {
+      "id": "01a1f637-46ac-793b-81d8-8a272179f927",
+      "name": "Spike",
+      "isBuiltIn": false,
+      "isArchived": false,
+      "sortOrder": 3
+    }
+  ],
+  "priorityLevels": [
+    {
+      "id": "019a0000-0000-7000-8000-000000000102",
+      "name": "High",
+      "isBuiltIn": true,
+      "isArchived": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "01a1f637-46f4-731a-984b-c2583a4ecb87",
+      "name": "Urgent",
+      "isBuiltIn": false,
+      "isArchived": false,
+      "sortOrder": 4
+    }
+  ],
+  "statuses": [
+    {
+      "id": "019a0000-0000-7000-8000-000000000204",
+      "name": "Completed",
+      "kind": "done",
+      "isArchived": false,
+      "sortOrder": 3
+    }
+  ],
+  "fields": [
+    {
+      "id": "01a1f637-4781-7d8e-9064-27145955ed0e",
+      "key": "customer",
+      "displayName": "Customer",
+      "dataType": "Text",
+      "projectId": "01a1f637-4758-7c47-b023-75b62030af1e",
+      "isArchived": false,
+      "sortOrder": 0,
+      "choices": []
+    },
+    {
+      "id": "01a1f637-470c-759d-a768-c198ad0bae47",
+      "key": "severity",
+      "displayName": "Severity",
+      "dataType": "Choice",
+      "isArchived": false,
+      "sortOrder": 0,
+      "choices": [
+        {
+          "id": "01a1f637-473f-7c44-93f7-551c791babf4",
+          "label": "Minor",
+          "sortOrder": 0,
+          "isArchived": false
+        },
+        {
+          "id": "01a1f637-474e-7c02-9384-581bda6f29fc",
+          "label": "Major",
+          "sortOrder": 1,
+          "isArchived": false
+        },
+        {
+          "id": "01a1f637-474f-71a1-9ad1-6ccd0c28f86a",
+          "label": "Legacy",
+          "sortOrder": 2,
+          "isArchived": true
+        }
+      ]
+    },
+    {
+      "id": "01a1f637-4752-7a2a-94bf-d29b6a118032",
+      "key": "estimate",
+      "displayName": "Estimate",
+      "dataType": "Number",
+      "isArchived": false,
+      "sortOrder": 1,
+      "choices": []
+    },
+    {
+      "id": "01a1f637-4753-729a-a5ef-175803bc0a7b",
+      "key": "reviewed",
+      "displayName": "Reviewed",
+      "dataType": "Date",
+      "isArchived": false,
+      "sortOrder": 2,
+      "choices": []
+    },
+    {
+      "id": "01a1f637-4753-7274-b4c9-66e987145cc8",
+      "key": "flag",
+      "displayName": "Flag",
+      "dataType": "Boolean",
+      "isArchived": false,
+      "sortOrder": 3,
+      "choices": []
+    },
+    {
+      "id": "01a1f637-4754-7ee7-ac78-d3ba9a400040",
+      "key": "notes",
+      "displayName": "Notes",
+      "dataType": "Text",
+      "isArchived": false,
+      "sortOrder": 4,
+      "choices": []
+    }
+  ],
+  "projects": [
+    {
+      "id": "01a1f637-4758-7c47-b023-75b62030af1e",
+      "name": "Billing",
+      "sortOrder": 0,
+      "createdAtUtc": "2026-11-13T12:00:00Z",
+      "updatedAtUtc": "2026-11-13T12:00:00Z",
+      "settings": {
+        "urgencyYellowThreshold": "P5D"
+      },
+      "folders": [
+        {
+          "id": "01a1f637-47a1-7044-b6de-849d10aeba1a",
+          "parentFolderId": "01a1f637-478e-7999-b80c-159bd56583e4",
+          "name": "Tables",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z"
+        },
+        {
+          "id": "01a1f637-478e-7999-b80c-159bd56583e4",
+          "name": "dbo",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z"
+        },
+        {
+          "id": "01a1f637-47a3-7b32-9784-a69aca7a2dee",
+          "parentFolderId": "01a1f637-478e-7999-b80c-159bd56583e4",
+          "name": "Views",
+          "sortOrder": 1,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z"
+        }
+      ],
+      "items": [
+        {
+          "id": "01a1f637-47b0-7b4e-9905-e3ec3cf859e4",
+          "title": "Fix invoice totals",
+          "description": "Totals are wrong,\nsee the \"Q4\" report",
+          "ticketNumber": "JIRA-1",
+          "itemTypeId": "019a0000-0000-7000-8000-000000000001",
+          "itemType": "Change",
+          "priorityLevelId": "019a0000-0000-7000-8000-000000000102",
+          "priority": "High",
+          "dueDate": "2026-11-20",
+          "dueTime": "15:00:00",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:00Z",
+          "updatedAtUtc": "2026-11-13T12:00:00Z",
+          "fieldValues": [
+            {
+              "fieldKey": "customer",
+              "text": "Acme, Inc."
+            },
+            {
+              "fieldKey": "estimate",
+              "number": 2.5
+            },
+            {
+              "fieldKey": "flag",
+              "boolean": true
+            },
+            {
+              "fieldKey": "notes",
+              "text": "Needs a look"
+            },
+            {
+              "fieldKey": "reviewed",
+              "date": "2026-11-01"
+            },
+            {
+              "fieldKey": "severity",
+              "choiceId": "01a1f637-474e-7c02-9384-581bda6f29fc",
+              "choiceLabel": "Major"
+            }
+          ]
+        },
+        {
+          "id": "01a1f637-4869-7215-b021-c3623a715c4a",
+          "parentItemId": "01a1f637-47b0-7b4e-9905-e3ec3cf859e4",
+          "title": "Check query plan",
+          "statusId": "019a0000-0000-7000-8000-000000000204",
+          "completedAtUtc": "2026-11-13T12:00:01Z",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:01Z",
+          "updatedAtUtc": "2026-11-13T12:00:01Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1f637-487b-73f3-b08b-5c2616e47ff0",
+          "folderId": "01a1f637-47a1-7044-b6de-849d10aeba1a",
+          "title": "Add index",
+          "itemTypeId": "01a1f637-46ac-793b-81d8-8a272179f927",
+          "itemType": "Spike",
+          "priorityLevelId": "01a1f637-46f4-731a-984b-c2583a4ecb87",
+          "priority": "Urgent",
+          "statusId": "019a0000-0000-7000-8000-000000000204",
+          "dueDate": "2026-11-22",
+          "scheduledStart": "2026-11-21T09:00:00",
+          "scheduledEnd": "2026-11-21T10:30:00",
+          "completedAtUtc": "2026-11-13T12:00:02Z",
+          "sortOrder": 0,
+          "createdAtUtc": "2026-11-13T12:00:02Z",
+          "updatedAtUtc": "2026-11-13T12:00:02Z",
+          "fieldValues": []
+        },
+        {
+          "id": "01a1f637-486f-7b7c-ad49-de858379b922",
+          "parentItemId": "01a1f637-47b0-7b4e-9905-e3ec3cf859e4",
+          "title": "Write regression test",
+          "sortOrder": 1,
+          "createdAtUtc": "2026-11-13T12:00:01Z",
+          "updatedAtUtc": "2026-11-13T12:00:01Z",
+          "fieldValues": []
+        }
+      ]
+    }
+  ],
+  "savedSearches": [
+    {
+      "id": "01a1f637-48cc-773b-bb3f-fc3f0836ae58",
+      "name": "Open major",
+      "queryText": "severity:#01a1f637-474e-7c02-9384-581bda6f29fc",
+      "scopeKind": "Project",
+      "projectId": "01a1f637-4758-7c47-b023-75b62030af1e",
+      "includeSubfolders": true,
+      "includeCompleted": false,
+      "sortOrder": 0,
+      "createdAtUtc": "2026-11-13T12:00:03Z",
+      "updatedAtUtc": "2026-11-13T12:00:03Z"
+    },
+    {
+      "id": "01a1f637-4a06-7162-8c67-041764ec2e2a",
+      "name": "Tables only",
+      "queryText": "is:open priority:high",
+      "scopeKind": "Folder",
+      "projectId": "01a1f637-4758-7c47-b023-75b62030af1e",
+      "folderId": "01a1f637-47a1-7044-b6de-849d10aeba1a",
+      "includeSubfolders": false,
+      "includeCompleted": true,
+      "sortOrder": 2,
+      "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+      "updatedAtUtc": "2026-11-13T12:00:03.1333494Z"
+    },
+    {
+      "id": "01a1f637-4a07-708b-a2cf-c297e47453e6",
+      "name": "Root area",
+      "queryText": "title~invoice",
+      "scopeKind": "Folder",
+      "projectId": "01a1f637-4758-7c47-b023-75b62030af1e",
+      "includeSubfolders": true,
+      "includeCompleted": false,
+      "sortOrder": 3,
+      "createdAtUtc": "2026-11-13T12:00:03.1333494Z",
+      "updatedAtUtc": "2026-11-13T12:00:03.1333494Z"
+    }
+  ]
+}

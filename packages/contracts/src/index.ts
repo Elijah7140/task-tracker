@@ -95,3 +95,19 @@ export {
   TicketSection,
 } from "./ticket-board.js";
 export { TicketRpcs } from "./ticket-rpcs.js";
+export {
+  JsonExportResult,
+  JsonExportScope,
+  JsonImportPreview,
+  JsonImportResult,
+  TransferError,
+  TransferFailed,
+  TransferFileChoice,
+  TransferFileGrant,
+  TransferFilePurpose,
+  TransferFileRequest,
+  TransferFileToken,
+  TransferIssue,
+  TransferSummary,
+} from "./transfer.js";
+export { TransferRpcs } from "./transfer-rpcs.js";

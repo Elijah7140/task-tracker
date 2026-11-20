@@ -263,3 +263,43 @@ export {
   type TicketMovePlan,
   type TicketPosition,
 } from "./tickets/ticket-move.js";
+export { describeTransferIssue, IssueList, type TransferIssue } from "./transfer/transfer-issue.js";
+export {
+  describeTransferSummary,
+  EMPTY_TRANSFER_SUMMARY,
+  type TransferSummary,
+} from "./transfer/transfer-summary.js";
+export { TakenNames, uniqueImportedName } from "./transfer/imported-name.js";
+export {
+  formatTransferDate,
+  formatTransferLocal,
+  formatTransferTime,
+  formatTransferUtc,
+  parseTransferDate,
+  parseTransferLocal,
+  parseTransferTime,
+  parseTransferUtc,
+} from "./transfer/transfer-time-format.js";
+export * from "./transfer/json/export-document.js";
+export type {
+  ExportCatalogue,
+  ExportSource,
+  ProjectExportData,
+  SavedSearchRow,
+} from "./transfer/json/export-source.js";
+export { buildExportDocument } from "./transfer/json/export-document-builder.js";
+export { writeJson, quoteStjString, type JsonOut } from "./transfer/json/json-writer.js";
+export { formatStjDouble } from "./transfer/json/stj-number.js";
+export { readJsonImport, type JsonImportCheck } from "./transfer/json/json-import-reader.js";
+export { ImportIndex } from "./transfer/json/import-index.js";
+export { isNumberOnly, readStatusKind } from "./transfer/json/lookup-validator.js";
+export { IMPORTED_PROJECT_SETTINGS } from "./transfer/json/settings-validator.js";
+export {
+  isBlank as isBlankTransferText,
+  NAME_MAX_LENGTH as TRANSFER_NAME_MAX_LENGTH,
+  parseDataType as parseTransferDataType,
+  parseScopeKind as parseTransferScopeKind,
+  QUERY_TEXT_MAX_LENGTH as TRANSFER_QUERY_TEXT_MAX_LENGTH,
+  trimText as trimTransferText,
+} from "./transfer/json/import-checks.js";
+export { nameKey } from "./metadata/names.js";

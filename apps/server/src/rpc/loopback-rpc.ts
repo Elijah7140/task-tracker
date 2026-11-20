@@ -29,6 +29,9 @@ import { todayRpcHandlers } from "./today-rpc-handlers.js";
 import { reminderRpcHandlers } from "./reminder-rpc-handlers.js";
 import { ticketRpcHandlers } from "./ticket-rpc-handlers.js";
 import { UndoService } from "../services/undo-service.js";
+import { DatabaseBackup } from "../services/transfer/database-backup.js";
+import { TransferFileGrants } from "../services/transfer/transfer-file-grants.js";
+import { transferRpcHandlers } from "./transfer-rpc-handlers.js";
 
 /** Published after the listener can accept authenticated RPC requests. */
 export class LoopbackRpc extends Context.Service<LoopbackRpc, RpcConnection>()(
@@ -38,7 +41,14 @@ export class LoopbackRpc extends Context.Service<LoopbackRpc, RpcConnection>()(
 interface LoopbackRpcOptions {
   readonly rendererOrigin: string;
   readonly timeZone: string;
+  /**
+   * The file grants from Electron main and the pre-import backup (§7.9). Without
+   * them no file is granted and imports cannot back up, so they refuse.
+   */
+  readonly transfer?: Layer.Layer<TransferFileGrants | DatabaseBackup>;
 }
+
+const noTransferFiles = Layer.merge(TransferFileGrants.layer, DatabaseBackup.layer(null));
 
 /** Starts a scoped HTTP RPC server on an ephemeral IPv4 loopback port. */
 export function loopbackRpcLayer(options: LoopbackRpcOptions) {
@@ -59,6 +69,8 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
       const session = yield* Layer.build(
         reminderRpcHandlers(options.timeZone).pipe(Layer.provideMerge(UndoService.layer)),
       );
+      // Built for the listener's lifetime, so a stdin grant listener keeps running.
+      const transferFiles = yield* Layer.build(options.transfer ?? noTransferFiles);
       const rpc = yield* RpcServer.toHttpEffect(TaskTrackerRpcs).pipe(
         Effect.provide(
           TaskTrackerRpcs.toLayerHandler("GetServerInfo", () =>
@@ -79,6 +91,8 @@ export function loopbackRpcLayer(options: LoopbackRpcOptions) {
         Effect.provide(savedSearchRpcHandlers),
         Effect.provide(todayRpcHandlers(options.timeZone)),
         Effect.provide(ticketRpcHandlers),
+        Effect.provide(transferRpcHandlers),
+        Effect.provide(transferFiles),
         // One session layer supplies the shared UndoService to every handler above.
         Effect.provide(session),
       );

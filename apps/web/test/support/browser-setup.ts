@@ -9,6 +9,7 @@ import {
 } from "../../src/state/reminder-panel-store.js";
 import { initialReturnPageState, useReturnPageStore } from "../../src/state/return-page-store.js";
 import { useThemeStore } from "../../src/state/theme-store.js";
+import { initialTransferState, useTransferStore } from "../../src/state/transfer-store.js";
 import { initialWorkspaceState, useWorkspaceStore } from "../../src/state/workspace-store.js";
 
 configure({ reactStrictMode: true });
@@ -21,5 +22,6 @@ beforeEach(() => {
   useItemEditorStore.setState(initialItemEditorState);
   useReturnPageStore.setState(initialReturnPageState);
   useReminderPanelStore.setState(initialReminderPanelState);
+  useTransferStore.setState(initialTransferState);
   delete document.documentElement.dataset["theme"];
 });

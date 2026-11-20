@@ -127,3 +127,23 @@ serverTest("Removes Node debugging options from the server environment", async (
 
   expect(JSON.parse(diagnostic)).toEqual(["TASKTRACKER_DB_PATH", "ELECTRON_RUN_AS_NODE"]);
 });
+
+serverTest(
+  "Sends JSON message lines to the server's private stdin and stops after it exits",
+  async ({ launch }) => {
+    const server = await launch(`
+    import { createInterface } from "node:readline";
+    console.log(JSON.stringify({ port: 4321, credential: "${credential}" }));
+    const lines = createInterface({ input: process.stdin });
+    lines.on("line", (line) => { console.error("got " + JSON.parse(line).token); process.exit(0); });
+  `);
+    await server.ready;
+
+    const sent = server.send({ type: "transfer-file-grant", token: "t1" });
+    const { diagnostic } = await server.closed;
+
+    expect(sent).toBe(true);
+    expect(diagnostic).toBe("got t1");
+    expect(server.send({ type: "transfer-file-grant", token: "t2" })).toBe(false);
+  },
+);

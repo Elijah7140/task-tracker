@@ -13,6 +13,8 @@ export interface ServerProcess {
   readonly ready: Promise<RpcConnection>;
   readonly closed: Promise<ServerExit>;
   readonly stop: () => Promise<void>;
+  /** Writes one JSON message line to the server's private stdin pipe; false once it has closed. */
+  readonly send: (message: object) => boolean;
 }
 
 /** How long the launcher waits for readiness and for a graceful stop before killing the child. */
@@ -71,7 +73,16 @@ export function launchServer(
     ready: waitForReadiness(child, closed, timeouts.readiness),
     closed,
     stop: () => stopServer(child, closed, timeouts.stop),
+    send: (message) => sendMessage(child, message),
   };
+}
+
+function sendMessage(child: ChildProcessWithoutNullStreams, message: object): boolean {
+  if (!child.stdin.writable || child.exitCode !== null) {
+    return false;
+  }
+  child.stdin.write(`${JSON.stringify(message)}\n`);
+  return true;
 }
 
 /** Node reads these at startup to load code or open an inspector, so the server never inherits them. */

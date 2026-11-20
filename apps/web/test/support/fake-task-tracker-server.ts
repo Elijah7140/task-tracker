@@ -49,6 +49,7 @@ import { FakeSavedSearches, savedSearchHandlers } from "./fake-saved-search-hand
 import { FakeToday, todayHandlers } from "./fake-today-handlers.js";
 import { FakeReminders, reminderHandlers } from "./fake-reminder-handlers.js";
 import { FakeTickets, ticketHandlers } from "./fake-ticket-handlers.js";
+import { FakeTransfer, transferHandlers } from "./fake-transfer-handlers.js";
 
 type Summary = typeof ProjectSummary.Type;
 type Snapshot = typeof AreaSnapshot.Type;
@@ -164,6 +165,9 @@ export class FakeProjectStore {
   readonly today = new FakeToday();
   /** Ticket ranks and load failures for the Tickets view (§7.16). */
   readonly tickets = new FakeTickets();
+
+  /** JSON import and export answers and requests (§7.9). */
+  readonly transfer = new FakeTransfer();
 
   /** Saved searches listed on Home and the Search page. */
   readonly savedSearches = new FakeSavedSearches(this.nextId);
@@ -896,6 +900,7 @@ function handlers(store: FakeProjectStore) {
     ...savedSearchHandlers(store, history.track),
     ...todayHandlers(store),
     ...ticketHandlers(store, history.track),
+    ...transferHandlers(store),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();
       const before = store.recurrence.titleOf(payload.itemId);

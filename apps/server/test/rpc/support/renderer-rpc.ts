@@ -1,4 +1,4 @@
-import { Effect, type Scope } from "effect";
+import { Effect, type Layer, type Scope } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
 import { TestClock } from "effect/testing";
@@ -26,13 +26,20 @@ const pinStartTime = TestClock.setTime(Temporal.Instant.from(startedAtUtc).epoch
  */
 export const withRendererRpc = <Value, Error>(
   test: Effect.Effect<Value, Error, SqlClient.SqlClient | Scope.Scope | LoopbackRpc>,
+  transfer?: Parameters<typeof loopbackRpcLayer>[0]["transfer"] & Layer.Any,
 ) =>
   withSchema(
     Effect.andThen(
       pinStartTime,
       Effect.scoped(
         test.pipe(
-          Effect.provide(loopbackRpcLayer({ rendererOrigin, timeZone: "America/New_York" })),
+          Effect.provide(
+            loopbackRpcLayer({
+              rendererOrigin,
+              timeZone: "America/New_York",
+              ...(transfer === undefined ? {} : { transfer }),
+            }),
+          ),
           Effect.provideService(FetchHttpClient.Fetch, rendererFetch),
         ),
       ),

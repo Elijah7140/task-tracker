@@ -35,12 +35,12 @@ export function usePhase3Fixture(desktop: DesktopFixture) {
   return copyFile(phase3Fixture, desktop.database);
 }
 
-/** Starts the packaged app against the test database and profile. */
-export function launch(desktop: DesktopFixture) {
+/** Starts the packaged app against the test database and profile, with any extra variables. */
+export function launch(desktop: DesktopFixture, environment: NodeJS.ProcessEnv = {}) {
   return _electron.launch({
     executablePath: executable,
     args: [`--user-data-dir=${desktop.profile}`],
-    env: { ...process.env, TASKTRACKER_DB_PATH: desktop.database },
+    env: { ...process.env, ...environment, TASKTRACKER_DB_PATH: desktop.database },
     chromiumSandbox: true,
     timeout: 10_000,
   });
@@ -64,8 +64,9 @@ export async function firstWindow(application: ElectronApplication) {
 export async function withDesktop<Result>(
   desktop: DesktopFixture,
   scenario: (page: Page, application: ElectronApplication) => Promise<Result>,
+  environment: NodeJS.ProcessEnv = {},
 ) {
-  const application = await launch(desktop);
+  const application = await launch(desktop, environment);
   try {
     return await scenario(await firstWindow(application), application);
   } finally {

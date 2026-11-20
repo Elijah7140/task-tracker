@@ -10,6 +10,7 @@ import {
 } from "./renderer.js";
 import { launchServer, type ServerProcess } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
+import { registerTransferFileHandler } from "./transfer-file-handler.js";
 
 let window: BrowserWindow | undefined;
 let server: ServerProcess | undefined;
@@ -203,6 +204,11 @@ function isRendererFrame(event: Electron.IpcMainInvokeEvent, address: RendererAd
 }
 
 function registerRendererHandlers(address: RendererAddress) {
+  registerTransferFileHandler({
+    isRendererFrame: (event) => isRendererFrame(event, address),
+    window: () => window,
+    grant: (grant) => server?.send(grant) ?? false,
+  });
   ipcMain.handle("task-tracker:get-rpc-connection", (event) => {
     if (!isRendererFrame(event, address)) {
       throw new Error("RPC connection requested by an unexpected frame.");

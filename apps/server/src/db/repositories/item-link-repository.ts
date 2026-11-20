@@ -30,6 +30,15 @@ export function itemLinkRepository(sql: SqlClient.SqlClient) {
       execute: (itemId) =>
         sql`SELECT * FROM ItemLink WHERE ItemId = ${itemId} ORDER BY SortOrder, rowid`,
     }),
+    /** Every link of the project's active items, for export (§7.9). */
+    listForActiveItems: SqlSchema.findAll({
+      Request: Guid,
+      Result: ItemLinkRow,
+      execute: (projectId) => sql`SELECT link.* FROM ItemLink AS link
+        JOIN TodoItem AS item ON item.Id = link.ItemId
+        WHERE item.ProjectId = ${projectId} AND item.DeletedAtUtc IS NULL
+        ORDER BY link.SortOrder, link.rowid`,
+    }),
     insert: SqlSchema.void({
       Request: ItemLinkRow,
       execute: (row) => sql`INSERT INTO ItemLink ${sql.insert(row)}`,

@@ -117,8 +117,16 @@ export function savedSearchRepository(sql: SqlClient.SqlClient) {
           WHERE Id = ${values.Id}`,
   });
 
+  const listRows = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: row,
+    execute: () => sql`SELECT * FROM SavedSearch ORDER BY rowid`,
+  });
+
   return {
     list: () => list(undefined).pipe(Effect.map((rows) => rows.map(toSavedSearch))),
+    /** Every saved search with its stored scope columns, in stored order, for export (§7.9). */
+    listRows: () => listRows(undefined),
     require: (id: string) =>
       find(id).pipe(
         Effect.flatMap(

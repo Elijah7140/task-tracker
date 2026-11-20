@@ -40,6 +40,14 @@ export function itemFieldValueRepository(sql: SqlClient.SqlClient) {
       execute: (itemId) =>
         sql`SELECT * FROM ItemFieldValue WHERE ItemId = ${itemId} ORDER BY rowid`,
     }),
+    /** Every value of the project's active items, for export (§7.9). */
+    listForActiveItems: SqlSchema.findAll({
+      Request: Guid,
+      Result: value,
+      execute: (projectId) => sql`SELECT value.* FROM ItemFieldValue AS value
+        JOIN TodoItem AS item ON item.Id = value.ItemId
+        WHERE item.ProjectId = ${projectId} AND item.DeletedAtUtc IS NULL ORDER BY value.rowid`,
+    }),
     upsert: SqlSchema.void({
       Request: value,
       execute: (values) => sql`INSERT INTO ItemFieldValue ${sql.insert(values)}

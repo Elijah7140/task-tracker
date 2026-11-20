@@ -62,6 +62,12 @@ export function fieldRepository(sql: SqlClient.SqlClient) {
       }),
     },
     choices: {
+      /** Every choice of every field in sort order, for export (§7.9). */
+      listAll: SqlSchema.findAll({
+        Request: Schema.Void,
+        Result: choice,
+        execute: () => sql`SELECT * FROM FieldChoice ORDER BY SortOrder, rowid`,
+      }),
       list: SqlSchema.findAll({
         Request: Guid,
         Result: choice,

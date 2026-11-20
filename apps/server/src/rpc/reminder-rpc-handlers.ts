@@ -28,7 +28,8 @@ export const reminderRpcHandlers = (
       });
     }),
   ).pipe(
-    Layer.provide(ReminderScheduler.layer),
+    // The session shares the scheduler, so imports can ask it to check (§7.9, §7.12).
+    Layer.provideMerge(ReminderScheduler.layer),
     Layer.provide(ReminderService.layer(timeZone)),
     Layer.provide(notifier),
   );
