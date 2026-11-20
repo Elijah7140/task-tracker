@@ -16,8 +16,15 @@ import { PushBackMenuItem } from "../workspace/push-back-menu-item.js";
 
 type Result = typeof ItemSearchResult.Type;
 
-const COLUMNS =
-  "grid grid-cols-[1.25rem_minmax(0,2fr)_6rem_minmax(0,1.4fr)_5.5rem_6.5rem_9rem] items-center gap-3";
+/**
+ * Result columns. Below 1024px the fixed widths no longer fit beside the sidebar,
+ * down to the legacy 800px minimum window, so every column shares the width
+ * proportionally and truncates instead of collapsing the title to nothing.
+ */
+const COLUMNS = [
+  "grid grid-cols-[1.25rem_minmax(0,2fr)_6rem_minmax(0,1.4fr)_5.5rem_6.5rem_9rem] items-center gap-3",
+  "max-lg:grid-cols-[1.25rem_minmax(0,2fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,1.2fr)] max-lg:gap-2",
+].join(" ");
 
 /** Props for {@link SearchResultsList}. */
 export interface SearchResultsListProps {
@@ -159,12 +166,12 @@ function ResultsHeader() {
       className={`${COLUMNS} px-3 text-xs font-medium text-fg-subtle`}
     >
       <span>✓</span>
-      <span>Title</span>
-      <span>Ticket</span>
-      <span>Location</span>
-      <span>Type</span>
-      <span>Priority</span>
-      <span>Due</span>
+      <span className="truncate">Title</span>
+      <span className="truncate">Ticket</span>
+      <span className="truncate">Location</span>
+      <span className="truncate">Type</span>
+      <span className="truncate">Priority</span>
+      <span className="truncate">Due</span>
     </div>
   );
 }

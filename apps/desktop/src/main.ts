@@ -154,6 +154,9 @@ function createWindow(url: string) {
     title: "Task Tracker",
     width: 1200,
     height: 800,
+    // The legacy window's minimum; narrower panes cannot fit Search and Calendar beside the sidebar.
+    minWidth: 800,
+    minHeight: 500,
     show: false,
     webPreferences: {
       preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),

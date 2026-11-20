@@ -1613,6 +1613,8 @@ The replacement UI ships the owner’s Notion-like design directly. Use a clean
 navigation sidebar, rounded controls and surfaces, and density and type tuned for
 1080p and 1440p. Use circular completion controls and a subtle dot, pill or edge
 accent for urgency. Keep the label or icon and sub-item attribution in §6.3.
+The window keeps the legacy 800×500 minimum size. Below 1024 px wide, Search results
+share the row width proportionally and truncate instead of collapsing a column.
 
 1. **Home.** Project cards show name, open count and overdue count, with a New Project
    action.

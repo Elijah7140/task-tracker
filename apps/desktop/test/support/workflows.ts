@@ -132,3 +132,45 @@ export async function remindersMenuLabel(page: Page) {
   await expectGone(page.getByTestId("view-menu"));
   return label.split("\n")[0]?.trim();
 }
+
+/** Focuses and selects an item row or card by clicking its title. */
+export function selectItem(page: Page, area: string, title: string) {
+  return itemRow(page, area, title).getByTestId("item-title").first().click();
+}
+
+/** Returns to the home screen from the sidebar. */
+export async function goHome(page: Page) {
+  await page.getByTestId("sidebar-home").click();
+  await page.getByRole("heading", { level: 1, name: "Projects" }).waitFor();
+}
+
+/** Picks an option from a dropdown and waits for its list to close. */
+export async function pickOption(page: Page, control: Locator, option: string) {
+  await control.click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+  await expectGone(page.getByRole("listbox"));
+}
+
+/** Creates a folder at the top of the open project from the sidebar and opens it. */
+export async function createFolder(page: Page, name: string, project = SMOKE_PROJECT) {
+  await page.getByRole("button", { name: `New folder in ${project}` }).click();
+  await answerPrompt(page, "Folder name", name);
+  await openFolder(page, name, project);
+}
+
+/** Opens a folder of the open project from the sidebar and waits for its heading. */
+export async function openFolder(page: Page, name: string, project = SMOKE_PROJECT) {
+  await folderRow(page, project, name).getByTestId("folder-row").first().click();
+  await page.getByRole("heading", { level: 1, name }).waitFor();
+}
+
+/**
+ * The local calendar date `days` from now on the real clock in the OS zone,
+ * which the packaged app also reads, as `YYYY-MM-DD`.
+ */
+export function localDate(days = 0) {
+  const date = new Date(Date.now());
+  date.setDate(date.getDate() + days);
+  const twoDigits = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`;
+}

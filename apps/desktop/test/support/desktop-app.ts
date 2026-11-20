@@ -13,6 +13,11 @@ export const phase3Fixture = fileURLToPath(
   new URL("../../../server/test/fixtures/ef/phase-3.db", import.meta.url),
 );
 
+/** The newest EF fixture, at the `legacy-final` schema. Tests copy it and never open the original. */
+export const legacyFinalFixture = fileURLToPath(
+  new URL("../../../server/test/fixtures/ef/legacy-final.db", import.meta.url),
+);
+
 /** Temporary paths for one test's database and Electron profile. */
 export interface DesktopFixture {
   readonly database: string;
@@ -33,6 +38,11 @@ export const desktopTest = test.extend<{ desktop: DesktopFixture }>({
 /** Replaces the test database with a disposable copy of the Phase 3 EF fixture. */
 export function usePhase3Fixture(desktop: DesktopFixture) {
   return copyFile(phase3Fixture, desktop.database);
+}
+
+/** Replaces the test database with a disposable copy of the `legacy-final` EF fixture. */
+export function useLegacyFinalFixture(desktop: DesktopFixture) {
+  return copyFile(legacyFinalFixture, desktop.database);
 }
 
 /** The environment that points the packaged app at the test database, plus `extra`. */

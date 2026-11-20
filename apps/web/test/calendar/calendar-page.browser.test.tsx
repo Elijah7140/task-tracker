@@ -875,8 +875,41 @@ describe("row menu baselines", () => {
   }
 });
 
+/** The legacy short-blocks scene: adjacent half hours, a quarter hour, an open end and a due time. */
+const SHORT_BLOCK_PROJECTS: ReadonlyArray<SeedProject> = [
+  {
+    name: "Billing DB",
+    items: [
+      {
+        title: "Standup",
+        scheduledStart: "2026-11-17T09:00:00",
+        scheduledEnd: "2026-11-17T09:30:00",
+      },
+      {
+        title: "Review",
+        scheduledStart: "2026-11-17T09:30:00",
+        scheduledEnd: "2026-11-17T10:00:00",
+      },
+      {
+        title: "Quick sync",
+        scheduledStart: "2026-11-17T10:15:00",
+        scheduledEnd: "2026-11-17T10:30:00",
+      },
+      { title: "Open ended", scheduledStart: "2026-11-17T11:00:00" },
+      { title: "Send agenda", dueDate: "2026-11-17", dueTime: "12:00:00" },
+    ],
+  },
+];
+
 describe("baselines", () => {
   for (const theme of THEMES) {
+    it(`Matches the adjacent half-hour blocks baseline in ${theme} mode`, async () => {
+      await openWeek(SHORT_BLOCK_PROJECTS);
+      await settleTheme(theme);
+
+      await expect.element(calendar()).toMatchScreenshot(`calendar-week-short-blocks-${theme}`);
+    });
+
     it(`Matches the month, week, late-night and narrow baselines in ${theme} mode`, async () => {
       await openFromHome();
       const shot = async (name: string) => {

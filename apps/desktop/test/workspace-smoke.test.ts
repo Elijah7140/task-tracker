@@ -16,12 +16,8 @@ import {
   openProject,
   quickAdd,
   SMOKE_PROJECT,
+  selectItem,
 } from "./support/workflows.js";
-
-/** Focuses and selects an item row by clicking its title, as the legacy smoke did. */
-function selectItem(page: Page, area: string, title: string) {
-  return itemRow(page, area, title).getByTestId("item-title").first().click();
-}
 
 desktopTest(
   "Opening a project focuses quick-add and its new item persists after relaunch",

@@ -172,7 +172,7 @@ it("Starts in the originating folder and searches sub-items with or without subf
   await searchButton().click();
   await expect.element(result("Audit Q4")).not.toBeInTheDocument();
   expect(await titlesShown()).toEqual(["Root invoice"]);
-  await page.getByRole("checkbox", { name: "Include completed" }).click();
+  await page.getByTestId("search-include-completed").click();
   await searchButton().click();
   await expect.element(result("Paid invoice")).toBeVisible();
 });
@@ -610,6 +610,63 @@ it.each(THEMES)("Renders the Search results and filters in %s mode", async (them
 
   await expect(page.getByTestId("app-shell")).toMatchScreenshot(`search-results-${theme}`);
 });
+
+/** Each element's horizontal extent, left to right. */
+function horizontalExtents(elements: ReadonlyArray<Element>) {
+  return elements.map((element) => {
+    const { left, right } = element.getBoundingClientRect();
+    return { left, right };
+  });
+}
+
+it("Keeps every result column readable at the 800×600 legacy minimum window", async () => {
+  await openApp();
+  const { innerWidth, innerHeight } = window;
+  try {
+    await page.viewport(800, 600);
+    await ctrlF();
+    await enterQuery("audit");
+    await expect.element(result("Audit Q4")).toBeVisible();
+
+    const title = result("Audit Q4").element().querySelector("span.truncate")!;
+    const headers = horizontalExtents([
+      ...page.getByTestId("search-results-header").element().children,
+    ]);
+    const cells = horizontalExtents([...result("Audit Q4").element().children]);
+
+    const titleColumn = cells[1]!;
+    expect(titleColumn.right - titleColumn.left).toBeGreaterThanOrEqual(96);
+    expect(title.scrollWidth).toBeLessThanOrEqual(title.clientWidth);
+    for (const columns of [headers, cells]) {
+      for (const [index, column] of columns.slice(1).entries()) {
+        expect(column.left).toBeGreaterThanOrEqual(columns[index]!.right);
+      }
+    }
+  } finally {
+    await page.viewport(innerWidth, innerHeight);
+  }
+});
+
+it.each(THEMES)(
+  "Renders Search results at the 800×600 legacy minimum window in %s mode",
+  async (theme) => {
+    await openApp();
+    const { innerWidth, innerHeight } = window;
+    try {
+      await page.viewport(800, 600);
+      await ctrlF();
+      await page.getByTestId("search-include-completed").click();
+      await enterQuery("audit due:2026-11-15..2026-12-15");
+      await expect.element(result("Audit Q4")).toBeVisible();
+      await expect.element(filterRow()).toBeVisible();
+      await settleTheme(theme);
+
+      await expect(page.getByTestId("app-shell")).toMatchScreenshot(`search-narrow-${theme}`);
+    } finally {
+      await page.viewport(innerWidth, innerHeight);
+    }
+  },
+);
 
 it.each(THEMES)("Renders the empty and refused Search states in %s mode", async (theme) => {
   const { store } = await openApp();

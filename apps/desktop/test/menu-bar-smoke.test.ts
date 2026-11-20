@@ -51,6 +51,32 @@ desktopTest(
   },
 );
 
+/** Asks the main window to shrink to `width`×`height` and reports its minimum and resulting size. */
+function shrinkWindow(application: ElectronApplication, width: number, height: number) {
+  return application.evaluate(
+    ({ BrowserWindow }, [targetWidth, targetHeight]) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => candidate.isVisible());
+      window?.setSize(targetWidth!, targetHeight!);
+      return { minimum: window?.getMinimumSize(), size: window?.getSize() };
+    },
+    [width, height],
+  );
+}
+
+desktopTest(
+  "The window keeps the legacy 800×500 minimum size so Search and Calendar stay readable",
+  async ({ desktop }) => {
+    await withDesktop(desktop, async (page, application) => {
+      await menuBar(page).waitFor();
+
+      const shrunk = await shrinkWindow(application, 400, 300);
+
+      expect(shrunk.minimum).toEqual([800, 500]);
+      expect(shrunk.size).toEqual([800, 500]);
+    });
+  },
+);
+
 desktopTest("Settings opens from the File menu and Back returns home", async ({ desktop }) => {
   await withDesktop(desktop, async (page) => {
     await openAppSettingsFromMenu(page);

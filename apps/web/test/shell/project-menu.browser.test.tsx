@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { chooseMenuCommand, menuPopup, menuTrigger, openMenu } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
+import { settleTheme, THEMES } from "../support/screenshots.js";
 
 const projects = [{ name: "Billing DB", items: [{ title: "Report" }] }, { name: "Website" }];
 
@@ -108,5 +109,20 @@ describe("ProjectMenu", () => {
     await expect.element(menuTrigger("project")).toHaveAttribute("aria-disabled", "true");
     await userEvent.keyboard("{Alt>}p{/Alt}");
     await expect.element(menuPopup("project")).not.toBeInTheDocument();
+  });
+
+  describe.each(THEMES)("in the %s theme", (theme) => {
+    it("Matches the reviewed baseline of Home with the Project menu open", async () => {
+      await renderApp({ projects });
+      await expect.element(page.getByRole("article", { name: "Website" })).toBeVisible();
+      await settleTheme(theme);
+
+      await openMenu("project");
+      await expect.element(item("Export project (CSV)…")).toBeVisible();
+
+      await expect
+        .element(page.getByTestId("app-shell"))
+        .toMatchScreenshot(`home-project-menu-${theme}`);
+    });
   });
 });
