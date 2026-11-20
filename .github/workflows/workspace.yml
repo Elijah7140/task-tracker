@@ -59,9 +59,14 @@ jobs:
       - run: pnpm exec vp test run
       - name: Run SQLite tests under the Electron runtime
         run: pnpm run test:server-db:electron
+      # Every installed copy of Electron's sandbox helper must be setuid root, as for the
+      # packaged smoke below (WP22).
       - name: Verify Electron runtime on Linux
         if: runner.os == 'Linux'
-        run: xvfb-run -a pnpm run check:electron
+        run: |
+          find node_modules/.pnpm -path '*/electron/dist/chrome-sandbox' -print0 |
+            xargs -0 -r sh -c 'sudo chown root:root "$@" && sudo chmod 4755 "$@"' sh
+          xvfb-run -a pnpm run check:electron
       - name: Verify Electron runtime on Windows
         if: runner.os == 'Windows'
         run: pnpm run check:electron
