@@ -67,6 +67,8 @@ export default defineConfig({
             "apps/desktop/test/instance-scope.test.ts",
             "apps/desktop/test/native-notifier.test.ts",
             "apps/desktop/test/reminder-notifications.test.ts",
+            "apps/desktop/test/reminder-toast.test.ts",
+            "apps/desktop/test/windows-app-identity.test.ts",
             "apps/desktop/test/server-messages.test.ts",
             "apps/desktop/test/tray-close-decision.test.ts",
             "apps/desktop/test/tray-host-probe.test.ts",

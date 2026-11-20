@@ -15,6 +15,8 @@ export default defineConfig({
       "apps/desktop/test/instance-scope.test.ts",
       "apps/desktop/test/native-notifier.test.ts",
       "apps/desktop/test/reminder-notifications.test.ts",
+      "apps/desktop/test/reminder-toast.test.ts",
+      "apps/desktop/test/windows-app-identity.test.ts",
       "apps/desktop/test/server-messages.test.ts",
       "apps/desktop/test/tray-close-decision.test.ts",
       "apps/desktop/test/tray-host-probe.test.ts",
@@ -27,6 +29,8 @@ export default defineConfig({
     // shares one Xvfb display without a window manager, so a parallel app's window takes
     // focus: the tray card hides on blur and focusing the main window checks reminders.
     fileParallelism: false,
+    // Removes the Start-menu shortcut and COM entry the unpacked copy registers on Windows.
+    globalSetup: ["apps/desktop/test/support/windows-test-registration.ts"],
     testTimeout: 30_000,
     hookTimeout: 30_000,
   },

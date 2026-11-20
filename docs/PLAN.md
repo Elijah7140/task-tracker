@@ -1261,6 +1261,17 @@ Its exact packaging and update decisions are recorded in `legacy-final:docs/PLAN
   upgrading, an installed Windows build deletes a legacy `TaskTracker` value, so the old app stops
   starting, and writes its own entry when that value existed. Without the value it does nothing,
   so the step runs once and later choices stand.
+- **Windows identity and cleanup.** Before any window or notification, main sets an
+  AppUserModelID and a fixed toast activator CLSID for each kind of build. The installed build
+  uses `app.tasktracker.desktop`, which matches its installer's Start-menu shortcut. The unpacked
+  test copy and development runs use their own IDs, and the test copy has its own product name.
+  Electron rewrites the Start-menu shortcut named after the product name to point at whichever
+  executable registers it, so no other build ever takes over the installed app's shortcut. Main
+  registers the activator at startup and reads reminder clicks from the toast's launch argument,
+  so clicks from the notification centre still work after the notification object is gone or the
+  app has restarted. A real uninstall, but not an update, also removes the toast activator's COM
+  entry and electron-builder's installer copy in `%LOCALAPPDATA%\task-tracker-updater`. The
+  installed app deletes that copy at each launch, because its updater never reads it.
 - **Signing and verification.** Legacy releases were unsigned. Keep Windows and macOS install
   instructions aligned with the artifacts and signing status. Test update states and startup
   registration with fakes. Use UI baselines for the About card and restart-to-update state.

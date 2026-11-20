@@ -1,5 +1,19 @@
 import electron = require("electron");
 
+const REMINDER_ACTIVATED_CHANNEL = "task-tracker:reminder-activated";
+const reminderListeners = new Set<(activation: unknown) => void>();
+// A click that started the app can arrive before the page subscribes; it waits here.
+const waitingActivations: unknown[] = [];
+
+electron.ipcRenderer.on(REMINDER_ACTIVATED_CHANNEL, (_event: unknown, activation: unknown) => {
+  if (reminderListeners.size === 0) {
+    waitingActivations.push(activation);
+  }
+  for (const listener of reminderListeners) {
+    listener(activation);
+  }
+});
+
 // Sandboxed Electron preloads use CommonJS and a restricted require.
 electron.contextBridge.exposeInMainWorld("taskTrackerDesktop", {
   getRpcConnection: (): Promise<unknown> =>
@@ -18,10 +32,13 @@ electron.contextBridge.exposeInMainWorld("taskTrackerDesktop", {
   },
   // Passes only the payload on, never the IPC event. The renderer validates it.
   onReminderActivated: (listener: (activation: unknown) => void): (() => void) => {
-    const forward = (_event: unknown, activation: unknown) => listener(activation);
-    electron.ipcRenderer.on("task-tracker:reminder-activated", forward);
+    const forward = (activation: unknown) => listener(activation);
+    reminderListeners.add(forward);
+    for (const activation of waitingActivations.splice(0)) {
+      forward(activation);
+    }
     return () => {
-      electron.ipcRenderer.off("task-tracker:reminder-activated", forward);
+      reminderListeners.delete(forward);
     };
   },
   // Installed-build controls (§7.13). Main owns the feed, downloads and OS entry.
