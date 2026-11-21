@@ -104,6 +104,7 @@ class ContentImport {
       this.context.map.items.set(document.id!, item.id);
       this.#values(item.id, listOf(document.fieldValues));
       this.#links(item.id, document);
+      this.#ticket(item, document);
       return item;
     });
   }
@@ -115,8 +116,7 @@ class ContentImport {
       projectId,
       folderId: document.folderId === null ? null : map.folders.get(document.folderId)!,
       parentItemId: document.parentItemId === null ? null : map.items.get(document.parentItemId)!,
-      // Transfer does not carry the kind yet, so every imported item is a ToDo (§7.19).
-      kind: "Todo",
+      kind: document.kind === "Ticket" ? "Ticket" : "Todo",
       title: trimText(document.title!),
       description: document.description,
       ticketNumber: isBlankText(document.ticketNumber) ? null : trimText(document.ticketNumber!),
@@ -210,6 +210,41 @@ class ContentImport {
         createdAtUtc: this.context.now,
       });
     });
+  }
+
+  /** A ticket's fixed fields with its list entries mapped, and its comment log (§7.19). */
+  #ticket(item: TodoItem, document: ItemDocument): void {
+    if (item.kind !== "Ticket") {
+      return;
+    }
+    const entry = (id: string | null) =>
+      id === null ? null : (this.context.map.ticketEntries.get(id) ?? null);
+    const ticket = document.ticket;
+    if (ticket !== null) {
+      this.context.plan.ticketDetails.push({
+        itemId: item.id,
+        requestorId: entry(ticket.requestorId),
+        applicationId: entry(ticket.applicationId),
+        moduleId: entry(ticket.moduleId),
+        interfaceId: entry(ticket.interfaceId),
+        dispatchedToId: entry(ticket.dispatchedToId),
+        pendingPersonId: entry(ticket.pendingPersonId),
+        ticketTypeId: entry(ticket.ticketTypeId),
+        version: isBlankText(ticket.version) ? null : trimText(ticket.version!),
+        estimatedHours: ticket.estimatedHours,
+        percentComplete: ticket.percentComplete,
+        isUrgent: ticket.isUrgent === true,
+        isSystemOutage: ticket.isSystemOutage === true,
+      });
+    }
+    for (const comment of listOf(document.comments)) {
+      this.context.plan.comments.push({
+        id: this.context.newId(),
+        itemId: item.id,
+        body: trimText(comment.body!),
+        createdAtUtc: parseTransferUtc(comment.createdAtUtc) ?? this.context.now,
+      });
+    }
   }
 
   /** Applies automatic completion (§6.1) so data exported with it off satisfies it here. */

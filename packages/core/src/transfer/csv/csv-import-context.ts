@@ -3,6 +3,7 @@ import type { FieldDefinition } from "../../fields/field-definition.js";
 import type { ItemType } from "../../lookups/item-type.js";
 import type { PriorityLevel } from "../../lookups/priority-level.js";
 import type { StatusLevel } from "../../lookups/status-level.js";
+import type { TicketListEntry } from "../../tickets/ticket-list-entry.js";
 
 /** What a CSV import matches cells against: the lookups and the target project's fields. */
 export interface CsvImportContext {
@@ -16,6 +17,8 @@ export interface CsvImportContext {
   readonly fields: readonly FieldDefinition[];
   /** Every choice in stored order; only active ones match. */
   readonly choices: readonly FieldChoice[];
+  /** People, ticket types and levels, archived ones included (§7.19). */
+  readonly ticketLists: readonly TicketListEntry[];
 }
 
 /** The active global fields and the project's own active fields, keeping stored order. */

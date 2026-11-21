@@ -11,6 +11,7 @@ import {
   type FieldDataType,
   type FieldDefinition,
   type FieldDocument,
+  TICKET_SEARCH_FIELDS,
 } from "@task-tracker/core";
 import type { ImportContext, ImportExisting } from "./import-plan.js";
 
@@ -27,6 +28,7 @@ const RESERVED_KEYS = [
   "link",
   "repeats",
   "reminder",
+  ...TICKET_SEARCH_FIELDS.map((field) => field.key),
   ...QUERY_KEYWORDS,
   "__workflowstatus",
 ];

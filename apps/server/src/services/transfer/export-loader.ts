@@ -17,6 +17,8 @@ import { projectRepository } from "../../db/repositories/project-repository.js";
 import { savedSearchRepository } from "../../db/repositories/saved-search-repository.js";
 import { settingsRepository } from "../../db/repositories/settings-repository.js";
 import { statusRepository } from "../../db/repositories/status-repository.js";
+import { ticketDetailRepository } from "../../db/repositories/ticket-detail-repository.js";
+import { ticketListRepository } from "../../db/repositories/ticket-list-repository.js";
 
 /** Every lookup, field and choice, each in stored order. */
 export const loadExportCatalogue = Effect.fnUntraced(function* (sql: SqlClient.SqlClient) {
@@ -28,6 +30,7 @@ export const loadExportCatalogue = Effect.fnUntraced(function* (sql: SqlClient.S
     statuses: yield* statusRepository(sql).list(),
     fields: yield* fields.definitions.list(),
     choices: yield* fields.choices.listAll(undefined),
+    ticketLists: yield* ticketListRepository(sql).list(),
   };
   return catalogue;
 });
@@ -40,6 +43,8 @@ const loadProject = Effect.fnUntraced(function* (sql: SqlClient.SqlClient, proje
     items: yield* projectItemRepository(sql).listActive(project.id),
     values: yield* itemFieldValueRepository(sql).listForActiveItems(project.id),
     links: yield* itemLinkRepository(sql).listForActiveItems(project.id),
+    ticketDetails: yield* ticketDetailRepository(sql).listForActiveItems(project.id),
+    comments: yield* ticketDetailRepository(sql).listCommentsForActiveItems(project.id),
     settings: yield* settingsRepository(sql).project(project.id),
   };
   return data;

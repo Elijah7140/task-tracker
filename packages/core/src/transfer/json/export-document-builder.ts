@@ -4,6 +4,7 @@ import type { ItemFieldValue } from "../../fields/item-field-value.js";
 import { nameKey } from "../../metadata/names.js";
 import type { LookupEntity } from "../../lookups/lookup-entity.js";
 import type { StatusLevel } from "../../lookups/status-level.js";
+import type { TicketListEntry } from "../../tickets/ticket-list-entry.js";
 import type { Folder } from "../../projects/folder.js";
 import { formatTransferUtc } from "../transfer-time-format.js";
 import { EXPORT_FORMAT_NAME, EXPORT_FORMAT_VERSION } from "./export-document.js";
@@ -92,6 +93,59 @@ function statuses(
       ["isArchived", jsonBoolean(status.isArchived)],
       ["sortOrder", jsonInteger(status.sortOrder)],
     ]),
+  );
+}
+
+/** Entry ids a project's tickets use, plus the levels above them, so every chain is whole. */
+function usedTicketEntries(catalogue: ExportCatalogue, projects: readonly ProjectExportData[]) {
+  const used = new Set<string>();
+  const parents = new Map(catalogue.ticketLists.map((entry) => [entry.id, entry.parentId]));
+  const details = projects.flatMap((data) => data.ticketDetails);
+  for (const detail of details) {
+    const ids = [
+      detail.requestorId,
+      detail.applicationId,
+      detail.moduleId,
+      detail.interfaceId,
+      detail.dispatchedToId,
+      detail.pendingPersonId,
+      detail.ticketTypeId,
+    ];
+    for (let id = ids.shift(); id !== undefined; id = ids.shift()) {
+      if (id !== null && !used.has(id)) {
+        used.add(id);
+        ids.push(parents.get(id) ?? null);
+      }
+    }
+  }
+  return used;
+}
+
+/**
+ * People, ticket types and levels (§7.19): every entry for the whole database, or the entries
+ * the project's tickets use. Null leaves the property out when there are none.
+ */
+function ticketLists(
+  catalogue: ExportCatalogue,
+  projects: readonly ProjectExportData[],
+  whole: boolean,
+): JsonOut | null {
+  const used = whole ? null : usedTicketEntries(catalogue, projects);
+  const selected = catalogue.ticketLists.filter((entry) => used === null || used.has(entry.id));
+  if (selected.length === 0) {
+    return null;
+  }
+  return jsonArray(
+    selected.map((entry: TicketListEntry) =>
+      jsonObject([
+        ["id", exportGuid(entry.id)],
+        ["listKind", jsonString(entry.listKind)],
+        ["parentId", exportGuid(entry.parentId)],
+        ["name", jsonString(entry.name)],
+        ["isArchived", jsonBoolean(entry.isArchived)],
+        ["sortOrder", jsonInteger(entry.sortOrder)],
+      ]),
+    ),
   );
 }
 
@@ -211,5 +265,6 @@ export function buildExportDocument(source: ExportSource): JsonOut {
     ["globalSettings", whole ? settingsObject(source.globalSettings) : null],
     ["projects", jsonArray(projects.map((data) => buildProjectDocument(data, catalogue)))],
     ["savedSearches", jsonArray(savedSearches(source))],
+    ["ticketLists", ticketLists(catalogue, projects, whole)],
   ]);
 }

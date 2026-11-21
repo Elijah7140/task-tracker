@@ -69,6 +69,24 @@ export function ticketDetailRepository(sql: SqlClient.SqlClient) {
       execute: (itemId) => sql`SELECT * FROM TicketComment WHERE ItemId = ${itemId}
         ORDER BY CreatedAtUtc DESC, rowid DESC`,
     }),
+    /** The fixed fields of the project's active tickets, for export (§7.9, §7.19). */
+    listForActiveItems: SqlSchema.findAll({
+      Request: Guid,
+      Result: TicketDetailRow,
+      execute: (projectId) => sql`SELECT detail.* FROM TicketDetail AS detail
+        JOIN TodoItem AS item ON item.Id = detail.ItemId
+        WHERE item.ProjectId = ${projectId} AND item.DeletedAtUtc IS NULL
+        ORDER BY detail.rowid`,
+    }),
+    /** The comments of the project's active tickets, oldest first, for export. */
+    listCommentsForActiveItems: SqlSchema.findAll({
+      Request: Guid,
+      Result: TicketCommentRow,
+      execute: (projectId) => sql`SELECT comment.* FROM TicketComment AS comment
+        JOIN TodoItem AS item ON item.Id = comment.ItemId
+        WHERE item.ProjectId = ${projectId} AND item.DeletedAtUtc IS NULL
+        ORDER BY comment.CreatedAtUtc, comment.rowid`,
+    }),
     insertComment: SqlSchema.void({
       Request: TicketCommentRow,
       execute: (row) => sql`INSERT INTO TicketComment ${sql.insert(row)}`,

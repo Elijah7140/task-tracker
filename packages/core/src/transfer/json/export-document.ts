@@ -90,6 +90,38 @@ export interface RecurrenceDocument {
 /** The legacy `ReminderMode` names. */
 export type ReminderModeName = "none" | "offset";
 
+/** One ticket list entry (§7.19); `parentId` names the level above, when there is one. */
+export interface TicketListEntryDocument {
+  readonly id: string | null;
+  readonly listKind: string | null;
+  readonly parentId: string | null;
+  readonly name: string | null;
+  readonly isArchived: boolean | null;
+  readonly sortOrder: number | null;
+}
+
+/** A ticket's fixed fields; list references are entry ids from `ticketLists` (§7.19). */
+export interface TicketDocument {
+  readonly requestorId: string | null;
+  readonly applicationId: string | null;
+  readonly moduleId: string | null;
+  readonly interfaceId: string | null;
+  readonly dispatchedToId: string | null;
+  readonly pendingPersonId: string | null;
+  readonly ticketTypeId: string | null;
+  readonly version: string | null;
+  readonly estimatedHours: number | null;
+  readonly percentComplete: number | null;
+  readonly isUrgent: boolean | null;
+  readonly isSystemOutage: boolean | null;
+}
+
+/** One entry of a ticket's comment log. */
+export interface CommentDocument {
+  readonly body: string | null;
+  readonly createdAtUtc: string | null;
+}
+
 /** An item or sub-item. */
 export interface ItemDocument {
   readonly id: string | null;
@@ -119,6 +151,10 @@ export interface ItemDocument {
   readonly recurrenceSeriesId: string | null;
   readonly recurrenceSuccessorCreated: boolean;
   readonly links: DocumentList<ItemLinkDocument>;
+  /** "Ticket" for a ticket; missing or null reads as a ToDo (§7.19). */
+  readonly kind: string | null;
+  readonly ticket: TicketDocument | null;
+  readonly comments: DocumentList<CommentDocument>;
 }
 
 /** A folder; `parentFolderId` is null for a top-level folder. */
@@ -139,6 +175,8 @@ export interface ProjectDocument {
   readonly id: string | null;
   readonly name: string | null;
   readonly description: string | null;
+  /** The project's icon key (§7.19), or null for its initial. */
+  readonly iconKey: string | null;
   readonly sortOrder: number | null;
   readonly createdAtUtc: string | null;
   readonly updatedAtUtc: string | null;
@@ -175,6 +213,8 @@ export interface ExportDocument {
   readonly globalSettings: SettingsDocument | null;
   readonly projects: DocumentList<ProjectDocument>;
   readonly savedSearches: DocumentList<SavedSearchDocument>;
+  /** People, ticket types and ticket levels (§7.19); missing in files from older versions. */
+  readonly ticketLists: DocumentList<TicketListEntryDocument>;
 }
 
 /** A list that may be missing from the file, read as empty, after the null-element check. */

@@ -2,6 +2,8 @@ import type { ItemFieldValue } from "../../fields/item-field-value.js";
 import type { ItemLink } from "../../items/item-link.js";
 import type { TodoItem } from "../../items/todo-item.js";
 import type { Folder } from "../../projects/folder.js";
+import type { TicketComment } from "../../tickets/ticket-comment.js";
+import type { TicketDetail } from "../../tickets/ticket-detail.js";
 import {
   formatTransferDate,
   formatTransferLocal,
@@ -58,7 +60,8 @@ class ItemDocuments {
     this.#priorityNames = new Map(catalogue.priorityLevels.map((level) => [level.id, level.name]));
   }
 
-  build(item: TodoItem, values: readonly ItemFieldValue[], links: readonly ItemLink[]): JsonOut {
+  build(item: TodoItem, extras: ItemExtras): JsonOut {
+    const { values, links } = extras;
     return jsonObject([
       ...this.#identity(item),
       ...this.#dates(item),
@@ -71,6 +74,7 @@ class ItemDocuments {
       ["recurrenceSeriesId", exportGuid(item.recurrenceSeriesId)],
       ["recurrenceSuccessorCreated", item.recurrenceSuccessorCreated ? jsonBoolean(true) : null],
       ["links", linksDocument(links)],
+      ...ticketMembers(item, extras),
     ]);
   }
 
@@ -128,6 +132,64 @@ class ItemDocuments {
   }
 }
 
+/** The rows that belong to one item besides the item itself. */
+interface ItemExtras {
+  readonly values: readonly ItemFieldValue[];
+  readonly links: readonly ItemLink[];
+  readonly ticket: TicketDetail | undefined;
+  readonly comments: readonly TicketComment[];
+}
+
+const optionalId = (id: string | null) => exportGuid(id);
+
+function ticketDocument(detail: TicketDetail): JsonOut {
+  return jsonObject([
+    ["requestorId", optionalId(detail.requestorId)],
+    ["applicationId", optionalId(detail.applicationId)],
+    ["moduleId", optionalId(detail.moduleId)],
+    ["interfaceId", optionalId(detail.interfaceId)],
+    ["dispatchedToId", optionalId(detail.dispatchedToId)],
+    ["pendingPersonId", optionalId(detail.pendingPersonId)],
+    ["ticketTypeId", optionalId(detail.ticketTypeId)],
+    ["version", optionalString(detail.version)],
+    ["estimatedHours", detail.estimatedHours === null ? null : jsonDouble(detail.estimatedHours)],
+    [
+      "percentComplete",
+      detail.percentComplete === null ? null : jsonInteger(detail.percentComplete),
+    ],
+    ["isUrgent", jsonBoolean(detail.isUrgent)],
+    ["isSystemOutage", jsonBoolean(detail.isSystemOutage)],
+  ]);
+}
+
+/** The comment log oldest first, or null when there is none so the property is left out. */
+function commentsDocument(comments: readonly TicketComment[]): JsonOut | null {
+  const documents = comments
+    .toSorted((left, right) => Temporal.Instant.compare(left.createdAtUtc, right.createdAtUtc))
+    .map((comment) =>
+      jsonObject([
+        ["body", jsonString(comment.body)],
+        ["createdAtUtc", utc(comment.createdAtUtc)],
+      ]),
+    );
+  return documents.length === 0 ? null : jsonArray(documents);
+}
+
+/**
+ * A ticket's kind, fixed fields and comments (§7.19). A ToDo writes none of them, so exports
+ * without tickets keep their earlier form.
+ */
+function ticketMembers(item: TodoItem, extras: ItemExtras) {
+  if (item.kind !== "Ticket") {
+    return [];
+  }
+  return [
+    ["kind", jsonString("Ticket")],
+    ["ticket", extras.ticket === undefined ? null : ticketDocument(extras.ticket)],
+    ["comments", commentsDocument(extras.comments)],
+  ] as const;
+}
+
 function reminderMembers(item: TodoItem) {
   const { reminder } = item;
   const mode = reminder.kind === "default" ? null : jsonString(reminder.kind);
@@ -157,12 +219,15 @@ export function buildProjectDocument(data: ProjectExportData, catalogue: ExportC
   const items = new ItemDocuments(catalogue);
   const valuesByItem = Map.groupBy(data.values, (value) => value.itemId);
   const linksByItem = Map.groupBy(data.links, (link) => link.itemId);
+  const ticketsByItem = new Map(data.ticketDetails.map((detail) => [detail.itemId, detail]));
+  const commentsByItem = Map.groupBy(data.comments, (comment) => comment.itemId);
   const folders = data.folders.toSorted(compareRows((folder: Folder) => folder.name));
   const ordered = data.items.toSorted(compareRows((item: TodoItem) => item.title));
   return jsonObject([
     ["id", exportGuid(project.id)],
     ["name", jsonString(project.name)],
     ["description", optionalString(project.description)],
+    ["iconKey", optionalString(project.iconKey)],
     ["sortOrder", jsonInteger(project.sortOrder)],
     ["createdAtUtc", utc(project.createdAtUtc)],
     ["updatedAtUtc", utc(project.updatedAtUtc)],
@@ -172,7 +237,12 @@ export function buildProjectDocument(data: ProjectExportData, catalogue: ExportC
       "items",
       jsonArray(
         ordered.map((item) =>
-          items.build(item, valuesByItem.get(item.id) ?? [], linksByItem.get(item.id) ?? []),
+          items.build(item, {
+            values: valuesByItem.get(item.id) ?? [],
+            links: linksByItem.get(item.id) ?? [],
+            ticket: ticketsByItem.get(item.id),
+            comments: commentsByItem.get(item.id) ?? [],
+          }),
         ),
       ),
     ],

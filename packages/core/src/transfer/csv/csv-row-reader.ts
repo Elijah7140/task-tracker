@@ -12,7 +12,9 @@ import {
   parseTransferUtc,
 } from "../transfer-time-format.js";
 import { unprotectCsvCell } from "./csv-cells.js";
-import { CSV_COLUMNS as C } from "./csv-columns.js";
+import { CSV_COLUMNS as C, TICKET_CSV_COLUMNS } from "./csv-columns.js";
+
+const TICKET_KIND_COLUMN = TICKET_CSV_COLUMNS.kind;
 import { readCsvFieldValues } from "./csv-field-values.js";
 import type { CsvHeader } from "./csv-header.js";
 import type { CsvImportContext } from "./csv-import-context.js";
@@ -21,6 +23,7 @@ import type { CsvRecord } from "./csv-parser.js";
 import { readCsvPriority } from "./csv-priority-cell.js";
 import { splitCsvLinks } from "./csv-link-cell.js";
 import { parseCsvYesNo } from "./csv-yes-no.js";
+import { hasCsvTicketCells, readCsvKind, readCsvTicket } from "./csv-ticket-cells.js";
 
 type Lookup = Pick<LookupEntity, "id" | "name" | "isArchived">;
 
@@ -52,6 +55,7 @@ export class CsvRowReader {
     const [statusId, completedAtUtc] = this.#readStatusAndCompletion();
     const fieldValues = readCsvFieldValues(this.header, this.context, this.record, this.#fail);
     const linkUrls = this.#readLinks();
+    const { kind, ticket } = this.#readKindAndTicket(ticketNumber);
     if (this.issues.count !== problemsBefore) {
       return null;
     }
@@ -71,7 +75,25 @@ export class CsvRowReader {
       completedAtUtc,
       fieldValues,
       linkUrls,
+      kind,
+      ticket,
     };
+  }
+
+  /** The Kind column and, for a ticket, its number and fixed fields (§7.19). */
+  #readKindAndTicket(ticketNumber: string | null) {
+    const text = this.#textCell.bind(this);
+    const kind = readCsvKind(text, this.#fail);
+    if (kind === "Todo") {
+      if (hasCsvTicketCells(text)) {
+        this.#fail(TICKET_KIND_COLUMN, "Only a ticket has ticket fields. Set Kind to Ticket.");
+      }
+      return { kind, ticket: null };
+    }
+    if (ticketNumber === null) {
+      this.#fail(C.ticket, "A ticket needs a ticket number.");
+    }
+    return { kind, ticket: readCsvTicket(this.context.ticketLists, text, this.#fail) };
   }
 
   #cell(column: string): string {

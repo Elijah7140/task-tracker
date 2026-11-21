@@ -279,6 +279,37 @@ const link = documentObject("ItemLinkDocument", { url: optionalText, title: opti
 
 const timestamps = { createdAtUtc: optionalText, updatedAtUtc: optionalText };
 
+const ticketListEntry = documentObject("TicketListEntryDocument", {
+  id: optionalGuid,
+  listKind: optionalText,
+  parentId: optionalGuid,
+  name: optionalText,
+  isArchived: optionalBoolean,
+  sortOrder: optionalInt,
+});
+
+const ticket = orNull(
+  documentObject("TicketDocument", {
+    requestorId: optionalGuid,
+    applicationId: optionalGuid,
+    moduleId: optionalGuid,
+    interfaceId: optionalGuid,
+    dispatchedToId: optionalGuid,
+    pendingPersonId: optionalGuid,
+    ticketTypeId: optionalGuid,
+    version: optionalText,
+    estimatedHours: optionalDouble,
+    percentComplete: optionalInt,
+    isUrgent: optionalBoolean,
+    isSystemOutage: optionalBoolean,
+  }),
+);
+
+const comment = documentObject("CommentDocument", {
+  body: optionalText,
+  createdAtUtc: optionalText,
+});
+
 const item = object(
   `${DOCUMENTS}.ItemDocument`,
   {
@@ -308,6 +339,9 @@ const item = object(
     recurrenceSeriesId: optionalGuid,
     recurrenceSuccessorCreated: boolean("System.Boolean"),
     links: list("ItemLinkDocument", link),
+    kind: optionalText,
+    ticket,
+    comments: list("CommentDocument", comment),
   },
   { recurrenceSuccessorCreated: false },
 );
@@ -324,6 +358,7 @@ const project = documentObject("ProjectDocument", {
   id: optionalGuid,
   name: optionalText,
   description: optionalText,
+  iconKey: optionalText,
   sortOrder: optionalInt,
   ...timestamps,
   settings,
@@ -356,4 +391,5 @@ const exportDocument = documentObject("ExportDocument", {
   globalSettings: settings,
   projects: list("ProjectDocument", project),
   savedSearches: list("SavedSearchDocument", savedSearch),
+  ticketLists: list("TicketListEntryDocument", ticketListEntry),
 });

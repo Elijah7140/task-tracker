@@ -24,6 +24,7 @@ import { ItemValueValidator } from "./item-value-validator.js";
 import { elementPath } from "./json-path.js";
 import { readStatusKind } from "./lookup-validator.js";
 import { checkTimestamp } from "./timestamp-checks.js";
+import { type TicketEntryKinds, validateItemTicket } from "./ticket-validator.js";
 
 const EMPTY_GUID = "00000000-0000-0000-0000-000000000000";
 
@@ -46,6 +47,7 @@ export class ItemValidator {
     private readonly index: ImportIndex,
     private readonly issues: IssueList,
     private readonly seenItemIds: Set<string>,
+    private readonly ticketEntries: TicketEntryKinds = new Map(),
   ) {
     this.#values = new ItemValueValidator(index, issues);
   }
@@ -69,6 +71,7 @@ export class ItemValidator {
       this.#validatePlacement(item, itemPath, folderIds, byId);
       this.#values.validate(listOf(item.fieldValues), project.id, `${itemPath}.fieldValues`);
       validateItemLinks(item.links, `${itemPath}.links`, this.issues);
+      validateItemTicket(item, itemPath, this.ticketEntries, this.issues);
     });
   }
 

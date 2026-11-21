@@ -48,6 +48,7 @@ const completedLedger = [
   { migration_id: 9, name: "AddStatusesAndPriorityNumbers" },
   { migration_id: 10, name: "AddTicketRank" },
   { migration_id: 11, name: "AddTickets" },
+  { migration_id: 12, name: "ReserveTicketSearchKeys" },
 ];
 const childId = "019A0000-0000-7000-8000-000000000CCB";
 const parentId = "019A0000-0000-7000-8000-000000000CCA";

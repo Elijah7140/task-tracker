@@ -13,6 +13,9 @@ import type {
   Project,
   SavedSearch,
   StatusLevel,
+  TicketComment,
+  TicketDetail,
+  TicketListEntry,
   TodoItem,
   TransferIssue,
   TransferSummary,
@@ -29,6 +32,8 @@ export interface ImportExisting {
   readonly projects: readonly Project[];
   readonly globalSettings: ReadonlyMap<string, string>;
   readonly savedSearches: readonly SavedSearch[];
+  /** People, ticket types and levels, archived ones included (§7.19). */
+  readonly ticketLists: readonly TicketListEntry[];
 }
 
 /** One project setting override to store. */
@@ -53,6 +58,10 @@ export interface ImportPlan {
   readonly values: ItemFieldValue[];
   readonly links: ItemLink[];
   readonly savedSearches: SavedSearch[];
+  /** New ticket list entries, every level after the level above it (§7.19). */
+  readonly ticketLists: TicketListEntry[];
+  readonly ticketDetails: TicketDetail[];
+  readonly comments: TicketComment[];
 }
 
 /** Which new or matched row each id or key in the file turned into. */
@@ -65,6 +74,8 @@ export class ImportMap {
   readonly projects = new Map<string, string>();
   readonly folders = new Map<string, string>();
   readonly items = new Map<string, string>();
+  /** Ticket list entries by file id: the new or matched entry (§7.19). */
+  readonly ticketEntries = new Map<string, string>();
   /** Fields by trimmed source key, compared ignoring case. */
   readonly fields = new Map<string, FieldDefinition>();
   firstDoneStatusId: string | null = null;

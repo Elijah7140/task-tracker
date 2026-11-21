@@ -220,6 +220,7 @@ export {
 export { searchOperatorsFor } from "./search/search-operators.js";
 export {
   BUILT_IN_SEARCH_FIELDS,
+  TICKET_SEARCH_FIELDS,
   listSearchableFields,
   listSearchChoices,
   type SearchChoiceSources,

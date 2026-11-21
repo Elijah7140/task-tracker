@@ -19,6 +19,8 @@ import { itemRepository } from "../../db/repositories/item-repository.js";
 import { lookupRepository } from "../../db/repositories/lookup-repository.js";
 import { projectRepository } from "../../db/repositories/project-repository.js";
 import { statusRepository } from "../../db/repositories/status-repository.js";
+import { ticketDetailRepository } from "../../db/repositories/ticket-detail-repository.js";
+import { ticketListRepository } from "../../db/repositories/ticket-list-repository.js";
 import { appendNewTickets } from "../ticket-ranks.js";
 
 /** The project, and the folder inside it, that a CSV import adds its rows to. */
@@ -55,6 +57,7 @@ export const loadCsvImportContext = Effect.fnUntraced(function* (
     statuses: yield* statusRepository(sql).list(),
     fields: csvImportFields(yield* fields.definitions.list(), target.projectId),
     choices: yield* fields.choices.listAll(undefined),
+    ticketLists: yield* ticketListRepository(sql).list(),
   };
   return context;
 });
@@ -67,7 +70,7 @@ function itemOf(
   sortOrder: number,
   now: Temporal.Instant,
 ): TodoItem {
-  const created = createItem(id, target.projectId, target.folderId, null, row.title, now);
+  const created = createItem(id, target.projectId, target.folderId, null, row.title, now, row.kind);
   return {
     ...created,
     sortOrder,
@@ -143,6 +146,10 @@ export const writeCsvRows = Effect.fnUntraced(function* (
   yield* Effect.forEach(items, itemRepository(sql).insert, { discard: true });
   yield* Effect.forEach(values, itemFieldValueRepository(sql).upsert, { discard: true });
   yield* Effect.forEach(links, itemLinkRepository(sql).insert, { discard: true });
+  const tickets = rows.flatMap((row, index) =>
+    row.ticket === null ? [] : [{ ...row.ticket, itemId: items[index]!.id }],
+  );
+  yield* Effect.forEach(tickets, ticketDetailRepository(sql).upsert, { discard: true });
   yield* appendNewTickets(
     sql,
     items.map((item) => item.id),

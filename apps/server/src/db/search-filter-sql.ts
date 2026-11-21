@@ -67,6 +67,49 @@ function builtInFilter(filter: FieldFilter, bind: BindParameter): string {
     case "reminder":
       return reminderFilter(filter);
     default:
+      return ticketFilter(filter, bind);
+  }
+}
+
+/** The ticket list entry each name-matched ticket field points at (§7.19). */
+const TICKET_ENTRY_COLUMNS: Readonly<Record<string, string>> = {
+  requestor: "RequestorId",
+  dispatched: "DispatchedToId",
+  pending: "PendingPersonId",
+  application: "ApplicationId",
+  module: "ModuleId",
+  interface: "InterfaceId",
+  tickettype: "TicketTypeId",
+};
+
+const ticketColumn = (column: string) =>
+  `(SELECT d.${column} FROM TicketDetail d WHERE d.ItemId = t.Id)`;
+
+const COMMENTS = "SELECT 1 FROM TicketComment c WHERE c.ItemId = t.Id";
+
+/** The item kind and the fixed ticket fields; a ToDo has none of the ticket values (§7.19). */
+function ticketFilter(filter: FieldFilter, bind: BindParameter): string {
+  const entryColumn = TICKET_ENTRY_COLUMNS[filter.fieldKey];
+  if (entryColumn !== undefined) {
+    const name = `(SELECT e.Name FROM TicketDetail d JOIN TicketListEntry e ON e.Id = d.${entryColumn} WHERE d.ItemId = t.Id)`;
+    return textFilter(name, filter, bind);
+  }
+  switch (filter.fieldKey) {
+    case "kind":
+      return textFilter("t.ItemKind", filter, bind);
+    case "version":
+      return textFilter(ticketColumn("Version"), filter, bind);
+    case "hours":
+      return scalarFilter(ticketColumn("EstimatedHours"), filter, bind);
+    case "percent":
+      return scalarFilter(ticketColumn("PercentComplete"), filter, bind);
+    case "urgent":
+      return scalarFilter(`COALESCE(${ticketColumn("IsUrgent")}, 0)`, filter, bind);
+    case "outage":
+      return scalarFilter(`COALESCE(${ticketColumn("IsSystemOutage")}, 0)`, filter, bind);
+    case "comment":
+      return commentFilter(filter, bind);
+    default:
       throw new Error(`Unknown built-in search field '${filter.fieldKey}'.`);
   }
 }
@@ -196,6 +239,17 @@ function reminderFilter(filter: FieldFilter): string {
     return `NOT (${REMINDER_ELIGIBLE_SQL})`;
   }
   throw new Error("The reminder field only supports presence tests.");
+}
+
+/** Matches tickets with a comment containing or equal to the text, case-insensitively. */
+function commentFilter(filter: FieldFilter, bind: BindParameter): string {
+  if (filter.operator === "isEmpty") {
+    return `NOT EXISTS (${COMMENTS})`;
+  }
+  if (filter.operator === "isNotEmpty") {
+    return `EXISTS (${COMMENTS})`;
+  }
+  return `EXISTS (${COMMENTS} AND ${textFilter("c.Body", filter, bind)})`;
 }
 
 /** Matches items with a link whose address or title contains the text, case-insensitively. */
