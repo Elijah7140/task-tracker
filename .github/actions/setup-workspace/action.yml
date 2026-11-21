@@ -1,0 +1,52 @@
+name: Set up workspace
+description: >
+  Installs pnpm, Node and the frozen dependencies, plus the optional browser and
+  desktop prerequisites a CI job needs. Every CI job starts with this. See docs/CI.md.
+
+inputs:
+  chromium:
+    description: Install Playwright's Chromium for the browser tests.
+    default: "false"
+  linux-desktop:
+    description: On Linux, install the system libraries, Xvfb and D-Bus that Electron needs.
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+    - shell: bash
+      run: pnpm install --frozen-lockfile
+    - name: Restore Playwright Chromium
+      if: inputs.chromium == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.os == 'Windows' && '~\AppData\Local\ms-playwright' || '~/.cache/ms-playwright' }}
+        key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: playwright-${{ runner.os }}-
+    - name: Install Chromium
+      if: inputs.chromium == 'true'
+      shell: bash
+      run: pnpm exec playwright install chromium
+    # Electron needs the same system libraries as Chromium.
+    - name: Install Chromium system libraries on Linux
+      if: runner.os == 'Linux' && (inputs.chromium == 'true' || inputs.linux-desktop == 'true')
+      shell: bash
+      run: pnpm exec playwright install-deps chromium
+    - name: Install Xvfb and D-Bus on Linux
+      if: runner.os == 'Linux' && inputs.linux-desktop == 'true'
+      shell: bash
+      run: sudo apt-get install -y --no-install-recommends xvfb xauth dbus
+    # %TEMP% sits on the Windows runner's OS disk, where each flush to disk takes about
+    # 4 ms and sometimes seconds. Tests that commit to SQLite files there timed out. The
+    # runner's D: drive (RUNNER_TEMP) flushes in 0.1 ms. See docs/CI.md.
+    - name: Keep temporary files off the Windows OS disk
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+        "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV

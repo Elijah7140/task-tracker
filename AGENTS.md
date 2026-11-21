@@ -35,7 +35,8 @@ Once desktop packaging lands, run `pnpm run package:desktop` before
 `pnpm run test:desktop`.
 
 On Linux, source `scripts/dev-env.sh` for user-local GTK. CI runs on GitHub-hosted
-Linux and Windows runners for every push and pull request ([docs/CI.md](docs/CI.md)).
+Linux and Windows runners for every pull request and push to `main`
+([docs/CI.md](docs/CI.md)).
 The local gate in that file is an optional pre-push check.
 
 ## Code
@@ -87,9 +88,9 @@ so they fall back to the default data folder. Back that folder up before any han
 check and confirm it is byte-identical afterwards.
 
 Review baselines on their respective operating systems. Windows baselines come from
-the `windows-latest` CI run's `browser-screenshot-diffs-windows` artifact, because
+the `windows-latest` CI run's `browser-screenshot-diffs-windows-*` artifacts, because
 DirectWrite output differs between Windows builds. For Linux changes the
-project lead reviews the `browser-screenshot-diffs-linux` CI artifact or the
+project lead reviews the `browser-screenshot-diffs-linux-*` CI artifacts or the
 received images from a Linux test run.
 
 ## Subagents

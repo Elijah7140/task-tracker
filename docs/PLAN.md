@@ -1873,7 +1873,7 @@ current platform's electron-builder output and unpacked executable. `test:deskto
 runs Playwright smoke against that executable. On headless Linux, source
 `scripts/dev-env.sh` for user-local GTK and run `xvfb-run -a pnpm run test:desktop`.
 
-CI runs on GitHub-hosted runners for every push and pull request. The local gate in
+CI runs on GitHub-hosted runners for every pull request and push to `main`. The local gate in
 [CI.md](CI.md) is an optional pre-push check.
 
 ## 12. Owner decisions
@@ -1895,8 +1895,9 @@ CI runs on GitHub-hosted runners for every push and pull request. The local gate
    port it to TypeScript before merging to main.
 10. **GitHub-hosted CI and releases (20 Nov 2026).** The repository is public, so
     standard GitHub-hosted runners are free. Use no self-hosted runners. CI runs on
-    Linux and Windows for every push and pull request. Releases, including unsigned
-    macOS packaging, run on GitHub-hosted runners.
+    Linux and Windows for every pull request and push to `main` (narrowed from every
+    push on 21 Nov 2026, so a pull request's commits no longer run twice). Releases,
+    including unsigned macOS packaging, run on GitHub-hosted runners.
 
 ## Appendix A. Historical review log
 

@@ -5,19 +5,33 @@ free for this public repository. There are no self-hosted runners.
 
 | Workflow | Jobs and runners | When |
 |---|---|---|
-| [CI](../.github/workflows/workspace.yml) | Build and test on `ubuntu-latest` and `windows-latest` | Every branch push and pull request, or **Actions → CI → Run workflow** |
+| [CI](../.github/workflows/workspace.yml) | Checks, browser tests and packaged smoke on `ubuntu-latest` and `windows-latest` | Every pull request and push to `main`, or **Actions → CI → Run workflow** |
 | [Release](../.github/workflows/release.yml) | Package on `windows-latest`, `ubuntu-latest` and `macos-latest`, then publish on `ubuntu-latest` | Push of a `v*` tag |
 | Local gate (`scripts/ci-local.*`) | Developer machine | Optional, before pushing |
 
 ## CI
 
-Each job runs the frozen install, Playwright Chromium, build, the static check
-with `--deny-warnings`, the Vite renderer probe, `vp test run`, the embedded Node
-SQLite and RPC tests (`test:server-db:electron`), the Electron runtime check,
-`package:desktop` and the packaged smoke (`test:desktop`). The Linux job runs
-the Electron steps under `xvfb-run -a` and makes the packaged `chrome-sandbox`
-setuid root first, as WP22 introduced. A newer push to the same branch or pull
-request cancels a running build, except on `main`.
+CI runs five parallel jobs per OS, ten in all. Each starts with the shared
+[setup action](../.github/actions/setup-workspace/action.yml): pnpm, Node, the
+frozen install and only the prerequisites that job needs.
+
+| Job | Steps |
+|---|---|
+| Build, check and Node tests | Build, the static check with `--deny-warnings`, the Vite renderer probe, `test:node`, the server's SQLite and RPC suites under Electron (`test:server-db:electron`) and the Electron runtime check |
+| Browser tests, shards 1/2 and 2/2 | Playwright Chromium (cached) and half of the `web-browser` files each (`test:browser --shard`) |
+| Packaged desktop smoke, shards 1/2 and 2/2 | `package:desktop` and half of the packaged smoke files each (`test:desktop --shard`) |
+
+The server's SQLite and RPC suites run only under Electron's embedded Node, the
+runtime that ships, and not again under Node 26. Pushes to branches other than
+`main` do not start CI on their own, so a pull request's commits run once.
+A newer push to the same pull request cancels a running build, except on `main`.
+
+The packaged smoke files run one at a time within a shard (`fileParallelism:
+false`), because on Linux they share one Xvfb display without a window manager.
+Splitting them across two jobs halves that serial time. Each smoke shard packages
+the app itself. electron-builder's downloads, chiefly NSIS and 7-Zip on Windows, are
+cached between runs. The Linux jobs run the Electron steps under `xvfb-run -a` and
+make every `chrome-sandbox` setuid root first, as WP22 introduced.
 
 Electron main logs how long each server stop takes. It kills a server that has
 not exited 10 seconds after main closed its stdin, and its warning then includes
@@ -27,10 +41,11 @@ its remaining connections once it has interrupted every request. A smoke test
 quits with the main window, the tray card and such a connection open and requires
 the stop to take under 2 seconds.
 
-`vp test run` runs the Node projects first and `web-browser` after them
+A full local `vp test run` runs the Node projects first and `web-browser` after them
 (`sequence.groupOrder`). When Chromium ran alongside them on the four-core Windows
 runner, it starved the Node workers. Loopback RPC tests then took up to 5 s and
-timed out. Isolated, the same tests finish in under 1 s.
+timed out. Isolated, the same tests finish in under 1 s. CI keeps them in separate
+jobs.
 
 On Windows the test steps run with `TEMP` and `TMP` set to `RUNNER_TEMP`. The default
 `%TEMP%` is on the runner's C: OS disk, where each flush to disk takes about 4 ms and
@@ -40,9 +55,10 @@ fixture RPC tests sometimes passed the 5 s timeout. The D: drive that holds
 `RUNNER_TEMP` flushes in 0.1 ms. Defender real-time scanning is off on these runners,
 so it plays no part.
 
-Each job uploads its installer as `package-linux-x64` or `package-windows-x64`
-for a week. A failing job uploads differing screenshots as
-`browser-screenshot-diffs-linux` or `browser-screenshot-diffs-windows`.
+The first smoke shard of each OS uploads its installer as `package-linux-x64` or
+`package-windows-x64` for a week. A failing browser shard uploads differing
+screenshots as `browser-screenshot-diffs-<os>-<shard>`, for example
+`browser-screenshot-diffs-windows-2`.
 
 ## Release
 
@@ -64,13 +80,13 @@ pwsh ./scripts/ci-local.ps1             # Windows with PowerShell 7.4+
 bash scripts/ci-local.sh               # Linux
 ```
 
-The gate runs the same steps as CI except the renderer probe. Select
+The gate runs the same steps as CI, one after another, except the renderer probe. Select
 `-SkipPack` on Windows or `--skip-pack` on Linux to omit packaging and packaged smoke.
 
 ## Snapshot baselines
 
 Review Windows baselines on Windows and Linux baselines on Linux. Use the
-`browser-screenshot-diffs-*` artifact of a failing CI job or the received images
+`browser-screenshot-diffs-*` artifacts of the failing CI shards or the received images
 from a local test run on that OS.
 
 ## Security
