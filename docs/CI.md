@@ -28,7 +28,11 @@ A newer push to the same pull request cancels a running build, except on `main`.
 
 The packaged smoke files run one at a time within a shard (`fileParallelism:
 false`), because on Linux they share one Xvfb display without a window manager.
-Splitting them across two jobs halves that serial time. Each smoke shard packages
+Splitting them across two jobs halves that serial time. Before the first file, a
+global setup launches the packaged app once and waits for its menu bar, because
+the first launch on a fresh runner is several seconds slower. Without it, a test
+that clicks the menu bar straight after launch failed whenever it ran first in its
+shard. Each smoke shard packages
 the app itself. electron-builder's downloads, chiefly NSIS and 7-Zip on Windows, are
 cached between runs. The Linux jobs run the Electron steps under `xvfb-run -a` and
 make every `chrome-sandbox` setuid root first, as WP22 introduced.
