@@ -1,11 +1,12 @@
 import { createHashHistory } from "@tanstack/react-router";
-import { IN_PROGRESS_WINDOW_HASH, TRAY_CARD_HASH } from "@task-tracker/contracts";
+import { ADD_TICKETS_HASH, IN_PROGRESS_WINDOW_HASH, TRAY_CARD_HASH } from "@task-tracker/contracts";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRoot } from "./app/app-root.js";
 import { ConnectionRequired } from "./app/connection-required.js";
 import { rpcProtocolLayer } from "./rpc-client.js";
 import { readRpcConnection } from "./rpc/rpc-connection-source.js";
+import { TicketBatchRoot } from "./ticket-batch/ticket-batch-root.js";
 import { TrayCardRoot } from "./tray-card/tray-card-root.js";
 import "./styles.css";
 
@@ -28,6 +29,8 @@ if (isTrayCard) {
 if (isInProgressWindow) {
   document.documentElement.classList.add("in-progress-window");
 }
+/** Electron main opens the tray menu's multi-ticket add as another window (§7.20). */
+const isTicketBatch = window.location.hash === ADD_TICKETS_HASH;
 
 const protocol = connection === undefined ? undefined : rpcProtocolLayer(connection);
 
@@ -37,6 +40,9 @@ function Screen() {
   }
   if (isTrayCard || isInProgressWindow) {
     return <TrayCardRoot protocol={protocol} layout={isTrayCard ? "card" : "window"} />;
+  }
+  if (isTicketBatch) {
+    return <TicketBatchRoot protocol={protocol} />;
   }
   return <AppRoot protocol={protocol} history={createHashHistory()} />;
 }

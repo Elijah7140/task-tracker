@@ -56,3 +56,6 @@ export const addItemAtom = TaskTrackerClient.mutation("AddItem");
 
 /** Appends a comment to a ticket's log (§7.19). */
 export const addTicketCommentAtom = TaskTrackerClient.mutation("AddTicketComment");
+
+/** Adds the tray's batch of tickets to one area as one undo step (§7.20). */
+export const addTicketsAtom = TaskTrackerClient.mutation("AddTickets");

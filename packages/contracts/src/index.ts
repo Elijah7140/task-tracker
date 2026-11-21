@@ -38,6 +38,7 @@ export {
   TicketSnapshot,
 } from "./ticket-fields.js";
 export { TicketListRpcs } from "./ticket-list-rpcs.js";
+export { AddTicketsError, NewTicketInput, TicketRejected } from "./ticket-batch.js";
 export { GlobalSettings, ProjectSettingOverrides, ProjectSettings } from "./settings.js";
 export {
   ReconciliationApproval,
@@ -129,6 +130,7 @@ export { TransferRpcs } from "./transfer-rpcs.js";
 export { InProgressItem } from "./in-progress-item.js";
 export { InProgressRpcs } from "./in-progress-rpcs.js";
 export {
+  ADD_TICKETS_HASH,
   CheckRemindersCommand,
   DesktopNotification,
   DesktopToServerMessage,

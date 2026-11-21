@@ -7,11 +7,35 @@ in [docs/MIGRATION.md](docs/MIGRATION.md).
 ## Roles
 
 - **Owner** sets scope, makes product decisions and reviews the app hands-on (§11.1).
-- **Project lead** plans work, briefs delegates, reviews their changes and owns PR
-  integration. Review and commit Linux snapshots from a Linux run.
-- **Subagents and delegates** implement, test and report on the assigned brief.
-  Commit when the brief requests commits. The project lead handles branch pushes
-  and merges unless the owner delegates those explicitly.
+- **Project lead** plans work, briefs delegates, reviews their changes and lands
+  them on `main` (see Shipping changes). Review and commit Linux snapshots from a
+  Linux run.
+- **Subagents and delegates** implement, test, commit and report on the assigned
+  brief. Commit each working step as you go. The project lead pushes and merges
+  unless the brief hands that to you.
+
+## Shipping changes
+
+Shipping beats polishing. Commit early and often, and get finished work onto
+`main` the same session.
+
+- **Small change** (docs, a bug fix, a contained feature or refactor): run the
+  static check and the tests for what you touched, then commit and push straight
+  to `main`. CI still runs on the push; fix forward if it goes red.
+- **Big change**: open a PR and merge once CI is green. A change is big when it
+  touches database schema or migrations, packaging, release or the updater,
+  shared dependency versions, or screens that need new Windows baselines, or when
+  it spans several packages at once.
+
+When unsure, treat it as small. A red CI run on `main` is cheap to fix forward.
+
+## Starting a session
+
+Before creating a branch or worktree from `main`, bring `main` up to date with
+the remote. Run `git fetch origin` and branch from `origin/main`, or fast-forward
+the local `main` first (`git pull --ff-only`). If your session already started on
+a branch, rebase it onto the freshly fetched `origin/main` before making changes.
+Never branch from a stale local `main`.
 
 ## Commands
 

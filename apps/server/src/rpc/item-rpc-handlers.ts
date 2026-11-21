@@ -13,6 +13,7 @@ import { projectItemLink } from "./item-link-projection.js";
 import { projectTicket, projectTicketComment } from "./ticket-projection.js";
 
 import { mapOperationError } from "./map-operation-error.js";
+import { mapAddTicketsError } from "./map-add-tickets-error.js";
 
 /** Delegate item calls to the service with the same clock, time zone and database as the server. */
 export const itemRpcHandlers = (timeZone: string) =>
@@ -29,6 +30,18 @@ export const itemRpcHandlers = (timeZone: string) =>
             customValues: customValues?.map(parseFieldValueInput) ?? [],
             ticket: ticket ?? null,
           })).pipe(Effect.flatMap(items.add), Effect.map(projectItem), mapOperationError),
+        AddTickets: ({ tickets, ...area }) =>
+          Effect.sync(() => ({
+            ...area,
+            tickets: tickets.map(({ fields, ticket }) => ({
+              fields: parseItemEdit(fields),
+              ticket: ticket ?? null,
+            })),
+          })).pipe(
+            Effect.flatMap(items.addTickets),
+            Effect.map((rows) => rows.map(projectItem)),
+            mapAddTicketsError,
+          ),
         LoadTicket: ({ itemId }) =>
           items.loadTicket(itemId).pipe(Effect.map(projectTicket), mapOperationError),
         AddTicketComment: ({ itemId, body }) =>

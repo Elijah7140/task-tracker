@@ -15,22 +15,25 @@ export interface AppTray {
 export interface AppTrayOptions {
   readonly iconPath: string;
   readonly onOpen: () => void;
+  /** Opens the multi-ticket add window (§7.20). */
+  readonly onAddTickets: () => void;
   readonly onQuit: () => void;
   /** A left click on the icon, where the desktop reports one. Defaults to `onOpen`. */
   readonly onClick?: () => void;
 }
 
-function createTray({ iconPath, onOpen, onQuit, onClick = onOpen }: AppTrayOptions) {
+function createTray({ iconPath, onOpen, onAddTickets, onQuit, onClick = onOpen }: AppTrayOptions) {
   const tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 32, height: 32 }));
   tray.setToolTip("Task Tracker");
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: "Open", click: onOpen },
+      { label: "Add tickets…", click: onAddTickets },
       { label: "Quit", click: onQuit },
     ]),
   );
   // A left click shows the in-progress card (§7.18). The menu keeps Open and Quit
-  // for desktops that only expose the menu.
+  // for desktops that only expose the menu, and adds several tickets at once (§7.20).
   tray.on("click", onClick);
   return tray;
 }

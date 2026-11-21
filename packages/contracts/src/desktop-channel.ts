@@ -43,7 +43,14 @@ export const ReminderActivation = Schema.Struct({ itemId: Schema.NullOr(Guid) })
 export const TRAY_CARD_HASH = "#/tray-card";
 
 /**
+
  * The location hash of the popped-out in-progress window (§7.18): the tray
  * card's stack in an ordinary window that stays open when it loses focus.
  */
 export const IN_PROGRESS_WINDOW_HASH = "#/in-progress";
+
+/**
+ * The location hash of the multi-ticket add window the tray menu opens (§7.20). Electron
+ * main loads the renderer page with it, and the renderer shows only that view for it.
+ */
+export const ADD_TICKETS_HASH = "#/add-tickets";

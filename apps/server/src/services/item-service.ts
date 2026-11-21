@@ -39,6 +39,7 @@ import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
 import { saveItemRows } from "./save-item-rows.js";
 import { appendNewTickets, ticketUndoSource } from "./ticket-ranks.js";
+import { ticketBatchOperation } from "./ticket-batch-operation.js";
 import { UndoService, undoLabel } from "./undo-service.js";
 
 const decodeId = Schema.decodeEffect(Guid);
@@ -336,7 +337,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     }
   }, undo.record);
 
-  const add = itemAddOperation(sql, undo, { loadAreaTree, saveStructure, completion });
+  const addDependencies = { loadAreaTree, saveStructure, completion };
+  const add = itemAddOperation(sql, undo, addDependencies);
+  const addTickets = ticketBatchOperation(sql, undo, addDependencies);
 
   const requireTicket = Effect.fnUntraced(function* (id: string) {
     const item = yield* items.requireActive(id);
@@ -418,6 +421,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     ...recurrence,
     ...pushBack,
     add,
+    addTickets,
     addComment,
     loadTicket,
     edit,

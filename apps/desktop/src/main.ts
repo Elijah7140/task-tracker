@@ -3,6 +3,7 @@ import { userInfo } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ADD_TICKETS_HASH,
   externalLinkAddress,
   Guid,
   type RpcConnection,
@@ -53,6 +54,7 @@ import {
 } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
+import { createTicketBatchWindow, type TicketBatchWindow } from "./ticket-batch-window.js";
 import { createTrayCardWindow, type TrayCardWindow } from "./tray-card-window.js";
 import { createInProgressWindow, type InProgressWindow } from "./in-progress-window.js";
 import { applicationMenuTemplate } from "./application-menu.js";
@@ -81,10 +83,13 @@ const iconPath = app.isPackaged
 let trayCard: TrayCardWindow | undefined;
 /** The card's stack popped out into a window that stays open (§7.18). */
 let inProgressWindow: InProgressWindow | undefined;
+/** The multi-ticket add window the tray menu opens (§7.20). */
+let ticketBatch: TicketBatchWindow | undefined;
 
 const tray = createAppTray({
   iconPath,
   onOpen: showWindow,
+  onAddTickets: () => ticketBatch?.show(),
   onQuit: () => app.quit(),
   onClick: () => trayCard?.toggle(),
 });
@@ -291,6 +296,8 @@ function createWindow(url: string) {
     // A hidden card or the pop-out would otherwise keep the app running after its last window.
     trayCard?.destroy();
     inProgressWindow?.destroy();
+    // The add window asks first when it holds tickets that Done has not saved.
+    ticketBatch?.close();
   });
   return renderer;
 }
@@ -353,6 +360,7 @@ async function handleCrash(diagnostic: string, address: RendererAddress) {
   // The card's and pop-out's pages hold the old connection; the next click opens them afresh.
   trayCard?.destroy();
   inProgressWindow?.destroy();
+  ticketBatch?.destroy();
   if (quitting || window === undefined) {
     return;
   }
@@ -490,6 +498,11 @@ async function openApplication(early: EarlyStart | Error) {
     preload,
     devTools: !app.isPackaged,
   });
+  ticketBatch = createTicketBatchWindow({
+    url: `${address.url}${ADD_TICKETS_HASH}`,
+    preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),
+    devTools: !app.isPackaged,
+  });
   registerRendererHandlers(address, installation);
   powerMonitor.on("resume", requestReminderCheck);
   await start(address, child);
@@ -543,6 +556,16 @@ function popOutTrayCard() {
   return inProgressWindow !== undefined;
 }
 
+/** Limits the add window's calls to its main frame at the add-tickets page (§7.20). */
+function isTicketBatchFrame(event: Electron.IpcMainInvokeEvent, address: RendererAddress) {
+  const frame = event.senderFrame;
+  return (
+    ticketBatch?.isSender(event.sender) === true &&
+    frame?.parent === null &&
+    frame.url === `${address.url}${ADD_TICKETS_HASH}`
+  );
+}
+
 const decodeItemId = Schema.decodeUnknownOption(Guid);
 
 /** Hides the card and opens a valid item in the main window, as reminder activation does. */
@@ -571,11 +594,12 @@ function registerRendererHandlers(
     grant: (grant) => server?.send(grant) ?? false,
   });
   ipcMain.handle("task-tracker:get-rpc-connection", (event) => {
-    const known =
+    const allowed =
       isRendererFrame(event, address) ||
       isTrayCardFrame(event, address) ||
-      isInProgressWindowFrame(event, address);
-    if (!known) {
+      isInProgressWindowFrame(event, address) ||
+      isTicketBatchFrame(event, address);
+    if (!allowed) {
       throw new Error("RPC connection requested by an unexpected frame.");
     }
     return connection;
