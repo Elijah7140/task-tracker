@@ -42,7 +42,7 @@ function trayCursor(): ScreenPoint | undefined {
  */
 function openCardWindow({ url, preload, devTools }: TrayCardWindowOptions) {
   const card = new BrowserWindow({
-    title: "Current item",
+    title: "In progress",
     width: CARD_WIDTH,
     height: 200,
     useContentSize: true,

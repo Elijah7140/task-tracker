@@ -2,7 +2,6 @@ import { ticksPerDay, ticksPerHour } from "../time/duration-ticks.js";
 import { booleanCodec } from "./boolean-codec.js";
 import { durationCodec } from "./duration-codec.js";
 import { localTimeCodec } from "./local-time-codec.js";
-import { optionalGuidCodec } from "./optional-guid-codec.js";
 import { reminderOffsetCodec } from "./reminder-offset-codec.js";
 import { SettingDefinition } from "./setting-definition.js";
 import { wholeNumberCodec } from "./whole-number-codec.js";
@@ -50,16 +49,6 @@ export const SettingsCatalogue = {
   ),
   /** Whether closing the window hides the app to the tray so reminders keep firing. Global only. */
   keepRunningInTray: new SettingDefinition("keepRunningInTray", false, false, booleanCodec),
-  /**
-   * The item the tray card shows (§7.18). It is chosen from item menus rather than the
-   * settings screen and is written outside undo history. Global only.
-   */
-  currentItemId: new SettingDefinition<string | null>(
-    "currentItemId",
-    null,
-    false,
-    optionalGuidCodec,
-  ),
   /**
    * Whether an installed app starts when the user signs in (§7.13). Global only and
    * kept out of undo history, because the OS entry is written outside the transaction.

@@ -8,12 +8,14 @@ const editableFields = {
   name: Schema.String,
   isArchived: Bit,
   sortOrder: Schema.Int,
+  isInProgress: Bit,
 };
 const columns = {
   id: "Id",
   name: "Name",
   isArchived: "IsArchived",
   sortOrder: "SortOrder",
+  isInProgress: "IsInProgress",
 } as const;
 const editable = Schema.Struct(editableFields).pipe(Schema.encodeKeys(columns));
 const kind = Schema.Literals([0, 1]).pipe(

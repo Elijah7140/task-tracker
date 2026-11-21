@@ -157,7 +157,8 @@
     overflow: hidden;
   }
 
-  html.tray-card body {
+  html.tray-card body,
+  html.in-progress-window body {
     @apply bg-raised;
   }
 

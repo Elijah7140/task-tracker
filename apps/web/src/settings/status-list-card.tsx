@@ -9,7 +9,7 @@ import { Select } from "../ui/select.js";
 import { useListReorder } from "../ui/use-list-reorder.js";
 import { ArchivedRows } from "./lookup-list-card.js";
 import { partitionLookups } from "./lookup-order.js";
-import { LookupRow } from "./lookup-row.js";
+import { type InProgressMark, LookupRow } from "./lookup-row.js";
 import { useStatusActions } from "./use-status-actions.js";
 
 type Status = typeof StatusProjection.Type;
@@ -63,10 +63,25 @@ function AddStatusForm({
   );
 }
 
+/** The In progress box for an Open status; Done statuses cannot be in progress (§7.18). */
+function inProgressMark(
+  row: Status,
+  setInProgress: (id: string, isInProgress: boolean) => Promise<boolean>,
+): InProgressMark | undefined {
+  if (row.kind !== "Open") {
+    return undefined;
+  }
+  return {
+    checked: row.isInProgress,
+    onChange: (checked) => void setInProgress(row.id, checked),
+  };
+}
+
 /**
  * Editable workflow statuses for App Settings (§7.15). Each status is Open or Done,
  * fixed when added. Rows show their kind and support renaming, button, Alt+Arrow and
- * pointer-drag reordering, archiving and restoring. Changes save immediately.
+ * pointer-drag reordering, archiving and restoring. An Open status can be marked In
+ * progress, which lists its open items on the tray card (§7.18). Changes save immediately.
  */
 export function StatusListCard({ rows }: { readonly rows: ReadonlyArray<Status> }) {
   const listRef = useRef<HTMLUListElement>(null);
@@ -109,6 +124,7 @@ export function StatusListCard({ rows }: { readonly rows: ReadonlyArray<Status> 
             onMove={move}
             onRename={(target) => void actions.rename(target)}
             onArchive={(target) => void actions.archive(target.id)}
+            inProgress={inProgressMark(row, actions.setInProgress)}
           />
         ))}
       </ul>

@@ -144,7 +144,14 @@ export function statusHandlers(
         Effect.andThen(statuses.uniqueName(name, null, "Restore it instead.")),
         Effect.map((trimmed) => {
           const sortOrder = Math.max(-1, ...statuses.rows.map((row) => row.sortOrder)) + 1;
-          const row = { id: target.nextId(), name: trimmed, kind, isArchived: false, sortOrder };
+          const row = {
+            id: target.nextId(),
+            name: trimmed,
+            kind,
+            isArchived: false,
+            sortOrder,
+            isInProgress: false,
+          };
           statuses.rows = [...statuses.rows, row];
           return row;
         }),
@@ -166,6 +173,12 @@ export function statusHandlers(
       ),
     RestoreStatus: ({ id }: { id: string }) =>
       edit("RestoreStatus", id, () => Effect.succeed({ isArchived: false })),
+    SetStatusInProgress: ({ id, isInProgress }: { id: string; isInProgress: boolean }) =>
+      edit("SetStatusInProgress", id, (row) =>
+        isInProgress && row.kind !== "Open"
+          ? rule("Only an Open status can be marked In progress.")
+          : Effect.succeed({ isInProgress }),
+      ),
     ReorderStatuses: ({ ids }: { ids: ReadonlyArray<string> }) =>
       record("ReorderStatuses").pipe(
         Effect.andThen(() => {

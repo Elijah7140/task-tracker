@@ -28,6 +28,25 @@ it("Adds a Done status, reorders it and archives and restores a status", async (
   await expect.element(card().getByRole("button", { name: "Archive Completed" })).toBeVisible();
 });
 
+it("Marks Open statuses In progress with a click or Space, and Done statuses have no box", async () => {
+  const { store } = await renderApp({ path: "/settings" });
+  const testing = card().getByRole("checkbox", { name: "Testing is in progress" });
+  const seeded = card().getByRole("checkbox", { name: "In progress is in progress" });
+  await expect.element(seeded).toBeChecked();
+
+  await testing.click();
+  await expect.element(testing).toBeChecked();
+  (seeded.element() as HTMLElement).focus();
+  await userEvent.keyboard(" ");
+
+  await expect.element(seeded).not.toBeChecked();
+  const marked = store.statuses.rows.filter((row) => row.isInProgress).map((row) => row.name);
+  expect(marked).toEqual(["Testing"]);
+  await expect
+    .element(card().getByRole("checkbox", { name: "Completed is in progress" }))
+    .not.toBeInTheDocument();
+});
+
 it("Shows restore guidance when adding or renaming to an archived status name", async () => {
   await renderApp({ path: "/settings" });
   const input = card().getByRole("textbox", { name: "New status name" });

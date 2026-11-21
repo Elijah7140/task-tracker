@@ -127,8 +127,8 @@ export {
   TransferSummary,
 } from "./transfer.js";
 export { TransferRpcs } from "./transfer-rpcs.js";
-export { CurrentItemCard } from "./current-item.js";
-export { CurrentItemRpcs } from "./current-item-rpcs.js";
+export { InProgressItem } from "./in-progress-item.js";
+export { InProgressRpcs } from "./in-progress-rpcs.js";
 export {
   ADD_TICKETS_HASH,
   CheckRemindersCommand,
@@ -136,6 +136,7 @@ export {
   DesktopToServerMessage,
   ReminderActivation,
   ServerToDesktopMessage,
+  IN_PROGRESS_WINDOW_HASH,
   TRAY_CARD_HASH,
 } from "./desktop-channel.js";
 export { AppVersionText, DesktopInstallation, UpdateCheckResult } from "./desktop-installation.js";

@@ -29,7 +29,7 @@ import { todayRpcHandlers } from "./today-rpc-handlers.js";
 import { reminderRpcHandlers } from "./reminder-rpc-handlers.js";
 import { ticketRpcHandlers } from "./ticket-rpc-handlers.js";
 import { ticketListRpcHandlers } from "./ticket-list-rpc-handlers.js";
-import { currentItemRpcHandlers } from "./current-item-rpc-handlers.js";
+import { inProgressRpcHandlers } from "./in-progress-rpc-handlers.js";
 import { UndoService } from "../services/undo-service.js";
 import { DatabaseBackup } from "../services/transfer/database-backup.js";
 import { TransferFileGrants } from "../services/transfer/transfer-file-grants.js";
@@ -142,7 +142,7 @@ function makeRpcApp(options: LoopbackRpcOptions, info: typeof ServerInfo.Type) {
       Effect.provide(ticketRpcHandlers),
       Effect.provide(ticketListRpcHandlers),
       Effect.provide(transferRpcHandlers),
-      Effect.provide(currentItemRpcHandlers),
+      Effect.provide(inProgressRpcHandlers(options.timeZone)),
       Effect.provide(transferFiles),
       // One session layer supplies the shared UndoService to every handler above.
       Effect.provide(session),

@@ -1,12 +1,13 @@
 import { useAtomSet } from "@effect/atom-react";
 import { useEffect } from "react";
-import { CURRENT_ITEM_KEY } from "../rpc/current-item-queries.js";
+import { IN_PROGRESS_KEY } from "../rpc/in-progress-queries.js";
 import { invalidateKeysAtom } from "../rpc/invalidate-keys.js";
 import { syncStoredThemePreference } from "../state/theme-store.js";
 
 /**
- * Reads the current item and theme again each time the card window is shown,
- * since either may have changed while it was hidden (§7.18).
+ * Reads the in-progress stack and theme again each time the card window is
+ * shown or focused, since either may have changed meanwhile (§7.18). Urgency
+ * also moves on with time, so a refocused pop-out window shows it afresh.
  */
 export function useReloadWhenShown() {
   const invalidate = useAtomSet(invalidateKeysAtom);
@@ -14,7 +15,7 @@ export function useReloadWhenShown() {
     const reload = () => {
       if (document.visibilityState === "visible") {
         syncStoredThemePreference();
-        invalidate([CURRENT_ITEM_KEY]);
+        invalidate([IN_PROGRESS_KEY]);
       }
     };
     document.addEventListener("visibilitychange", reload);

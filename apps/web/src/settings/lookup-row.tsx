@@ -1,6 +1,7 @@
 import { Archive, ArrowDown, ArrowUp, GripVertical, Pencil } from "lucide-react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { Button } from "../ui/button.js";
+import { Checkbox } from "../ui/checkbox.js";
 import { cx } from "../ui/class-names.js";
 import { Tooltip } from "../ui/tooltip.js";
 import type { DropEdge } from "../ui/use-pointer-reorder.js";
@@ -26,6 +27,32 @@ export interface LookupRowProps {
   readonly onArchive: (row: LookupItem) => void;
   /** Saves a priority number. Only priority level rows show the number form. */
   readonly onSetNumber?: ((id: string, text: string) => Promise<boolean>) | undefined;
+  /** The In progress mark of an Open status row (§7.18). Other rows show no box. */
+  readonly inProgress?: InProgressMark | undefined;
+}
+
+/** Whether an Open status is marked In progress, and how to change it. */
+export interface InProgressMark {
+  readonly checked: boolean;
+  readonly onChange: (checked: boolean) => void;
+}
+
+/** The In progress box on an Open status row, with what it does in its tooltip. */
+function InProgressBox({ label, mark }: { readonly label: string; readonly mark: InProgressMark }) {
+  return (
+    <Tooltip content="Open items with this status show when you click the tray icon">
+      <span className="mr-1.5 inline-flex">
+        <Checkbox
+          checked={mark.checked}
+          onCheckedChange={mark.onChange}
+          ariaLabel={`${label} is in progress`}
+          testId="status-in-progress"
+        >
+          In progress
+        </Checkbox>
+      </span>
+    </Tooltip>
+  );
 }
 
 /**
@@ -46,6 +73,7 @@ export function LookupRow({
   onRename,
   onArchive,
   onSetNumber,
+  inProgress,
 }: LookupRowProps) {
   const label = row.label ?? row.name;
   const isItemType = kind === "itemTypes";
@@ -100,6 +128,7 @@ export function LookupRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
+        {inProgress === undefined ? null : <InProgressBox label={label} mark={inProgress} />}
         {kind === "priorityLevels" && onSetNumber !== undefined ? (
           <PriorityNumberForm
             label={label}

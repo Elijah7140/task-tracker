@@ -1,4 +1,5 @@
 import { customFieldSchema } from "./add-custom-fields.js";
+import { inProgressStatusColumns } from "./add-in-progress-statuses.js";
 import { itemLinkSchema } from "./add-item-links.js";
 import { itemSearchSchema, searchShadowSchema } from "./add-item-search.js";
 import { recurrenceColumns } from "./add-recurrence.js";
@@ -50,6 +51,20 @@ function extendInitialSchema(stage: number) {
     });
 }
 
+/** Appends columns as SQLite stores them after ALTER TABLE: after a line break, before ")". */
+function appendColumns(statement: string, columns: readonly string[]) {
+  return `${statement.slice(0, -1)}, ${columns.join(", ")})`;
+}
+
+/** The status table, with the In progress mark from stage 13. */
+function statusSchema(stage: number) {
+  return statusLookupSchema.map((statement) =>
+    stage >= 13 && statement.startsWith("CREATE TABLE StatusLevel")
+      ? appendColumns(statement, inProgressStatusColumns)
+      : statement,
+  );
+}
+
 /** Returns the stored application schema expected at a validated migration prefix. */
 export function stageSchema(stage: number) {
   return [
@@ -59,7 +74,7 @@ export function stageSchema(stage: number) {
     ...(stage >= 4 ? savedSearchSchema : []),
     ...(stage >= 5 ? itemLinkSchema : []),
     ...(stage >= 8 ? todayCompletionsSchema : []),
-    ...(stage >= 9 ? [...statusLookupSchema, ...itemStatusSchema] : []),
+    ...(stage >= 9 ? [...statusSchema(stage), ...itemStatusSchema] : []),
     ...(stage >= 11 ? ticketSchema : []),
   ];
 }

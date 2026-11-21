@@ -133,6 +133,7 @@ function importStatuses(context: ImportContext, known: StatusLevel[]): void {
         kind,
         isArchived: document.isArchived === true,
         sortOrder: order++,
+        isInProgress: false,
       };
       context.plan.statuses.push(status);
       known.push(status);

@@ -12,6 +12,8 @@ export interface StatusLevel {
   readonly kind: StatusKind;
   readonly isArchived: boolean;
   readonly sortOrder: number;
+  /** Open items with an in-progress status are listed on the tray card (§7.18). */
+  readonly isInProgress: boolean;
 }
 
 /** Appends an active status after both active and archived entries. */
@@ -25,7 +27,7 @@ export function createStatus(
     throw new MetadataRuleError("Choose an Open or Done status kind.");
   }
   const sortOrder = Math.max(-1, ...rows.map((row) => row.sortOrder)) + 1;
-  const status = { id, name: "", kind, sortOrder, isArchived: false };
+  const status = { id, name: "", kind, sortOrder, isArchived: false, isInProgress: false };
   return { ...status, name: uniqueStatusName(status, name, rows, "Restore it instead.") };
 }
 
@@ -73,6 +75,17 @@ export function setStatusArchived(
     throw new MetadataRuleError("At least one Done status must stay active.");
   }
   return { ...row, isArchived };
+}
+
+/**
+ * Marks a status as in progress or not (§7.18). Only an Open status can be in
+ * progress, because the tray card lists open items; any number of statuses may be.
+ */
+export function setStatusInProgress(row: StatusLevel, isInProgress: boolean): StatusLevel {
+  if (isInProgress && row.kind !== "Open") {
+    throw new MetadataRuleError("Only an Open status can be marked In progress.");
+  }
+  return { ...row, isInProgress };
 }
 
 /** Reorders the full status list, including archived entries. */

@@ -81,6 +81,7 @@ export const FAKE_LOOKUPS = {
     kind,
     isArchived: false,
     sortOrder,
+    isInProgress: name === "In progress",
   })),
 };
 

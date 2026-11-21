@@ -5,13 +5,14 @@ import {
   renameStatus,
   reorderStatuses,
   setStatusArchived,
+  setStatusInProgress,
   statusListConflict,
   type StatusKind,
   type StatusLevel,
 } from "../../src/index.js";
 
 function status(id: string, name: string, kind: StatusKind, sortOrder: number): StatusLevel {
-  return { id, name, kind, sortOrder, isArchived: false };
+  return { id, name, kind, sortOrder, isArchived: false, isInProgress: false };
 }
 
 const seeded = [
@@ -113,4 +114,20 @@ it("Reports a duplicate name or rank in a final status list", () => {
   expect(statusListConflict(renamed)).toBe("name");
   expect(statusListConflict(ranked)).toBe("rank");
   expect(statusListConflict(seeded)).toBeNull();
+});
+
+it("Marks an Open status as in progress and clears it again", () => {
+  const queued = seeded[0]!;
+
+  const marked = setStatusInProgress(queued, true);
+  const cleared = setStatusInProgress(marked, false);
+
+  expect(marked).toEqual({ ...queued, isInProgress: true });
+  expect(cleared).toEqual(queued);
+});
+
+it("Refuses to mark a Done status as in progress", () => {
+  const mark = () => setStatusInProgress(seeded[3]!, true);
+
+  expect(mark).toThrow("Only an Open status can be marked In progress.");
 });

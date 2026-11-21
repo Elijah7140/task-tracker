@@ -32,7 +32,7 @@ function createTray({ iconPath, onOpen, onAddTickets, onQuit, onClick = onOpen }
       { label: "Quit", click: onQuit },
     ]),
   );
-  // A left click shows the current item card (§7.18). The menu keeps Open and Quit
+  // A left click shows the in-progress card (§7.18). The menu keeps Open and Quit
   // for desktops that only expose the menu, and adds several tickets at once (§7.20).
   tray.on("click", onClick);
   return tray;

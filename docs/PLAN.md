@@ -1176,7 +1176,7 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   brings the window forward and opens the item or the panel for a group.
 - **Tray.** With `KeepRunningInTray` on, closing the window hides it to a notification-area icon
   instead of quitting, so reminders keep firing. The tray menu has **Open** and **Quit**; a left
-  click shows the current item's card (§7.18). Start with the OS is covered in §7.13.
+  click shows the in-progress card (§7.18). Start with the OS is covered in §7.13.
   - The window hides only when a tray host really shows the icon. Windows and macOS always
     have one. On Linux, a `StatusNotifierWatcher` must own its name on the session bus.
   - Without a tray host, closing minimises instead, so the window is never unreachable.
@@ -1375,7 +1375,8 @@ the decisions below were made autonomously; they are listed for review.
 - **The list.** A new `StatusLevel` lookup has a name, a sort order, an *open* or *done* kind, and
   can be archived. It is managed in App Settings like the item types and priority levels. The
   seeded set is Queued, In progress and Testing (open) plus Completed (done). At least one done
-  status must stay active.
+  status must stay active. An open status can also be marked **In progress** for the tray card
+  (§7.18).
 - **On the item.** `TodoItem` gains a nullable `StatusId`. It also gains `ReopenStatusId`, the open
   status to restore on reopen. Schema changes preserve the FTS mapping and triggers (§7.2).
 - **Linked to completion (§6.1).**
@@ -1587,47 +1588,62 @@ below were made while building it and are listed for review.
   mapping, header drops and the setting. Headless: the grid layout, card and header drags, and
   Alt+↓ across a section. Light and dark snapshots of the grid.
 
-### 7.18 Current item and the tray card
+### 7.18 In-progress items and the tray card
 
-Requested by the owner on 18 Nov 2026: a checklist tray icon whose left click shows the item
-the owner is working on.
+Requested by the owner on 18 Nov 2026: a checklist tray icon whose left click shows what the
+owner is working on. Revised on 21 Nov 2026: instead of one chosen current item, the card shows
+the stack of every ticket and ToDo in an In progress status, and it can pop out into a window
+that stays open.
 
-- **Current item.** At most one item is current. It is stored as the global setting
-  `currentItemId` (empty when none), outside undo history and not shown on the settings screen.
-  - Set it from any item's right-click menu: **Set as current item** on Search, Calendar, Today
-    and Tickets rows. A workspace card or row menu toggles between **Set as current item** and
-    **Clear current item**.
-  - Each workspace item card has a ☆ button in its header that makes the item current; the
-    current card shows ★, and clicking it again clears the choice. The React card reveals ☆ on
-    hover, like its ⋯ button, and always shows ★.
-  - The details panel has a **Set as current** / **Current item** button beside its heading.
-  - A current sub-item row shows a ★ marker.
-  - A deleted item, or an item in a deleted project, is treated as no current item. Restoring
-    it from the trash makes it current again.
+- **In progress statuses.** `StatusLevel.IsInProgress` marks the statuses whose items the tray
+  card lists. Any number of statuses can be marked; only Open statuses can be (Core rule and a
+  storage `CHECK`). Migration 13 adds the column and marks the seeded "In progress" status.
+  - App Settings › Workflow statuses has an **In progress** box on each Open row. Each change is
+    one undo step, "Mark in progress ⟨name⟩" or "Unmark in progress ⟨name⟩".
+  - New statuses start unmarked. JSON import adds new statuses unmarked; the file format does not
+    carry the mark.
+- **The stack.** `LoadInProgressItems` returns every open item, of either kind, at any depth,
+  that is not deleted, not in a deleted project or folder, and whose status is marked. Each row
+  carries the item and area IDs, kind, ticket number, title, area path, status, priority label,
+  due date and time, and the item's own urgency from its project's thresholds (§6.3).
+  - **Order:** most urgent first, then priority rank, then earliest effective deadline, then
+    title. Items without a priority or deadline come after those with one.
 - **Tray icon.** The tray icon is a drawn checklist: three ticks and lines on a blue tile. The
   window, taskbar and executable use the same checklist art. Generate `assets/icon.ico` and
   `assets/icon.png` from `assets/icon.svg` with `node apps/desktop/scripts/icons.mjs`. The tray icon
   shows under the same `KeepRunningInTray` rules as before (§7.12). The menu keeps **Open** and
   **Quit**, and gains **Add tickets…** (§7.20).
 - **Tray card.** A single left click on the icon shows a small borderless card next to it.
-  - **Contents:** the title, the project and folder path, a Completed chip, status, priority, due
-    date and time, the first lines of the notes, and **Open in Task Tracker**, which brings the
-    window forward with the item selected.
-  - **Mark complete** (added in WP47 at the project lead's request) completes an open item with
-    the normal rules. The open sub-items question and any blocked reason appear inside the card,
-    and the main window reloads the change.
-  - **Empty state:** with no current item, the card explains how to choose one.
+  - **Header:** "In progress", the number of items, and **Pop out**.
+  - **Rows:** a circle that completes the item, then the ticket number and title, the project
+    and folder path, and the urgency, priority and due date. A status chip shows only when the
+    stack mixes statuses. The list scrolls past a fixed height.
+  - **Clicking a row** brings the main window forward with the item opened.
+  - **Completing** uses the normal rules. The open sub-items question and any blocked reason
+    appear under the row, and the main window reloads the change.
+  - **Empty state:** with nothing in progress, the card explains how items get there.
   - **Closing:** clicking elsewhere, Escape, or clicking the icon again hides the card.
   - **Placement:** on Windows the card sits centred above the cursor, kept inside the working
     area of that screen. Elsewhere, where the cursor position isn't read, it goes in the top-right
     corner of the primary screen.
   - When the desktop exposes only the tray menu, Open and Quit remain available.
+- **Pop-out window.** **Pop out** hides the card and shows the same stack in an ordinary,
+  resizable window that stays open when it loses focus. Its header has **Keep on top** in place
+  of Pop out, which keeps the window above other windows. The choice is remembered across
+  launches in the renderer's local storage. Clicking a row opens the item and leaves the window
+  open. Closing the main window for good, or a server crash, closes it.
+- **Staying current.** Each window reloads the stack when it is shown or focused. The main
+  window announces every new history revision on the windows' shared channel, so a pop-out that
+  stays open reloads after edits, completions, status changes and undo in the main window.
+- **Removed:** the single current item (`currentItemId`, the ☆/★ card button and row marker,
+  **Set as current item** menu entries and the details panel button). A stored `currentItemId`
+  row is ignored.
 - **Tests.**
-  - The service against SQLite.
-  - The card and workspace React components.
-  - Headless right-click and button interactions on every surface.
-  - Placement rules.
-  - Card and icon snapshots.
+  - The service and migration against SQLite, and the RPC.
+  - The ordering rule in Core.
+  - The card, pop-out header and keep-on-top toggle as React components, with keyboard access.
+  - Placement rules, and the card, pop-out and keep-on-top in the packaged app.
+  - Card snapshots, filled and empty.
 
 ### 7.19 Tickets and ToDos, add views and drill-in
 
@@ -1673,8 +1689,8 @@ be the parent of either kind. A kind is chosen when the item is added and does n
 - Existing items with a ticket number stay ToDos. The Tickets view (§7.16) still lists
   every open item with a ticket number, of either kind.
 
-**Adding.** Every item card has a 2×2 group at its top right: the current-item ☆ and ⋯ menu
-on top, **Add ToDo** and **Add Ticket** below. They add a child of that card's item. The
+**Adding.** Every item card has a 2×2 group at its top right: the ⋯ menu at the top right,
+**Add ToDo** and **Add Ticket** below. They add a child of that card's item. The
 workspace header has the same two buttons, which add to the area, or to the drilled-in item.
 
 - **Quick add** opens a small dialog. ToDo: Description, Priority, Due date and time,
@@ -1695,7 +1711,7 @@ a child card goes one level deeper, with no depth limit. Breadcrumbs show the pr
 folders and item chain. Routes are `/projects/$projectId/items/$itemId` and
 `…/folders/$folderId/items/$itemId`. `MoveItemToPriorityGroup` takes the level's parent.
 Edit stays on the card and row menus and Enter. The item menu also has **Open**, **Add ToDo…** and
-**Add Ticket…**, the keyboard equivalents of double-click and the card buttons, which, like ☆ and
+**Add Ticket…**, the keyboard equivalents of double-click and the card buttons, which, like
 ⋯, show on hover and take no Tab stop. A ticket's editor shows its fixed fields in place of type,
 repeat, the scheduled block and custom fields.
 
