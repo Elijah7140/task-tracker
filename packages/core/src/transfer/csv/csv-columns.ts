@@ -25,6 +25,29 @@ export const CSV_COLUMNS = {
 /** Every fixed column, in the order an export writes them. */
 export const STANDARD_CSV_COLUMNS: readonly string[] = Object.values(CSV_COLUMNS);
 
+/**
+ * The item kind and fixed ticket fields (§7.19). An export writes them after the fixed
+ * columns only when it holds a ticket, so exports of ToDos keep their earlier form.
+ */
+export const TICKET_CSV_COLUMNS = {
+  kind: "Kind",
+  requestor: "Requestor",
+  application: "Application",
+  module: "Module",
+  interface: "Interface",
+  dispatchedTo: "Dispatched to",
+  pendingUser: "Pending user",
+  ticketType: "Ticket type",
+  version: "Version",
+  estimatedHours: "Est. hours",
+  percentComplete: "% complete",
+  urgent: "Urgent",
+  systemOutage: "System outage",
+} as const;
+
+/** The ticket columns in the order an export writes them. */
+export const TICKET_CSV_COLUMN_NAMES: readonly string[] = Object.values(TICKET_CSV_COLUMNS);
+
 /** Columns an export writes for context that an import recognises but does not use. */
 export const CSV_COLUMNS_IGNORED_ON_IMPORT: readonly string[] = [
   CSV_COLUMNS.project,
@@ -38,7 +61,9 @@ const FIELD_SUFFIX = " (field)";
 /** The fixed column a header names, ignoring case, or undefined. */
 export function standardCsvColumn(name: string): string | undefined {
   const key = nameKey(name);
-  return STANDARD_CSV_COLUMNS.find((column) => nameKey(column) === key);
+  return [...STANDARD_CSV_COLUMNS, ...TICKET_CSV_COLUMN_NAMES].find(
+    (column) => nameKey(column) === key,
+  );
 }
 
 function withoutFieldSuffixes(displayName: string): string {

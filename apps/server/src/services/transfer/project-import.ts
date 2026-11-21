@@ -77,7 +77,7 @@ function createProject(
     id: context.newId(),
     name,
     description: document.description,
-    iconKey: null,
+    iconKey: document.iconKey,
     sortOrder,
     ...importTimestamps(document.createdAtUtc, document.updatedAtUtc, context.now),
     deletedAtUtc: null,

@@ -31,6 +31,28 @@ function customField(definition: FieldDefinition): SearchableField {
   };
 }
 
+/**
+ * The item kind and the fixed ticket fields (§7.19). People, levels and ticket types match by
+ * entry name; a ToDo has no ticket fields, so it matches only IsEmpty, and Urgent and System
+ * outage read as No.
+ */
+export const TICKET_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
+  builtInField("kind", "Kind", "Text"),
+  builtInField("requestor", "Requestor", "Text"),
+  builtInField("dispatched", "Dispatched To", "Text"),
+  builtInField("pending", "Pending User", "Text"),
+  builtInField("application", "Application", "Text"),
+  builtInField("module", "Module", "Text"),
+  builtInField("interface", "Interface", "Text"),
+  builtInField("tickettype", "Ticket Type", "Text"),
+  builtInField("version", "Version", "Text"),
+  builtInField("hours", "Est. Hours", "Number"),
+  builtInField("percent", "Percent Complete", "Number"),
+  builtInField("urgent", "Urgent", "Boolean"),
+  builtInField("outage", "System Outage", "Boolean"),
+  builtInField("comment", "Comments", "Text"),
+];
+
 /** Built-in item columns exposed by the search field registry (§7.2). */
 export const BUILT_IN_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("title", "Title", "Text"),
@@ -44,6 +66,7 @@ export const BUILT_IN_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("link", "Links", "Text"),
   builtInField("repeats", "Repeats", "Boolean"),
   builtInField("reminder", "Reminder", "Boolean"),
+  ...TICKET_SEARCH_FIELDS,
 ];
 
 /** Active lookup and custom choice rows used to populate choice search filters. */

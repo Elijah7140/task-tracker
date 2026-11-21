@@ -19,6 +19,7 @@ import { UndoService } from "../undo-service.js";
 import { DatabaseBackup } from "./database-backup.js";
 import { makeCsvTransfer } from "./csv-transfer.js";
 import { loadExportSource } from "./export-loader.js";
+import { ticketListRepository } from "../../db/repositories/ticket-list-repository.js";
 import type { ImportExisting } from "./import-plan.js";
 import { writeImportPlan } from "./import-writer.js";
 import { planJsonImport } from "./json-import-planner.js";
@@ -51,6 +52,7 @@ const loadExisting = Effect.fnUntraced(function* (sql: SqlClient.SqlClient) {
     projects: yield* projectRepository(sql).listAll(undefined),
     globalSettings: yield* settingsRepository(sql).global(),
     savedSearches: yield* savedSearchRepository(sql).list(),
+    ticketLists: yield* ticketListRepository(sql).list(),
   };
   return existing;
 });

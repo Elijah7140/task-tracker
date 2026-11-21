@@ -8,6 +8,9 @@ import type { PriorityLevel } from "../../lookups/priority-level.js";
 import type { StatusLevel } from "../../lookups/status-level.js";
 import type { Folder } from "../../projects/folder.js";
 import type { Project } from "../../projects/project.js";
+import type { TicketComment } from "../../tickets/ticket-comment.js";
+import type { TicketDetail } from "../../tickets/ticket-detail.js";
+import type { TicketListEntry } from "../../tickets/ticket-list-entry.js";
 
 /** Every lookup, field definition and choice, each list in stored order (sort order, then row). */
 export interface ExportCatalogue {
@@ -16,6 +19,8 @@ export interface ExportCatalogue {
   readonly statuses: readonly StatusLevel[];
   readonly fields: readonly FieldDefinition[];
   readonly choices: readonly FieldChoice[];
+  /** People, ticket types and levels (§7.19). */
+  readonly ticketLists: readonly TicketListEntry[];
 }
 
 /** The active rows of one project. */
@@ -25,6 +30,9 @@ export interface ProjectExportData {
   readonly items: readonly TodoItem[];
   readonly values: readonly ItemFieldValue[];
   readonly links: readonly ItemLink[];
+  /** The tickets' fixed fields and comment logs (§7.19). */
+  readonly ticketDetails: readonly TicketDetail[];
+  readonly comments: readonly TicketComment[];
   readonly settings: ReadonlyMap<string, string>;
 }
 

@@ -1710,10 +1710,21 @@ repeat, the scheduled block and custom fields.
   on the project card menu picks one, or the initial again. The icon shows on the Home card
   and in the sidebar. The change is one undo step, "Change icon of ⟨name⟩".
 
-**Not yet covered**, and planned as follow-ups: search keys for the kind and ticket fields,
-JSON and CSV transfer of the kind, ticket details, comments, lists and project icons (an
-export currently writes a ticket as a ToDo with its number), and Windows baselines, which
-come from CI.
+**Search.** Built-in keys cover the kind and the ticket fields: `kind`, `requestor`,
+`dispatched`, `pending`, `application`, `module`, `interface`, `tickettype` and `version`
+(text, matching entry names), `hours` and `percent` (numbers), `urgent` and `outage` (yes/no)
+and `comment` (comment text). A ToDo has no ticket values, so it matches only IsEmpty, and its
+flags read as No. Migration `12_ReserveTicketSearchKeys` renames custom fields that used one of
+these keys and rewrites saved searches, as earlier reserved keys did.
+
+**Transfer.** JSON stays at version 1. A project carries `iconKey`; a ticket carries
+`kind: "Ticket"`, a `ticket` object of its fixed fields and `comments`; and the document carries
+`ticketLists`. Each is left out when empty, so files without tickets keep their earlier form,
+and files from older versions import every item as a ToDo. On import, list entries match
+existing ones by list, parent and name ignoring case, and the rest are added. CSV adds Kind and
+the ticket columns after the fixed columns, but only when an export holds a ticket; an import
+matches people, ticket types and levels by name, narrowing a level by the one above it.
+Windows baselines come from CI.
 
 **Tests.** Core: ticket-list names, nesting and archive rules, ticket detail validation.
 SQLite: the migration on a populated database, adding each kind with undo, ticket edits,

@@ -10,6 +10,7 @@ import { elementPath } from "./json-path.js";
 import { validateItemTypes, validatePriorityLevels, validateStatuses } from "./lookup-validator.js";
 import { validateSavedSearches } from "./saved-search-validator.js";
 import { validateSettings } from "./settings-validator.js";
+import { type TicketEntryKinds, validateTicketLists } from "./ticket-validator.js";
 import { checkTimestamp } from "./timestamp-checks.js";
 
 function validateProjectHeader(
@@ -23,12 +24,21 @@ function validateProjectHeader(
   checkTimestamp(project.createdAtUtc, `${path}.createdAtUtc`, issues);
   checkTimestamp(project.updatedAtUtc, `${path}.updatedAtUtc`, issues);
   validateSettings(project.settings, `${path}.settings`, issues);
+  const icon = project.iconKey;
+  if (icon !== null && (icon.length > 40 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(icon))) {
+    issues.add(`${path}.iconKey`, "Icon must be a short lowercase name such as 'database'.");
+  }
 }
 
-function validateProjects(document: ExportDocument, index: ImportIndex, issues: IssueList): void {
+function validateProjects(
+  document: ExportDocument,
+  index: ImportIndex,
+  ticketEntries: TicketEntryKinds,
+  issues: IssueList,
+): void {
   const projectIds = new Set<string>();
   const folders = new FolderValidator(issues, new Set());
-  const items = new ItemValidator(index, issues, new Set());
+  const items = new ItemValidator(index, issues, new Set(), ticketEntries);
   listOf(document.projects).forEach((project, position) => {
     const path = elementPath("$.projects", position);
     validateProjectHeader(project, path, projectIds, issues);
@@ -48,7 +58,8 @@ export function validateImportDocument(document: ExportDocument): readonly Trans
   validatePriorityLevels(document.priorityLevels, "$.priorityLevels", issues);
   validateStatuses(document.statuses, "$.statuses", issues);
   new FieldDocumentValidator(index, issues).validate(document.fields);
-  validateProjects(document, index, issues);
+  const ticketEntries = validateTicketLists(document.ticketLists, issues);
+  validateProjects(document, index, ticketEntries, issues);
   validateSavedSearches(document.savedSearches, index, issues);
   return issues.items;
 }

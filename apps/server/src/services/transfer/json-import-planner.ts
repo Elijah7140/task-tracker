@@ -17,6 +17,7 @@ import {
 import { importLookups } from "./lookup-import.js";
 import { importProjects } from "./project-import.js";
 import { importSavedSearches } from "./saved-search-import.js";
+import { importTicketLists } from "./ticket-list-import.js";
 
 function emptyPlan(): ImportPlan {
   return {
@@ -32,6 +33,9 @@ function emptyPlan(): ImportPlan {
     values: [],
     links: [],
     savedSearches: [],
+    ticketLists: [],
+    ticketDetails: [],
+    comments: [],
   };
 }
 
@@ -39,6 +43,7 @@ function planAll(context: ImportContext, existing: ImportExisting): TransferSumm
   importLookups(context, existing);
   const projects = importProjects(context, existing);
   importFields(context, existing);
+  importTicketLists(context, existing);
   if (context.issues.count > 0) {
     return null;
   }

@@ -13,7 +13,8 @@ import {
   formatTransferUtc,
 } from "../transfer-time-format.js";
 import { protectCsvCell } from "./csv-cells.js";
-import { csvFieldHeader, STANDARD_CSV_COLUMNS } from "./csv-columns.js";
+import { csvFieldHeader, STANDARD_CSV_COLUMNS, TICKET_CSV_COLUMN_NAMES } from "./csv-columns.js";
+import { writeCsvTicketCells } from "./csv-ticket-cells.js";
 import { orderCsvItems } from "./csv-item-order.js";
 import { writeCsvPriorityReference } from "./csv-priority-reference.js";
 import { ProjectCsvRows } from "./project-csv-rows.js";
@@ -61,8 +62,13 @@ class CsvExporter {
   readonly #statuses: ReadonlyMap<string, string>;
   readonly #fields: ReadonlyMap<string, FieldDefinition>;
   readonly #choices: ReadonlyMap<string, string>;
+  readonly #entries: ReadonlyMap<string, string>;
 
-  constructor(catalogue: ExportCatalogue) {
+  constructor(
+    catalogue: ExportCatalogue,
+    private readonly withTickets: boolean,
+  ) {
+    this.#entries = new Map(catalogue.ticketLists.map((entry) => [entry.id, entry.name]));
     this.#types = new Map(catalogue.itemTypes.map((type) => [type.id, type.name]));
     this.#priorities = new Map(catalogue.priorityLevels.map((level) => [level.id, level]));
     this.#statuses = new Map(catalogue.statuses.map((status) => [status.id, status.name]));
@@ -98,7 +104,21 @@ class CsvExporter {
         .join(" "),
       optional(item.recurrence, describeRecurrence),
     ];
-    return [...cells, ...columns.map((column) => this.#fieldCell(rows, item, column))];
+    const ticketCells = this.withTickets ? this.#ticketCells(rows, item) : [];
+    return [
+      ...cells,
+      ...ticketCells,
+      ...columns.map((column) => this.#fieldCell(rows, item, column)),
+    ];
+  }
+
+  /** Kind and the fixed ticket fields (§7.19); a ToDo leaves the ticket cells blank. */
+  #ticketCells(rows: ProjectCsvRows, item: TodoItem): string[] {
+    if (item.kind !== "Ticket") {
+      return ["ToDo", ...TICKET_CSV_COLUMN_NAMES.slice(1).map(() => "")];
+    }
+    const cells = writeCsvTicketCells(rows.ticketOf(item), this.#entries, formatStjDouble);
+    return ["Ticket", ...cells.map((cell) => protectCsvCell(cell))];
   }
 
   #fieldCell(rows: ProjectCsvRows, item: TodoItem, column: FieldColumn): string {
@@ -146,12 +166,18 @@ export function exportCsv(
   itemOrder: readonly string[] | null,
 ): string {
   const columns = fieldColumns(visibleFields(catalogue, projects));
-  const exporter = new CsvExporter(catalogue);
+  const selected = selectItems(projects, itemOrder);
+  const withTickets = selected.some(({ item }) => item.kind === "Ticket");
+  const exporter = new CsvExporter(catalogue, withTickets);
   const rowsByProject = new Map(
     projects.map((data) => [data.project.id, new ProjectCsvRows(data)]),
   );
-  const header = [...STANDARD_CSV_COLUMNS, ...columns.map((column) => column.header)];
-  const items = selectItems(projects, itemOrder).map(({ data, item }) =>
+  const header = [
+    ...STANDARD_CSV_COLUMNS,
+    ...(withTickets ? TICKET_CSV_COLUMN_NAMES : []),
+    ...columns.map((column) => column.header),
+  ];
+  const items = selected.map(({ data, item }) =>
     exporter.itemRow(rowsByProject.get(data.project.id)!, item, columns),
   );
   return writeCsv([header, ...items]);

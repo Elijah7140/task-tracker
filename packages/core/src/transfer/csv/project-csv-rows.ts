@@ -2,6 +2,7 @@ import type { ItemFieldValue } from "../../fields/item-field-value.js";
 import type { ItemLink } from "../../items/item-link.js";
 import type { TodoItem } from "../../items/todo-item.js";
 import type { Folder } from "../../projects/folder.js";
+import type { TicketDetail } from "../../tickets/ticket-detail.js";
 import type { ProjectExportData } from "../json/export-source.js";
 
 const FOLDER_SEPARATOR = "/";
@@ -34,6 +35,7 @@ export class ProjectCsvRows {
   readonly #itemsById: ReadonlyMap<string, TodoItem>;
   readonly #values: ReadonlyMap<string, ItemFieldValue[]>;
   readonly #links: ReadonlyMap<string, ItemLink[]>;
+  readonly #tickets: ReadonlyMap<string, TicketDetail>;
 
   constructor(readonly data: ProjectExportData) {
     const foldersById = new Map(data.folders.map((folder) => [folder.id, folder]));
@@ -41,6 +43,12 @@ export class ProjectCsvRows {
     this.#itemsById = new Map(data.items.map((item) => [item.id, item]));
     this.#values = groupBy(data.values, (value) => value.itemId);
     this.#links = groupBy(data.links, (link) => link.itemId);
+    this.#tickets = new Map(data.ticketDetails.map((detail) => [detail.itemId, detail]));
+  }
+
+  /** A ticket's fixed fields, or undefined for a ToDo or a ticket with none saved (§7.19). */
+  ticketOf(item: TodoItem): TicketDetail | undefined {
+    return this.#tickets.get(item.id);
   }
 
   /** The item's folder names from the top level down, joined by `/`; empty at the root. */

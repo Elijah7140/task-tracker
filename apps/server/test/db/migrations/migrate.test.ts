@@ -64,8 +64,8 @@ it.effect("Applies pending schema stages once without rewriting existing lookups
     const upgrade = yield* migrate;
     const replay = yield* migrate;
 
-    expect(upgrade).toHaveLength(10);
-    expect(upgrade.at(-1)).toEqual([11, "AddTickets"]);
+    expect(upgrade).toHaveLength(11);
+    expect(upgrade.at(-1)).toEqual([12, "ReserveTicketSearchKeys"]);
     expect(replay).toEqual([]);
     expect(yield* tables).toContainEqual(["TodoItemSearch"]);
     expect(yield* tables).toContainEqual(["FieldDefinition"]);
@@ -215,4 +215,33 @@ it.effect(
         yield* sql`SELECT TextValue FROM ItemFieldValue WHERE FieldDefinitionId = 'has'`.values,
       ).toEqual([["Preserved"]]);
     }).pipe(withDatabase),
+);
+
+it.effect("Renames custom fields that used a ticket search key and rewrites saved searches", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* Migrator.make({})({
+      loader: Effect.map(databaseMigrations, (migrations) => migrations.slice(0, 11)),
+    });
+    yield* sql.withTransaction(
+      Effect.gen(function* () {
+        yield* sql`INSERT INTO FieldDefinition (Id, Key, DisplayName, DataType, IsArchived, SortOrder, ProjectId)
+        VALUES ('custom-module', 'module', 'Module', 'Text', 0, 0, NULL),
+               ('custom-version', 'version', 'Version', 'Text', 0, 1, NULL)`;
+        yield* sql`INSERT INTO SavedSearch (Id, Name, QueryText, ScopeKind, ProjectId, IncludeSubfolders,
+        IncludeCompleted, SortOrder, CreatedAtUtc, UpdatedAtUtc)
+        VALUES ('all', 'All', 'module:train version:1', 'AllProjects', NULL, 0, 1, 0, ${timestamp}, ${timestamp})`;
+      }),
+    );
+
+    yield* migrate;
+
+    expect(yield* sql`SELECT Key FROM FieldDefinition ORDER BY SortOrder`.values).toEqual([
+      ["module-2"],
+      ["version-2"],
+    ]);
+    expect(yield* sql`SELECT QueryText FROM SavedSearch`.values).toEqual([
+      ["module-2:train version-2:1"],
+    ]);
+  }).pipe(withDatabase),
 );

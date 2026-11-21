@@ -10,6 +10,8 @@ import { projectRepository } from "../../db/repositories/project-repository.js";
 import { savedSearchRepository } from "../../db/repositories/saved-search-repository.js";
 import { settingsRepository } from "../../db/repositories/settings-repository.js";
 import { statusRepository } from "../../db/repositories/status-repository.js";
+import { ticketDetailRepository } from "../../db/repositories/ticket-detail-repository.js";
+import { ticketListRepository } from "../../db/repositories/ticket-list-repository.js";
 import { appendNewTickets } from "../ticket-ranks.js";
 import type { ImportPlan } from "./import-plan.js";
 
@@ -39,6 +41,9 @@ export const writeImportPlan = Effect.fnUntraced(function* (
   yield* each(plan.items, itemRepository(sql).insert);
   yield* each(plan.values, itemFieldValueRepository(sql).upsert);
   yield* each(plan.links, itemLinkRepository(sql).insert);
+  yield* each(plan.ticketLists, ticketListRepository(sql).insert);
+  yield* each(plan.ticketDetails, ticketDetailRepository(sql).upsert);
+  yield* each(plan.comments, ticketDetailRepository(sql).insertComment);
   yield* each(plan.savedSearches, savedSearchRepository(sql).insert);
   yield* appendNewTickets(
     sql,

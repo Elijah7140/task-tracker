@@ -8,6 +8,7 @@ import {
   type SavedSearch,
   type SavedSearchDocument,
   type SearchScope,
+  TICKET_SEARCH_FIELDS,
 } from "@task-tracker/core";
 import { rewriteQueryField } from "../../db/migrations/rewrite-query-field.js";
 import {
@@ -21,7 +22,13 @@ import {
 const GUID_REFERENCE = /#([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
 
 /** Custom keys that later became built-in; a renamed field keeps its saved references. */
-const LEGACY_KEYS = ["link", "repeats", "reminder", "completed"];
+const LEGACY_KEYS = [
+  "link",
+  "repeats",
+  "reminder",
+  "completed",
+  ...TICKET_SEARCH_FIELDS.map((field) => field.key),
+];
 
 function scopeOf(context: ImportContext, document: SavedSearchDocument): SearchScope {
   const kind = parseTransferScopeKind(document.scopeKind);

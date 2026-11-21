@@ -1,4 +1,6 @@
 import type { FieldValueInput } from "../../fields/field-value-input.js";
+import type { ItemKind } from "../../items/item-kind.js";
+import type { TicketDetailInput } from "../../tickets/ticket-detail.js";
 
 /** One validated row of an import file, with its lookups resolved to ids. */
 export interface CsvImportRow {
@@ -16,4 +18,8 @@ export interface CsvImportRow {
   readonly completedAtUtc: Temporal.Instant | null;
   readonly fieldValues: readonly FieldValueInput[];
   readonly linkUrls: readonly string[];
+  /** ToDo unless the Kind column says Ticket (§7.19). */
+  readonly kind: ItemKind;
+  /** A ticket's fixed fields with list entries resolved; null for a ToDo. */
+  readonly ticket: TicketDetailInput | null;
 }
