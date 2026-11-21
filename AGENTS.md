@@ -23,9 +23,8 @@ Shipping beats polishing. Commit early and often, and get finished work onto
   static check and the tests for what you touched, then commit and push straight
   to `main`. CI still runs on the push; fix forward if it goes red.
 - **Big change**: open a PR and merge once CI is green. A change is big when it
-  touches database schema or migrations, packaging, release or the updater,
-  shared dependency versions, or screens that need new Windows baselines, or when
-  it spans several packages at once.
+  touches database schema or migrations, packaging, release or the updater, or
+  shared dependency versions, or when it spans several packages at once.
 
 When unsure, treat it as small. A red CI run on `main` is cheap to fix forward.
 
