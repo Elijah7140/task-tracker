@@ -23,9 +23,8 @@ Shipping beats polishing. Commit early and often, and get finished work onto
   static check and the tests for what you touched, then commit and push straight
   to `main`. CI still runs on the push; fix forward if it goes red.
 - **Big change**: open a PR and merge once CI is green. A change is big when it
-  touches database schema or migrations, packaging, release or the updater,
-  shared dependency versions, or screens that need new Windows baselines, or when
-  it spans several packages at once.
+  touches database schema or migrations, packaging, release or the updater, or
+  shared dependency versions, or when it spans several packages at once.
 
 When unsure, treat it as small. A red CI run on `main` is cheap to fix forward.
 
@@ -59,7 +58,8 @@ Once desktop packaging lands, run `pnpm run package:desktop` before
 `pnpm run test:desktop`.
 
 On Linux, source `scripts/dev-env.sh` for user-local GTK. CI runs on GitHub-hosted
-Linux and Windows runners for every push and pull request ([docs/CI.md](docs/CI.md)).
+Linux and Windows runners for every pull request and push to `main`
+([docs/CI.md](docs/CI.md)).
 The local gate in that file is an optional pre-push check.
 
 ## Code
@@ -110,11 +110,13 @@ activation, Run-key startup) drop `TASKTRACKER_DB_PATH` and other test variables
 so they fall back to the default data folder. Back that folder up before any hand
 check and confirm it is byte-identical afterwards.
 
-Review baselines on their respective operating systems. Windows baselines come from
-the `windows-latest` CI run's `browser-screenshot-diffs-windows` artifact, because
-DirectWrite output differs between Windows builds. For Linux changes the
-project lead reviews the `browser-screenshot-diffs-linux` CI artifact or the
-received images from a Linux test run.
+Screenshot baselines are Linux-only (PLAN §11.1, decision 11). Commit only
+`*-linux.png` images, reviewed from a Linux test run or the
+`browser-screenshot-diffs-linux-*` CI artifacts. On Windows the browser tests run
+every assertion except the screenshot comparison, and the packaged smoke covers the
+real desktop. To see how changed screens look on Windows, run the **Windows
+screenshots** workflow on the branch and review its `windows-screenshots` artifact.
+The owner's hands-on review on Windows 11 is the final visual check.
 
 ## Subagents
 

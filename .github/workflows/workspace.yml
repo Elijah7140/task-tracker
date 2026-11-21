@@ -1,9 +1,9 @@
 name: CI
 
-# Every push and pull request runs on GitHub-hosted runners. See docs/CI.md.
+# Pull requests and pushes to main run on GitHub-hosted runners. See docs/CI.md.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -15,9 +15,11 @@ concurrency:
   # Finish every main build so its history stays complete.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# The jobs run in parallel. Each OS gets one checks job, two browser-test shards and
+# two packaged-smoke shards.
 jobs:
-  workspace:
-    name: Build and test (${{ matrix.platform }})
+  checks:
+    name: Build, check and Node tests (${{ matrix.platform }})
     strategy:
       fail-fast: false
       matrix:
@@ -27,25 +29,14 @@ jobs:
           - platform: windows
             runner: windows-latest
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup-workspace
         with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Install Chromium and Linux desktop dependencies
-        if: runner.os == 'Linux'
-        run: |
-          pnpm exec playwright install --with-deps chromium
-          sudo apt-get install -y --no-install-recommends xvfb xauth dbus
-      - name: Install Chromium on Windows
-        if: runner.os == 'Windows'
-        run: pnpm exec playwright install chromium
+          linux-desktop: "true"
       - run: pnpm run build
       - run: pnpm exec vp check --deny-warnings
       - name: Verify the Vite renderer responds
@@ -56,20 +47,12 @@ jobs:
           trap 'kill "$dev_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 \
             --output /dev/null http://127.0.0.1:5173/
-      # %TEMP% sits on the Windows runner's OS disk, where each flush to disk takes about
-      # 4 ms and sometimes seconds. Tests that commit to SQLite files there timed out. The
-      # runner's D: drive (RUNNER_TEMP) flushes in 0.1 ms. See docs/CI.md.
-      - name: Keep temporary files off the Windows OS disk
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-      - run: pnpm exec vp test run
+      - run: pnpm run test:node
+      # The server ships inside Electron, so its SQLite and RPC suites run only there.
       - name: Run SQLite and RPC tests under the Electron runtime
         run: pnpm run test:server-db:electron
       # Every installed copy of Electron's sandbox helper must be setuid root, as for the
-      # packaged smoke below (WP22).
+      # packaged smoke (WP22).
       - name: Verify Electron runtime on Linux
         if: runner.os == 'Linux'
         run: |
@@ -79,7 +62,71 @@ jobs:
       - name: Verify Electron runtime on Windows
         if: runner.os == 'Windows'
         run: pnpm run check:electron
+
+  browser:
+    name: Browser tests (${{ matrix.platform }}, ${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, windows]
+        shard: [1, 2]
+        include:
+          - platform: linux
+            runner: ubuntu-latest
+          - platform: windows
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+        with:
+          chromium: "true"
+      - run: pnpm run test:browser --shard=${{ matrix.shard }}/2
+      - name: Upload differing browser screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshot-diffs-${{ matrix.platform }}-${{ matrix.shard }}
+          path: |
+            .vitest/attachments/**/*.png
+            test-results/**/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  desktop:
+    name: Packaged desktop smoke (${{ matrix.platform }}, ${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, windows]
+        shard: [1, 2]
+        include:
+          - platform: linux
+            runner: ubuntu-latest
+          - platform: windows
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+        with:
+          linux-desktop: "true"
+      # electron-builder downloads NSIS and 7-Zip on every Windows package otherwise.
+      - name: Restore electron-builder downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/electron-builder
+          key: electron-builder-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-builder-${{ runner.os }}-
       - run: pnpm run package:desktop
+        env:
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
       # The packaged Chromium sandbox helper must be setuid root (WP22).
       - name: Run packaged desktop smoke on Linux
         if: runner.os == 'Linux'
@@ -87,11 +134,12 @@ jobs:
           sandbox=apps/desktop/dist/package/linux-unpacked/chrome-sandbox
           sudo chown root:root "$sandbox"
           sudo chmod 4755 "$sandbox"
-          xvfb-run -a pnpm run test:desktop
+          xvfb-run -a pnpm run test:desktop --shard=${{ matrix.shard }}/2
       - name: Run packaged desktop smoke on Windows
         if: runner.os == 'Windows'
-        run: pnpm run test:desktop
+        run: pnpm run test:desktop --shard=${{ matrix.shard }}/2
       - name: Upload desktop installers
+        if: matrix.shard == 1
         uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.platform }}-x64
@@ -100,13 +148,3 @@ jobs:
             apps/desktop/dist/package/*.exe
           if-no-files-found: error
           retention-days: 7
-      - name: Upload differing browser screenshots
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: browser-screenshot-diffs-${{ matrix.platform }}
-          path: |
-            .vitest/attachments/**/*.png
-            test-results/**/*.png
-          include-hidden-files: true
-          if-no-files-found: ignore

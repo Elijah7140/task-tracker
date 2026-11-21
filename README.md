@@ -31,18 +31,21 @@ On Linux, Electron requires GTK 3. If installed user-locally under
 pnpm exec playwright install chromium
 pnpm run build
 pnpm exec vp check --deny-warnings
-pnpm exec vp test run
+pnpm run test:node
+pnpm run test:browser
 pnpm run test:server-db:electron
 ```
 
 On a Linux host that needs Chromium system dependencies, use
 `pnpm exec playwright install --with-deps chromium`. For a focused test run,
 pass a Vitest project such as `--project core` to `pnpm exec vp test run`.
-The Electron database suite runs the server's SQLite and RPC tests under the
-same embedded Node runtime the desktop app ships.
+`test:node` runs every Node project except the server's SQLite and RPC suites,
+`test:browser` runs the Chromium suite, and the Electron database suite runs the
+server suites under the same embedded Node runtime the desktop app ships, so
+nothing runs twice. `pnpm exec vp test run` still runs every project under Node.
 
 CI runs this gate, plus packaging and the packaged smoke, on GitHub-hosted
-Linux and Windows runners for every push and pull request. See
+Linux and Windows runners for every pull request and push to `main`. See
 [CI](docs/CI.md). To run it before pushing, use `pwsh ./scripts/ci-local.ps1`
 on Windows or `bash scripts/ci-local.sh` on Linux.
 

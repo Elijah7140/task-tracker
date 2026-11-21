@@ -13,9 +13,11 @@ import { useSidebarStore } from "../../src/state/sidebar-store.js";
 import { useThemeStore } from "../../src/state/theme-store.js";
 import { initialTransferState, useTransferStore } from "../../src/state/transfer-store.js";
 import { initialWorkspaceState, useWorkspaceStore } from "../../src/state/workspace-store.js";
+import { skipScreenshotComparisonUnlessEnabled } from "./linux-only-screenshots.js";
 import { expectOnlyBundledFonts } from "./platform-fonts.js";
 
 configure({ reactStrictMode: true });
+skipScreenshotComparisonUnlessEnabled();
 
 beforeEach(() => {
   localStorage.clear();

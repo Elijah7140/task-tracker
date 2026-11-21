@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "pnpm --filter @task-tracker/desktop dev",
     "build": "pnpm -r run build",
+    "test:node": "vp test run --project=!web-browser --project=!server-db --project=!server-rpc",
+    "test:browser": "vp test run --project=web-browser",
     "test:server-db:electron": "node scripts/test-server-db-electron.mjs",
     "check:electron": "pnpm --filter @task-tracker/desktop check:runtime",
     "package:desktop": "pnpm run build && pnpm --filter @task-tracker/desktop run package",

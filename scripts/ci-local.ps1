@@ -10,12 +10,14 @@ try {
     pnpm exec playwright install chromium
     pnpm run build
     pnpm exec vp check --deny-warnings
-    pnpm exec vp test run
+    pnpm run test:node
+    pnpm run test:browser
     pnpm run test:server-db:electron
     pnpm run check:electron
 
     if (!$SkipPack) {
-        pnpm run package:desktop
+        # The build above is current, so package without package:desktop rebuilding.
+        pnpm --filter @task-tracker/desktop run package
         pnpm run test:desktop
     }
 } finally {
