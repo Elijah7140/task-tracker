@@ -13,6 +13,14 @@ in [docs/MIGRATION.md](docs/MIGRATION.md).
   Commit when the brief requests commits. The project lead handles branch pushes
   and merges unless the owner delegates those explicitly.
 
+## Starting a session
+
+Before creating a branch or worktree from `main`, bring `main` up to date with
+the remote. Run `git fetch origin` and branch from `origin/main`, or fast-forward
+the local `main` first (`git pull --ff-only`). If your session already started on
+a branch, rebase it onto the freshly fetched `origin/main` before making changes.
+Never branch from a stale local `main`.
+
 ## Commands
 
 Use the Node 26 and pnpm 12 versions pinned in `.node-version` and `package.json`.
