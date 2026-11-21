@@ -9,6 +9,7 @@ import { ItemLink, ItemLinkInput } from "./item-link.js";
 import { RecurrenceRule } from "./recurrence-rule.js";
 import { ReminderChoice } from "./reminder.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
+import { AddTicketsError, NewTicketInput } from "./ticket-batch.js";
 import {
   ItemKind,
   TicketCommentProjection,
@@ -43,6 +44,18 @@ export const ItemRpcs = RpcGroup.make(
     },
     success: Item,
     error: RpcOperationError,
+  }),
+  /**
+   * Adds every ticket from the tray's multi-ticket add view to the top of one area, in
+   * order, as one transaction and one undo step (§7.20).
+   */
+  Rpc.make("AddTickets", {
+    payload: {
+      ...area,
+      tickets: Schema.Array(NewTicketInput).check(Schema.isMinLength(1)),
+    },
+    success: Schema.Array(Item),
+    error: AddTicketsError,
   }),
   /** A ticket's fixed fields and comment log (§7.19). */
   Rpc.make("LoadTicket", {

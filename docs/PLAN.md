@@ -1608,7 +1608,7 @@ the owner is working on.
   window, taskbar and executable use the same checklist art. Generate `assets/icon.ico` and
   `assets/icon.png` from `assets/icon.svg` with `node apps/desktop/scripts/icons.mjs`. The tray icon
   shows under the same `KeepRunningInTray` rules as before (§7.12). The menu keeps **Open** and
-  **Quit**.
+  **Quit**, and gains **Add tickets…** (§7.20).
 - **Tray card.** A single left click on the icon shows a small borderless card next to it.
   - **Contents:** the title, the project and folder path, a Completed chip, status, priority, due
     date and time, the first lines of the notes, and **Open in Task Tracker**, which brings the
@@ -1732,6 +1732,50 @@ comments, list management, project icons and moving cards at a nested level. Bro
 both quick-add dialogs with expand, the setting that opens detailed views, the card buttons,
 drill-in by double-click, the sidebar toggle and the Appearance setting. Light and dark
 baselines for the changed screens.
+
+### 7.20 Multi-ticket add from the tray
+
+Requested by the owner on 21 Nov 2026: right-click the tray icon to add several tickets at
+once. Each ticket's key fields are filled in and Add moves it to a list on the right. Done,
+at the bottom right under that list, closes the view and adds every listed ticket. The owner
+chose one destination for the whole batch, the quick-add field set, an all-or-nothing save
+and a normal window. The other decisions below were made while building it and are listed
+for review.
+
+- **Opening it.** The tray menu reads **Open**, **Add tickets…**, **Quit**. Add tickets… opens
+  a normal framed window (960 × 640, resizable, at least 720 × 480) on the renderer page with
+  the `#/add-tickets` hash. A second click brings the open window forward with what it holds.
+  The window stays open when it loses focus and has the main window's isolation (§4).
+- **Destination.** **Add to** pickers across the top choose a project and a folder, or the
+  project's **Top level**. Every ticket in the batch goes to the top level of that area, with
+  no parent ticket. The last destination saved is remembered per device in local storage. A
+  missing project or folder falls back to the first project and its top level. Changing the
+  project starts at its top level. With no projects, the view says to create one first.
+- **Form.** The left column has quick add's ticket fields without Parent ticket (§7.19):
+  Ticket #, Summary, Detail, Module, Interface, Dispatched to and Priority. The ticket number
+  takes focus. **Add**, or Enter in a single-line box, checks quick add's rules (a ticket
+  number, then a summary). It moves the ticket to the end of the list and clears the form for
+  the next ticket.
+- **List.** The right column, **To add (n)**, shows each ticket as "#number · Summary" with
+  **Edit** and **Remove**. Edit moves the ticket back into the form. It is disabled while the
+  form holds typing, so it never replaces what was typed.
+- **Done.** Done, disabled while the list is empty, sends the list as one `AddTickets` call.
+  The tickets are added in list order as one transaction and one undo step: "Create
+  ⟨summary⟩" for one ticket, "Create n tickets" otherwise. They join the bottom of their
+  Tickets sections in order (§7.16). On success the view clears, the window closes and the
+  app's other windows reload. When a rule refuses any ticket (an entry archived since it was
+  picked, for example), nothing is saved. The view stays open, marks that ticket in red and
+  shows the server's message.
+- **Closing.** Closing the window while the form or the list holds anything asks "Discard the
+  tickets you haven't added?" with **Discard** and **Keep editing**. The page refuses to
+  unload and Electron main asks. A server restart closes the window without asking, as it does
+  the tray card.
+- **Tests.** SQLite: the batch's order, ranks, undo and redo, a folder destination, a refused
+  ticket that saves nothing and names its index, and an empty batch. RPC: `TicketRejected`
+  with its index. React: the list rules, the destination fallback and storage, and the view
+  with simulated input (Add, Enter, Edit, Remove, Done, a refused ticket and the unload guard).
+  Electron: the tray menu, adding a batch that the main window then shows, and the discard
+  prompt. Light and dark baselines of the view.
 
 ## 8. User interface (React)
 
