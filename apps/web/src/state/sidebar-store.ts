@@ -2,7 +2,8 @@ import { create } from "zustand";
 
 const STORAGE_KEY = "task-tracker.sidebar-expanded";
 
-function readStoredExpanded(): boolean {
+/** The stored width choice: expanded only when the user chose it; a new install is collapsed. */
+export function readStoredExpanded(): boolean {
   try {
     return globalThis.localStorage?.getItem(STORAGE_KEY) === "true";
   } catch {

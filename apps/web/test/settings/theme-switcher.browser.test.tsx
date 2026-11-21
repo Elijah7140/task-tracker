@@ -1,3 +1,4 @@
+import { readStoredPreference } from "../../src/state/theme-store.js";
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { renderApp } from "../support/render-app.js";
@@ -40,13 +41,9 @@ describe("Theme default", () => {
   it("Starts dark on a new install with nothing stored", async () => {
     localStorage.clear();
 
-    // A query string gives a fresh module instance, which reads storage as a new launch does.
-    const freshModule = "../../src/state/theme-store.js?fresh";
-    const { useThemeStore } = (await import(
-      /* @vite-ignore */ freshModule
-    )) as typeof import("../../src/state/theme-store.js");
+    const preference = readStoredPreference();
 
-    expect(useThemeStore.getState().preference).toBe("dark");
+    expect(preference).toBe("dark");
   });
 
   it("Has no theme control in the sidebar", async () => {
