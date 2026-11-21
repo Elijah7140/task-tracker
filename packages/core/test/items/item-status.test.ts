@@ -11,10 +11,38 @@ import {
 import { earlier, item, now, projectId } from "../fixtures.js";
 
 const statuses: StatusLevel[] = [
-  { id: "testing", name: "Testing", kind: "Open", isArchived: false, sortOrder: 0 },
-  { id: "done", name: "Completed", kind: "Done", isArchived: false, sortOrder: 1 },
-  { id: "released", name: "Released", kind: "Done", isArchived: false, sortOrder: 2 },
-  { id: "blocked", name: "Blocked", kind: "Open", isArchived: true, sortOrder: 3 },
+  {
+    id: "testing",
+    name: "Testing",
+    kind: "Open",
+    isArchived: false,
+    sortOrder: 0,
+    isInProgress: false,
+  },
+  {
+    id: "done",
+    name: "Completed",
+    kind: "Done",
+    isArchived: false,
+    sortOrder: 1,
+    isInProgress: false,
+  },
+  {
+    id: "released",
+    name: "Released",
+    kind: "Done",
+    isArchived: false,
+    sortOrder: 2,
+    isInProgress: false,
+  },
+  {
+    id: "blocked",
+    name: "Blocked",
+    kind: "Open",
+    isArchived: true,
+    sortOrder: 3,
+    isInProgress: false,
+  },
 ];
 
 function tree(...rows: TodoItem[]) {

@@ -64,8 +64,8 @@ it.effect("Applies pending schema stages once without rewriting existing lookups
     const upgrade = yield* migrate;
     const replay = yield* migrate;
 
-    expect(upgrade).toHaveLength(11);
-    expect(upgrade.at(-1)).toEqual([12, "ReserveTicketSearchKeys"]);
+    expect(upgrade).toHaveLength(12);
+    expect(upgrade.at(-1)).toEqual([13, "AddInProgressStatuses"]);
     expect(replay).toEqual([]);
     expect(yield* tables).toContainEqual(["TodoItemSearch"]);
     expect(yield* tables).toContainEqual(["FieldDefinition"]);
@@ -244,4 +244,28 @@ it.effect("Renames custom fields that used a ticket search key and rewrites save
       ["module-2:train version-2:1"],
     ]);
   }).pipe(withDatabase),
+);
+
+it.effect("Marks only the seeded In progress status as in progress", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const marked = yield* sql.withTransaction(
+      sql`SELECT Name FROM StatusLevel WHERE IsInProgress = 1`.values,
+    );
+
+    expect(marked).toEqual([["In progress"]]);
+  }).pipe(withSchema),
+);
+
+it.effect("Refuses the In progress mark on a Done status in storage", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const refused = yield* Effect.flip(
+      sql.withTransaction(sql`UPDATE StatusLevel SET IsInProgress = 1 WHERE Kind = 1`),
+    );
+
+    expect(String(refused.cause)).toContain("CK_StatusLevel_IsInProgress");
+  }).pipe(withSchema),
 );

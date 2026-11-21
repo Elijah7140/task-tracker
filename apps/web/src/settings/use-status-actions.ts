@@ -3,6 +3,7 @@ import type { StatusKind, StatusProjection } from "@task-tracker/contracts";
 import { NAME_VALIDATION } from "../dialogs/name-validation.js";
 import { reportFailure } from "../dialogs/report-failure.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
+import { IN_PROGRESS_KEY } from "../rpc/in-progress-queries.js";
 import { LOOKUPS_KEY } from "../rpc/lookup-queries.js";
 import { TaskTrackerClient } from "../rpc/task-tracker-client.js";
 import { prompt } from "../state/dialog-store.js";
@@ -13,6 +14,7 @@ const renameAtom = TaskTrackerClient.mutation("RenameStatus");
 const archiveAtom = TaskTrackerClient.mutation("ArchiveStatus");
 const restoreAtom = TaskTrackerClient.mutation("RestoreStatus");
 const reorderAtom = TaskTrackerClient.mutation("ReorderStatuses");
+const setInProgressAtom = TaskTrackerClient.mutation("SetStatusInProgress");
 
 type Status = typeof StatusProjection.Type;
 
@@ -25,6 +27,7 @@ export function useStatusActions() {
   const archive = useAtomSet(archiveAtom, options);
   const restore = useAtomSet(restoreAtom, options);
   const reorder = useAtomSet(reorderAtom, options);
+  const setInProgress = useAtomSet(setInProgressAtom, options);
 
   const saveOrder = async (ids: readonly string[] | null) =>
     ids !== null &&
@@ -52,6 +55,14 @@ export function useStatusActions() {
       reportFailure("Status validation", await archive({ payload: { id }, reactivityKeys })),
     restore: async (id: string) =>
       reportFailure("Status validation", await restore({ payload: { id }, reactivityKeys })),
+    setInProgress: async (id: string, isInProgress: boolean) =>
+      reportFailure(
+        "Status validation",
+        await setInProgress({
+          payload: { id, isInProgress },
+          reactivityKeys: [...reactivityKeys, IN_PROGRESS_KEY],
+        }),
+      ),
     move: (rows: readonly Status[], id: string, direction: -1 | 1) =>
       saveOrder(swapActiveLookup(rows, id, direction)),
     dragReorder: (rows: readonly Status[], draggedId: string, targetId: string) =>

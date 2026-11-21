@@ -1,5 +1,5 @@
 import { expect, it } from "@effect/vitest";
-import { optionalGuidCodec, SettingsCatalogue } from "../../src/index.js";
+import { optionalGuidCodec } from "../../src/index.js";
 
 it("reads an empty or blank value as no identifier", () => {
   const empty = optionalGuidCodec.parse("");
@@ -24,12 +24,4 @@ it("rejects text that is not an identifier", () => {
   const parse = () => optionalGuidCodec.parse("not-a-guid");
 
   expect(parse).toThrow(SyntaxError);
-});
-
-it("stores the current item as a global setting with no default", () => {
-  const definition = SettingsCatalogue.currentItemId;
-
-  expect(definition.key).toBe("currentItemId");
-  expect(definition.defaultValue).toBeNull();
-  expect(definition.projectOverridable).toBe(false);
 });

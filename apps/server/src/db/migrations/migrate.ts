@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
 import addCustomFields from "./add-custom-fields.js";
+import addInProgressStatuses from "./add-in-progress-statuses.js";
 import addItemLinks from "./add-item-links.js";
 import addItemSearch from "./add-item-search.js";
 import addRecurrence from "./add-recurrence.js";
@@ -27,6 +28,7 @@ export const databaseMigrations = Migrator.fromRecord({
   "10_AddTicketRank": addTicketRank,
   "11_AddTickets": addTickets,
   "12_ReserveTicketSearchKeys": reserveTicketSearchKeys,
+  "13_AddInProgressStatuses": addInProgressStatuses,
 });
 
 /** Records the validated EF stages and applies any remaining migrations in the same transaction. */

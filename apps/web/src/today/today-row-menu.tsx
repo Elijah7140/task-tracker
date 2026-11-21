@@ -1,6 +1,5 @@
 import type { TodayRow } from "@task-tracker/contracts";
 import { Flag, SquareArrowOutUpRight } from "lucide-react";
-import { CurrentItemMenuItem } from "../current-item/current-item-menu-item.js";
 import { ContextMenuContent, MenuItem } from "../ui/menu.js";
 import { ItemStatusMenu } from "../workspace/item-status-menu.js";
 import { PushBackMenuItem } from "../workspace/push-back-menu-item.js";
@@ -16,8 +15,7 @@ export const todayPushBackState = (row: Row) => ({
 });
 
 /**
- * A Today row's menu: Open, Set status, Set priority, Push back one day (§7.14)
- * and Set as current item (§7.18).
+ * A Today row's menu: Open, Set status, Set priority and Push back one day (§7.14).
  */
 export function TodayRowMenu({
   row,
@@ -49,7 +47,6 @@ export function TodayRowMenu({
         testId="item-menu-set-priority"
       />
       <PushBackMenuItem state={todayPushBackState(row)} onPushBack={() => actions.pushBack(row)} />
-      <CurrentItemMenuItem itemId={row.itemId} mode="set" />
     </ContextMenuContent>
   );
 }

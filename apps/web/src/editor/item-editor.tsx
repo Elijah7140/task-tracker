@@ -3,7 +3,6 @@ import type { AreaSnapshot } from "@task-tracker/contracts";
 import { CornerLeftUp, X } from "lucide-react";
 import type { TicketDetailInput } from "@task-tracker/contracts";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
-import { CurrentItemButton } from "../current-item/current-item-button.js";
 import { areaKey } from "../rpc/area-queries.js";
 import {
   carriedItemEditor,
@@ -44,13 +43,11 @@ const backdropClass =
   "fixed inset-0 bg-backdrop transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0";
 
 function EditorHeader({
-  itemId,
   ticket,
   parent,
   onOpenParent,
   onClose,
 }: {
-  readonly itemId: string;
   readonly ticket: boolean;
   readonly parent: ItemNode | undefined;
   readonly onOpenParent: (itemId: string) => void;
@@ -73,12 +70,10 @@ function EditorHeader({
           <span className="truncate">{parent.item.title}</span>
         </button>
       )}
-      <span className="ml-auto">
-        <CurrentItemButton itemId={itemId} />
-      </span>
       <Button
         variant="ghost"
         size="icon"
+        className="ml-auto"
         aria-label="Close editor"
         onClick={onClose}
         data-testid="item-editor-close"
@@ -178,7 +173,6 @@ function EditorContent({
   return (
     <>
       <EditorHeader
-        itemId={node.item.id}
         ticket={ticket}
         parent={parentId === null ? undefined : findItemNode(snapshot.items, parentId)}
         onOpenParent={openItem}

@@ -14,12 +14,23 @@ export interface DesktopBridge {
   /** Calls `listener` when a reminder notification is clicked. Returns the unsubscribe. */
   onReminderActivated?(listener: (activation: unknown) => void): () => void;
   /**
-   * From the tray card window only: hides the card, brings the main window
-   * forward and opens the item there (§7.18). Resolves false when main refuses.
+   * From the tray card or the popped-out in-progress window: brings the main
+   * window forward and opens the item there, hiding the tray card (§7.18).
+   * Resolves false when main refuses.
    */
   readonly openItemFromTrayCard?: (itemId: string) => Promise<boolean>;
   /** From the tray card window only: reports the card's drawn height so main fits the window. */
   readonly reportTrayCardHeight?: (height: number) => void;
+  /**
+   * From the tray card window only: hides the card and shows the in-progress
+   * stack in its own window, which stays open when it loses focus (§7.18).
+   */
+  readonly popOutTrayCard?: () => Promise<boolean>;
+  /**
+   * From the popped-out in-progress window only: keeps it above other windows
+   * or stops doing so. Resolves with the state main applied.
+   */
+  readonly setInProgressWindowOnTop?: (onTop: boolean) => Promise<boolean>;
   /** The build version and installed-build state, as `DesktopInstallation` (§7.13). */
   readonly getInstallation?: () => Promise<unknown>;
   /** Asks main to check the release feed. Resolves with an `UpdateCheckResult`. */

@@ -11,4 +11,6 @@ export const StatusProjection = Schema.Struct({
   kind: StatusKind,
   isArchived: Schema.Boolean,
   sortOrder: Schema.Int,
+  /** Open items with this status are listed on the tray card (§7.18). */
+  isInProgress: Schema.Boolean,
 });

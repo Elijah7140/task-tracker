@@ -15,4 +15,4 @@ export { SearchQueryService } from "./services/search-query-service.js";
 export { ReminderService } from "./services/reminder-service.js";
 export { ReminderScheduler } from "./services/reminder-scheduler.js";
 export { ReminderNotifier } from "./services/reminder-notifier.js";
-export { CurrentItemService } from "./services/current-item-service.js";
+export { InProgressService } from "./services/in-progress-service.js";
