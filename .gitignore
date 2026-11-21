@@ -25,3 +25,7 @@ playwright-report/
 .vite/
 .vitest/
 *.log
+
+# Screenshot baselines are Linux-only (§11.1). Captured Windows screenshots are for
+# review and never committed.
+**/__screenshots__/**/*-win32.png

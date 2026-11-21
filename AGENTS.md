@@ -87,11 +87,13 @@ activation, Run-key startup) drop `TASKTRACKER_DB_PATH` and other test variables
 so they fall back to the default data folder. Back that folder up before any hand
 check and confirm it is byte-identical afterwards.
 
-Review baselines on their respective operating systems. Windows baselines come from
-the `windows-latest` CI run's `browser-screenshot-diffs-windows-*` artifacts, because
-DirectWrite output differs between Windows builds. For Linux changes the
-project lead reviews the `browser-screenshot-diffs-linux-*` CI artifacts or the
-received images from a Linux test run.
+Screenshot baselines are Linux-only (PLAN §11.1, decision 11). Commit only
+`*-linux.png` images, reviewed from a Linux test run or the
+`browser-screenshot-diffs-linux-*` CI artifacts. On Windows the browser tests run
+every assertion except the screenshot comparison, and the packaged smoke covers the
+real desktop. To see how changed screens look on Windows, run the **Windows
+screenshots** workflow on the branch and review its `windows-screenshots` artifact.
+The owner's hands-on review on Windows 11 is the final visual check.
 
 ## Subagents
 

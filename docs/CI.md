@@ -6,6 +6,7 @@ free for this public repository. There are no self-hosted runners.
 | Workflow | Jobs and runners | When |
 |---|---|---|
 | [CI](../.github/workflows/workspace.yml) | Checks, browser tests and packaged smoke on `ubuntu-latest` and `windows-latest` | Every pull request and push to `main`, or **Actions → CI → Run workflow** |
+| [Windows screenshots](../.github/workflows/windows-screenshots.yml) | Capture every browser-test screenshot on `windows-latest` for review | **Actions → Windows screenshots → Run workflow** on any branch |
 | [Release](../.github/workflows/release.yml) | Package on `windows-latest`, `ubuntu-latest` and `macos-latest`, then publish on `ubuntu-latest` | Push of a `v*` tag |
 | Local gate (`scripts/ci-local.*`) | Developer machine | Optional, before pushing |
 
@@ -62,7 +63,7 @@ so it plays no part.
 The first smoke shard of each OS uploads its installer as `package-linux-x64` or
 `package-windows-x64` for a week. A failing browser shard uploads differing
 screenshots as `browser-screenshot-diffs-<os>-<shard>`, for example
-`browser-screenshot-diffs-windows-2`.
+`browser-screenshot-diffs-linux-2`. Only Linux shards compare screenshots.
 
 ## Release
 
@@ -89,9 +90,24 @@ The gate runs the same steps as CI, one after another, except the renderer probe
 
 ## Snapshot baselines
 
-Review Windows baselines on Windows and Linux baselines on Linux. Use the
-`browser-screenshot-diffs-*` artifacts of the failing CI shards or the received images
-from a local test run on that OS.
+Screenshot baselines are Linux-only. Linux Chromium output is reproducible with the
+pinned fontconfig and launch switches in `vite.config.ts`. Windows output changes
+between Windows builds, so a Windows baseline would only describe one runner image,
+not the Windows 11 desktops the app runs on, and every image update needed a second
+CI round.
+
+Review Linux baselines from the `browser-screenshot-diffs-linux-*` artifacts of the
+failing CI shards or the received images from a local Linux run. On Windows,
+`toMatchScreenshot` passes without capturing
+([linux-only-screenshots.ts](../apps/web/test/support/linux-only-screenshots.ts)); the
+same tests still run every other assertion there, and the packaged smoke tests the
+real Windows desktop.
+
+To see how screens look on Windows, run the **Windows screenshots** workflow on the
+branch. It sets `TASKTRACKER_CAPTURE_SCREENSHOTS=1`, runs `test:browser --update` on
+`windows-latest` and uploads every `*-win32.png` as the `windows-screenshots` artifact
+for two weeks. It never fails a build over a difference. `.gitignore` keeps captured
+Windows images out of commits.
 
 ## Security
 

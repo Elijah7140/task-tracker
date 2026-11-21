@@ -18,6 +18,14 @@ const screenshotLaunchOptions = {
   },
 };
 
+/**
+ * Screenshot baselines are Linux-only (§11.1, apps/web/test/support/linux-only-screenshots.ts).
+ * The on-demand Windows screenshots workflow sets TASKTRACKER_CAPTURE_SCREENSHOTS to
+ * capture this platform's images for review instead (docs/CI.md).
+ */
+const comparesScreenshots =
+  process.platform === "linux" || process.env["TASKTRACKER_CAPTURE_SCREENSHOTS"] === "1";
+
 // Web suites read the contracts source so they run without a prior build.
 const webTestResolve = {
   dedupe: ["react", "react-dom"],
@@ -138,6 +146,7 @@ export default defineConfig({
           // Chromium starved their workers and pushed loopback RPC tests past 5 s.
           sequence: { groupOrder: 1 },
           setupFiles: ["test/support/browser-setup.ts"],
+          provide: { comparesScreenshots },
           browser: {
             enabled: true,
             headless: true,

@@ -1,0 +1,37 @@
+name: Windows screenshots
+
+# Captures every browser-test screenshot on windows-latest for a person to review.
+# Screenshot baselines are Linux-only, so this never gates anything (docs/CI.md).
+# Run it from Actions → Windows screenshots → Run workflow, choosing the branch.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Capture Windows screenshots
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+        with:
+          chromium: "true"
+      # With no Windows baselines committed, --update writes each screenshot as a new
+      # *-win32.png next to its Linux baseline.
+      - name: Capture screenshots
+        run: pnpm run test:browser --update
+        env:
+          TASKTRACKER_CAPTURE_SCREENSHOTS: "1"
+      - name: Upload Windows screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-screenshots
+          path: apps/web/test/**/__screenshots__/**/*-win32.png
+          if-no-files-found: error
+          retention-days: 14

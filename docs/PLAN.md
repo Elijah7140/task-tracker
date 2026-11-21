@@ -1724,7 +1724,6 @@ and files from older versions import every item as a ToDo. On import, list entri
 existing ones by list, parent and name ignoring case, and the rest are added. CSV adds Kind and
 the ticket columns after the fixed columns, but only when an export holds a ticket; an import
 matches people, ticket types and levels by name, narrowing a level by the one above it.
-Windows baselines come from CI.
 
 **Tests.** Core: ticket-list names, nesting and archive rules, ticket detail validation.
 SQLite: the migration on a populated database, adding each kind with undo, ticket edits,
@@ -1881,7 +1880,7 @@ clipboard reconstruction and Pending notes remain proposals from 13 Nov 2026. Se
 | Database integration | Vitest, `@effect/vitest`, `node:sqlite` | Real `:memory:` SQLite for repositories, transactions, migrations and future search. Use temporary files for EF compatibility, backup/WAL and reopen tests | Every build, CI on both OSes |
 | RPC integration | `@effect/vitest` | Schema validation, message round trips, errors and write/confirmation behavior with real SQLite | Every phase once RPC lands, CI on both OSes |
 | Web behavior | Vitest and `@vitest/browser-playwright` | Controller state, mounted React components and real browser input for focus, shortcuts, gestures, click paths and dialogs | Every phase once web work lands, CI on both OSes |
-| Visual baselines | Playwright screenshots in Chromium | Approved key screens and dialogs in light and dark. Review changes before updating images | With browser tests on both OSes |
+| Visual baselines | Playwright screenshots in Chromium | Approved key screens and dialogs in light and dark. Review changes before updating images | With browser tests on Linux. Windows captures on demand for review (decision 11) |
 | Desktop smoke | Playwright Electron | Launch the packaged app, navigate, perform 5–10 core workflows and verify persistence after restart | CI on Windows and Linux |
 | Owner review | Hands-on demo | Check the phase's deliverable and review changed baselines | End of each phase, before merge |
 
@@ -1889,9 +1888,10 @@ clipboard reconstruction and Pending notes remain proposals from 13 Nov 2026. Se
   Use accessible roles/names and stable `data-testid` identifiers on interactive
   controls. A new or changed screen ships with a reviewed baseline.
 - Fix clock, time zone, locale, Inter font, viewport and seeded data. Run tests with
-  isolated databases. Generate and review Linux baselines on Linux (locally or in
-  CI) and Windows baselines on the Windows machine or in Windows CI. Upload
-  differing screenshots as CI artifacts.
+  isolated databases. Generate and review baselines on Linux (locally or in CI);
+  they are the only committed baselines. Windows runs the same browser tests
+  without the screenshot comparison; capture Windows screenshots on demand to
+  review them. Upload differing screenshots as CI artifacts.
 - A bug found by hand gets a regression test at the lowest layer that catches it.
 
 ### 11.2 Commands
@@ -1942,6 +1942,13 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
     Linux and Windows for every pull request and push to `main` (narrowed from every
     push on 21 Nov 2026, so a pull request's commits no longer run twice). Releases,
     including unsigned macOS packaging, run on GitHub-hosted runners.
+11. **Linux-only screenshot baselines (21 Nov 2026).** Compare screenshots only on
+    Linux, where Chromium output is reproducible. Windows keeps every browser
+    behavior test and the packaged desktop smoke, but not pixel baselines: Windows
+    output differs between Windows builds, so `windows-latest` images described the
+    runner rather than users' Windows 11 desktops, and each update needed extra CI
+    rounds. Windows look is checked by the owner's hands-on review and by an
+    on-demand workflow that captures Windows screenshots for review.
 
 ## Appendix A. Historical review log
 
