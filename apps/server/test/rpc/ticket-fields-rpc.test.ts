@@ -146,3 +146,39 @@ it.effect("Reports a ticket without a number as a rule violation and sets a proj
     }),
   ),
 );
+
+it.effect("Adds a batch of tickets and names the refused ticket of a batch over RPC", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area } = yield* setup;
+
+      const added = yield* client.AddTickets({
+        ...area,
+        tickets: [
+          { fields, ticket: noTicketFields },
+          { fields: { ...fields, ticketNumber: "385406", title: "Badge reader offline" } },
+        ],
+      });
+      const refused = yield* Effect.flip(
+        client.AddTickets({
+          ...area,
+          tickets: [{ fields }, { fields: { ...fields, ticketNumber: null } }],
+        }),
+      );
+      const history = yield* client.GetHistory();
+      const loaded = yield* client.LoadArea(area);
+
+      expect(added.map((item) => [item.kind, item.ticketNumber])).toEqual([
+        ["Ticket", "385405"],
+        ["Ticket", "385406"],
+      ]);
+      expect(refused).toMatchObject({
+        _tag: "TicketRejected",
+        index: 1,
+        message: "A ticket needs a ticket number.",
+      });
+      expect(history.undo).toBe("Create 2 tickets");
+      expect(loaded.items.open).toHaveLength(2);
+    }),
+  ),
+);

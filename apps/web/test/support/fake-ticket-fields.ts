@@ -1,11 +1,13 @@
 import {
   type ItemRpcs,
+  type NotFound,
   type ProjectWorkspaceRpcs,
   RuleViolation,
   type TicketCommentProjection,
   type TicketDetailInput,
   type TicketListEntryProjection,
   type TicketListRpcs,
+  TicketRejected,
 } from "@task-tracker/contracts";
 import { Effect } from "effect";
 import type { Rpc } from "effect/rpc";
@@ -27,6 +29,7 @@ type Payload<Group, Tag extends string> = Group extends {
     : never
   : never;
 type AddItemPayload = Payload<typeof ItemRpcs, "AddItem">;
+type AddTicketsPayload = Payload<typeof ItemRpcs, "AddTickets">;
 type SetIconPayload = Payload<typeof ProjectWorkspaceRpcs, "SetProjectIcon">;
 type AddEntryPayload = Payload<typeof TicketListRpcs, "AddTicketListEntry">;
 
@@ -53,6 +56,12 @@ export class FakeTicketFields {
   readonly comments = new Map<string, Array<Comment>>();
   /** The last AddItem payload, so tests can assert what a dialog sent. */
   lastAdd: AddItemPayload | null = null;
+
+  /** The last AddTickets payload, so tests can assert what the tray's batch sent. */
+  lastBatch: AddTicketsPayload | null = null;
+
+  /** A refusal the next AddTickets returns for one ticket, as the server's rules would. */
+  rejectNextBatch: { readonly index: number; readonly message: string } | null = null;
 
   /** The ticket fields the last editor save sent, or undefined when it sent none. */
   lastEditTicket: Detail | undefined = undefined;
@@ -147,6 +156,55 @@ function addItem(store: TicketFieldsStore, record: (tag: string) => Effect.Effec
     );
 }
 
+/** The first ticket of a batch the fake refuses, with the server's message. */
+function batchRejection(data: FakeTicketFields, payload: AddTicketsPayload) {
+  const planned = data.rejectNextBatch;
+  data.rejectNextBatch = null;
+  if (planned !== null) {
+    return new TicketRejected(planned);
+  }
+  const index = payload.tickets.findIndex((ticket) => !ticket.fields.ticketNumber?.trim());
+  return index === -1
+    ? null
+    : new TicketRejected({ index, message: "A ticket needs a ticket number." });
+}
+
+/** Adds every ticket in order to the area's top level, or nothing when one is refused. */
+function addTickets(store: TicketFieldsStore, record: (tag: string) => Effect.Effect<unknown>) {
+  const add = addItem(store, () => Effect.void);
+  return (payload: AddTicketsPayload) =>
+    record("AddTickets").pipe(
+      Effect.andThen((): Effect.Effect<unknown, TicketRejected | RuleViolation | NotFound> => {
+        store.ticketFields.lastBatch = payload;
+        const rejection = batchRejection(store.ticketFields, payload);
+        if (rejection !== null) {
+          return Effect.fail(rejection);
+        }
+        return store.requireArea(payload.projectId, payload.folderId);
+      }),
+      Effect.andThen(() =>
+        Effect.forEach(payload.tickets, ({ fields, ticket }) =>
+          add({
+            projectId: payload.projectId,
+            folderId: payload.folderId,
+            parentItemId: null,
+            kind: "Ticket",
+            fields,
+            ...(ticket === undefined ? {} : { ticket }),
+          }),
+        ),
+      ),
+    );
+}
+
+/** "Create ⟨title⟩" for one ticket, or "Create n tickets", as the server labels a batch. */
+function batchLabel(payload: AddTicketsPayload) {
+  const [first] = payload.tickets;
+  return payload.tickets.length === 1 && first !== undefined
+    ? `Create '${first.fields.title.trim()}'`
+    : `Create ${payload.tickets.length} tickets`;
+}
+
 function listHandlers(store: TicketFieldsStore, record: (tag: string) => Effect.Effect<unknown>) {
   const data = store.ticketFields;
   const update = (id: string, change: Partial<Entry>) => {
@@ -172,7 +230,7 @@ function listHandlers(store: TicketFieldsStore, record: (tag: string) => Effect.
   };
 }
 
-/** Handlers for AddItem, tickets, ticket lists and project icons, recorded as history steps. */
+/** Handlers for AddItem, AddTickets, tickets, ticket lists and project icons, recorded as history steps. */
 export function ticketFieldHandlers(
   store: TicketFieldsStore,
   record: (tag: string) => Effect.Effect<unknown>,
@@ -186,6 +244,8 @@ export function ticketFieldHandlers(
     ...listHandlers(store, record),
     AddItem: (payload: AddItemPayload) =>
       track(addItem(store, record)(payload), () => `Create '${payload.fields.title.trim()}'`),
+    AddTickets: (payload: AddTicketsPayload) =>
+      track(addTickets(store, record)(payload), () => batchLabel(payload)),
     LoadTicket: ({ itemId }: { readonly itemId: string }) =>
       record("LoadTicket").pipe(
         Effect.map(() => ({

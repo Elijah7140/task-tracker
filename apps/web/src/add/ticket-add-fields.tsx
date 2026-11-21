@@ -18,6 +18,8 @@ export interface TicketAddFieldsProps extends DraftProps {
   readonly detailed: boolean;
   readonly lookups: AddLookups;
   readonly firstFieldRef: Ref<HTMLInputElement>;
+  /** Shows Parent ticket in quick add; the tray's multi-ticket add has no parent (§7.20). */
+  readonly withParent?: boolean | undefined;
 }
 
 type LevelProps = DraftProps & { readonly lookups: AddLookups };
@@ -91,6 +93,7 @@ const personOptions = (lookups: AddLookups, selected: string) =>
 function QuickTicketFields({
   lookups,
   firstFieldRef,
+  withParent = true,
   ...draft
 }: Omit<TicketAddFieldsProps, "detailed">) {
   return (
@@ -112,13 +115,15 @@ function QuickTicketFields({
         testId="add-dispatched-to"
         options={personOptions(lookups, draft.draft.dispatchedToId)}
       />
-      <DraftSelect
-        {...draft}
-        field="parentItemId"
-        label="Parent ticket"
-        testId="add-parent"
-        options={lookups.parentOptions}
-      />
+      {withParent ? (
+        <DraftSelect
+          {...draft}
+          field="parentItemId"
+          label="Parent ticket"
+          testId="add-parent"
+          options={lookups.parentOptions}
+        />
+      ) : null}
       <DraftSelect
         {...draft}
         field="priorityLevelId"
@@ -134,6 +139,7 @@ function QuickTicketFields({
 function DetailedTicketFields({
   lookups,
   firstFieldRef,
+  withParent: _withParent,
   ...draft
 }: Omit<TicketAddFieldsProps, "detailed">) {
   const people = (selected: string) => personOptions(lookups, selected);

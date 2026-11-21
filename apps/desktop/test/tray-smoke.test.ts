@@ -101,7 +101,7 @@ async function launchKeepingTray(desktop: DesktopFixture, bus: FakeSessionBus | 
   const page = await firstWindow(application);
   const tray = await observeTray(application);
   await keepRunningInTray(page);
-  await expect.poll(tray.labels).toEqual(["Open", "Quit"]);
+  await expect.poll(tray.labels).toEqual(["Open", "Add tickets…", "Quit"]);
   return { application, page, tray };
 }
 

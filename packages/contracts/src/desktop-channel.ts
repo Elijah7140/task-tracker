@@ -41,3 +41,9 @@ export const ReminderActivation = Schema.Struct({ itemId: Schema.NullOr(Guid) })
  * renderer page with it, and the renderer shows only the card for it.
  */
 export const TRAY_CARD_HASH = "#/tray-card";
+
+/**
+ * The location hash of the multi-ticket add window the tray menu opens (§7.20). Electron
+ * main loads the renderer page with it, and the renderer shows only that view for it.
+ */
+export const ADD_TICKETS_HASH = "#/add-tickets";

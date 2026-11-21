@@ -102,21 +102,17 @@ function addRow(
 }
 
 /**
- * Adds a ToDo or Ticket with its fields, ticket details and custom values as one undo step,
- * "Create ⟨title⟩" (§7.19). Adding an open child reopens completed ancestors (§6.1), and a
- * numbered item joins the bottom of its Tickets section (§7.16).
+ * The steps every add shares (§7.19): `prepare` validates one input and places its row in
+ * a loaded area tree. After the tree is saved, `writeExtras` saves its ticket details and
+ * custom values, and `rankTickets` ranks the new tickets together, in order, so none is
+ * ranked as a legacy row first. Callers own the transaction and the undo step.
  */
-export function itemAddOperation(
-  sql: SqlClient.SqlClient,
-  undo: UndoService["Service"],
-  dependencies: ItemAddDependencies,
-) {
+export function itemAddSteps(sql: SqlClient.SqlClient) {
   const statuses = statusRepository(sql);
   const lists = ticketListRepository(sql);
   const details = ticketDetailRepository(sql);
   const customValues = itemCustomValues(sql);
   const requireActivePriority = activePriorityCheck(sql);
-  const { completion } = dependencies;
   type CustomPlan = Effect.Success<ReturnType<typeof customValues.plan>>;
 
   const planTicket = Effect.fnUntraced(function* (row: TodoItem, input: ItemAddInput) {
@@ -130,23 +126,11 @@ export function itemAddOperation(
     );
   });
 
-  const writeExtras = Effect.fnUntraced(function* (
-    row: TodoItem,
-    ticket: TicketDetail | null,
-    custom: CustomPlan | undefined,
+  const prepare = Effect.fnUntraced(function* (
+    tree: ItemTree,
+    input: ItemAddInput,
+    now: Temporal.Instant,
   ) {
-    if (ticket !== null) {
-      yield* details.upsert(ticket);
-    }
-    if (custom !== undefined) {
-      yield* customValues.write(row.id, custom);
-    }
-    if (row.ticketNumber !== null && row.completedAtUtc === null) {
-      yield* appendNewTickets(sql, [row.id]);
-    }
-  });
-
-  return Effect.fnUntraced(function* (input: ItemAddInput) {
     yield* checkRules(() => checkKindFields(input));
     const parentId = yield* decodeNullableId(input.parentItemId);
     const priorityLevelId = yield* decodeNullableId(input.fields.priorityLevelId);
@@ -154,9 +138,6 @@ export function itemAddOperation(
     const statusId = yield* decodeNullableId(input.fields.statusId ?? null);
     yield* requireActivePriority(priorityLevelId);
     const available = yield* statuses.list();
-    const tree = yield* dependencies.loadAreaTree(input.projectId, input.folderId);
-    const original = new Map(tree.allRows.map((row) => [row.id, row]));
-    const now = yield* operationTime;
     const fields = { ...input.fields, priorityLevelId, itemTypeId, statusId };
     const row = yield* checkRules(() =>
       addRow(tree, { ...input, fields }, parentId, openStatusId(statusId, available), now),
@@ -166,14 +147,60 @@ export function itemAddOperation(
       input.customValues.length === 0
         ? undefined
         : yield* customValues.plan(row, input.customValues);
-    const applied = yield* completion.planReconciliation(tree, [parentId], now);
+    return { row, parentId, ticket, custom };
+  });
+
+  const writeExtras = Effect.fnUntraced(function* (prepared: {
+    readonly row: TodoItem;
+    readonly ticket: TicketDetail | null;
+    readonly custom: CustomPlan | undefined;
+  }) {
+    const { row, ticket, custom } = prepared;
+    if (ticket !== null) {
+      yield* details.upsert(ticket);
+    }
+    if (custom !== undefined) {
+      yield* customValues.write(row.id, custom);
+    }
+  });
+
+  /** Ranks the new open tickets at the bottom of their Tickets sections in one pass (§7.16). */
+  const rankTickets = (rows: readonly TodoItem[]) =>
+    appendNewTickets(
+      sql,
+      rows.map((row) => row.id),
+    );
+
+  return { prepare, writeExtras, rankTickets };
+}
+
+/**
+ * Adds a ToDo or Ticket with its fields, ticket details and custom values as one undo step,
+ * "Create ⟨title⟩" (§7.19). Adding an open child reopens completed ancestors (§6.1), and a
+ * numbered item joins the bottom of its Tickets section (§7.16).
+ */
+export function itemAddOperation(
+  sql: SqlClient.SqlClient,
+  undo: UndoService["Service"],
+  dependencies: ItemAddDependencies,
+) {
+  const steps = itemAddSteps(sql);
+  const { completion } = dependencies;
+
+  return Effect.fnUntraced(function* (input: ItemAddInput) {
+    const tree = yield* dependencies.loadAreaTree(input.projectId, input.folderId);
+    const original = new Map(tree.allRows.map((row) => [row.id, row]));
+    const now = yield* operationTime;
+    const prepared = yield* steps.prepare(tree, input, now);
+    const applied = yield* completion.planReconciliation(tree, [prepared.parentId], now);
     yield* undo.capture(
-      undoLabel("Create", row.title),
+      undoLabel("Create", prepared.row.title),
       areaUndoSources(sql, tree.projectId, tree.folderId),
     );
     yield* dependencies.saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);
-    yield* writeExtras(row, ticket, custom);
-    return row;
+    yield* steps.writeExtras(prepared);
+    yield* steps.rankTickets([prepared.row]);
+    return prepared.row;
   }, undo.record);
 }
