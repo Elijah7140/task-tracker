@@ -285,8 +285,22 @@ describe("recurring completion", () => {
 
 describe("recurring status changes", () => {
   const statuses: StatusLevel[] = [
-    { id: "testing", name: "Testing", kind: "Open", isArchived: false, sortOrder: 0 },
-    { id: "done", name: "Completed", kind: "Done", isArchived: false, sortOrder: 1 },
+    {
+      id: "testing",
+      name: "Testing",
+      kind: "Open",
+      isArchived: false,
+      sortOrder: 0,
+      isInProgress: false,
+    },
+    {
+      id: "done",
+      name: "Completed",
+      kind: "Done",
+      isArchived: false,
+      sortOrder: 1,
+      isInProgress: false,
+    },
   ];
 
   it("A Done status kept from the parent by a new occurrence explains why", () => {

@@ -6,6 +6,7 @@ import {
   externalLinkAddress,
   Guid,
   type RpcConnection,
+  IN_PROGRESS_WINDOW_HASH,
   TRAY_CARD_HASH,
 } from "@task-tracker/contracts";
 import {
@@ -53,6 +54,7 @@ import {
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
 import { createTrayCardWindow, type TrayCardWindow } from "./tray-card-window.js";
+import { createInProgressWindow, type InProgressWindow } from "./in-progress-window.js";
 import { applicationMenuTemplate } from "./application-menu.js";
 import { decideTrayClose } from "./tray-close-decision.js";
 import { windowsAppIdentity } from "./windows-app-identity.js";
@@ -75,8 +77,10 @@ const iconPath = app.isPackaged
   ? join(process.resourcesPath, "icon.png")
   : fileURLToPath(new URL("../../../assets/icon.png", import.meta.url));
 
-/** The current item card a left click on the tray icon shows (§7.18). */
+/** The in-progress card a left click on the tray icon shows (§7.18). */
 let trayCard: TrayCardWindow | undefined;
+/** The card's stack popped out into a window that stays open (§7.18). */
+let inProgressWindow: InProgressWindow | undefined;
 
 const tray = createAppTray({
   iconPath,
@@ -284,8 +288,9 @@ function createWindow(url: string) {
   renderer.on("focus", requestReminderCheck);
   renderer.once("closed", () => {
     window = undefined;
-    // A hidden card would otherwise keep the app running after its last window.
+    // A hidden card or the pop-out would otherwise keep the app running after its last window.
     trayCard?.destroy();
+    inProgressWindow?.destroy();
   });
   return renderer;
 }
@@ -345,8 +350,9 @@ async function showServerStopped(renderer: BrowserWindow) {
 async function handleCrash(diagnostic: string, address: RendererAddress) {
   server = undefined;
   connection = undefined;
-  // The card's page holds the old connection; the next click opens it afresh.
+  // The card's and pop-out's pages hold the old connection; the next click opens them afresh.
   trayCard?.destroy();
+  inProgressWindow?.destroy();
   if (quitting || window === undefined) {
     return;
   }
@@ -473,9 +479,15 @@ async function openApplication(early: EarlyStart | Error) {
     servePackagedRenderer(() => connection?.port);
   }
   denyPermissions();
+  const preload = fileURLToPath(new URL("./preload.cjs", import.meta.url));
   trayCard = createTrayCardWindow({
     url: `${address.url}${TRAY_CARD_HASH}`,
-    preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),
+    preload,
+    devTools: !app.isPackaged,
+  });
+  inProgressWindow = createInProgressWindow({
+    url: `${address.url}${IN_PROGRESS_WINDOW_HASH}`,
+    preload,
     devTools: !app.isPackaged,
   });
   registerRendererHandlers(address, installation);
@@ -514,6 +526,23 @@ function isTrayCardFrame(
   );
 }
 
+/** Limits pop-out calls to the main frame of the in-progress window at its page (§7.18). */
+function isInProgressWindowFrame(event: Electron.IpcMainInvokeEvent, address: RendererAddress) {
+  const frame = event.senderFrame;
+  return (
+    inProgressWindow?.isSender(event.sender) === true &&
+    frame?.parent === null &&
+    frame.url === `${address.url}${IN_PROGRESS_WINDOW_HASH}`
+  );
+}
+
+/** Hides the card and shows its stack in the window that stays open (§7.18). */
+function popOutTrayCard() {
+  trayCard?.hide();
+  inProgressWindow?.show();
+  return inProgressWindow !== undefined;
+}
+
 const decodeItemId = Schema.decodeUnknownOption(Guid);
 
 /** Hides the card and opens a valid item in the main window, as reminder activation does. */
@@ -542,13 +571,27 @@ function registerRendererHandlers(
     grant: (grant) => server?.send(grant) ?? false,
   });
   ipcMain.handle("task-tracker:get-rpc-connection", (event) => {
-    if (!isRendererFrame(event, address) && !isTrayCardFrame(event, address)) {
+    const known =
+      isRendererFrame(event, address) ||
+      isTrayCardFrame(event, address) ||
+      isInProgressWindowFrame(event, address);
+    if (!known) {
       throw new Error("RPC connection requested by an unexpected frame.");
     }
     return connection;
   });
   ipcMain.handle("task-tracker:open-item-from-tray-card", (event, value: unknown) =>
-    isTrayCardFrame(event, address) ? openItemFromTrayCard(value) : false,
+    isTrayCardFrame(event, address) || isInProgressWindowFrame(event, address)
+      ? openItemFromTrayCard(value)
+      : false,
+  );
+  ipcMain.handle("task-tracker:pop-out-tray-card", (event) =>
+    isTrayCardFrame(event, address) ? popOutTrayCard() : false,
+  );
+  ipcMain.handle("task-tracker:set-in-progress-window-on-top", (event, value: unknown) =>
+    isInProgressWindowFrame(event, address)
+      ? (inProgressWindow?.setAlwaysOnTop(value) ?? false)
+      : false,
   );
   ipcMain.on("task-tracker:tray-card-height", (event, value: unknown) => {
     if (isTrayCardFrame(event, address)) {

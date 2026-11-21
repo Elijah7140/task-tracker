@@ -49,6 +49,7 @@ const completedLedger = [
   { migration_id: 10, name: "AddTicketRank" },
   { migration_id: 11, name: "AddTickets" },
   { migration_id: 12, name: "ReserveTicketSearchKeys" },
+  { migration_id: 13, name: "AddInProgressStatuses" },
 ];
 const childId = "019A0000-0000-7000-8000-000000000CCB";
 const parentId = "019A0000-0000-7000-8000-000000000CCA";
@@ -129,11 +130,11 @@ function schema(path: string) {
   }));
 }
 
-/** Leaves out what the Effect-only tickets stage adds or alters (§7.19). */
-function withoutTicketStage(objects: ReadonlyArray<Readonly<Record<string, unknown>>>) {
+/** Leaves out what the Effect-only tickets (§7.19) and in-progress (§7.18) stages add or alter. */
+function withoutLaterStages(objects: ReadonlyArray<Readonly<Record<string, unknown>>>) {
   return objects.filter(
     (object) =>
-      !["Project", "TodoItem"].includes(String(object["name"])) &&
+      !["Project", "TodoItem", "StatusLevel"].includes(String(object["name"])) &&
       !String(object["tbl_name"]).startsWith("Ticket"),
   );
 }
@@ -184,7 +185,7 @@ it.effect("Adopts the final EF fixture without changing its rows, schema or inde
     yield* start(fresh.path);
 
     expect(schema(path)).toEqual(schema(fresh.path));
-    expect(withoutTicketStage(schema(path))).toEqual(withoutTicketStage(originalSchema));
+    expect(withoutLaterStages(schema(path))).toEqual(withoutLaterStages(originalSchema));
     expect(history(path)).toEqual(originalHistory);
     expectOriginalRows(path, before);
     expect(ledger(path)).toEqual(completedLedger);

@@ -14,6 +14,8 @@ export const lookupRpcHandlers = LookupRpcs.toLayer(
       RenameStatus: ({ id, name }) => statuses.rename(id, name).pipe(mapOperationError),
       ArchiveStatus: ({ id }) => statuses.archive(id).pipe(mapOperationError),
       RestoreStatus: ({ id }) => statuses.restore(id).pipe(mapOperationError),
+      SetStatusInProgress: ({ id, isInProgress }) =>
+        statuses.setInProgress(id, isInProgress).pipe(mapOperationError),
       ReorderStatuses: ({ ids }) => statuses.reorder(ids).pipe(mapOperationError),
       ListItemTypes: () => itemTypes.list().pipe(mapOperationError),
       AddItemType: ({ name }) => itemTypes.add(name).pipe(mapOperationError),

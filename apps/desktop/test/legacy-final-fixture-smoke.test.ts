@@ -113,7 +113,7 @@ async function ticketState(page: Page) {
   return { status, due };
 }
 
-/** Checks the legacy item values the later work packages read: link, Markdown, ticket, repeat, current item. */
+/** Checks the legacy item values the later work packages read: link, Markdown, ticket and repeat. */
 async function expectLegacyItemValues(page: Page) {
   const card = itemRow(page, AREA, TICKET);
   expect(await card.getByTestId("item-ticket").first().innerText()).toBe("SAMPLE-7");
@@ -121,9 +121,6 @@ async function expectLegacyItemValues(page: Page) {
   expect(await group.getByTestId("priority-group-header").innerText()).toContain("7 · High");
   expect(await card.getByTestId("repeat-marker").first().getAttribute("aria-label")).toBe(
     "Repeats: Every 2 days",
-  );
-  expect(await card.getByTestId("item-card-current").first().getAttribute("aria-pressed")).toBe(
-    "true",
   );
   const editor = await openItemEditor(page, card);
   await editor.getByTestId("item-editor-description-preview-tab").click();

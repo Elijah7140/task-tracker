@@ -4,6 +4,7 @@ import {
   renameStatus,
   reorderStatuses,
   setStatusArchived,
+  setStatusInProgress,
   type StatusKind,
   type StatusLevel,
 } from "@task-tracker/core";
@@ -66,6 +67,10 @@ export const statusOperations = Effect.fnUntraced(function* (sql: SqlClient.SqlC
       edit(id, "Archive status", (row, rows) => setStatusArchived(row, true, rows)),
     restore: (id: string) =>
       edit(id, "Restore status", (row, rows) => setStatusArchived(row, false, rows)),
+    setInProgress: (id: string, isInProgress: boolean) =>
+      edit(id, isInProgress ? "Mark in progress" : "Unmark in progress", (row) =>
+        setStatusInProgress(row, isInProgress),
+      ),
     reorder,
   };
 });

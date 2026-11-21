@@ -1,15 +1,17 @@
 import { useAtomSet } from "@effect/atom-react";
-import type { CompletionResult, CurrentItemCard } from "@task-tracker/contracts";
+import type { CompletionResult, InProgressItem } from "@task-tracker/contracts";
 import { Exit } from "effect";
 import { useState } from "react";
 import { announceDataChanged } from "../native/data-change-broadcast.js";
 import { areaKey } from "../rpc/area-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
+import { IN_PROGRESS_KEY } from "../rpc/in-progress-queries.js";
 import { setItemCompletedAtom } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 
-type Card = typeof CurrentItemCard.Type;
+/** What completing a row needs: the item and the area that holds it. */
+type Card = Pick<typeof InProgressItem.Type, "itemId" | "projectId" | "folderId">;
 type Result = typeof CompletionResult.Type;
 
 /** Open sub-items the card asks about before completing them too. */
@@ -31,12 +33,13 @@ export interface TrayCardCompletion {
 }
 
 /**
- * Mark complete on the tray card. The card is too small for the app's dialogs,
- * so the open sub-items question and any refusal appear inside it. Approval is
+ * Completing a row of the tray card's stack. The card is too small for the
+ * app's dialogs, so the open sub-items question and any refusal appear under
+ * the row. Approval is
  * a new request with the approved IDs, which the server revalidates (§4). Other
  * windows hear about an applied completion and reload.
  */
-export function useTrayCardCompletion(card: Card | null): TrayCardCompletion {
+export function useTrayCardCompletion(card: Card): TrayCardCompletion {
   const setCompleted = useAtomSet(setItemCompletedAtom, { mode: "promiseExit" });
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<PendingSubItems | null>(null);
@@ -57,9 +60,6 @@ export function useTrayCardCompletion(card: Card | null): TrayCardCompletion {
   };
 
   const run = async (approval: ReadonlyArray<string> | undefined) => {
-    if (card === null) {
-      return;
-    }
     const { itemId, projectId, folderId } = card;
     const base = { projectId, folderId, itemId, completed: true };
     setBusy(true);
@@ -67,7 +67,7 @@ export function useTrayCardCompletion(card: Card | null): TrayCardCompletion {
     setMessage(null);
     const exit = await setCompleted({
       payload: approval === undefined ? base : { ...base, confirmedOpenItemIds: approval },
-      reactivityKeys: [HISTORY_KEY, areaKey(projectId, folderId), PROJECTS_KEY],
+      reactivityKeys: [HISTORY_KEY, IN_PROGRESS_KEY, areaKey(projectId, folderId), PROJECTS_KEY],
     });
     setBusy(false);
     if (Exit.isFailure(exit)) {

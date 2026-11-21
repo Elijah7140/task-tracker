@@ -49,6 +49,11 @@ export const LookupRpcs = RpcGroup.make(
   }),
   Rpc.make("ArchiveStatus", { payload: { id: Guid }, error: RpcOperationError }),
   Rpc.make("RestoreStatus", { payload: { id: Guid }, error: RpcOperationError }),
+  /** Marks an Open status as In progress, or clears the mark, as one undo step (§7.18). */
+  Rpc.make("SetStatusInProgress", {
+    payload: { id: Guid, isInProgress: Schema.Boolean },
+    error: RpcOperationError,
+  }),
   Rpc.make("ReorderStatuses", {
     payload: { ids: Schema.Array(Guid) },
     error: RpcOperationError,

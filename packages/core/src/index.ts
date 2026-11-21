@@ -165,8 +165,11 @@ export {
   calculateDisplayedNodeUrgency,
   calculateDisplayedUrgency,
   calculateUrgency,
+  effectiveDeadline,
+  urgencyForDeadline,
   type UrgencyNode,
 } from "./urgency/urgency-calculator.js";
+export { compareInProgress, type InProgressSortKey } from "./in-progress/in-progress-order.js";
 export { UrgencyThresholds } from "./urgency/urgency-thresholds.js";
 export {
   createProject,

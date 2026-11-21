@@ -47,6 +47,7 @@ it.effect("Added, renamed and reordered statuses persist with their kind", () =>
         kind: "Open",
         isArchived: false,
         sortOrder: 0,
+        isInProgress: false,
       });
       expect((yield* statuses.list()).map((row) => row.name)).toEqual([
         "Ready for review",
@@ -160,6 +161,37 @@ it.effect("Undo refuses an archived status name with different Unicode case", ()
       expect(error.message).toBe("Another status now uses the same name; can't undo.");
       expect(yield* statuses.list()).toEqual(before);
       expect((yield* undo.status()).undo).toBe("Rename status 'Review'");
+    }),
+  ),
+);
+
+it.effect("The seeded In progress status starts marked and the mark is one undo step", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { statuses, undo, named } = yield* setup;
+      const testing = yield* named("Testing");
+
+      yield* statuses.setInProgress(testing.id, true);
+
+      expect(
+        (yield* statuses.list()).filter((row) => row.isInProgress).map((row) => row.name),
+      ).toEqual(["In progress", "Testing"]);
+      expect((yield* undo.status()).undo).toBe("Mark in progress 'Testing'");
+      yield* undo.apply("undo");
+      expect((yield* named("Testing")).isInProgress).toBe(false);
+    }),
+  ),
+);
+
+it.effect("A Done status cannot be marked In progress", () =>
+  withServices(
+    Effect.gen(function* () {
+      const { statuses, named } = yield* setup;
+
+      const refused = yield* Effect.flip(statuses.setInProgress(completedId, true));
+
+      expect(refused.message).toBe("Only an Open status can be marked In progress.");
+      expect((yield* named("Completed")).isInProgress).toBe(false);
     }),
   ),
 );

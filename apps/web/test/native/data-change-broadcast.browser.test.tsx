@@ -13,34 +13,44 @@ async function openWorkspace() {
   return app;
 }
 
+/** Collects what other windows would hear on the shared channel. */
+function listen() {
+  const channel = new BroadcastChannel("task-tracker:data-changed");
+  const messages: Array<unknown> = [];
+  channel.onmessage = (event) => messages.push(event.data);
+  return { messages, close: () => channel.close() };
+}
+
 describe("data change broadcast", () => {
-  it("Another window's announcement reloads item data and the current item", async () => {
+  it("Another window's announcement reloads item data", async () => {
     const { store } = await openWorkspace();
     const projectId = store.summaries[0]!.project.id;
     const { item: task } = store.findItemByTitle(projectId, null, TASK)!;
-    store.currentItem.itemId = task.id;
     store.patchItem(task.id, { description: "Written from the tray card." });
 
     announceDataChanged();
 
     await expect
-      .element(item().getByTestId("item-card-current").first())
-      .toHaveAttribute("aria-pressed", "true");
-    await expect
       .element(item().getByTestId("item-card-description"))
       .toHaveTextContent("Written from the tray card.");
   });
 
-  it("Choosing the current item tells the other windows", async () => {
+  it("A recorded write in the main window tells the other windows", async () => {
     await openWorkspace();
-    const channel = new BroadcastChannel("task-tracker:data-changed");
-    const messages: Array<unknown> = [];
-    channel.onmessage = (event) => messages.push(event.data);
+    const channel = listen();
 
-    await item().getByTestId("item-title").first().click({ button: "right" });
-    await page.getByRole("menuitem", { name: "Set as current item" }).click();
+    await item().getByTestId("item-completion").first().click();
 
-    await expect.poll(() => messages).toEqual(["changed"]);
+    await expect.poll(() => channel.messages).toEqual(["changed"]);
+    channel.close();
+  });
+
+  it("Opening the main window announces nothing", async () => {
+    const channel = listen();
+
+    await openWorkspace();
+
+    expect(channel.messages).toEqual([]);
     channel.close();
   });
 });

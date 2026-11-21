@@ -207,6 +207,7 @@ it.effect("Manages workflow statuses and returns their rule failures as rule vio
         kind: "Done",
         isArchived: false,
         sortOrder: 4,
+        isInProgress: false,
       });
       expect(statuses[0]).toEqual({ ...released, name: "Shipped", sortOrder: 0 });
       expect(statuses.find(({ id }) => id === completed.id)?.isArchived).toBe(false);

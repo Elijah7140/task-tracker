@@ -31,7 +31,7 @@ export const CheckRemindersCommand = Schema.Struct({ type: Schema.Literal("check
 export const DesktopToServerMessage = Schema.Union([CheckRemindersCommand, TransferFileGrant]);
 
 /**
- * What a clicked notification or the tray card's Open in Task Tracker asks the
+ * What a clicked notification or a tray card row asks the
  * main window to open: an item, or the reminders panel when null.
  */
 export const ReminderActivation = Schema.Struct({ itemId: Schema.NullOr(Guid) });
@@ -41,3 +41,9 @@ export const ReminderActivation = Schema.Struct({ itemId: Schema.NullOr(Guid) })
  * renderer page with it, and the renderer shows only the card for it.
  */
 export const TRAY_CARD_HASH = "#/tray-card";
+
+/**
+ * The location hash of the popped-out in-progress window (§7.18): the tray
+ * card's stack in an ordinary window that stays open when it loses focus.
+ */
+export const IN_PROGRESS_WINDOW_HASH = "#/in-progress";

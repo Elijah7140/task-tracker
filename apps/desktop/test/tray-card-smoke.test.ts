@@ -95,6 +95,8 @@ interface PageWithBridge {
   readonly taskTrackerDesktop: {
     openItemFromTrayCard(itemId: string): Promise<boolean>;
     getRpcConnection(): Promise<{ readonly port: number }>;
+    popOutTrayCard(): Promise<boolean>;
+    setInProgressWindowOnTop(onTop: boolean): Promise<boolean>;
   };
 }
 
@@ -125,17 +127,18 @@ async function keepRunningInTray(page: Page) {
   await save.and(page.locator(':disabled:not([aria-busy="true"])')).waitFor();
 }
 
-/** Turns the tray on, adds an item and makes it current from its card menu. */
-async function chooseCurrentItem(page: Page) {
+/** Turns the tray on, adds an item and sets its status to In progress from its card menu. */
+async function startItem(page: Page) {
   await keepRunningInTray(page);
   await page.getByTestId("sidebar-home").click();
   await createProject(page, PROJECT);
   await openProject(page, PROJECT);
   await addItem(page, PROJECT, ITEM);
   await itemRow(page, PROJECT, ITEM).getByTestId("item-title").first().click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Set as current item" }).click();
-  const star = itemRow(page, PROJECT, ITEM).getByTestId("item-card-current").first();
-  await expect.poll(() => star.getAttribute("aria-pressed")).toBe("true");
+  await page.getByTestId("item-menu-set-status").click();
+  await page.getByRole("menuitemradio", { name: "In progress", exact: true }).click();
+  const chip = itemRow(page, PROJECT, ITEM).getByTestId("item-status-chip").first();
+  await expect.poll(() => chip.innerText()).toBe("In progress");
 }
 
 /** Clicks the tray icon and returns the card window's page once it shows the item. */
@@ -181,7 +184,7 @@ async function openSilentConnection(page: Page): Promise<Socket> {
 }
 
 desktopTest(
-  "A tray click shows the current item card, which completes it in the main window",
+  "A tray click shows the in-progress card, which completes an item in the main window",
   async ({ desktop }) => {
     const bus = await sessionBus();
     const application = await launch(
@@ -191,7 +194,7 @@ desktopTest(
     try {
       const page = await firstWindow(application);
       await observeTrayIcon(application);
-      await chooseCurrentItem(page);
+      await startItem(page);
       const card = await openCard(application);
       expect(await pageGlobals(card)).toEqual({
         require: false,
@@ -226,9 +229,9 @@ desktopTest(
       expect(fromMainWindow).toBe(false);
       expect(await cardShown(application)).toBe(true);
 
-      await card.getByRole("button", { name: "Mark complete" }).click();
+      await card.getByRole("button", { name: `Complete ${ITEM}`, exact: true }).click();
 
-      await card.getByTestId("tray-card-completed").waitFor();
+      await card.getByTestId("tray-card-empty").waitFor();
       await expandCompleted(itemTree(page, PROJECT), "Completed (1)");
       expect(await isCompleted(itemRow(page, PROJECT, ITEM))).toBe("true");
       await pressEscapeOnCard(application);
@@ -241,7 +244,7 @@ desktopTest(
 );
 
 desktopTest(
-  "Open in Task Tracker hides the card and opens the item in the main window",
+  "Clicking a row hides the card and opens the item in the main window",
   async ({ desktop }) => {
     const bus = await sessionBus();
     const application = await launch(
@@ -251,16 +254,71 @@ desktopTest(
     try {
       const page = await firstWindow(application);
       await observeTrayIcon(application);
-      await chooseCurrentItem(page);
+      await startItem(page);
       await page.getByTestId("sidebar-home").click();
       const card = await openCard(application);
 
-      await card.getByRole("button", { name: "Open in Task Tracker" }).click();
+      await card.getByRole("button", { name: `Open ${ITEM} in Task Tracker` }).click();
 
       await expect.poll(() => cardShown(application)).toBe(false);
       const editor = page.getByTestId("item-editor");
       await editor.waitFor();
       expect(await editor.getByTestId("item-editor-title").inputValue()).toBe(ITEM);
+    } finally {
+      await application.close();
+      await bus?.close();
+    }
+  },
+);
+
+/** Whether the popped-out window exists, is showing and keeps above other windows. */
+function popOutState(application: ElectronApplication) {
+  return application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().endsWith("#/in-progress"),
+    );
+    return window === undefined
+      ? undefined
+      : { visible: window.isVisible(), onTop: window.isAlwaysOnTop() };
+  });
+}
+
+desktopTest(
+  "Pop out moves the stack into a window that stays open and can keep on top",
+  async ({ desktop }) => {
+    const bus = await sessionBus();
+    const application = await launch(
+      desktop,
+      bus === undefined ? {} : { DBUS_SESSION_BUS_ADDRESS: bus.address },
+    );
+    try {
+      const page = await firstWindow(application);
+      await observeTrayIcon(application);
+      await startItem(page);
+      const card = await openCard(application);
+      const refused = await page.evaluate(() =>
+        (window as unknown as PageWithBridge).taskTrackerDesktop.setInProgressWindowOnTop(true),
+      );
+      expect(refused).toBe(false);
+      const opened = application.waitForEvent("window", {
+        predicate: (candidate) => candidate.url().endsWith("#/in-progress"),
+      });
+
+      await card.getByRole("button", { name: "Pop out" }).click();
+
+      const popOut = await opened;
+      popOut.setDefaultTimeout(5_000);
+      await popOut.getByTestId("tray-card-title").filter({ hasText: ITEM }).waitFor();
+      await expect.poll(() => cardShown(application)).toBe(false);
+      await expect.poll(() => popOutState(application)).toEqual({ visible: true, onTop: false });
+      await page.bringToFront();
+      await page.evaluate(() => window.focus());
+      expect((await popOutState(application))?.visible).toBe(true);
+      await popOut.getByRole("button", { name: "Keep on top" }).click();
+      await expect.poll(() => popOutState(application)).toEqual({ visible: true, onTop: true });
+      await popOut.getByRole("button", { name: `Open ${ITEM} in Task Tracker` }).click();
+      await page.getByTestId("item-editor").waitFor();
+      expect((await popOutState(application))?.visible).toBe(true);
     } finally {
       await application.close();
       await bus?.close();
@@ -281,7 +339,7 @@ desktopTest(
     try {
       const page = await firstWindow(application);
       await observeTrayIcon(application);
-      await chooseCurrentItem(page);
+      await startItem(page);
       await openCard(application);
       silent = await openSilentConnection(page);
 

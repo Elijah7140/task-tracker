@@ -1,7 +1,6 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { ChevronRight, GripVertical } from "lucide-react";
 import type { MouseEvent, PointerEvent } from "react";
-import { CurrentItemMarker } from "../current-item/current-item-star.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { treeStyles } from "../ui/tree-styles.js";
@@ -209,7 +208,6 @@ function RowContent(props: ItemRowProps) {
         <ItemTypeIcon name={lookups.typeName(node.item.itemTypeId)} />
         <ItemTitle node={node} />
         <ItemStatusChip name={statusName(node, lookups)} />
-        <CurrentItemMarker itemId={node.item.id} />
         <span className="ml-auto flex shrink-0 items-center gap-1">
           <UrgencyBadge urgency={node.displayedUrgency.value} />
           {source === undefined ? null : <UrgencySource title={source} />}

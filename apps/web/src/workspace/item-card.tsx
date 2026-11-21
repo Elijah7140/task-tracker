@@ -2,7 +2,6 @@ import { trimText } from "@task-tracker/contracts";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { Ticket } from "lucide-react";
 import type { MouseEvent, PointerEvent, ReactNode } from "react";
-import { CurrentItemStar } from "../current-item/current-item-star.js";
 import { CardAddButton } from "./card-add-buttons.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
@@ -174,8 +173,8 @@ function CardHeader(props: ItemCardProps & { readonly date: ItemDate; readonly h
 }
 
 /**
- * The card's 2×2 action group (§7.19): ☆ and ⋯ on top, Add ToDo and Add Ticket below, which
- * add a child of this card's item.
+ * The card's 2×2 action group (§7.19): ⋯ at the top right, Add ToDo and Add Ticket below,
+ * which add a child of this card's item. The empty top-left cell keeps the group's shape.
  */
 function CardActions(props: ItemCardProps) {
   const { node, actions } = props;
@@ -185,7 +184,7 @@ function CardActions(props: ItemCardProps) {
       data-testid="item-card-actions"
       className="-my-0.5 -mr-1 grid shrink-0 grid-cols-2 gap-0.5"
     >
-      <CurrentItemStar itemId={node.item.id} title={node.item.title} />
+      <span aria-hidden="true" className="size-6" />
       <ItemOverflowMenu {...props} revealOn="card" />
       <CardAddButton kind="Todo" title={node.item.title} onAdd={add} />
       <CardAddButton kind="Ticket" title={node.item.title} onAdd={add} />

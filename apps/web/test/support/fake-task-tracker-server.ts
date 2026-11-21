@@ -51,7 +51,7 @@ import { FakeToday, todayHandlers } from "./fake-today-handlers.js";
 import { FakeReminders, reminderHandlers } from "./fake-reminder-handlers.js";
 import { FakeTickets, ticketHandlers } from "./fake-ticket-handlers.js";
 import { FakeTransfer, transferHandlers } from "./fake-transfer-handlers.js";
-import { currentItemHandlers, FakeCurrentItem } from "./fake-current-item-handlers.js";
+import { FakeInProgress, inProgressHandlers } from "./fake-in-progress-handlers.js";
 import { FakeTicketFields, ticketFieldHandlers } from "./fake-ticket-fields.js";
 
 type Summary = typeof ProjectSummary.Type;
@@ -172,8 +172,8 @@ export class FakeProjectStore {
   /** JSON import and export answers and requests (§7.9). */
   readonly transfer = new FakeTransfer();
 
-  /** The stored current item (§7.18). */
-  readonly currentItem = new FakeCurrentItem();
+  /** Controls for the tray card's in-progress stack (§7.18). */
+  readonly inProgress = new FakeInProgress();
 
   /** Saved searches listed on Home and the Search page. */
   readonly savedSearches = new FakeSavedSearches(this.nextId);
@@ -1006,7 +1006,7 @@ function handlers(store: FakeProjectStore) {
     ...todayHandlers(store),
     ...ticketHandlers(store, history.track),
     ...transferHandlers(store),
-    ...currentItemHandlers(store),
+    ...inProgressHandlers(store),
     ...ticketFieldHandlers(store, record, history.track),
     EditItem: (payload) => {
       const title = payload.fields.title.trim();

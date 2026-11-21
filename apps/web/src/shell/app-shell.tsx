@@ -6,7 +6,10 @@ import { CalendarPage } from "../calendar/calendar-page.js";
 import { TodayPage } from "../today/today-page.js";
 import { TicketsPage } from "../tickets/tickets-page.js";
 import { TrashPage } from "../trash/trash-page.js";
-import { useDataChangeListener } from "../native/data-change-broadcast.js";
+import {
+  useAnnounceRecordedChanges,
+  useDataChangeListener,
+} from "../native/data-change-broadcast.js";
 import { ReturnGuards, useReturnGuardRegistry } from "./return-guards.js";
 import { UndoBlockers } from "./undo-blockers.js";
 import { useCoveringPage } from "./use-covering-page.js";
@@ -57,6 +60,7 @@ export function AppShell() {
   const { goBack } = useCoveringPage(returnGuards.run);
   const covering = useReturnPageStore((state) => state.covering);
   useDataChangeListener();
+  useAnnounceRecordedChanges();
   return (
     <UndoBlockers.Provider value={register}>
       <ReturnGuards.Provider value={returnGuards}>

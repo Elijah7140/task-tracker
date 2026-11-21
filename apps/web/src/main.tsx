@@ -1,5 +1,5 @@
 import { createHashHistory } from "@tanstack/react-router";
-import { TRAY_CARD_HASH } from "@task-tracker/contracts";
+import { IN_PROGRESS_WINDOW_HASH, TRAY_CARD_HASH } from "@task-tracker/contracts";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRoot } from "./app/app-root.js";
@@ -16,10 +16,17 @@ if (root === null) {
 
 const connection = await readRpcConnection(window.taskTrackerDesktop);
 
-/** Electron main opens the tray card as a second window of this page (§7.18). */
+/**
+ * Electron main opens the tray card, and the stack popped out of it, as more
+ * windows of this page (§7.18).
+ */
 const isTrayCard = window.location.hash === TRAY_CARD_HASH;
+const isInProgressWindow = window.location.hash === IN_PROGRESS_WINDOW_HASH;
 if (isTrayCard) {
   document.documentElement.classList.add("tray-card");
+}
+if (isInProgressWindow) {
+  document.documentElement.classList.add("in-progress-window");
 }
 
 const protocol = connection === undefined ? undefined : rpcProtocolLayer(connection);
@@ -28,11 +35,10 @@ function Screen() {
   if (protocol === undefined) {
     return <ConnectionRequired />;
   }
-  return isTrayCard ? (
-    <TrayCardRoot protocol={protocol} />
-  ) : (
-    <AppRoot protocol={protocol} history={createHashHistory()} />
-  );
+  if (isTrayCard || isInProgressWindow) {
+    return <TrayCardRoot protocol={protocol} layout={isTrayCard ? "card" : "window"} />;
+  }
+  return <AppRoot protocol={protocol} history={createHashHistory()} />;
 }
 
 createRoot(root).render(

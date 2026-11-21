@@ -29,7 +29,7 @@ function createTray({ iconPath, onOpen, onQuit, onClick = onOpen }: AppTrayOptio
       { label: "Quit", click: onQuit },
     ]),
   );
-  // A left click shows the current item card (§7.18). The menu keeps Open and Quit
+  // A left click shows the in-progress card (§7.18). The menu keeps Open and Quit
   // for desktops that only expose the menu.
   tray.on("click", onClick);
   return tray;
