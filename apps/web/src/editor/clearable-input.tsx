@@ -1,5 +1,7 @@
 import { Input } from "@base-ui/react/input";
 import { X } from "lucide-react";
+import { DateField } from "../date-picker/date-field.js";
+import { DatePickerButton } from "../date-picker/date-picker-button.js";
 import { Button } from "../ui/button.js";
 import { fieldStyles } from "../ui/field-styles.js";
 import { emptyTimePlaceholder } from "./time-placeholder.js";
@@ -13,39 +15,32 @@ export interface ClearableInputProps {
   readonly clearLabel: string;
   readonly testId: string;
   readonly clearTestId: string;
-  /** Optional locale override for empty time placeholder formatting. */
+  /** Optional locale override for empty time placeholders and the date picker. */
   readonly locale?: string | undefined;
 }
 
+/** The time a date-time takes when its date is picked before any time is set. */
+const DEFAULT_PICKED_TIME = "09:00";
+
+/** Names the calendar button after the clear button, so "Clear due date" gives "Choose due date". */
+function pickLabelFor(clearLabel: string): string {
+  return clearLabel.replace(/^Clear\b/, "Choose");
+}
+
 /**
- * A native date or time input with a button that removes the value, as the
- * legacy editor's pickers had. Empty time inputs expose a neutral dash
- * placeholder matching the locale's 12-hour or 24-hour clock format.
+ * A date, time or date-time input with a button that removes the value, as the
+ * legacy editor's pickers had. Dates are typeable `YYYY-MM-DD` text with the
+ * app's calendar popover; date-times keep the native input and add the popover
+ * for their date part. Empty time inputs expose a neutral dash placeholder
+ * matching the locale's 12-hour or 24-hour clock format.
  * Use inside an {@link EditorField}.
  */
-export function ClearableInput({
-  type,
-  value,
-  onValueChange,
-  clearLabel,
-  testId,
-  clearTestId,
-  locale,
-}: ClearableInputProps) {
+export function ClearableInput(props: ClearableInputProps) {
+  const { value, onValueChange, clearLabel, clearTestId } = props;
   const empty = value === "";
-  const timePlaceholder = type === "time" ? emptyTimePlaceholder(locale) : undefined;
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <Input
-        type={type}
-        value={value}
-        onValueChange={onValueChange}
-        placeholder={timePlaceholder}
-        aria-placeholder={timePlaceholder}
-        data-empty={empty ? "true" : undefined}
-        data-testid={testId}
-        className={fieldStyles.compactControl}
-      />
+      <ValueControl {...props} />
       <Button
         variant="ghost"
         size="icon"
@@ -57,5 +52,50 @@ export function ClearableInput({
         <X size={14} aria-hidden="true" />
       </Button>
     </div>
+  );
+}
+
+function ValueControl({
+  type,
+  value,
+  onValueChange,
+  clearLabel,
+  testId,
+  locale,
+}: ClearableInputProps) {
+  if (type === "date") {
+    return (
+      <DateField
+        value={value}
+        onValueChange={onValueChange}
+        pickLabel={pickLabelFor(clearLabel)}
+        testId={testId}
+        locale={locale}
+      />
+    );
+  }
+  const timePlaceholder = type === "time" ? emptyTimePlaceholder(locale) : undefined;
+  return (
+    <>
+      <Input
+        type={type}
+        value={value}
+        onValueChange={onValueChange}
+        placeholder={timePlaceholder}
+        aria-placeholder={timePlaceholder}
+        data-empty={value === "" ? "true" : undefined}
+        data-testid={testId}
+        className={fieldStyles.compactControl}
+      />
+      {type === "datetime-local" ? (
+        <DatePickerButton
+          value={value.slice(0, 10)}
+          onSelect={(date) => onValueChange(`${date}T${value.slice(11) || DEFAULT_PICKED_TIME}`)}
+          label={pickLabelFor(clearLabel)}
+          testId={`${testId}-picker`}
+          locale={locale}
+        />
+      ) : null}
+    </>
   );
 }

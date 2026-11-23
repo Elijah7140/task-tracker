@@ -1851,6 +1851,22 @@ Ctrl+Shift+C and the calendar controls (§7.4), Ctrl+Shift+T (Trash),
 Ctrl+Shift+R (Reminders), Ctrl+Shift+D (Today), Ctrl+Shift+P (Push back one day)
 and Ctrl+Shift+K (Tickets). The Menu key and Shift+F10 expose row actions.
 
+Date picker — Date fields in the editor, the add dialogs, custom fields, the repeat end
+date and Search's date filters use the app's own picker, not the native date input,
+so they look the same on every platform. The field accepts typed `YYYY-MM-DD` text,
+with one-digit months and days allowed. Text that is not a date is marked invalid
+and is restored to the last date when focus leaves. A calendar button opens a month
+grid on the selected date's month, or today's month when the field is empty. The
+selected day is filled with the accent and today has an accent ring. A **Today**
+button picks today. Today comes from the renderer's Effect Clock in the server's
+zone, the same source the Calendar uses (§5.4), and is read each time the grid opens.
+The week starts on the locale's first day, as in the Calendar. Arrows move by day and
+week, PageUp and PageDown by month (Shift for a year), and Home and End to the start
+and end of the week. Enter or Space picks the day, and Escape closes the grid and
+returns focus to the button without closing the editor. Scheduled start and end keep
+the native date-time input and add the same button for their date part. Picking a
+date keeps the time, or uses 09:00 when no time is set. Time inputs stay native.
+
 ### Legacy feature port
 
 Keep the React design and floating editor. The workspace gains priority-grouped cards with
