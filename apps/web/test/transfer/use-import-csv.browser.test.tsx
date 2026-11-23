@@ -218,6 +218,8 @@ describe("useImportCsv", () => {
     await expect
       .element(page.getByTestId("csv-preview-unknown-columns"))
       .toHaveTextContent("Not recognised and ignored: Mystery");
+    // Enter reaches Close only once the dialog has moved focus to it.
+    await expect.element(page.getByTestId("csv-preview-cancel")).toHaveFocus();
     await userEvent.keyboard("{Enter}");
 
     await expect.element(preview()).not.toBeInTheDocument();
