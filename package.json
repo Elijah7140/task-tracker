@@ -10,7 +10,8 @@
     "test:server-db:electron": "node scripts/test-server-db-electron.mjs",
     "check:electron": "pnpm --filter @task-tracker/desktop check:runtime",
     "package:desktop": "pnpm run build && pnpm --filter @task-tracker/desktop run package",
-    "test:desktop": "vp test run --config apps/desktop/vitest.config.ts"
+    "test:desktop": "vp test run --config apps/desktop/vitest.config.ts",
+    "test:installed-update": "vp test run --config apps/desktop/vitest.installed.config.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

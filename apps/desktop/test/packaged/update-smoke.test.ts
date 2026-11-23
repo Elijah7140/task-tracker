@@ -87,7 +87,8 @@ async function launchUntilExit(desktop: DesktopFixture, environment: NodeJS.Proc
   }
 }
 
-// Updates replace an AppImage here. Verify an installed Windows update by hand (§7.13).
+// Updates replace an AppImage here. test/installed/windows-update.test.ts covers the
+// installed Windows build, which needs a real installation (§7.13).
 desktopTest.runIf(process.platform === "linux")(
   "A verified update from the feed is ready to restart and Restart installs it",
   async ({ desktop }) => {
