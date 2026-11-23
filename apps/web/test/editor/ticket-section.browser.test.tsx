@@ -8,6 +8,14 @@ const PROJECT = {
   items: [{ title: "Employee training data", kind: "Ticket" as const, ticketNumber: "385405" }],
 };
 
+const HIDDEN_FIELDS = {
+  version: "1.0.0",
+  estimatedHours: 4,
+  percentComplete: 50,
+  isUrgent: true,
+  isSystemOutage: true,
+};
+
 const editor = () => page.getByRole("dialog", { name: "Edit ticket" });
 
 async function openTicketEditor() {
@@ -19,7 +27,8 @@ async function openTicketEditor() {
         null,
         PROJECT.items[0]!.title,
       )?.item.id;
-      store.ticketFields.details.set(ticketId ?? "", { ...NO_TICKET_FIELDS, version: "1.0.0" });
+      store.ticketFields.seed("TicketType", "Defect");
+      store.ticketFields.details.set(ticketId ?? "", { ...NO_TICKET_FIELDS, ...HIDDEN_FIELDS });
     },
   });
   app.history.push(`/projects/${app.store.summaries[0]?.project.id}`);
@@ -38,26 +47,42 @@ describe("TicketSection in the item editor", () => {
     await openTicketEditor();
 
     await expect.element(editor().getByTestId("item-editor-ticket-fields")).toBeVisible();
-    await expect.element(editor().getByTestId("ticket-editor-version")).toHaveValue("1.0.0");
+    await expect.element(editor().getByTestId("ticket-editor-ticketTypeId")).toBeVisible();
     await expect.element(editor().getByTestId("item-editor-type")).not.toBeInTheDocument();
     await expect.element(editor().getByTestId("item-editor-repeat")).not.toBeInTheDocument();
     await expect.element(editor().getByTestId("item-editor-due-date")).toBeVisible();
   });
 
-  it("Saves a changed version as the ticket's replacement fields", async () => {
-    const { store } = await openTicketEditor();
-    await expect.element(editor().getByTestId("ticket-editor-version")).toHaveValue("1.0.0");
+  it("Leaves out version, hours, percent and the urgent and outage flags", async () => {
+    await openTicketEditor();
 
-    await editor().getByTestId("ticket-editor-version").fill("1.1.0");
+    await expect.element(editor().getByTestId("item-editor-ticket-fields")).toBeVisible();
+    await expect.element(editor().getByTestId("ticket-editor-version")).not.toBeInTheDocument();
+    await expect.element(editor().getByText("Est. hours")).not.toBeInTheDocument();
+    await expect.element(editor().getByText("% complete")).not.toBeInTheDocument();
+    await expect.element(editor().getByText("Urgent")).not.toBeInTheDocument();
+    await expect.element(editor().getByText("System outage")).not.toBeInTheDocument();
+  });
+
+  it("Saves a changed ticket type and keeps the stored hidden fields", async () => {
+    const { store } = await openTicketEditor();
+    const typeId = store.ticketFields.entries[0]?.id ?? "";
+
+    await editor().getByRole("combobox", { name: "Ticket type", exact: true }).click();
+    await page.getByRole("option", { name: "Defect", exact: true }).click();
     await editor().getByTestId("item-editor-save").click();
 
     await expect.element(editor()).not.toBeInTheDocument();
-    expect(store.ticketFields.lastEditTicket).toEqual({ ...NO_TICKET_FIELDS, version: "1.1.0" });
+    expect(store.ticketFields.lastEditTicket).toEqual({
+      ...NO_TICKET_FIELDS,
+      ...HIDDEN_FIELDS,
+      ticketTypeId: typeId,
+    });
   });
 
   it("Sends no ticket fields when only the summary changes", async () => {
     const { store } = await openTicketEditor();
-    await expect.element(editor().getByTestId("ticket-editor-version")).toHaveValue("1.0.0");
+    await expect.element(editor().getByTestId("item-editor-ticket-fields")).toBeVisible();
 
     await editor().getByTestId("item-editor-title").fill("Training data is wrong");
     await editor().getByTestId("item-editor-save").click();

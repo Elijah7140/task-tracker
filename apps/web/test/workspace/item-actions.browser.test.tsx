@@ -394,7 +394,7 @@ describe("Item actions and reorder", () => {
     await userEvent.keyboard("{Shift>}{F10}{/Shift}");
 
     await expect.element(page.getByTestId("item-menu-popup")).toBeVisible();
-    await expect.element(page.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+    await expect.element(page.getByRole("menuitem", { name: "Edit…" })).toBeVisible();
   });
 
   it("Moves a top-level item to another area and hides Move to area on sub-items", async () => {

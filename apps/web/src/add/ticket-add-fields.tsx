@@ -2,7 +2,6 @@ import type { Ref } from "react";
 import {
   DraftArea,
   DraftDate,
-  DraftFlag,
   DraftReminder,
   DraftSelect,
   DraftText,
@@ -176,7 +175,6 @@ function DetailedTicketFields({
           testId="add-ticket-type"
           options={entryOptions(lookups.ticketLists, "TicketType", draft.draft.ticketTypeId)}
         />
-        <DraftText {...draft} field="version" label="Version" testId="add-version" />
       </FieldColumn>
       <FieldColumn title="Levels">
         <LevelFields {...draft} lookups={lookups} withApplication />
@@ -188,20 +186,6 @@ function DetailedTicketFields({
           label="Dispatched to"
           testId="add-dispatched-to"
           options={people(draft.draft.dispatchedToId)}
-        />
-        <DraftText
-          {...draft}
-          field="estimatedHours"
-          label="Est. hours"
-          testId="add-estimated-hours"
-          inputMode="decimal"
-        />
-        <DraftText
-          {...draft}
-          field="percentComplete"
-          label="% complete"
-          testId="add-percent-complete"
-          inputMode="numeric"
         />
         <DraftDate
           {...draft}
@@ -232,16 +216,6 @@ function DetailedTicketFields({
           options={people(draft.draft.pendingPersonId)}
         />
         <DraftReminder {...draft} />
-      </FieldColumn>
-      <FieldColumn title="Flags">
-        <div className="flex flex-col gap-2 pt-1">
-          <DraftFlag {...draft} field="isUrgent" testId="add-urgent">
-            Urgent
-          </DraftFlag>
-          <DraftFlag {...draft} field="isSystemOutage" testId="add-system-outage">
-            System outage
-          </DraftFlag>
-        </div>
       </FieldColumn>
     </div>
   );

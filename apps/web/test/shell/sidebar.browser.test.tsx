@@ -40,6 +40,25 @@ describe("Sidebar", () => {
     expect(localStorage.getItem("task-tracker.sidebar-expanded")).toBe("false");
   });
 
+  it("Puts New project below the projects, then the toggle and Home at the bottom", async () => {
+    await openCollapsedProject();
+    await toggle().click();
+
+    const project = sidebar().getByRole("link", { name: "Billing DB" }).element();
+    const newProject = page.getByTestId("sidebar-new-project").element();
+    const toggleButton = toggle().element();
+    const home = page.getByTestId("sidebar-home").element();
+
+    const below = (upper: Element, lower: Element) =>
+      upper.getBoundingClientRect().bottom <= lower.getBoundingClientRect().top;
+    expect(below(project, newProject)).toBe(true);
+    expect(below(newProject, toggleButton)).toBe(true);
+    expect(below(toggleButton, home)).toBe(true);
+    expect(home.getBoundingClientRect().bottom).toBeGreaterThan(
+      sidebar().element().getBoundingClientRect().bottom - 64,
+    );
+  });
+
   it("Starts collapsed on a new install with nothing stored", async () => {
     localStorage.clear();
 

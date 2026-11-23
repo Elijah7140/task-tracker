@@ -1,11 +1,9 @@
-import { Input } from "@base-ui/react/input";
 import { useAtomValue } from "@effect/atom-react";
 import type { TicketDetailInput, TicketListEntryProjection } from "@task-tracker/contracts";
 import { useEffect } from "react";
 import { AsyncResult } from "effect/reactivity";
 import { entryOptions, moduleOptions, NO_ENTRY, parentOf } from "../add/ticket-list-options.js";
 import { ticketAtom, ticketListsAtom } from "../rpc/ticket-field-queries.js";
-import { Checkbox } from "../ui/checkbox.js";
 import { fieldStyles } from "../ui/field-styles.js";
 import { Select, type SelectOption } from "../ui/select.js";
 import { EditorField } from "./editor-field.js";
@@ -55,30 +53,6 @@ function EntrySelect({
         testId={`ticket-editor-${field}`}
         size="sm"
         className="w-full"
-      />
-    </EditorField>
-  );
-}
-
-function TextRow({
-  label,
-  field,
-  texts,
-  onChange,
-}: {
-  readonly label: string;
-  readonly field: TicketTextKey;
-  readonly texts: TicketTexts;
-  readonly onChange: TicketSectionProps["onChange"];
-}) {
-  return (
-    <EditorField label={label}>
-      <Input
-        value={texts[field]}
-        onValueChange={(value: string) => onChange({ [field]: value })}
-        data-testid={`ticket-editor-${field}`}
-        autoComplete="off"
-        className={fieldStyles.compactControl}
       />
     </EditorField>
   );
@@ -172,25 +146,6 @@ export function TicketSection({ texts, error, onChange }: TicketSectionProps) {
           field="ticketTypeId"
           options={entryOptions(entries, "TicketType", texts.ticketTypeId)}
         />
-        <TextRow {...shared} label="Version" field="version" />
-        <TextRow {...shared} label="Est. hours" field="estimatedHours" />
-        <TextRow {...shared} label="% complete" field="percentComplete" />
-        <div className="flex flex-col gap-2 pt-1">
-          <Checkbox
-            checked={texts.isUrgent}
-            onCheckedChange={(isUrgent) => onChange({ isUrgent })}
-            testId="ticket-editor-urgent"
-          >
-            Urgent
-          </Checkbox>
-          <Checkbox
-            checked={texts.isSystemOutage}
-            onCheckedChange={(isSystemOutage) => onChange({ isSystemOutage })}
-            testId="ticket-editor-system-outage"
-          >
-            System outage
-          </Checkbox>
-        </div>
         {error === null ? null : (
           <p role="alert" className={fieldStyles.error}>
             {error}

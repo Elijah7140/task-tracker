@@ -73,8 +73,8 @@ desktopTest(
       await editor.getByLabel("Estimate", { exact: true }).fill("17.25");
       await saveItemEditor(editor);
 
-      await parent.getByTestId("item-title").first().click({ button: "right" });
-      await page.getByTestId("item-context-menu").getByRole("menuitem", { name: "Rename" }).click();
+      await parent.focus();
+      await page.keyboard.press("F2");
       await expectFocused(page.getByRole("textbox", { name: "Title", exact: true }));
       await page.getByRole("textbox", { name: "Title", exact: true }).fill("Renamed parent");
       await page.keyboard.press("Enter");

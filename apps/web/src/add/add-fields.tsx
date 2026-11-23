@@ -3,7 +3,6 @@ import type { ReactNode, Ref } from "react";
 import { ClearableInput } from "../editor/clearable-input.js";
 import { EditorField } from "../editor/editor-field.js";
 import { REMINDER_OFFSETS } from "../editor/reminder-draft.js";
-import { Checkbox } from "../ui/checkbox.js";
 import { fieldStyles } from "../ui/field-styles.js";
 import { Select, type SelectOption } from "../ui/select.js";
 import type { AddDraftTextKey, AddItemDraft } from "./add-item-draft.js";
@@ -155,29 +154,6 @@ export function DraftReminder({ draft, onChange }: DraftProps) {
         className="w-full"
       />
     </EditorField>
-  );
-}
-
-/** A checkbox bound to one of the draft's yes/no ticket flags. */
-export function DraftFlag({
-  draft,
-  onChange,
-  field,
-  children,
-  testId,
-}: DraftProps & {
-  readonly field: "isUrgent" | "isSystemOutage";
-  readonly children: ReactNode;
-  readonly testId: string;
-}) {
-  return (
-    <Checkbox
-      checked={draft[field]}
-      onCheckedChange={(checked) => onChange({ [field]: checked })}
-      testId={testId}
-    >
-      {children}
-    </Checkbox>
   );
 }
 

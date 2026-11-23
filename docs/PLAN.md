@@ -1598,7 +1598,7 @@ that stays open.
 - **In progress statuses.** `StatusLevel.IsInProgress` marks the statuses whose items the tray
   card lists. Any number of statuses can be marked; only Open statuses can be (Core rule and a
   storage `CHECK`). Migration 13 adds the column and marks the seeded "In progress" status.
-  - App Settings › Workflow statuses has an **In progress** box on each Open row. Each change is
+  - App Settings › Statuses has an **In progress** box on each Open row. Each change is
     one undo step, "Mark in progress ⟨name⟩" or "Unmark in progress ⟨name⟩".
   - New statuses start unmarked. JSON import adds new statuses unmarked; the file format does not
     carry the mark.
@@ -1673,9 +1673,12 @@ be the parent of either kind. A kind is chosen when the item is added and does n
   | Requestor, Dispatched to, Pending user | `TicketDetail` → **People** list |
   | Application › Module › Interface | `TicketDetail` → **Ticket levels** tree |
   | Ticket type | `TicketDetail` → **Ticket types** list |
-  | Version (text), Est. hours (≥ 0), % complete (0–100), Urgent, System outage | `TicketDetail` columns |
+  | Version (text), Est. hours (≥ 0), % complete (0–100), Urgent, System outage | `TicketDetail` columns, no longer shown (below) |
   | Comments | `TicketComment` rows, newest first |
 
+  On 23 Nov 2026 the owner removed Version, Est. hours, % complete, Urgent and System outage
+  from the add views, the editor and the details panel. The columns, search keys and
+  transfer fields stay, so stored values survive and an edit keeps them unchanged.
   Site-specific fields from the reference screen (plant, office and cell numbers, Helix and
   work-order numbers, mill impacted, tested/documented by, testing date) are left out.
 - **Lists in App Settings.** People, Ticket types and Ticket levels are one
@@ -1710,9 +1713,9 @@ details panel shows its fields, with **Edit** and, for a ticket, its comments. D
 a child card goes one level deeper, with no depth limit. Breadcrumbs show the project,
 folders and item chain. Routes are `/projects/$projectId/items/$itemId` and
 `…/folders/$folderId/items/$itemId`. `MoveItemToPriorityGroup` takes the level's parent.
-Edit stays on the card and row menus and Enter. The item menu also has **Open**, **Add ToDo…** and
-**Add Ticket…**, the keyboard equivalents of double-click and the card buttons, which, like
-⋯, show on hover and take no Tab stop. A ticket's editor shows its fixed fields in place of type,
+Edit stays on the card and row menus and Enter. On 23 Nov 2026 the owner removed **Open**,
+**Rename**, **Add ToDo…** and **Add Ticket…** from the item menu: the card buttons and
+double-click cover them, and F2 still renames. A ticket's editor shows its fixed fields in place of type,
 repeat, the scheduled block and custom fields.
 
 **Shell.**
@@ -1721,7 +1724,9 @@ repeat, the scheduled block and custom fields.
   app starts dark.
 - The decorative check mark at the left of the menu bar is removed. It had no action.
 - The sidebar collapses to an icon rail with Home and the project icons, and starts
-  collapsed. A toggle at its top expands it. The state is a per-device preference.
+  collapsed. The state is a per-device preference. Revised 23 Nov 2026 by the owner: the
+  **New project** button sits below the project list, and the collapse toggle and Home are
+  pinned to the bottom of the sidebar, Home bottom-most.
 - **Project icons.** `Project.IconKey` names one of a fixed set of icons. **Change icon…**
   on the project card menu picks one, or the initial again. The icon shows on the Home card
   and in the sidebar. The change is one undo step, "Change icon of ⟨name⟩".
