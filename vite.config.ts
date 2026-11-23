@@ -65,29 +65,10 @@ export default defineConfig({
         resolve: { alias: webTestResolve.alias },
         test: {
           name: "desktop-unit",
-          include: [
-            "apps/desktop/test/application-menu.test.ts",
-            "apps/desktop/test/renderer.test.ts",
-            "apps/desktop/test/server-process.test.ts",
-            "apps/desktop/test/relaunch-after-exit.test.ts",
-            "apps/desktop/test/relaunch-command.test.ts",
-            "apps/desktop/test/relaunch-on-exit.test.ts",
-            "apps/desktop/test/transfer-file-dialog.test.ts",
-            "apps/desktop/test/scripts/**/*.test.ts",
-            "apps/desktop/test/instance-scope.test.ts",
-            "apps/desktop/test/launch-lock.test.ts",
-            "apps/desktop/test/native-notifier.test.ts",
-            "apps/desktop/test/reminder-notifications.test.ts",
-            "apps/desktop/test/reminder-toast.test.ts",
-            "apps/desktop/test/windows-app-identity.test.ts",
-            "apps/desktop/test/server-messages.test.ts",
-            "apps/desktop/test/tray-close-decision.test.ts",
-            "apps/desktop/test/tray-host-probe.test.ts",
-            "apps/desktop/test/tray-card-placement.test.ts",
-            "apps/desktop/test/tray-card-toggle.test.ts",
-            "apps/desktop/test/tray-card-height.test.ts",
-            "apps/desktop/test/installation/**/*.test.ts",
-          ],
+          // Suites that launch the packaged app live in test/packaged and run from
+          // apps/desktop/vitest.config.ts.
+          include: ["apps/desktop/test/**/*.test.ts"],
+          exclude: ["apps/desktop/test/packaged/**"],
         },
       },
       {

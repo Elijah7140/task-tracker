@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
 import { expect } from "vitest";
-import { desktopTest, withDesktop } from "./support/desktop-app.js";
+import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import {
   SMOKE_PROJECT,
   addItem,
@@ -16,7 +16,7 @@ import {
   openFolder,
   openProject,
   selectItem,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 /** Cards take an "into" drop in the middle of their header line (§7.17). */
 const CARD_HEADER_OFFSET = 16;

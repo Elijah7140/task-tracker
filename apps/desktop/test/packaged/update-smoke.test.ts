@@ -12,15 +12,15 @@ import {
   firstWindow,
   launch,
   withDesktop,
-} from "./support/desktop-app.js";
-import { openAppSettingsFromMenu } from "./support/workflows.js";
-import { releaseMetadata, startFakeUpdateFeed } from "./support/fake-update-feed.js";
+} from "../support/desktop-app.js";
+import { openAppSettingsFromMenu } from "../support/workflows.js";
+import { releaseMetadata, startFakeUpdateFeed } from "../support/fake-update-feed.js";
 import {
   type FakeAppImageInstall,
   fakeAppImageInstall,
   recordedStart,
   recordingAppImage,
-} from "./support/installed-app.js";
+} from "../support/installed-app.js";
 
 const APPIMAGE = "task-tracker-0.2.0-linux-x64.AppImage";
 

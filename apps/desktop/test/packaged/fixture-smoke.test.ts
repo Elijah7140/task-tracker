@@ -8,7 +8,7 @@ import {
   phase3Fixture,
   usePhase3Fixture,
   withDesktop,
-} from "./support/desktop-app.js";
+} from "../support/desktop-app.js";
 import {
   expandCompleted,
   expectFocused,
@@ -20,7 +20,7 @@ import {
   openProject,
   projectCard,
   saveItemEditor,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 const PROJECT = "Sample project";
 const AREA = "Nested folder";

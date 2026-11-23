@@ -10,8 +10,8 @@ import {
   executable,
   firstWindow,
   launch,
-} from "./support/desktop-app.js";
-import { serverChildren, serverPid } from "./support/desktop-processes.js";
+} from "../support/desktop-app.js";
+import { serverChildren, serverPid } from "../support/desktop-processes.js";
 
 /** A packaged app started outside Playwright, with everything it printed. */
 interface RawLaunch {

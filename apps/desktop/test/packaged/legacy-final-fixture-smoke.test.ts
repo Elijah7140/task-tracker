@@ -10,7 +10,7 @@ import {
   legacyFinalFixture,
   useLegacyFinalFixture,
   withDesktop,
-} from "./support/desktop-app.js";
+} from "../support/desktop-app.js";
 import {
   answerPrompt,
   chooseMenuCommand,
@@ -25,7 +25,7 @@ import {
   openProject,
   projectCard,
   selectItem,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 const PROJECT = "Sample project";
 const AREA = "Nested folder";

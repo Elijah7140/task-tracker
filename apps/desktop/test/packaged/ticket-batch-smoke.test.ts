@@ -1,13 +1,13 @@
 import type { ElectronApplication, Page } from "playwright";
 import { expect } from "vitest";
-import { desktopTest, firstWindow, launch } from "./support/desktop-app.js";
-import { type FakeSessionBus, startFakeSessionBus } from "./support/fake-tray-host.js";
+import { desktopTest, firstWindow, launch } from "../support/desktop-app.js";
+import { type FakeSessionBus, startFakeSessionBus } from "../support/fake-tray-host.js";
 import {
   createProject,
   itemRow,
   openAppSettingsFromMenu,
   openProject,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 const PROJECT = "Plant tickets";
 const BATCH_SUFFIX = "#/add-tickets";

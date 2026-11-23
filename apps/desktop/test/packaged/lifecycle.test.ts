@@ -7,15 +7,15 @@ import { DatabaseSync } from "node:sqlite";
 import type { MessageBoxOptions } from "electron";
 import { _electron, type ElectronApplication } from "playwright";
 import { expect, test } from "vitest";
-import { unpackedExecutable as executable } from "../scripts/package-paths.ts";
+import { unpackedExecutable as executable } from "../../scripts/package-paths.ts";
 import {
   isRunning,
   mainPid,
   serverChildren,
   serverPid,
   signalIfRunning,
-} from "./support/desktop-processes.js";
-import { fakeAppImageInstall, recordedStart, recordingAppImage } from "./support/installed-app.js";
+} from "../support/desktop-processes.js";
+import { fakeAppImageInstall, recordedStart, recordingAppImage } from "../support/installed-app.js";
 
 interface DesktopFixture {
   readonly database: string;
