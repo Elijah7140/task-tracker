@@ -49,7 +49,9 @@ async function expectFixtureValues(editor: Locator, estimate: string) {
   expect(await editor.getByLabel("Review date", { exact: true }).inputValue()).toBe("2026-12-08");
   expect(await editor.getByRole("combobox", { name: "Reviewed" }).innerText()).toBe("No");
   await expect
-    .poll(() => editor.getByRole("combobox", { name: "Status", exact: true }).innerText())
+    .poll(() =>
+      editor.locator('[data-testid="custom-field-choice"][aria-label="Status"]').innerText(),
+    )
     .toBe("Retired option (archived)");
 }
 
