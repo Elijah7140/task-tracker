@@ -12,7 +12,7 @@ free for this public repository. There are no self-hosted runners.
 
 ## CI
 
-CI runs six parallel jobs per OS, twelve in all. Each starts with the shared
+CI runs six parallel jobs per OS and one more on Windows, thirteen in all. Each starts with the shared
 [setup action](../.github/actions/setup-workspace/action.yml): pnpm, Node, the
 frozen install and only the prerequisites that job needs.
 
@@ -21,6 +21,7 @@ frozen install and only the prerequisites that job needs.
 | Build, check and Node tests | Build, the static check with `--deny-warnings`, the Vite renderer probe, `test:node`, the server's SQLite and RPC suites under Electron (`test:server-db:electron`), the Electron runtime check, and the installers |
 | Browser tests, shards 1/3 to 3/3 | Playwright Chromium (cached) and a third of the `web-browser` files each (`test:browser --shard`) |
 | Packaged desktop smoke, shards 1/2 and 2/2 | `package:desktop` without the installer and half of the packaged smoke files each (`test:desktop --shard`) |
+| Installed update (Windows only) | Builds this commit's NSIS installer and a newer one, then `test:installed-update` |
 
 The server's SQLite and RPC suites run only under Electron's embedded Node, the
 runtime that ships, and not again under Node 26. Pushes to branches other than
@@ -45,8 +46,9 @@ the first launch on a fresh runner is several seconds slower. Without it, a test
 that clicks the menu bar straight after launch failed whenever it ran first in its
 shard. Each smoke shard packages
 the app itself with `TASKTRACKER_PACKAGE_UNPACKED=1`, which builds the unpacked
-app the suites launch and skips the installer (about 46 s on Windows). The checks
-job builds the installers. electron-builder's downloads, chiefly NSIS and 7-Zip on
+app the suites launch and skips the installer (about 46 s on Windows). The Linux
+checks job builds the AppImage and the installed-update job builds the Windows
+installer. electron-builder's downloads, chiefly NSIS and 7-Zip on
 Windows, are cached between runs. The Linux jobs run the Electron steps under `xvfb-run -a` and
 make every `chrome-sandbox` setuid root first, as WP22 introduced.
 
@@ -72,10 +74,20 @@ fixture RPC tests sometimes passed the 5 s timeout. The D: drive that holds
 `RUNNER_TEMP` flushes in 0.1 ms. Defender real-time scanning is off on these runners,
 so it plays no part.
 
-The checks job of each OS uploads its installer as `package-linux-x64` or
-`package-windows-x64` for a week. A failing browser shard uploads differing
+The Linux checks job uploads the AppImage as `package-linux-x64` and the
+installed-update job uploads the Windows installer as `package-windows-x64`, each
+for a week. A failing browser shard uploads differing
 screenshots as `browser-screenshot-diffs-<os>-<shard>`, for example
 `browser-screenshot-diffs-linux-2`. Only Linux shards compare screenshots.
+
+The installed-update job is the only automated check of the Windows update path.
+It installs this commit's build silently for the runner's user, leaves a newer
+installer in the profile as a verified pending update, and launches the app. The
+app must quit by itself, the installed version must change and the new version
+must be running. The installer starts the updated app without the test
+environment, so it opens the default data folder. The suite therefore refuses to
+run anywhere but a GitHub-hosted Windows runner
+([windows-update.test.ts](../apps/desktop/test/installed/windows-update.test.ts)).
 
 ## Release
 
