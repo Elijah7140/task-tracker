@@ -44,7 +44,7 @@ async function fillEveryField() {
   await customInput("Effort").fill("3.5");
   await customInput("Review date").fill("2026-11-19");
   await pick("Approved", "Yes");
-  await pick("Status", "Ready");
+  await pick("Stage", "Ready");
 }
 
 async function expectEveryFieldFilled() {
@@ -52,7 +52,7 @@ async function expectEveryFieldFilled() {
   await expect.element(customInput("Effort")).toHaveValue("3.5");
   await expect.element(customInput("Review date")).toHaveValue("2026-11-19");
   await expect.element(customInput("Approved")).toHaveTextContent("Yes");
-  await expect.element(customInput("Status")).toHaveTextContent("Ready");
+  await expect.element(customInput("Stage")).toHaveTextContent("Ready");
 }
 
 /** Opens the workspace with every field type, running `seed` for extra stored values. */
@@ -125,7 +125,7 @@ async function openEditorBesideSettings() {
     </RegistryProvider>,
   );
   await openEditor();
-  await expect.element(customInput("Status")).toHaveTextContent("Ready");
+  await expect.element(customInput("Stage")).toHaveTextContent("Ready");
   const choice = (id: string) => store.customFields.choices.find((row) => row.id === id)!;
   return { store, fields, settings: () => actions!, choice };
 }
@@ -164,7 +164,7 @@ describe("Custom fields in the item editor", () => {
       .element(customInput("Approved"))
       .toHaveAttribute("data-testid", "custom-field-boolean");
     await expect
-      .element(customInput("Status"))
+      .element(customInput("Stage"))
       .toHaveAttribute("data-testid", "custom-field-choice");
     await expect
       .element(editor().getByRole("button", { name: "Clear Review date" }))
@@ -295,7 +295,7 @@ describe("Custom fields in the item editor", () => {
     await openEditor();
 
     await pick("Approved", "No");
-    await pick("Status", "(none)");
+    await pick("Stage", "(none)");
     await saveButton().click();
 
     await expect.element(editor()).not.toBeInTheDocument();
@@ -370,7 +370,7 @@ describe("Custom fields in the item editor", () => {
     const app = await openEditorWorkspace({
       configure: (store, projectId) => {
         const itemId = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
-        const status = store.customFields.addFieldSeed("Status", "Choice");
+        const status = store.customFields.addFieldSeed("Stage", "Choice");
         const retired = store.customFields.addChoiceSeed(status.id, "Retired");
         store.customFields.addChoiceSeed(status.id, "Ready");
         store.customFields.setValue(itemId, status.id, { choiceId: retired.id });
@@ -378,7 +378,7 @@ describe("Custom fields in the item editor", () => {
       },
     });
     await openEditor();
-    await expect.element(customInput("Status")).toHaveTextContent("Retired (archived)");
+    await expect.element(customInput("Stage")).toHaveTextContent("Retired (archived)");
 
     await editorTitle().fill("Renamed");
     await saveButton().click();
@@ -393,10 +393,10 @@ describe("Custom fields in the item editor", () => {
     await openEditor();
 
     await customInput("Summary").fill("typed first");
-    await pick("Status", "Blocked");
+    await pick("Stage", "Blocked");
 
     await expect.element(customInput("Summary")).toHaveValue("typed first");
-    await expect.element(customInput("Status")).toHaveTextContent("Blocked");
+    await expect.element(customInput("Stage")).toHaveTextContent("Blocked");
   });
 
   it("Shows the server's rule message for a field archived elsewhere and keeps the draft", async () => {
@@ -440,8 +440,8 @@ describe("Custom fields in the item editor", () => {
     await renaming;
     await act(() => app.settings().archive(app.choice(app.fields.blocked)));
 
-    await expect.element(customInput("Status")).toHaveTextContent("Queued");
-    await customInput("Status").click();
+    await expect.element(customInput("Stage")).toHaveTextContent("Queued");
+    await customInput("Stage").click();
     const options = page.getByRole("option");
     await expect.element(options.nth(1)).toHaveTextContent("Queued");
     expect(options.elements().map((option) => option.textContent)).toEqual(["(none)", "Queued"]);
