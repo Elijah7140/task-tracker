@@ -26,7 +26,13 @@ const parentItemId = Schema.NullOr(Guid);
 export const ItemRpcs = RpcGroup.make(
   Rpc.make("LoadArea", { payload: area, success: AreaSnapshot, error: RpcOperationError }),
   Rpc.make("CreateItem", {
-    payload: { ...area, parentItemId, title: Schema.String },
+    payload: {
+      ...area,
+      parentItemId,
+      title: Schema.String,
+      /** Places the new item right after this open sibling; omitted appends it (§7.17). */
+      afterItemId: Schema.optionalKey(Guid),
+    },
     success: Item,
     error: RpcOperationError,
   }),

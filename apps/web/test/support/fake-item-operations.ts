@@ -718,16 +718,24 @@ export function itemHandlers(
       folderId,
       parentItemId,
       title,
+      afterItemId,
     }: {
       projectId: string;
       folderId: string | null;
       parentItemId: string | null;
       title: string;
+      afterItemId?: string;
     }) =>
       record("CreateItem").pipe(
         Effect.andThen(store.requireArea(projectId, folderId)),
         Effect.flatMap((area) =>
-          applyCreateItem(store, area, projectId, folderId, parentItemId, title),
+          applyCreateItem(store, area, projectId, folderId, parentItemId, title).pipe(
+            Effect.tap((item) =>
+              afterItemId === undefined
+                ? Effect.void
+                : applyDropItem(store, area, projectId, item.id, afterItemId, "after"),
+            ),
+          ),
         ),
       ),
 

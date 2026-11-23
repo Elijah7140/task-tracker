@@ -7,6 +7,11 @@ export const TREE_NODE_ATTRIBUTE = "data-node-id";
 export interface TreeKeyboardHandlers {
   /** Expands or collapses the item. */
   readonly onExpandedChange: (id: string, expanded: boolean) => void;
+  /**
+   * Whether an expanded item collapses with Left; when false, Left moves to its parent as
+   * for a leaf. Every item collapses when omitted.
+   */
+  readonly canCollapse?: ((id: string) => boolean) | undefined;
   /** Handles other keys on a focused item, such as Enter or F2. Returns true when handled. */
   readonly onItemKey?: ((id: string, event: KeyboardEvent<HTMLElement>) => boolean) | undefined;
 }
@@ -43,7 +48,8 @@ function moveRight({ tree, item, id, handlers }: KeyContext) {
 }
 
 function moveLeft({ item, id, handlers }: KeyContext) {
-  if (item.getAttribute("aria-expanded") === "true") {
+  const collapsible = handlers.canCollapse?.(id) ?? true;
+  if (collapsible && item.getAttribute("aria-expanded") === "true") {
     handlers.onExpandedChange(id, false);
     return;
   }

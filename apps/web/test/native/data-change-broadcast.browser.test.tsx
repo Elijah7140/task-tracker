@@ -31,7 +31,7 @@ describe("data change broadcast", () => {
     announceDataChanged();
 
     await expect
-      .element(item().getByTestId("item-card-description"))
+      .element(item().getByTestId("item-card-notes"))
       .toHaveTextContent("Written from the tray card.");
   });
 

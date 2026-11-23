@@ -17,7 +17,7 @@ const PROJECT = {
 };
 
 const card = (title: string) =>
-  page.getByRole("treeitem", { name: title, exact: true }).getByTestId("item-row").first();
+  page.getByRole("treeitem", { name: title, exact: true }).getByTestId("item-card-header").first();
 const panel = () => page.getByTestId("item-details-panel");
 const drilled = () => page.getByTestId("drilled-in-item");
 const breadcrumb = () => page.getByRole("navigation", { name: "Breadcrumb" });

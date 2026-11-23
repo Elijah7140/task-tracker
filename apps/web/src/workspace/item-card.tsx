@@ -1,8 +1,9 @@
-import { trimText } from "@task-tracker/contracts";
+import { isBlankText } from "@task-tracker/contracts";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { Ticket } from "lucide-react";
-import type { MouseEvent, PointerEvent, ReactNode } from "react";
+import { type MouseEvent, type PointerEvent, type ReactNode, useState } from "react";
 import { CardAddButton } from "./card-add-buttons.js";
+import { CardNotes } from "./card-notes.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { ItemMenuItems } from "./item-menu-items.js";
@@ -25,6 +26,7 @@ import { ItemTypeIcon } from "./item-type-icon.js";
 import { type Urgency, UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
+import { OutlineAddInput } from "./outline-add-input.js";
 
 /** Props for {@link ItemCard}. */
 export interface ItemCardProps {
@@ -41,7 +43,7 @@ export interface ItemCardProps {
   readonly onSelect: () => void;
   readonly onMenuOpenChange: (open: boolean) => void;
   readonly onStartDrag: (event: PointerEvent<HTMLElement>) => void;
-  /** The card's sub-item rows and their "n completed" expander. */
+  /** The card's sub-item outline: every descendant, nested, with "n completed" expanders. */
   readonly children?: ReactNode | undefined;
 }
 
@@ -198,16 +200,45 @@ function isOwnEvent(event: MouseEvent<HTMLElement>) {
 }
 
 /**
+ * The always-present add line at the bottom of an open card (§7.17). Enter adds a ToDo as the
+ * card's last direct child; Shift+Enter adds it under the card's last open child instead.
+ */
+function CardAddLine({ node, actions }: Pick<ItemCardProps, "node" | "actions">) {
+  const [value, setValue] = useState("");
+  const submit = async (title: string, asChild: boolean) => {
+    const parentId = (asChild ? node.children.open.at(-1) : undefined)?.item.id ?? node.item.id;
+    const created = await actions.addOutlineItem(parentId, title);
+    if (created !== null) {
+      setValue((current) => (current === title ? "" : current));
+    }
+    return created !== null;
+  };
+  return (
+    <OutlineAddInput
+      value={value}
+      onValueChange={setValue}
+      onSubmit={submit}
+      onEscape={(input) => input.blur()}
+      label={`Add a ToDo to ${node.item.title}`}
+      placeholder="Add a ToDo…"
+      testId="card-add-input"
+    />
+  );
+}
+
+/**
  * A top-level item as a workspace card (§7.17): an urgency-tinted header with the completion
  * button, a title of up to three lines, the status chip and a line with the type, ticket, date
- * and urgency; then a description preview of up to four lines and the item's sub-item rows.
+ * and urgency. The body reads like a dotted list: the Markdown notes, every descendant nested
+ * under its parent, and an add line at the bottom.
  */
 export function ItemCard(props: ItemCardProps) {
   const { node, selected, canIndent, hasFolders, dragging, dropIndicator, lookups, actions } =
     props;
   const date = dateCell(node, lookups.timeZone);
-  const description = trimText(node.item.description ?? "");
-  const hasBody = description.length > 0 || props.children !== undefined;
+  const hasNotes = !isBlankText(node.item.description ?? "");
+  const open = !node.isFinished;
+  const hasBody = hasNotes || open || props.children !== undefined;
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger
@@ -244,16 +275,17 @@ export function ItemCard(props: ItemCardProps) {
           <CardHeader {...props} date={date} hasBody={hasBody} />
         </div>
         {hasBody ? (
-          <div className="flex flex-1 flex-col gap-1.5 px-2 py-2">
-            {description.length === 0 ? null : (
-              <p
-                data-testid="item-card-description"
-                className="line-clamp-4 px-1 text-xs leading-relaxed whitespace-pre-line text-fg-muted"
-              >
-                {description}
-              </p>
-            )}
+          <div className="flex flex-1 flex-col gap-1 px-2 py-2">
+            {hasNotes || open ? (
+              <CardNotes
+                title={node.item.title}
+                notes={node.item.description}
+                revealAdd={selected}
+                onSave={(notes) => actions.saveNotes(node, notes)}
+              />
+            ) : null}
             {props.children}
+            {open ? <CardAddLine node={node} actions={actions} /> : null}
           </div>
         ) : null}
         <ItemDescription node={node} lookups={lookups} date={date} />

@@ -1540,10 +1540,25 @@ below were made while building it and are listed for review.
 - **Cards.** Each open top-level item in the area is one card. The card header has the
   completion checkbox, the title (up to three lines), the status chip, and a line with the
   type icon, ticket number, due or scheduled date, urgency label, the "from sub-item" marker and
-  the repeat marker. Urgency tints the header (§6.3). Below the header are a short
-  description preview (up to four lines) and the item's sub-items as the usual rows (expand,
-  complete, drag, menus), with their own collapsed "n completed" expander. Sub-items never get
-  cards of their own.
+  the repeat marker. Urgency tints the header (§6.3). Sub-items never get cards of their own.
+- **Card body.** The owner's request from 2026-11-23: the body reads like a simple dotted list.
+  In order:
+  - **Notes.** The item's Description (§7.10, labelled Notes), rendered in full as Markdown, so
+    bullet lists show as lists. Clicking the notes swaps in a textarea with the raw Markdown;
+    blur or Ctrl+Enter saves it as one undoable edit and Escape cancels. A card without notes
+    shows **Add notes** only on hover or selection. Links inside the notes open as usual.
+  - **Outline.** Every descendant shows nested under its parent at any depth, always
+    expanded, with no chevrons. Rows keep complete, drag and menus, and each level keeps its
+    collapsed "n completed" expander. Depth is shown by indentation only: one circle (the
+    completion mark) per row, and an untyped item shows no type glyph.
+  - **Inline add.** An open row shows a **+** on hover or selection (no Tab stop, §8). It
+    opens a one-line input under the row at that row's level. Enter adds a ToDo right after
+    the row; Shift+Enter adds it as the row's child. The input then follows the new item so
+    typing continues; Escape, or blur while empty, closes it.
+  - **Add line.** Every open card ends with an "Add a ToDo…" line. Enter appends a ToDo as a
+    direct child of the card's item; Shift+Enter adds it under the card's last open direct
+    child, or directly when there is none.
+  Added items are plain ToDos with only a title, one "Create ⟨title⟩" undo step each.
 - **Sections.** "No priority" comes first, then one section per priority level in level sort
   order (never by number, §7.15). Archived levels get a section while items still use them. A
   section shows its name and item count. Empty sections are hidden; use **Set priority ▸** to
@@ -1579,14 +1594,22 @@ below were made while building it and are listed for review.
   - Archived sections accept moves only from their own cards; Alt+↑/↓ steps over other
     archived sections. Because empty sections are hidden, a card that empties its section
     cannot step back into it.
-  - Cards are expanded tree items: their sub-item rows always show, Right moves to the first
-    sub-item and Left does not collapse a card. Each section's cards form a group named by
-    its header. Sub-item rows put the ticket, priority and date on a second line.
+  - Cards and sub-item rows are expanded tree items: their sub-items always show, Right
+    moves to the first sub-item and Left moves to the parent instead of collapsing. Only
+    "n completed" sections collapse. Each section's cards form a group named by its header.
+    Sub-item rows put the ticket, priority and date on a second line.
+  - Inline add places the new item with CreateItem's optional `afterItemId`, so the insert
+    is one write and one undo step. The add inputs and **Add notes** take no Tab stop, so
+    the tree stays one Tab stop; keyboard users add with the editor and **Add sub-item**.
+    Finished cards show no add line. Pressing inside the notes or an add input never starts
+    a drag or opens the card; double-click the header to drill in (§7.19).
   - The repeat marker joins the card header when recurring items land (§7.11).
 - **Tests.** Core: the move operation on real SQLite, including undo, sub-item promotion and
   an archived level. React: the section order (with a 1, 7, 2 numbering), the drop and step
   mapping, header drops and the setting. Headless: the grid layout, card and header drags, and
-  Alt+↓ across a section. Light and dark snapshots of the grid.
+  Alt+↓ across a section; the card body's Markdown notes and inline edit, row inline add
+  and add line with Enter and Shift+Enter, nested descendants and the missing type dot. Server:
+  CreateItem after a sibling as one undo step. Light and dark snapshots of the grid.
 
 ### 7.18 In-progress items and the tray card
 

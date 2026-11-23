@@ -46,9 +46,9 @@ export const itemRpcHandlers = (timeZone: string) =>
           items.loadTicket(itemId).pipe(Effect.map(projectTicket), mapOperationError),
         AddTicketComment: ({ itemId, body }) =>
           items.addComment(itemId, body).pipe(Effect.map(projectTicketComment), mapOperationError),
-        CreateItem: ({ projectId, folderId, parentItemId, title }) =>
+        CreateItem: ({ projectId, folderId, parentItemId, title, afterItemId }) =>
           items
-            .create(projectId, folderId, parentItemId, title)
+            .create(projectId, folderId, parentItemId, title, afterItemId)
             .pipe(Effect.map(projectItem), mapOperationError),
         EditItem: ({
           itemId,
