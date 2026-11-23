@@ -66,9 +66,10 @@ export default defineConfig({
         test: {
           name: "desktop-unit",
           // Suites that launch the packaged app live in test/packaged and run from
-          // apps/desktop/vitest.config.ts.
+          // apps/desktop/vitest.config.ts. The suite in test/installed installs the
+          // Windows build and runs from apps/desktop/vitest.installed.config.ts.
           include: ["apps/desktop/test/**/*.test.ts"],
-          exclude: ["apps/desktop/test/packaged/**"],
+          exclude: ["apps/desktop/test/packaged/**", "apps/desktop/test/installed/**"],
         },
       },
       {

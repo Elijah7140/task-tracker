@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # The jobs run in parallel. Each OS gets one checks job, three browser-test shards and
-# two packaged-smoke shards.
+# two packaged-smoke shards. Windows adds the installed-update job.
 jobs:
   checks:
     name: Build, check and Node tests (${{ matrix.platform }})
@@ -67,8 +67,34 @@ jobs:
       - name: Verify Electron runtime on Windows
         if: runner.os == 'Windows'
         run: pnpm run check:electron
-      # The installers a person can download to try this build. The smoke jobs test
-      # the unpacked app, so they skip the slower installer step.
+      # The AppImage a person can download to try this build. The smoke jobs test
+      # the unpacked app, so they skip the slower installer step. The installed-update
+      # job builds and uploads the Windows installer.
+      - name: Build the AppImage
+        if: runner.os == 'Linux'
+        run: pnpm --filter @task-tracker/desktop run package
+      - name: Upload the AppImage
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-linux-x64
+          path: apps/desktop/dist/package/*.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
+  # Installs this commit's Windows build for the runner's user, leaves it a newer
+  # installer as a pending update and checks that the app installs it and starts
+  # the new version. Only a throwaway runner may do this: the updated app starts
+  # without the test environment and opens the default data folder.
+  installed-update:
+    name: Installed update (windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
       # electron-builder downloads NSIS and 7-Zip on every Windows package otherwise.
       - name: Restore electron-builder downloads
         uses: actions/cache@v6
@@ -76,19 +102,31 @@ jobs:
           path: ${{ runner.temp }}/electron-builder
           key: electron-builder-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: electron-builder-${{ runner.os }}-
-      - name: Build desktop installers
-        run: pnpm --filter @task-tracker/desktop run package
+      - name: Build this commit's installer
+        run: pnpm run package:desktop
         env:
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
-      - name: Upload desktop installers
+      - name: Keep it as the version to install
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/installers"
+          cp apps/desktop/dist/package/task-tracker-0.1.0-win-x64.exe "$RUNNER_TEMP/installers/"
+      - name: Upload the Windows installer
         uses: actions/upload-artifact@v7
         with:
-          name: package-${{ matrix.platform }}-x64
-          path: |
-            apps/desktop/dist/package/*.AppImage
-            apps/desktop/dist/package/*.exe
+          name: package-windows-x64
+          path: ${{ runner.temp }}/installers/*.exe
           if-no-files-found: error
           retention-days: 7
+      - name: Build a newer installer to update to
+        run: pnpm --filter @task-tracker/desktop run package v999.0.0
+        env:
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
+      - name: Install, update and check the new version starts
+        run: pnpm run test:installed-update
+        env:
+          TASKTRACKER_INSTALLED_INSTALLER: ${{ runner.temp }}/installers/task-tracker-0.1.0-win-x64.exe
+          TASKTRACKER_UPDATE_INSTALLER: apps/desktop/dist/package/task-tracker-999.0.0-win-x64.exe
 
   browser:
     name: Browser tests (${{ matrix.platform }}, ${{ matrix.shard }}/3)

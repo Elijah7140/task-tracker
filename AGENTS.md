@@ -149,7 +149,9 @@ behavior in SQLite tests (§7.2).
   identifiers. Review screenshot baselines for new or changed screens. Add a
   regression test for each bug found by hand.
 - Desktop suites that launch the packaged app go in `apps/desktop/test/packaged`.
-  Every other desktop suite is a unit suite and runs with `test:node`.
+  `apps/desktop/test/installed` installs the real Windows build and runs only on
+  CI's Windows runner. Every other desktop suite is a unit suite and runs with
+  `test:node`.
 
 Never let a test open the owner's real database. On a machine where the owner uses
 the app (such as `dev-win01`), hand-check installed builds only under a separate OS
