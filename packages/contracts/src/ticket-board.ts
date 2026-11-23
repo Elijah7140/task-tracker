@@ -15,8 +15,6 @@ export const TicketRow = Schema.Struct({
   priorityLevelId: Schema.NullOr(Guid),
   dueDate: Schema.NullOr(IsoDate),
   dueTime: Schema.NullOr(IsoTime),
-  /** Whether the item has a scheduled block, which Push back one day also moves (§7.14). */
-  hasSchedule: Schema.Boolean,
 });
 
 /**

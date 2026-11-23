@@ -53,8 +53,6 @@ const fields = {
   priorityLevelId: null,
   dueDate: "2026-11-27",
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 };
 
 const noTicketFields = {

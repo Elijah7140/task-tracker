@@ -30,7 +30,7 @@ export function formatTransferTime(time: Temporal.PlainTime): string {
 }
 
 /** Formats a floating local date and time without any offset. */
-export function formatTransferLocal(value: Temporal.PlainDateTime): string {
+function formatTransferLocal(value: Temporal.PlainDateTime): string {
   return `${formatTransferDate(value.toPlainDate())}T${formatTransferTime(value.toPlainTime())}`;
 }
 
@@ -43,7 +43,6 @@ const datePattern = String.raw`(\d{4})-(\d{2})-(\d{2})`;
 const timePattern = String.raw`(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{0,7}))?)?`;
 const dateOnly = new RegExp(`^${datePattern}$`);
 const timeOnly = new RegExp(`^${timePattern}$`);
-const local = new RegExp(`^${datePattern}[T ]${timePattern}$`);
 const utc = new RegExp(String.raw`^${datePattern}T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{0,7}))?Z$`);
 
 function toDate(year: string, month: string, day: string): Temporal.PlainDate | null {
@@ -89,14 +88,6 @@ export function parseTransferDate(text: string | null | undefined): Temporal.Pla
 export function parseTransferTime(text: string | null | undefined): Temporal.PlainTime | null {
   const match = timeOnly.exec(trimText(text ?? ""));
   return match ? toTime(match[1]!, match[2]!, match[3], match[4]) : null;
-}
-
-/** Reads a floating local date and time; a `T` or a space may separate date and time. */
-export function parseTransferLocal(text: string | null | undefined): Temporal.PlainDateTime | null {
-  const match = local.exec(trimText(text ?? ""));
-  const date = match ? toDate(match[1]!, match[2]!, match[3]!) : null;
-  const time = match ? toTime(match[4]!, match[5]!, match[6], match[7]) : null;
-  return date && time ? date.toPlainDateTime(time) : null;
 }
 
 /** Reads a UTC timestamp that ends with `Z` and has seconds, or null. */

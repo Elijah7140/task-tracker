@@ -22,7 +22,6 @@ const RESERVED_KEYS = [
   "type",
   "priority",
   "due",
-  "scheduled",
   "status",
   "completed",
   "link",

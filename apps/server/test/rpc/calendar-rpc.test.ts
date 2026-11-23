@@ -30,8 +30,6 @@ it.effect("Loads scoped calendar entries with server urgency and locates active 
           priorityLevelId: null,
           dueDate: "2026-11-13",
           dueTime: "06:00:00",
-          scheduledStart: null,
-          scheduledEnd: null,
         },
       });
 
@@ -49,7 +47,6 @@ it.effect("Loads scoped calendar entries with server urgency and locates active 
         projectId: project.id,
         folderId: folder.id,
         title: "Pay vendor",
-        kind: "due",
         date: "2026-11-13",
         urgency: "Overdue",
       });
@@ -116,15 +113,11 @@ it.effect.each([
             priorityLevelId: null,
             dueDate: next,
             dueTime: null,
-            scheduledStart: null,
-            scheduledEnd: null,
           },
         });
         yield* TestClock.setTime(Date.parse(now));
         const input = {
           itemId: item.id.toLowerCase(),
-          kind: "due",
-          sourceDay: next,
           target: { type: "time", date: day, minute },
         } as const;
 
@@ -158,8 +151,6 @@ it("Reschedule intents reject absolute UTC timestamps as dates", () => {
   expect(() =>
     decode({
       itemId: "019A0000-0000-7000-8000-000000000001",
-      kind: "scheduled",
-      sourceDay: "2026-11-16",
       target: { type: "time", date: "2026-11-17T08:00:00Z", minute: 480 },
     }),
   ).toThrow();

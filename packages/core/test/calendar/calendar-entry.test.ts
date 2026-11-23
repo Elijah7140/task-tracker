@@ -1,18 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 import {
-  DEFAULT_CALENDAR_BLOCK_MINUTES,
   DEFAULT_CALENDAR_THRESHOLDS,
   MetadataRuleError,
   UrgencyThresholds,
   calculateCalendarEntryUrgency,
-  effectiveScheduledEnd,
   validateCalendarRange,
   type CalendarEntry,
 } from "../../src/index.js";
 import { ticksPerHour } from "../../src/time/duration-ticks.js";
 
-const START = Temporal.PlainDateTime.from("2026-11-16T09:00:00");
 const NOW = Temporal.Instant.from("2026-11-13T12:00:00Z");
 const TODAY = Temporal.PlainDate.from("2026-11-13");
 
@@ -26,11 +23,8 @@ function dueEntry(
     projectId: "0190A1B2-0000-7000-8000-000000000002",
     folderId: null,
     title: "Due item",
-    kind: "due",
     date,
     startTime: time,
-    scheduledStart: null,
-    scheduledEnd: null,
     isCompleted: false,
     dueDate: date,
     dueTime: time,
@@ -43,52 +37,6 @@ function dueEntry(
     ...overrides,
   };
 }
-
-function scheduledEntry(
-  start: Temporal.PlainDateTime,
-  end: Temporal.PlainDateTime | null,
-): CalendarEntry {
-  return {
-    ...dueEntry(start.toPlainDate(), start.toPlainTime()),
-    kind: "scheduled",
-    dueDate: null,
-    dueTime: null,
-    scheduledStart: start,
-    scheduledEnd: end,
-  };
-}
-
-describe("effectiveScheduledEnd", () => {
-  it("Uses a scheduled end after the start as given", () => {
-    const end = START.add({ hours: 2 });
-
-    const effective = effectiveScheduledEnd(START, end);
-
-    expect(effective?.toString()).toBe("2026-11-16T11:00:00");
-  });
-
-  it.each([
-    ["missing", null],
-    ["zero-length", START],
-  ])("Gives the default block for a %s end", (_label, end) => {
-    const effective = effectiveScheduledEnd(START, end);
-
-    expect(DEFAULT_CALENDAR_BLOCK_MINUTES).toBe(30);
-    expect(effective?.toString()).toBe("2026-11-16T09:30:00");
-  });
-
-  it("Gives the default block for an end before the start", () => {
-    const effective = effectiveScheduledEnd(START, START.subtract({ minutes: 10 }));
-
-    expect(effective?.toString()).toBe("2026-11-16T09:30:00");
-  });
-
-  it("Gives no effective end to an entry without a schedule", () => {
-    const effective = effectiveScheduledEnd(null, START);
-
-    expect(effective).toBeNull();
-  });
-});
 
 describe("DEFAULT_CALENDAR_THRESHOLDS", () => {
   it("Defaults thresholds to the application defaults", () => {
@@ -153,15 +101,6 @@ describe("calculateCalendarEntryUrgency", () => {
     const urgency = calculateCalendarEntryUrgency(entry, NOW, "UTC");
 
     expect(urgency).toBe("None");
-  });
-
-  it("Counts a scheduled entry without a due date down to its start", () => {
-    const start = Temporal.PlainDateTime.from("2026-11-13T11:00:00");
-    const entry = scheduledEntry(start, start.add({ hours: 1 }));
-
-    const urgency = calculateCalendarEntryUrgency(entry, NOW, "UTC");
-
-    expect(urgency).toBe("Overdue");
   });
 
   it("Evaluates urgency in the time zone passed in", () => {

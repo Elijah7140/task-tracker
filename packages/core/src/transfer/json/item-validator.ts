@@ -2,7 +2,6 @@ import { recurrenceErrors, type RecurrenceRule } from "../../items/recurrence/re
 import { REMINDER_OFFSET_MINUTES } from "../../reminders/reminder-choice.js";
 import {
   parseTransferDate,
-  parseTransferLocal,
   parseTransferTime,
 } from "../transfer-time-format.js";
 import type { IssueList } from "../transfer-issue.js";
@@ -62,7 +61,6 @@ export class ItemValidator {
       this.#validateLookups(item, itemPath);
       this.#validateStatus(item, itemPath);
       this.#validateDue(item, itemPath);
-      this.#validateSchedule(item, itemPath);
       this.#validateRecurrence(item, itemPath);
       if (!isValidReminder(item.reminderMode, item.reminderOffsetMinutes)) {
         const message = "Choose a supported offset for offset mode only.";
@@ -125,11 +123,8 @@ export class ItemValidator {
     if (rule === null) {
       return;
     }
-    if (item.dueDate === null && item.scheduledStart === null) {
-      this.issues.add(
-        `${path}.recurrence`,
-        "A repeating item needs a due date or a scheduled start.",
-      );
+    if (item.dueDate === null) {
+      this.issues.add(`${path}.recurrence`, "A repeating item needs a due date.");
     }
     for (const error of recurrenceErrors(rule as unknown as RecurrenceRule)) {
       this.issues.add(`${path}.recurrence.${error.property}`, error.message);
@@ -146,26 +141,6 @@ export class ItemValidator {
     if (item.dueTime !== null && item.dueDate === null) {
       this.issues.add(`${path}.dueTime`, "A due time needs a due date.");
     }
-  }
-
-  #validateSchedule(item: ItemDocument, path: string): void {
-    const start = this.#checkLocal(item.scheduledStart, `${path}.scheduledStart`);
-    const end = this.#checkLocal(item.scheduledEnd, `${path}.scheduledEnd`);
-    if (item.scheduledEnd !== null && item.scheduledStart === null) {
-      this.issues.add(`${path}.scheduledEnd`, "A scheduled end needs a scheduled start.");
-    }
-    if (start && end && Temporal.PlainDateTime.compare(end, start) < 0) {
-      this.issues.add(`${path}.scheduledEnd`, "The scheduled end must not be before the start.");
-    }
-  }
-
-  #checkLocal(text: string | null, path: string): Temporal.PlainDateTime | null {
-    const value = text === null ? null : parseTransferLocal(text);
-    if (text !== null && value === null) {
-      const message = "Expected a local date and time without offset, such as 2026-11-13T15:00:00.";
-      this.issues.add(path, message);
-    }
-    return value;
   }
 
   #validatePlacement(

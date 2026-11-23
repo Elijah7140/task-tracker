@@ -6,7 +6,6 @@ import type { TicketComment } from "../../tickets/ticket-comment.js";
 import type { TicketDetail } from "../../tickets/ticket-detail.js";
 import {
   formatTransferDate,
-  formatTransferLocal,
   formatTransferTime,
   formatTransferUtc,
 } from "../transfer-time-format.js";
@@ -103,8 +102,6 @@ class ItemDocuments {
     return [
       ["dueDate", text(item.dueDate, formatTransferDate)],
       ["dueTime", text(item.dueTime, formatTransferTime)],
-      ["scheduledStart", text(item.scheduledStart, formatTransferLocal)],
-      ["scheduledEnd", text(item.scheduledEnd, formatTransferLocal)],
       ["completedAtUtc", text(item.completedAtUtc, formatTransferUtc)],
     ] as const;
   }

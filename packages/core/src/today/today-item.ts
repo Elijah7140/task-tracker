@@ -15,7 +15,7 @@ export interface TodayItem {
   readonly sortOrder: number;
   readonly isCompleted: boolean;
   readonly completedToday: boolean;
-  /** Whether the item has a due date or scheduled block, for Push back one day. */
+  /** Whether the item has a due date, for Push back one day. */
   readonly hasDates: boolean;
   readonly statusId: string | null;
   readonly statusName: string | null;

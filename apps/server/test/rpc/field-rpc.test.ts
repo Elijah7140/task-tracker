@@ -11,8 +11,6 @@ const blankFields = {
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 };
 
 const setupProject = Effect.gen(function* () {

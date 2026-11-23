@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { type SqlClient, SqlSchema } from "effect/sql";
-import { DateText, FloatingTimestamp, Guid, TimeText } from "../storage-codecs.js";
+import { DateText, Guid, TimeText } from "../storage-codecs.js";
 
 /** An open item whose status is marked In progress, with what the tray card shows (§7.18). */
 export const InProgressItemRow = Schema.Struct({
@@ -17,7 +17,6 @@ export const InProgressItemRow = Schema.Struct({
   priorityRank: Schema.NullOr(Schema.Int),
   dueDate: Schema.NullOr(DateText),
   dueTime: Schema.NullOr(TimeText),
-  scheduledStart: Schema.NullOr(FloatingTimestamp),
 });
 
 /**
@@ -46,7 +45,7 @@ export const inProgressQuery = (sql: SqlClient.SqlClient) => sql`
     i.TicketNumber AS ticketNumber, i.Title AS title,
     p.Name || coalesce(' › ' || paths.Path, '') AS areaPath, s.Name AS statusName,
     l.Name AS priorityName, l.Number AS priorityNumber, l.SortOrder AS priorityRank,
-    i.DueDate AS dueDate, i.DueTime AS dueTime, i.ScheduledStart AS scheduledStart
+    i.DueDate AS dueDate, i.DueTime AS dueTime
   FROM active JOIN TodoItem i ON i.Id = active.Id
   JOIN Project p ON p.Id = i.ProjectId AND p.DeletedAtUtc IS NULL
   JOIN StatusLevel s ON s.Id = i.StatusId

@@ -66,8 +66,6 @@ export interface ItemRowValues {
   readonly ReopenStatusId: string | null;
   readonly DueDate: string | null;
   readonly DueTime: string | null;
-  readonly ScheduledStart: string | null;
-  readonly ScheduledEnd: string | null;
   readonly CompletedAtUtc: string | null;
   readonly SortOrder: number;
   readonly CreatedAtUtc: string;

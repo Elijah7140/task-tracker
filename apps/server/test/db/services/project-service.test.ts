@@ -126,12 +126,9 @@ it.effect(
         yield* seed(first.id, "A1", { DueDate: "2026-11-13", DueTime: "11:59:00" });
         yield* seed(first.id, "A2", { DueDate: "2026-11-13", DueTime: "12:00:00" });
         yield* seed(first.id, "A3", { DueDate: "2026-11-13" });
-        yield* seed(first.id, "A4", {
-          DueDate: "2027-01-01",
-          ScheduledStart: "2026-11-01 08:00:00",
-        });
+        yield* seed(first.id, "A4", { DueDate: "2027-01-01" });
         yield* seed(first.id, "A5", { DueDate: "2026-11-01", CompletedAtUtc: timestamp });
-        yield* seed(second.id, "B1", { ScheduledStart: "2026-11-13 08:00:00" });
+        yield* seed(second.id, "B1", { DueDate: "2026-11-13", DueTime: "08:00:00" });
         yield* seed(second.id, "B2", { DueDate: "2026-11-01" });
         yield* sql`UPDATE TodoItem SET DeletedAtUtc = ${timestamp}
         WHERE Id = '019A0000-0000-7000-8000-0000000000B2'`;

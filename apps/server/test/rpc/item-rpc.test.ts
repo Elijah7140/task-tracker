@@ -64,8 +64,6 @@ it.effect("Edits and reads floating times and UTC timestamps through the rendere
         priorityLevelId: priorityLevelId.toLowerCase(),
         dueDate: "2026-11-12",
         dueTime: "17:45:00.1234567",
-        scheduledStart: "2026-11-14T09:30:00.1234567",
-        scheduledEnd: "2026-11-14T10:30:00.1234567",
       };
       yield* TestClock.adjust("1 second");
 
@@ -321,8 +319,6 @@ it.effect("Returns a typed edit error and preserves the stored fields", () =>
         itemTypeId,
         priorityLevelId,
         dueDate,
-        scheduledStart,
-        scheduledEnd,
       } = item;
 
       const error = yield* Effect.flip(
@@ -336,8 +332,6 @@ it.effect("Returns a typed edit error and preserves the stored fields", () =>
             priorityLevelId,
             dueDate,
             dueTime: "09:00",
-            scheduledStart,
-            scheduledEnd,
           },
         }),
       );
@@ -408,8 +402,6 @@ it.effect("Identifies a deleted item in both edit and completion requests", () =
             priorityLevelId: null,
             dueDate: null,
             dueTime: null,
-            scheduledStart: null,
-            scheduledEnd: null,
           },
         }),
       );
@@ -551,8 +543,6 @@ it.effect(
           priorityLevelId: null,
           dueDate: null,
           dueTime: null,
-          scheduledStart: null,
-          scheduledEnd: null,
           statusId: done.id,
         };
 
@@ -602,8 +592,6 @@ it.effect("Saves, reorders and reads item links through the renderer client", ()
         priorityLevelId: null,
         dueDate: null,
         dueTime: null,
-        scheduledStart: null,
-        scheduledEnd: null,
       };
       const itemId = item.id.toLowerCase();
       yield* client.EditItem({
@@ -657,8 +645,6 @@ const repeatFields = (title: string) => ({
   priorityLevelId: null,
   dueDate: "2026-11-10",
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 });
 
 it.effect("Saves a repeat rule and completes from the server zone's local day", () =>
@@ -740,7 +726,7 @@ it.effect("Pushes back one day and refuses an undated item through the renderer 
       const { client, area, create } = yield* setup;
       const dated = yield* create("Report");
       const undated = yield* create("Someday");
-      const fields = { ...repeatFields(dated.title), scheduledStart: "2026-11-10T09:00:00" };
+      const fields = { ...repeatFields(dated.title), dueTime: "09:00:00" };
       yield* client.EditItem({ itemId: dated.id, fields });
 
       yield* client.PushBackOneDay({ itemId: dated.id.toLowerCase() });
@@ -749,11 +735,11 @@ it.effect("Pushes back one day and refuses an undated item through the renderer 
       const { items } = yield* client.LoadArea(area);
       expect(items.open[0]!.item).toMatchObject({
         dueDate: "2026-11-11",
-        scheduledStart: "2026-11-11T09:00:00",
+        dueTime: "09:00:00",
       });
       expect(failure).toMatchObject({
         _tag: "RuleViolation",
-        message: "This item has no due date or scheduled block.",
+        message: "This item has no due date.",
       });
       expect(yield* client.GetHistory()).toMatchObject({ undo: "Push back 'Report'" });
     }),

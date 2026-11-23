@@ -1,24 +1,22 @@
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
-import { effectiveScheduledEnd, type CalendarEntry } from "./calendar-entry.js";
+import type { CalendarEntry } from "./calendar-entry.js";
 
-type Dates = Pick<CalendarEntry, "dueDate" | "dueTime" | "scheduledStart" | "scheduledEnd">;
+type Dates = Pick<CalendarEntry, "dueDate" | "dueTime">;
 
 type Target =
   | { readonly type: "month" | "all-day"; readonly date: string }
   | { readonly type: "time"; readonly date: string; readonly minute: number }
   | { readonly type: "step"; readonly days: number; readonly quarters: number };
 
-/** Pointer drop or keyboard move for an occurrence of a stored calendar entry. */
+/** Pointer drop or keyboard move of a stored item's due entry. */
 export interface CalendarMoveIntent {
-  readonly kind: CalendarEntry["kind"];
-  readonly sourceDay: string;
   readonly target: Target;
 }
 
 const QUARTER = 15;
 const LAST_QUARTER = 24 * 60 - QUARTER;
 
-function checkedDate<T extends Temporal.PlainDate | Temporal.PlainDateTime>(date: T): T {
+function checkedDate(date: Temporal.PlainDate): Temporal.PlainDate {
   if (date.year < 1 || date.year > 9999) {
     throw new MetadataRuleError("The new date is beyond the supported dates.");
   }
@@ -78,48 +76,9 @@ function moveDue(dates: Dates, target: Target) {
   return { dates: { ...dates, dueDate: date, dueTime: time }, date };
 }
 
-/** The continuation starts at midnight, if that day still overlaps the current block. */
-function occurrenceStart(
-  start: Temporal.PlainDateTime,
-  end: Temporal.PlainDateTime | null,
-  sourceDay: string,
-) {
-  const midnight = Temporal.PlainDate.from(sourceDay).toPlainDateTime();
-  const effectiveEnd = effectiveScheduledEnd(start, end)!;
-  return Temporal.PlainDateTime.compare(start, midnight) < 0 &&
-    Temporal.PlainDateTime.compare(midnight, effectiveEnd) < 0
-    ? midnight
-    : start;
-}
-
-function moveSchedule(dates: Dates, { sourceDay, target }: CalendarMoveIntent) {
-  const { scheduledStart, scheduledEnd } = dates;
-  if (scheduledStart === null) {
-    throw new MetadataRuleError("Item has no schedule to move.");
-  }
-  if (target.type === "all-day") {
-    return null;
-  }
-  const source = occurrenceStart(scheduledStart, scheduledEnd, sourceDay);
-  const { date, time } = destination(source.toPlainDate(), source.toPlainTime(), target);
-  const shift = source.until(date.toPlainDateTime(time!), { largestUnit: "day" });
-  if (shift.blank) {
-    return null;
-  }
-  const start = checkedDate(scheduledStart.add(shift));
-  const end = scheduledEnd === null ? null : checkedDate(scheduledEnd.add(shift));
-  return {
-    dates: { ...dates, scheduledStart: start, scheduledEnd: end },
-    date: start.toPlainDate(),
-  };
-}
-
-/** Plan a change against the latest dates in floating time, retaining any exact duration. */
+/** Plan a due-date change against the latest dates in floating time. */
 export function planCalendarMove(dates: Dates, move: CalendarMoveIntent) {
   // Pick only the calendar fields even when the caller passes a complete item.
-  const { dueDate, dueTime, scheduledStart, scheduledEnd } = dates;
-  const calendarDates = { dueDate, dueTime, scheduledStart, scheduledEnd };
-  return move.kind === "due"
-    ? moveDue(calendarDates, move.target)
-    : moveSchedule(calendarDates, move);
+  const { dueDate, dueTime } = dates;
+  return moveDue({ dueDate, dueTime }, move.target);
 }

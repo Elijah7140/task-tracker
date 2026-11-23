@@ -13,8 +13,14 @@ const zone = "UTC";
 const hour = 36_000_000_000n;
 const day = 24n * hour;
 
-function schedule(offset: Temporal.DurationLike): Temporal.PlainDateTime {
+function local(offset: Temporal.DurationLike): Temporal.PlainDateTime {
   return now.add(offset).toZonedDateTimeISO(zone).toPlainDateTime();
+}
+
+/** A due date and time `offset` from now. */
+function dueIn(offset: Temporal.DurationLike) {
+  const at = local(offset);
+  return { dueDate: at.toPlainDate(), dueTime: at.toPlainTime() };
 }
 
 function tree(...rows: TodoItem[]) {
@@ -26,25 +32,25 @@ it("classifies exact threshold and deadline boundaries", () => {
   const thresholds = new UrgencyThresholds(3n * day, day);
 
   const yellow = calculateUrgency(
-    { ...task, scheduledStart: schedule({ hours: 72 }) },
+    { ...task, ...dueIn({ hours: 72 }) },
     now,
     zone,
     thresholds,
   );
   const red = calculateUrgency(
-    { ...task, scheduledStart: schedule({ hours: 24 }) },
+    { ...task, ...dueIn({ hours: 24 }) },
     now,
     zone,
     thresholds,
   );
   const atDeadline = calculateUrgency(
-    { ...task, scheduledStart: schedule({ seconds: 0 }) },
+    { ...task, ...dueIn({ seconds: 0 }) },
     now,
     zone,
     thresholds,
   );
   const overdue = calculateUrgency(
-    { ...task, scheduledStart: schedule({ nanoseconds: -100 }) },
+    { ...task, ...dueIn({ nanoseconds: -100 }) },
     now,
     zone,
     thresholds,
@@ -57,18 +63,15 @@ it("classifies exact threshold and deadline boundaries", () => {
 });
 
 it("gives a completed item no urgency even with an overdue deadline", () => {
-  const task = item("task", { scheduledStart: schedule({ hours: -24 }), completedAtUtc: now });
+  const task = item("task", { ...dueIn({ hours: -24 }), completedAtUtc: now });
 
   const actual = calculateUrgency(task, now, zone, new UrgencyThresholds(3n * day, day));
 
   expect(actual).toBe("None");
 });
 
-it("gives a due date precedence over a scheduled start", () => {
-  const task = item("task", {
-    scheduledStart: schedule({ hours: -1 }),
-    dueDate: schedule({ hours: 240 }).toPlainDate(),
-  });
+it("gives an item without a due date no urgency", () => {
+  const task = item("task");
 
   const actual = calculateUrgency(task, now, zone, new UrgencyThresholds(3n * day, day));
 
@@ -76,7 +79,7 @@ it("gives a due date precedence over a scheduled start", () => {
 });
 
 it("uses a later deadline for a date-only due date than a timed due date on the same day", () => {
-  const dueDate = schedule({ seconds: 0 }).toPlainDate();
+  const dueDate = local({ seconds: 0 }).toPlainDate();
   const dateOnly = item("date-only", { dueDate });
   const timed = item("timed", { dueDate, dueTime: Temporal.PlainTime.from("11:00") });
   const thresholds = new UrgencyThresholds(3n * day, day);
@@ -90,9 +93,9 @@ it("uses a later deadline for a date-only due date than a timed due date on the 
 
 it("attributes the most urgent open branch to its item", () => {
   const items = tree(
-    item("root", { scheduledStart: schedule({ hours: 48 }) }),
-    item("yellow", { parentItemId: "root", scheduledStart: schedule({ hours: 48 }) }),
-    item("red", { parentItemId: "root", scheduledStart: schedule({ hours: 2 }) }),
+    item("root", { ...dueIn({ hours: 48 }) }),
+    item("yellow", { parentItemId: "root", ...dueIn({ hours: 48 }) }),
+    item("red", { parentItemId: "root", ...dueIn({ hours: 2 }) }),
   );
 
   const actual = calculateDisplayedUrgency(
@@ -108,8 +111,8 @@ it("attributes the most urgent open branch to its item", () => {
 
 it("keeps the parent's own urgency on ties", () => {
   const items = tree(
-    item("root", { scheduledStart: schedule({ hours: 2 }) }),
-    item("child", { parentItemId: "root", scheduledStart: schedule({ hours: 1 }) }),
+    item("root", { ...dueIn({ hours: 2 }) }),
+    item("child", { parentItemId: "root", ...dueIn({ hours: 1 }) }),
   );
 
   const actual = calculateDisplayedUrgency(
@@ -126,7 +129,7 @@ it("keeps the parent's own urgency on ties", () => {
 it("includes an open descendant of a completed parent", () => {
   const items = tree(
     item("root", { completedAtUtc: now }),
-    item("child", { parentItemId: "root", scheduledStart: schedule({ hours: 2 }) }),
+    item("child", { parentItemId: "root", ...dueIn({ hours: 2 }) }),
   );
 
   const actual = calculateDisplayedUrgency(
@@ -145,7 +148,7 @@ it("excludes deleted descendants from urgency", () => {
     item("root"),
     item("child", {
       parentItemId: "root",
-      scheduledStart: schedule({ hours: -1 }),
+      ...dueIn({ hours: -1 }),
       deletedAtUtc: earlier,
       deletionBatchId: "batch",
     }),
@@ -164,7 +167,7 @@ it("excludes deleted descendants from urgency", () => {
 
 it("clamps the yellow band to red when red is larger", () => {
   const thresholds = new UrgencyThresholds(hour, day);
-  const task = item("task", { scheduledStart: schedule({ hours: 20 }) });
+  const task = item("task", { ...dueIn({ hours: 20 }) });
 
   const actual = calculateUrgency(task, now, zone, thresholds);
 
@@ -177,7 +180,7 @@ it("rolls up a loaded node's urgency and names its descendant", () => {
     item: item("parent"),
     children: [
       {
-        item: item("child", { parentItemId: "parent", scheduledStart: schedule({ hours: -1 }) }),
+        item: item("child", { parentItemId: "parent", ...dueIn({ hours: -1 }) }),
         children: [],
       },
     ],
@@ -244,10 +247,10 @@ it("names the first most urgent descendant in sibling order", () => {
     item("later-sibling", {
       parentItemId: "root",
       sortOrder: 1,
-      scheduledStart: schedule({ hours: -2 }),
+      ...dueIn({ hours: -2 }),
     }),
     item("first-sibling", { parentItemId: "root", sortOrder: 0 }),
-    item("grandchild", { parentItemId: "first-sibling", scheduledStart: schedule({ hours: -1 }) }),
+    item("grandchild", { parentItemId: "first-sibling", ...dueIn({ hours: -1 }) }),
   );
 
   const actual = calculateDisplayedUrgency(

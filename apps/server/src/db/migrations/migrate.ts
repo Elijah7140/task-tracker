@@ -10,6 +10,7 @@ import addSavedSearches from "./add-saved-searches.js";
 import addStatusesAndPriorityNumbers from "./add-statuses-and-priority-numbers.js";
 import addTicketRank from "./add-ticket-rank.js";
 import addTickets from "./add-tickets.js";
+import dropItemSchedule from "./drop-item-schedule.js";
 import reserveTicketSearchKeys from "./reserve-ticket-search-keys.js";
 import indexTodayCompletions from "./index-today-completions.js";
 import initialCreate from "./initial-create.js";
@@ -29,6 +30,7 @@ export const databaseMigrations = Migrator.fromRecord({
   "11_AddTickets": addTickets,
   "12_ReserveTicketSearchKeys": reserveTicketSearchKeys,
   "13_AddInProgressStatuses": addInProgressStatuses,
+  "14_DropItemSchedule": dropItemSchedule,
 });
 
 /** Records the validated EF stages and applies any remaining migrations in the same transaction. */

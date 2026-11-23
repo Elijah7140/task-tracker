@@ -49,8 +49,6 @@ const setup = Effect.gen(function* () {
       priorityLevelId: null,
       dueDate: null,
       dueTime: null,
-      scheduledStart: null,
-      scheduledEnd: null,
       statusId: IN_PROGRESS_STATUS_ID,
       ...details,
     });

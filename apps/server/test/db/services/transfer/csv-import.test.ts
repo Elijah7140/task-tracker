@@ -101,11 +101,6 @@ describe("CSV import preview", () => {
     ['Title\r\n"never closed\r\n', "Row 2", "never closed"],
     ["Title,Ticket\r\nx,y,z\r\n", "Row 2", "3 cells but the header has 2"],
     ["Title,Due time\r\nx,15:00\r\n", "Row 2, Due time", "needs a due date"],
-    [
-      "Title,Scheduled end\r\nx,2026-12-01T10:00\r\n",
-      "Row 2, Scheduled end",
-      "needs a scheduled start",
-    ],
     ["Title,Completed\r\nx,maybe\r\n", "Row 2, Completed", "yes or no"],
     [
       "Title,Completed,Completed at\r\nx,no,2026-10-01T08:00:00Z\r\n",
@@ -228,11 +223,11 @@ describe("CSV import", () => {
           TicketRank: fix.TicketRank! + 1,
           DueDate: "2026-12-01",
           DueTime: "09:30:00",
-          ScheduledStart: "2026-12-02 10:00:00",
-          ScheduledEnd: "2026-12-02 11:30:00",
           Description: "Line one\r\nline two, with comma",
           SortOrder: 2,
         });
+        // An older file's schedule columns are unknown now and ignored (§7.4).
+        expect(created).not.toHaveProperty("ScheduledStart");
         const roots = items.filter((item) => item.FolderId === null && item.ParentItemId === null);
         expect(roots.at(-1)!.Id).toBe(created.Id);
       }),

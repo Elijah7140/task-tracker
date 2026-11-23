@@ -13,6 +13,7 @@ import {
 } from "./add-statuses-and-priority-numbers.js";
 import { ticketRankColumns } from "./add-ticket-rank.js";
 import { itemKindColumns, projectIconColumns, ticketSchema } from "./add-tickets.js";
+import { withoutSchedule } from "./drop-item-schedule.js";
 import { todayCompletionsSchema } from "./index-today-completions.js";
 import { initialSchema } from "./initial-create.js";
 
@@ -39,7 +40,8 @@ function extendInitialSchema(stage: number) {
     )
     .map((statement) => {
       if (statement.startsWith('CREATE TABLE "TodoItem"')) {
-        return extendTable(statement, ',\n    CONSTRAINT "CK_TodoItem_DueTime"', itemColumns);
+        const table = extendTable(statement, ',\n    CONSTRAINT "CK_TodoItem_DueTime"', itemColumns);
+        return stage >= 14 ? withoutSchedule(table) : table;
       }
       if (stage >= 11 && statement.startsWith('CREATE TABLE "Project"')) {
         return extendTable(statement, ")", projectIconColumns);

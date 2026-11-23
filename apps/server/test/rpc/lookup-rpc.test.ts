@@ -8,8 +8,6 @@ const blankFields = {
   ticketNumber: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 };
 
 it.effect("Lists the seeded lookups and persists added, renamed and reordered ones", () =>

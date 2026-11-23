@@ -13,8 +13,6 @@ const fields = (title: string, ticketNumber: string, priorityLevelId: string | n
   priorityLevelId,
   dueDate: "2026-11-20",
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 });
 
 it.effect("Lists labelled sections and moves tickets with undo through RPC", () =>
@@ -60,7 +58,6 @@ it.effect("Lists labelled sections and moves tickets with undo through RPC", () 
           priorityLevelId: null,
           dueDate: "2026-11-20",
           dueTime: null,
-          hasSchedule: false,
         },
       ]);
 

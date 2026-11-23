@@ -60,7 +60,6 @@ export const BUILT_IN_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("type", "Type", "Choice"),
   builtInField("priority", "Priority", "Choice"),
   builtInField("due", "Due Date", "Date"),
-  builtInField("scheduled", "Scheduled Date", "Date"),
   builtInField("status", "Status", "Text"),
   builtInField("completed", "Completed", "Boolean"),
   builtInField("link", "Links", "Text"),

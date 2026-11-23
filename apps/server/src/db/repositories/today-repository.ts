@@ -57,7 +57,7 @@ export const todayQuery = (sql: SqlClient.SqlClient, bounds: typeof DayBounds.En
     i.ParentItemId AS parentItemId, i.Title AS title, i.SortOrder AS sortOrder,
     i.CompletedAtUtc IS NOT NULL AS isCompleted,
     done.Id IS NOT NULL AS completedToday,
-    (i.DueDate IS NOT NULL OR i.ScheduledStart IS NOT NULL) AS hasDates,
+    i.DueDate IS NOT NULL AS hasDates,
     i.StatusId AS statusId, s.Name AS statusName, i.PriorityLevelId AS priorityLevelId
   FROM branch JOIN TodoItem i ON i.Id = branch.Id
   JOIN Project p ON p.Id = i.ProjectId AND p.DeletedAtUtc IS NULL

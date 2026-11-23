@@ -1,7 +1,5 @@
 import {
-  DEFAULT_CALENDAR_BLOCK_MINUTES,
   DEFAULT_CALENDAR_THRESHOLDS,
-  effectiveScheduledEnd,
   priorityLabel,
   type CalendarEntry,
   type CalendarQuery,
@@ -9,7 +7,7 @@ import {
 import { Effect, Schema } from "effect";
 import { type SqlClient, SqlSchema } from "effect/sql";
 import { activeRow } from "../active-row.js";
-import { DateText, FloatingTimestamp, Guid, TimeText, UtcTimestamp } from "../storage-codecs.js";
+import { DateText, Guid, TimeText, UtcTimestamp } from "../storage-codecs.js";
 
 const CalendarCandidateRow = Schema.Struct({
   id: Guid,
@@ -19,10 +17,8 @@ const CalendarCandidateRow = Schema.Struct({
   itemTypeId: Schema.NullOr(Guid),
   priorityLevelId: Schema.NullOr(Guid),
   statusId: Schema.NullOr(Guid),
-  dueDate: Schema.NullOr(DateText),
+  dueDate: DateText,
   dueTime: Schema.NullOr(TimeText),
-  scheduledStart: Schema.NullOr(FloatingTimestamp),
-  scheduledEnd: Schema.NullOr(FloatingTimestamp),
   completedAtUtc: Schema.NullOr(UtcTimestamp),
 });
 
@@ -40,55 +36,21 @@ const LocationRow = Schema.Struct({
 
 type Candidate = typeof CalendarCandidateRow.Type;
 
-function formatBoundary(dateTime: Temporal.PlainDateTime): string {
-  return dateTime.toString({ smallestUnit: "second" }).replace("T", " ");
-}
-
-function dueDateIsInRange(dueDate: Temporal.PlainDate, query: CalendarQuery): boolean {
-  return (
-    Temporal.PlainDate.compare(dueDate, query.fromDate) >= 0 &&
-    Temporal.PlainDate.compare(dueDate, query.toDateExclusive) < 0
-  );
-}
-
-function scheduleOverlapsRange(
-  scheduledStart: Temporal.PlainDateTime,
-  scheduledEnd: Temporal.PlainDateTime | null,
-  query: CalendarQuery,
-): boolean {
-  const rangeStart = query.fromDate.toPlainDateTime("00:00:00");
-  const rangeEnd = query.toDateExclusive.toPlainDateTime("00:00:00");
-  const effectiveEnd = effectiveScheduledEnd(scheduledStart, scheduledEnd);
-  return (
-    effectiveEnd !== null &&
-    Temporal.PlainDateTime.compare(scheduledStart, rangeEnd) < 0 &&
-    Temporal.PlainDateTime.compare(effectiveEnd, rangeStart) > 0
-  );
-}
-
 interface LookupNames {
   readonly types: ReadonlyMap<string, string>;
   readonly priorities: ReadonlyMap<string, string>;
   readonly statuses: ReadonlyMap<string, string>;
 }
 
-function createEntry(
-  item: Candidate,
-  kind: CalendarEntry["kind"],
-  date: Temporal.PlainDate,
-  startTime: Temporal.PlainTime | null,
-  lookups: LookupNames,
-): CalendarEntry {
+/** The due entry of an item whose due date the query matched. */
+function createEntry(item: Candidate, lookups: LookupNames): CalendarEntry {
   return {
     itemId: item.id,
     projectId: item.projectId,
     folderId: item.folderId,
     title: item.title,
-    kind,
-    date,
-    startTime,
-    scheduledStart: item.scheduledStart,
-    scheduledEnd: item.scheduledEnd,
+    date: item.dueDate,
+    startTime: item.dueTime,
     isCompleted: item.completedAtUtc !== null,
     dueDate: item.dueDate,
     dueTime: item.dueTime,
@@ -102,56 +64,21 @@ function createEntry(
   };
 }
 
-function entriesFromItem(
-  item: Candidate,
-  query: CalendarQuery,
-  lookups: LookupNames,
-): ReadonlyArray<CalendarEntry> {
-  const result: Array<CalendarEntry> = [];
-  if (item.dueDate !== null && dueDateIsInRange(item.dueDate, query)) {
-    result.push(createEntry(item, "due", item.dueDate, item.dueTime, lookups));
-  }
-  if (
-    item.scheduledStart !== null &&
-    scheduleOverlapsRange(item.scheduledStart, item.scheduledEnd, query)
-  ) {
-    result.push(
-      createEntry(
-        item,
-        "scheduled",
-        item.scheduledStart.toPlainDate(),
-        item.scheduledStart.toPlainTime(),
-        lookups,
-      ),
-    );
-  }
-  return result;
-}
-
 const CandidateRequest = Schema.Struct({
   projectId: Schema.NullOr(Guid),
   fromDate: Schema.String,
   toDateExclusive: Schema.String,
-  rangeStart: Schema.String,
-  rangeEnd: Schema.String,
-  earliestDefaultStart: Schema.String,
   includeCompleted: Schema.Boolean,
 });
 
 type CandidateBounds = typeof CandidateRequest.Type;
 
-/** Stored text bounds for a query. Untimed blocks starting this early can still reach the range. */
+/** Stored text bounds for a query. */
 function candidateBounds(query: CalendarQuery): CandidateBounds {
-  const rangeStart = query.fromDate.toPlainDateTime("00:00:00");
-  const rangeEnd = query.toDateExclusive.toPlainDateTime("00:00:00");
-  const earliestDefaultStart = rangeStart.subtract({ minutes: DEFAULT_CALENDAR_BLOCK_MINUTES });
   return {
     projectId: query.projectId,
     fromDate: query.fromDate.toString(),
     toDateExclusive: query.toDateExclusive.toString(),
-    rangeStart: formatBoundary(rangeStart),
-    rangeEnd: formatBoundary(rangeEnd),
-    earliestDefaultStart: formatBoundary(earliestDefaultStart),
     includeCompleted: query.includeCompleted,
   };
 }
@@ -166,8 +93,6 @@ const candidateColumns = (sql: SqlClient.SqlClient) => sql`
   i.StatusId AS statusId,
   i.DueDate AS dueDate,
   i.DueTime AS dueTime,
-  i.ScheduledStart AS scheduledStart,
-  i.ScheduledEnd AS scheduledEnd,
   i.CompletedAtUtc AS completedAtUtc`;
 
 /** The item `i` is active and so are its project and any folder. */
@@ -184,32 +109,15 @@ const matchesCompletion = (sql: SqlClient.SqlClient, includeCompleted: boolean) 
 const dueInRange = (sql: SqlClient.SqlClient, bounds: CandidateBounds) =>
   sql`(i.DueDate >= ${bounds.fromDate} AND i.DueDate < ${bounds.toDateExclusive})`;
 
-/** A block with a later end overlaps when it starts before the range end and ends after its start. */
-const timedBlockOverlaps = (sql: SqlClient.SqlClient, bounds: CandidateBounds) => sql`(
-  i.ScheduledStart < ${bounds.rangeEnd}
-  AND i.ScheduledEnd IS NOT NULL
-  AND i.ScheduledEnd > i.ScheduledStart
-  AND i.ScheduledEnd > ${bounds.rangeStart})`;
-
-/** A block without a later end lasts the default length, so it may start before the range. */
-const defaultBlockOverlaps = (sql: SqlClient.SqlClient, bounds: CandidateBounds) => sql`(
-  i.ScheduledStart >= ${bounds.earliestDefaultStart}
-  AND i.ScheduledStart < ${bounds.rangeEnd}
-  AND (i.ScheduledEnd IS NULL OR i.ScheduledEnd <= i.ScheduledStart))`;
-
-/** A coarse SQL prefilter. `entriesFromItem` applies the exact per-entry range rules. */
-const touchesRange = (sql: SqlClient.SqlClient, bounds: CandidateBounds) =>
-  sql`(${dueInRange(sql, bounds)} OR ${timedBlockOverlaps(sql, bounds)} OR ${defaultBlockOverlaps(sql, bounds)})`;
-
 const candidateQuery = (sql: SqlClient.SqlClient, bounds: CandidateBounds) => sql`
   SELECT ${candidateColumns(sql)}
   FROM TodoItem i
   WHERE ${inActiveLocation(sql)}
     AND ${inScope(sql, bounds.projectId)}
     AND ${matchesCompletion(sql, bounds.includeCompleted)}
-    AND ${touchesRange(sql, bounds)}`;
+    AND ${dueInRange(sql, bounds)}`;
 
-/** Queries active items touching a calendar range and resolves active item locations. */
+/** Queries active items due in a calendar range and resolves active item locations. */
 export function calendarRepository(sql: SqlClient.SqlClient) {
   const selectTypes = SqlSchema.findAll({
     Request: Schema.Void,
@@ -259,7 +167,7 @@ export function calendarRepository(sql: SqlClient.SqlClient) {
       ),
       statuses: new Map(statusRows.map((row) => [row.id, row.name])),
     };
-    return candidates.flatMap((item) => entriesFromItem(item, query, lookups));
+    return candidates.map((item) => createEntry(item, lookups));
   });
 
   return {
