@@ -2,14 +2,7 @@ import type { RankedTicket } from "@task-tracker/core";
 import { Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
 import { activeRow } from "../active-row.js";
-import {
-  DateText,
-  FloatingTimestamp,
-  Guid,
-  Real,
-  TimeText,
-  UtcTimestamp,
-} from "../storage-codecs.js";
+import { DateText, Guid, Real, TimeText, UtcTimestamp } from "../storage-codecs.js";
 
 const TicketRow = Schema.Struct({
   id: Guid,
@@ -22,7 +15,6 @@ const TicketRow = Schema.Struct({
   statusId: Schema.NullOr(Guid),
   dueDate: Schema.NullOr(DateText),
   dueTime: Schema.NullOr(TimeText),
-  scheduledStart: Schema.NullOr(FloatingTimestamp),
   createdAtUtc: UtcTimestamp,
 });
 
@@ -44,7 +36,7 @@ export function ticketRepository(sql: SqlClient.SqlClient) {
         i.FolderId AS folderId, i.Title AS title, i.TicketNumber AS ticketNumber,
         i.PriorityLevelId AS priorityLevelId, i.TicketRank AS ticketRank,
         i.StatusId AS statusId, i.DueDate AS dueDate, i.DueTime AS dueTime,
-        i.ScheduledStart AS scheduledStart, i.CreatedAtUtc AS createdAtUtc
+        i.CreatedAtUtc AS createdAtUtc
       FROM TodoItem AS i
       JOIN Project AS p ON p.Id = i.ProjectId AND ${activeRow(sql, "p")}
       LEFT JOIN Folder AS f ON f.Id = i.FolderId

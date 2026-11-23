@@ -11,8 +11,6 @@ export const CSV_COLUMNS = {
   status: "Status",
   dueDate: "Due date",
   dueTime: "Due time",
-  scheduledStart: "Scheduled start",
-  scheduledEnd: "Scheduled end",
   completed: "Completed",
   completedAt: "Completed at",
   project: "Project",

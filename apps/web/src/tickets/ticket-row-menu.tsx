@@ -21,7 +21,7 @@ export interface TicketRowActions {
 /** Whether Push back one day applies to an open ticket: it needs a due date or a block. */
 export const ticketPushBackState = (row: Row) => ({
   isCompleted: false,
-  hasDates: row.dueDate !== null || row.hasSchedule,
+  hasDates: row.dueDate !== null,
 });
 
 /**

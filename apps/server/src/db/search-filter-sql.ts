@@ -54,8 +54,6 @@ function builtInFilter(filter: FieldFilter, bind: BindParameter): string {
       return priorityFilter(filter, bind);
     case "due":
       return scalarFilter("t.DueDate", filter, bind);
-    case "scheduled":
-      return scalarFilter("substr(t.ScheduledStart, 1, 10)", filter, bind, "t.ScheduledStart");
     case "status":
       return textFilter("(SELECT s.Name FROM StatusLevel s WHERE s.Id = t.StatusId)", filter, bind);
     case "completed":
@@ -150,23 +148,18 @@ function textFilter(column: string, filter: FieldFilter, bind: BindParameter): s
   return `${column} IS NOT NULL AND ${test}`;
 }
 
-function scalarFilter(
-  column: string,
-  filter: FieldFilter,
-  bind: BindParameter,
-  presenceColumn: string = column,
-): string {
-  const presence = presenceFilter(presenceColumn, filter);
+function scalarFilter(column: string, filter: FieldFilter, bind: BindParameter): string {
+  const presence = presenceFilter(column, filter);
   if (presence !== null) {
     return presence;
   }
   const value = filter.value!;
   if (filter.operator === "between") {
     const [min, max] = rangeBounds(value);
-    return `${presenceColumn} IS NOT NULL AND ${column} BETWEEN ${bind(min)} AND ${bind(max)}`;
+    return `${column} IS NOT NULL AND ${column} BETWEEN ${bind(min)} AND ${bind(max)}`;
   }
   const comparison = COMPARISONS[filter.operator as keyof typeof COMPARISONS];
-  return `${presenceColumn} IS NOT NULL AND ${column} ${comparison} ${bind(scalarValue(value))}`;
+  return `${column} IS NOT NULL AND ${column} ${comparison} ${bind(scalarValue(value))}`;
 }
 
 function rangeBounds(value: FilterValue): readonly [SQLInputValue, SQLInputValue] {

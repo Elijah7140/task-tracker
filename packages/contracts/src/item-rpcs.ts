@@ -101,7 +101,7 @@ export const ItemRpcs = RpcGroup.make(
     payload: { itemId: Guid, priorityLevelId: Schema.NullOr(Guid) },
     error: RpcOperationError,
   }),
-  /** Moves an open item's due date and scheduled block one calendar day later (§7.14). */
+  /** Moves an open item's due date one calendar day later (§7.14). */
   Rpc.make("PushBackOneDay", { payload: { itemId: Guid }, error: RpcOperationError }),
   Rpc.make("SetItemCompleted", {
     payload: {

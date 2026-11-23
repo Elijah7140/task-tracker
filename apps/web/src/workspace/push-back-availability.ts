@@ -20,17 +20,16 @@ export function pushBackReason({ isCompleted, hasDates }: PushBackState): string
   if (isCompleted) {
     return "Completed items cannot be pushed back.";
   }
-  return hasDates ? null : "This item has no due date or scheduled block.";
+  return hasDates ? null : "This item has no due date.";
 }
 
 /** The push back state of a workspace item record. */
 export function itemPushBackState(item: {
   readonly completedAtUtc: string | null;
   readonly dueDate: string | null;
-  readonly scheduledStart: string | null;
 }): PushBackState {
   return {
     isCompleted: item.completedAtUtc !== null,
-    hasDates: item.dueDate !== null || item.scheduledStart !== null,
+    hasDates: item.dueDate !== null,
   };
 }

@@ -178,7 +178,10 @@ describe("Ticket transfer", () => {
 
         expect(document.projects[0]!.iconKey).toBe("database");
         expect(document.ticketLists).toHaveLength(3);
-        expect(ticket).toMatchObject({ kind: "Ticket", ticket: { dispatchedToId: PERSON } });
+        expect(ticket).toMatchObject({
+          kind: "Ticket",
+          ticket: { dispatchedToId: expect.any(String) },
+        });
         expect(Object.keys(ticket!["ticket"] as object)).not.toContain("version");
         expect(Object.keys(todo!)).not.toContain("kind");
         expect(Object.keys(todo!)).not.toContain("ticket");

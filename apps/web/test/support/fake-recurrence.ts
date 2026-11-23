@@ -16,7 +16,7 @@ export interface FakeRecurrenceStore {
 
 const missingItem = () => new NotFound({ entity: "Item", message: "Item is missing or deleted." });
 
-const DATE_REQUIRED = "A repeating item needs a due date or a scheduled start.";
+const DATE_REQUIRED = "A repeating item needs a due date.";
 
 // Calendar arithmetic on ISO dates by Howard Hinnant's civil algorithms, without a clock.
 function daysFromCivil(date: string): number {
@@ -108,21 +108,13 @@ function nextRepeatDate(rule: RepeatRule, date: string): string | null {
   return rule.endDate !== null && next > rule.endDate ? null : next;
 }
 
-const repeatDateOf = (item: ItemRecord) =>
-  item.dueDate ?? item.scheduledStart?.slice(0, 10) ?? null;
-
-function shiftDateTime(value: string | null, days: number): string | null {
-  return value === null
-    ? null
-    : `${civilFromDays(daysFromCivil(value.slice(0, 10)) + days)}${value.slice(10)}`;
-}
+const repeatDateOf = (item: ItemRecord) => item.dueDate;
 
 function shiftDates(item: ItemRecord, days: number): ItemRecord {
+  const { dueDate } = item;
   return {
     ...item,
-    dueDate: shiftDateTime(item.dueDate, days),
-    scheduledStart: shiftDateTime(item.scheduledStart, days),
-    scheduledEnd: shiftDateTime(item.scheduledEnd, days),
+    dueDate: dueDate === null ? null : civilFromDays(daysFromCivil(dueDate) + days),
   };
 }
 
@@ -143,7 +135,7 @@ export class FakeRecurrence {
   /** Validates an editor rule against the edit's dates and returns the write to run on success. */
   planEdit(
     itemId: string,
-    dates: Pick<ItemRecord, "dueDate" | "scheduledStart">,
+    dates: Pick<ItemRecord, "dueDate">,
     recurrence: RepeatRule | null | undefined,
   ): Effect.Effect<() => void, RuleViolation> {
     const located = this.find(itemId);
@@ -202,7 +194,7 @@ export class FakeRecurrence {
   }
 
   /**
-   * Push back one day (§7.14): moves only this item's dates one day later. It
+   * Push back one day (§7.14): moves only this item's due date one day later. It
    * mirrors the server's refusals; the server's own tests cover the full rules.
    */
   pushBack(itemId: string): Effect.Effect<void, NotFound | RuleViolation> {
@@ -214,13 +206,10 @@ export class FakeRecurrence {
     if (item.completedAtUtc !== null) {
       return Effect.fail(new RuleViolation({ message: "Completed items cannot be pushed back." }));
     }
-    if (item.dueDate === null && item.scheduledStart === null) {
-      return Effect.fail(
-        new RuleViolation({ message: "This item has no due date or scheduled block." }),
-      );
+    if (item.dueDate === null) {
+      return Effect.fail(new RuleViolation({ message: "This item has no due date." }));
     }
-    const dates = [item.dueDate, item.scheduledStart, item.scheduledEnd];
-    if (dates.some((date) => date?.startsWith("9999-12-31") === true)) {
+    if (item.dueDate === "9999-12-31") {
       return Effect.fail(
         new RuleViolation({
           message: "Pushing back would move a date outside the supported calendar.",

@@ -10,10 +10,10 @@ export const PIXELS_PER_MINUTE = HOUR_HEIGHT / 60;
 /** Total minutes in one day column. */
 export const DAY_MINUTES = 24 * 60;
 
-/** Duration in minutes of a timed due marker or a scheduled block without a usable end. */
-export const DEFAULT_BLOCK_MINUTES = 30;
+/** Duration in minutes of a timed due marker in the week grid. */
+export const DUE_MARKER_MINUTES = 30;
 
-/** Blocks shorter than this render urgency label and title on one compact line (§7.4). */
+/** Entries shorter than this render urgency label and title on one compact line (§7.4). */
 export const TWO_LINE_HEIGHT = 40;
 
 /** Hour the week view scrolls to when opened (§7.4). */

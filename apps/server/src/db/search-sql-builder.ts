@@ -17,7 +17,6 @@ const SELECT_COLUMNS =
   "SELECT t.Id, t.ProjectId, p.Name AS ProjectName, t.FolderId, t.ParentItemId, " +
   "t.Title, t.TicketNumber, t.ItemTypeId, t.PriorityLevelId, t.DueDate, t.DueTime, " +
   "CASE WHEN t.CompletedAtUtc IS NULL THEN 0 ELSE 1 END AS IsCompleted, " +
-  "CASE WHEN t.ScheduledStart IS NOT NULL THEN 1 ELSE 0 END AS HasSchedule, " +
   "t.StatusId " +
   "FROM TodoItem t JOIN Project p ON p.Id = t.ProjectId ";
 

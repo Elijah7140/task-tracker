@@ -45,13 +45,14 @@ describe("buildAddPayload", () => {
     ]);
   });
 
-  it("Sends no ticket fields for a ToDo and keeps its type and scheduled block", () => {
+  it("Sends no ticket fields for a ToDo and keeps its type and due time", () => {
     const result = buildAddPayload(
       "Todo",
       draft({
         title: "Meet",
         itemTypeId: "type",
-        scheduledStart: "2026-11-27T10:00",
+        dueDate: "2026-11-27",
+        dueTime: "10:00",
         moduleId: "module",
         parentItemId: "parent",
       }),
@@ -61,22 +62,23 @@ describe("buildAddPayload", () => {
     expect(result.ok && result.parentItemId).toBe("parent");
     expect(result.ok && result.fields).toMatchObject({
       itemTypeId: "type",
-      scheduledStart: "2026-11-27T10:00",
+      dueDate: "2026-11-27",
+      dueTime: "10:00:00",
     });
+    expect(result.ok && result.fields).not.toHaveProperty("scheduledStart");
   });
 
-  it("Drops the type and scheduled block from a ticket", () => {
+  it("Drops the type from a ticket", () => {
     const result = buildAddPayload(
       "Ticket",
       draft({
         ticketNumber: "1",
         title: "T",
         itemTypeId: "type",
-        scheduledStart: "2026-11-27T10:00",
       }),
     );
 
-    expect(result.ok && result.fields).toMatchObject({ itemTypeId: null, scheduledStart: null });
+    expect(result.ok && result.fields).toMatchObject({ itemTypeId: null });
     expect(result.ok && result.parentItemId).toBeNull();
   });
 });

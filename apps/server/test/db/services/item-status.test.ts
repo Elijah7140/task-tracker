@@ -246,8 +246,6 @@ it.effect("An editor save that sets Done completes sub-items as one status step"
         priorityLevelId: null,
         dueDate: null,
         dueTime: null,
-        scheduledStart: null,
-        scheduledEnd: null,
         statusId: completedId,
       };
 

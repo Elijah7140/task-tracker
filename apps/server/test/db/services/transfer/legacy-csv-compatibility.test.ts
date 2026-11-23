@@ -3,17 +3,21 @@ import { describe, expect, it } from "@effect/vitest";
 import { formatStjDouble, type ItemQuery } from "@task-tracker/core";
 import { Effect } from "effect";
 import { createProject, folderNamed, seed, seedDocument } from "./csv-setup.js";
+import { withoutScheduleColumns, withoutSchedulePreview } from "./dropped-schedule.js";
 import { projectId } from "./transfer-rows.js";
 import { fixturePath, seededWorld, type TransferWorld } from "./transfer-world.js";
 
 /** A CSV fixture's bytes, as legacy-final wrote or read them. */
 const csvFixture = (name: string) => readFileSync(fixturePath(`csv/${name}`));
 
+/** What legacy-final wrote, without the item schedule that §7.4 removed. */
+const legacyCsv = (name: string) => withoutScheduleColumns(csvFixture(name).toString("utf8"));
+
 const jsonFixture = <T>(name: string) => JSON.parse(csvFixture(name).toString("utf8")) as T;
 
 /** What legacy-final previewed and imported for one input file. */
 interface LegacyOutcome {
-  readonly preview: Record<string, unknown> & { readonly issues: unknown[] };
+  readonly preview: Parameters<typeof withoutSchedulePreview>[0] & Record<string, unknown>;
   readonly imported: number | null;
 }
 
@@ -72,10 +76,8 @@ describe("Legacy CSV compatibility", () => {
         Effect.gen(function* () {
           const bytes = yield* world.exportProjectCsvBytes(yield* projectId(world, name));
 
-          expect(bytes.equals(csvFixture(`legacy-export-${file}.csv`))).toBe(true);
-          expect(bytes.toString("utf8")).toBe(
-            csvFixture(`legacy-export-${file}.csv`).toString("utf8"),
-          );
+          expect(bytes.equals(Buffer.from(legacyCsv(`legacy-export-${file}.csv`)))).toBe(true);
+          expect(bytes.toString("utf8")).toBe(legacyCsv(`legacy-export-${file}.csv`));
         }),
       ),
     );
@@ -87,7 +89,7 @@ describe("Legacy CSV compatibility", () => {
         Effect.gen(function* () {
           const { bytes } = yield* world.exportSearchCsv(yield* query(world));
 
-          expect(bytes.toString("utf8")).toBe(csvFixture(file).toString("utf8"));
+          expect(bytes.toString("utf8")).toBe(legacyCsv(file));
         }),
       ),
     );
@@ -121,9 +123,7 @@ describe("Legacy CSV compatibility", () => {
           }
           expect(result.kind).toBe("imported");
           const bytes = yield* world.exportProjectCsvBytes(target);
-          expect(bytes.toString("utf8")).toBe(
-            csvFixture(`legacy-reimport-${file}.csv`).toString("utf8"),
-          );
+          expect(bytes.toString("utf8")).toBe(legacyCsv(`legacy-reimport-${file}.csv`));
         }),
       ),
     );
@@ -134,7 +134,8 @@ describe("Legacy CSV compatibility", () => {
     it.effect(`Previews and imports ${input} like legacy-final`, () =>
       seededWorld((world) =>
         Effect.gen(function* () {
-          const legacy = jsonFixture<LegacyOutcome>(`legacy-${name}.json`);
+          const outcome = jsonFixture<LegacyOutcome>(`legacy-${name}.json`);
+          const legacy = { ...outcome, preview: withoutSchedulePreview(outcome.preview) };
           const billing = yield* projectId(world, "Billing");
           const folder =
             name === "import-folder" ? yield* folderNamed(world, billing, "Tables") : null;
@@ -157,9 +158,7 @@ describe("Legacy CSV compatibility", () => {
           }
           expect(result).toMatchObject({ kind: "imported", summary: { items: legacy.imported } });
           const bytes = yield* world.exportProjectCsvBytes(billing);
-          expect(bytes.toString("utf8")).toBe(
-            csvFixture(`legacy-${name}-billing.csv`).toString("utf8"),
-          );
+          expect(bytes.toString("utf8")).toBe(legacyCsv(`legacy-${name}-billing.csv`));
         }),
       ),
     );

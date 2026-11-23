@@ -124,7 +124,7 @@ describe("recurring completion", () => {
     expect(tree.children(null).map((row) => row.sortOrder)).toEqual([0, 1, 2]);
   });
 
-  it("Copies fields, moves every date by the same offset and resets completion and status", () => {
+  it("Copies fields, moves the due date and resets completion and status", () => {
     const rule = recurrenceRule("Weekly", { weekdays: 16, endKind: "AfterCount", remaining: 3 });
     const source = repeating(
       "source",
@@ -135,8 +135,6 @@ describe("recurring completion", () => {
         priorityLevelId: "priority",
         statusId: "testing",
         dueTime: Temporal.PlainTime.from("12:30"),
-        scheduledStart: Temporal.PlainDateTime.from("2026-11-13T09:15"),
-        scheduledEnd: Temporal.PlainDateTime.from("2026-11-14T10:45"),
       },
       rule,
     );
@@ -169,8 +167,6 @@ describe("recurring completion", () => {
     });
     expect(copy.dueDate?.toString()).toBe("2026-11-20");
     expect(copy.dueTime?.toString()).toBe("12:30:00");
-    expect(copy.scheduledStart?.toString()).toBe("2026-11-20T09:15:00");
-    expect(copy.scheduledEnd?.toString()).toBe("2026-11-21T10:45:00");
     expect(tree.get("copy-2")).toMatchObject({
       statusId: "queued",
       completedAtUtc: null,
@@ -178,23 +174,6 @@ describe("recurring completion", () => {
       recurrenceSeriesId: "copy-3",
     });
     expect(tree.get("copy-2").dueDate?.toString()).toBe("2026-11-20");
-  });
-
-  it("Moves a scheduled-only occurrence by its start date", () => {
-    const tree = new ItemTree(projectId, null, [
-      repeating("meeting", {
-        dueDate: null,
-        scheduledStart: Temporal.PlainDateTime.from("2026-11-13T09:00"),
-        scheduledEnd: Temporal.PlainDateTime.from("2026-11-13T10:00"),
-      }),
-    ]);
-
-    CompletionService.complete(tree, "meeting", true, now, undefined, context());
-
-    const copy = tree.get("copy-1");
-    expect(copy.dueDate).toBeNull();
-    expect(copy.scheduledStart?.toString()).toBe("2026-11-14T09:00:00");
-    expect(copy.scheduledEnd?.toString()).toBe("2026-11-14T10:00:00");
   });
 
   it("Reports the last repeat without creating an occurrence", () => {

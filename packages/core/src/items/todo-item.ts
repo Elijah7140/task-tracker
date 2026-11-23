@@ -20,8 +20,6 @@ export interface TodoItem extends DeletionFields {
   readonly itemTypeId: string | null;
   readonly dueDate: Temporal.PlainDate | null;
   readonly dueTime: Temporal.PlainTime | null;
-  readonly scheduledStart: Temporal.PlainDateTime | null;
-  readonly scheduledEnd: Temporal.PlainDateTime | null;
   readonly statusId: string | null;
   readonly reopenStatusId: string | null;
   readonly completedAtUtc: Temporal.Instant | null;
@@ -70,8 +68,6 @@ export function createItem(
     itemTypeId: null,
     dueDate: null,
     dueTime: null,
-    scheduledStart: null,
-    scheduledEnd: null,
     statusId: null,
     reopenStatusId: null,
     completedAtUtc: null,

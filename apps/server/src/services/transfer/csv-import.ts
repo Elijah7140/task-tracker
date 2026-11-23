@@ -80,8 +80,6 @@ function itemOf(
     priorityLevelId: row.priorityLevelId,
     dueDate: row.dueDate,
     dueTime: row.dueTime,
-    scheduledStart: row.scheduledStart,
-    scheduledEnd: row.scheduledEnd,
     statusId: row.statusId,
     completedAtUtc: row.completedAtUtc,
   };

@@ -207,13 +207,10 @@ export * from "./lookups/status-level.js";
 export * from "./items/item-status.js";
 export { TrashProject, type TrashBatch } from "./trash/trash-project.js";
 export {
-  DEFAULT_CALENDAR_BLOCK_MINUTES,
   DEFAULT_CALENDAR_THRESHOLDS,
   calculateCalendarEntryUrgency,
-  effectiveScheduledEnd,
   validateCalendarRange,
   type CalendarEntry,
-  type CalendarEntryKind,
   type CalendarQuery,
 } from "./calendar/calendar-entry.js";
 export { foldSearchText } from "./search/text-folding.js";
@@ -299,11 +296,9 @@ export {
 export { TakenNames, uniqueImportedName } from "./transfer/imported-name.js";
 export {
   formatTransferDate,
-  formatTransferLocal,
   formatTransferTime,
   formatTransferUtc,
   parseTransferDate,
-  parseTransferLocal,
   parseTransferTime,
   parseTransferUtc,
 } from "./transfer/transfer-time-format.js";

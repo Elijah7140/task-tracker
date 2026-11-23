@@ -14,7 +14,7 @@ async function openProject(clock: ReturnType<typeof createTestClock>["clock"]) {
     projects: [
       {
         name: "Billing DB",
-        items: [{ title: MEETING, scheduledStart: "2026-11-14T15:00:00" }],
+        items: [{ title: MEETING, dueDate: "2026-11-14", dueTime: "15:00:00" }],
         folders: [{ name: "Reporting" }],
       },
     ],
@@ -34,7 +34,7 @@ describe("AreaItems", () => {
     const { store, projectId } = await openProject(clock);
     await expect.element(meetingUrgency()).not.toBeInTheDocument();
     store.setItems(projectId, null, [
-      { title: MEETING, scheduledStart: "2026-11-14T15:00:00", urgency: "Imminent" },
+      { title: MEETING, dueDate: "2026-11-14", dueTime: "15:00:00", urgency: "Imminent" },
     ]);
 
     await advance("1 minute");

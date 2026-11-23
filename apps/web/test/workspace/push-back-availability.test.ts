@@ -4,7 +4,7 @@ import { itemPushBackState, pushBackReason } from "../../src/workspace/push-back
 describe("pushBackReason", () => {
   it.each([
     [false, true, null],
-    [false, false, "This item has no due date or scheduled block."],
+    [false, false, "This item has no due date."],
     [true, true, "Completed items cannot be pushed back."],
     [true, false, "Completed items cannot be pushed back."],
   ])(
@@ -19,9 +19,9 @@ describe("pushBackReason", () => {
 
 describe("itemPushBackState", () => {
   it.each([
-    [{ completedAtUtc: null, dueDate: "2026-11-10", scheduledStart: null }, false, true],
-    [{ completedAtUtc: null, dueDate: null, scheduledStart: "2026-11-10T09:00:00" }, false, true],
-    [{ completedAtUtc: "2026-11-15T10:00:00Z", dueDate: null, scheduledStart: null }, true, false],
+    [{ completedAtUtc: null, dueDate: "2026-11-10" }, false, true],
+    [{ completedAtUtc: null, dueDate: null }, false, false],
+    [{ completedAtUtc: "2026-11-15T10:00:00Z", dueDate: null }, true, false],
   ])("Reads %o as completed %s with dates %s", (item, isCompleted, hasDates) => {
     const state = itemPushBackState(item);
 

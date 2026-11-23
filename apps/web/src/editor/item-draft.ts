@@ -22,13 +22,10 @@ const BUILT_IN_KEYS: ReadonlyArray<BuiltInKey> = [
   "statusId",
   "dueDate",
   "dueTime",
-  "scheduledStart",
-  "scheduledEnd",
 ];
 
 // Time inputs edit minutes, so stored seconds and fractions are shown truncated.
 const minutes = (time: string | null) => time?.slice(0, 5) ?? "";
-const dateAndMinutes = (dateTime: string | null) => dateTime?.slice(0, 16) ?? "";
 
 /** The stored item's built-in values in the forms the inputs show. */
 export function storedTexts(item: ItemRecord): BuiltInTexts {
@@ -41,8 +38,6 @@ export function storedTexts(item: ItemRecord): BuiltInTexts {
     statusId: item.statusId ?? "",
     dueDate: item.dueDate ?? "",
     dueTime: minutes(item.dueTime),
-    scheduledStart: dateAndMinutes(item.scheduledStart),
-    scheduledEnd: dateAndMinutes(item.scheduledEnd),
   };
 }
 
@@ -88,7 +83,5 @@ export function itemEdit(item: ItemRecord, overrides: BuiltInOverrides): Edit {
     ...(changed.has("statusId") ? { statusId: valueOf("statusId") } : {}),
     dueDate: valueOf("dueDate"),
     dueTime: valueOf("dueTime"),
-    scheduledStart: valueOf("scheduledStart"),
-    scheduledEnd: valueOf("scheduledEnd"),
   };
 }

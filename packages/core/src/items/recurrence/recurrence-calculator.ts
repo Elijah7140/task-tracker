@@ -21,7 +21,7 @@ export function isSupportedDate(date: Temporal.PlainDate): boolean {
  */
 export function nextOccurrence(
   rule: RecurrenceRule,
-  scheduledDate: Temporal.PlainDate,
+  dueDate: Temporal.PlainDate,
   completionDate: Temporal.PlainDate,
 ): Temporal.PlainDate | null {
   const error = findRecurrenceError(rule);
@@ -31,7 +31,7 @@ export function nextOccurrence(
   if (rule.remaining === 1) {
     return null;
   }
-  const anchor = rule.anchor === "DueDate" ? scheduledDate : completionDate;
+  const anchor = rule.anchor === "DueDate" ? dueDate : completionDate;
   const next = advance(rule, anchor);
   if (next === null || !isSupportedDate(next)) {
     return null;

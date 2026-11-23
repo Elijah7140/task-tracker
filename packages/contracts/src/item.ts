@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { Guid } from "./guid.js";
-import { IsoDate, IsoFloatingDateTime, IsoTime, IsoUtcInstant } from "./iso-date-time.js";
+import { IsoDate, IsoTime, IsoUtcInstant } from "./iso-date-time.js";
 import { RecurrenceRule } from "./recurrence-rule.js";
 import { ReminderChoice } from "./reminder.js";
 import { ItemKind } from "./ticket-fields.js";
@@ -18,8 +18,6 @@ const itemFields = {
   priorityLevelId: Schema.NullOr(Guid),
   dueDate: Schema.NullOr(IsoDate),
   dueTime: Schema.NullOr(IsoTime.check(tickPrecision)),
-  scheduledStart: Schema.NullOr(IsoFloatingDateTime.check(tickPrecision)),
-  scheduledEnd: Schema.NullOr(IsoFloatingDateTime.check(tickPrecision)),
 };
 
 /** Replacement values for an item's built-in fields. */

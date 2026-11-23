@@ -22,7 +22,6 @@ const SearchRow = Schema.Struct({
   dueDate: Schema.NullOr(Schema.String),
   dueTime: Schema.NullOr(Schema.String),
   isCompleted: Bit,
-  hasSchedule: Bit,
   statusId: Schema.NullOr(Guid),
 }).pipe(
   Schema.encodeKeys({
@@ -38,7 +37,6 @@ const SearchRow = Schema.Struct({
     dueDate: "DueDate",
     dueTime: "DueTime",
     isCompleted: "IsCompleted",
-    hasSchedule: "HasSchedule",
     statusId: "StatusId",
   }),
 );

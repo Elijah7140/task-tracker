@@ -47,7 +47,6 @@ describe("Search contracts", () => {
           dueDate: "2026-11-20",
           dueTime: "15:30:00",
           isCompleted: false,
-          hasSchedule: false,
           location: ["Billing"],
           typeName: "Change",
           priorityLabel: "1 · High",

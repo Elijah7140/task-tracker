@@ -13,7 +13,7 @@ import { projectItemRepository } from "../../src/db/repositories/project-item-re
 import { sqliteLayer } from "../../src/db/sqlite.js";
 import { Migrator, SqlClient } from "effect/sql";
 import { vi } from "vitest";
-import { FloatingTimestamp, Guid, TimeText, UtcTimestamp } from "../../src/db/storage-codecs.js";
+import { Guid, TimeText, UtcTimestamp } from "../../src/db/storage-codecs.js";
 
 const faults = vi.hoisted(() => ({ failDdl: "" }));
 
@@ -50,6 +50,8 @@ const completedLedger = [
   { migration_id: 11, name: "AddTickets" },
   { migration_id: 12, name: "ReserveTicketSearchKeys" },
   { migration_id: 13, name: "AddInProgressStatuses" },
+  { migration_id: 14, name: "DropItemSchedule" },
+  { migration_id: 15, name: "DropTicketExtraFields" },
 ];
 const childId = "019A0000-0000-7000-8000-000000000CCB";
 const parentId = "019A0000-0000-7000-8000-000000000CCA";
@@ -151,8 +153,19 @@ function snapshot(path: string) {
   });
 }
 
+/** Columns a later migration drops, which the adopted rows no longer have (§7.4). */
+const droppedColumns: Readonly<Record<string, readonly string[]>> = {
+  TodoItem: ["ScheduledStart", "ScheduledEnd"],
+};
+
+function withoutDropped(table: string, row: Readonly<Record<string, unknown>>) {
+  const dropped = droppedColumns[table] ?? [];
+  return Object.fromEntries(Object.entries(row).filter(([name]) => !dropped.includes(name)));
+}
+
 function expectOriginalRows(path: string, before: ReturnType<typeof snapshot>) {
-  for (const [table, rows] of before) {
+  for (const [table, original] of before) {
+    const rows = original.map((row) => withoutDropped(String(table), row));
     const [first] = rows;
     if (!first) {
       continue;
@@ -162,7 +175,7 @@ function expectOriginalRows(path: string, before: ReturnType<typeof snapshot>) {
       .join(", ");
     const expected =
       table === "FieldDefinition"
-        ? rows.map((row) => (row.Key === "status" ? { ...row, Key: "status-2" } : row))
+        ? rows.map((row) => (row["Key"] === "status" ? { ...row, Key: "status-2" } : row))
         : rows;
     using database = new DatabaseSync(path, { readOnly: true });
     const statement = database.prepare(`SELECT ${columns} FROM "${String(table)}"`);
@@ -507,16 +520,14 @@ it.effect("Preserves EF hierarchy, ISO settings and all five custom value encodi
       ItemTypeId: archivedTypeId,
       DueDate: "2026-12-10",
       DueTime: "09:30:00.1200000",
-      ScheduledEnd: "2026-12-09 15:00:00.1234567",
       CompletedAtUtc: "2026-11-13 12:00:00.1234567",
     });
     expect(Schema.decodeUnknownSync(Guid)(child.Id)).toBe(child.Id);
     expect(Schema.decodeUnknownSync(UtcTimestamp)(child.CompletedAtUtc).toString()).toBe(
       "2026-11-13T12:00:00.1234567Z",
     );
-    expect(Schema.decodeUnknownSync(FloatingTimestamp)(child.ScheduledStart).toString()).toBe(
-      "2026-12-09T14:00:00.1234567",
-    );
+    expect(child).not.toHaveProperty("ScheduledStart");
+    expect(child).not.toHaveProperty("ScheduledEnd");
     expect(Schema.decodeUnknownSync(TimeText)(child.DueTime).toString()).toBe("09:30:00.12");
     expect(query(path, "SELECT Id, ParentFolderId FROM Folder ORDER BY Id")).toEqual([
       { Id: "019A0000-0000-7000-8000-000000000BBB", ParentFolderId: null },
@@ -558,9 +569,6 @@ it.effect("Preserves EF hierarchy, ISO settings and all five custom value encodi
     expect(() =>
       execute(path, "UPDATE TodoItem SET DueDate = NULL WHERE DueTime IS NOT NULL"),
     ).toThrow("CK_TodoItem_DueTime");
-    expect(() =>
-      execute(path, "UPDATE TodoItem SET ScheduledStart = NULL WHERE ScheduledEnd IS NOT NULL"),
-    ).toThrow("CK_TodoItem_ScheduledEnd");
     expect(() =>
       execute(path, "UPDATE ItemFieldValue SET TextValue = 'Invalid' WHERE BoolValue IS NOT NULL"),
     ).toThrow("CK_ItemFieldValue_ExactlyOne");

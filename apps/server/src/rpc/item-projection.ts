@@ -25,10 +25,6 @@ export function parseItemEdit(fields: typeof ItemEdit.Type): DomainItemEdit {
     ...fields,
     dueDate: fields.dueDate === null ? null : Temporal.PlainDate.from(fields.dueDate),
     dueTime: fields.dueTime === null ? null : Temporal.PlainTime.from(fields.dueTime),
-    scheduledStart:
-      fields.scheduledStart === null ? null : Temporal.PlainDateTime.from(fields.scheduledStart),
-    scheduledEnd:
-      fields.scheduledEnd === null ? null : Temporal.PlainDateTime.from(fields.scheduledEnd),
   };
 }
 
@@ -55,8 +51,6 @@ export function projectItem(item: TodoItem): typeof Item.Type {
     recurrence: projectRecurrence(item.recurrence),
     dueDate: item.dueDate?.toString() ?? null,
     dueTime: item.dueTime?.toString() ?? null,
-    scheduledStart: item.scheduledStart?.toString() ?? null,
-    scheduledEnd: item.scheduledEnd?.toString() ?? null,
     completedAtUtc: item.completedAtUtc?.toString() ?? null,
     createdAtUtc: item.createdAtUtc.toString(),
     updatedAtUtc: item.updatedAtUtc.toString(),

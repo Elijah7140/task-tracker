@@ -23,15 +23,13 @@ const ITEMS: ReadonlyArray<SeedItem> = [
     title: "Overdue report",
     dueDate: "2026-11-10",
     dueTime: "15:30:00",
-    scheduledStart: "2026-11-10T23:45:00",
-    scheduledEnd: "2026-11-11T01:45:00",
     children: [{ title: "Gather figures", dueDate: "2026-11-10" }],
   },
   { title: "Someday" },
   { title: "Weekly sync", dueDate: "2026-11-13", recurrence: weekly },
 ];
 
-const UNDATED_REASON = "This item has no due date or scheduled block.";
+const UNDATED_REASON = "This item has no due date.";
 
 const item = (title: string) => page.getByRole("treeitem", { name: title, exact: true });
 const pushBackItem = () => page.getByRole("menuitem", { name: "Push back one day" });
@@ -70,18 +68,14 @@ function repeatShortcut() {
 }
 
 describe("Push back one day in the workspace", () => {
-  it("Moves a card's due date and block one day and leaves its sub-item", async () => {
+  it("Moves a card's due date one day, keeps its time and leaves its sub-item", async () => {
     const { stored, pushBacks } = await openWorkspace();
 
     await openMenu("Overdue report");
     await pushBackItem().click();
 
     await expect.poll(() => stored("Overdue report")?.dueDate).toBe("2026-11-11");
-    expect(stored("Overdue report")).toMatchObject({
-      dueTime: "15:30:00",
-      scheduledStart: "2026-11-11T23:45:00",
-      scheduledEnd: "2026-11-12T01:45:00",
-    });
+    expect(stored("Overdue report")).toMatchObject({ dueTime: "15:30:00" });
     expect(stored("Gather figures")?.dueDate).toBe("2026-11-10");
     expect(pushBacks()).toBe(1);
     await expect.element(item("Overdue report")).toMatchTextContent("Nov 11, 2026, 3:30 PM");

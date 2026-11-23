@@ -31,7 +31,7 @@ fields today, and must be able to carry more metadata later that users can searc
 | R4 | Item fields: title, description, ticket number, priority, type | Title required, the rest optional. Priorities, like types, are data: users can add and reorder levels |
 | R5 | Item types: Change, Error, Discussion, user-extensible | Stored as data, not an enum, so new types need no code change |
 | R6 | Optional due date (with optional time) | Drives urgency color |
-| R7 | Optional scheduled start/end (for discussions, meetings) | Also drives urgency; feeds the future calendar |
+| R7 | ~~Optional scheduled start/end~~ | Removed 23 Nov 2026: items have only a due date and optional time (§7.4) |
 | R8 | Urgency indicator: neutral, yellow, red | Thresholds configurable globally and per project (§6.5). A parent shows the most urgent of itself and its open sub-items |
 | R9 | Mark complete / reopen | |
 | R10 | Completed items move to a collapsed "Completed" section in the same area | Applies at every level, including under a parent (§6.2) |
@@ -154,7 +154,6 @@ FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1
 | `ItemTypeId` | UUID string or null | |
 | `DueDate` | calendar date or null | |
 | `DueTime` | wall-clock time or null | Only valid when `DueDate` is set. Absent = due end of day |
-| `ScheduledStart` / `ScheduledEnd` | local date-time or null (§5.4) | For discussions and meetings. End requires start; end ≥ start |
 | `CompletedAtUtc` | UTC instant or null | null = open |
 | `SortOrder` | integer | Order among siblings |
 | `CreatedAtUtc`, `UpdatedAtUtc` | UTC instant | |
@@ -218,9 +217,8 @@ denormalized root id that could go stale.
   stores enum names as `TEXT`. Keep settings keys and codecs (§6.5).
 - Dates use `YYYY-MM-DD`, times use `HH:mm:ss` with seven fractional digits when
   present, and timestamps use `YYYY-MM-DD HH:mm:ss` with up to seven fractional
-  digits. Timestamps have no offset in SQLite. Decode UTC columns explicitly as UTC
-  and scheduled columns as floating values. Write the same formats so date ordering
-  and scheduled range checks work across old and new rows.
+  digits. Timestamps have no offset in SQLite. Decode UTC columns explicitly as UTC.
+  Write the same formats so date ordering works across old and new rows.
   [Microsoft.Data.Sqlite value binding](https://raw.githubusercontent.com/dotnet/efcore/v10.0.0/src/Microsoft.Data.Sqlite.Core/SqliteValueBinder.cs)
 - Write a small `node:sqlite` adapter using `effect/sql/SqlClient`,
   `effect/sql/SqlSchema` for row codecs and `effect/sql/SqlError` for errors.
@@ -228,7 +226,7 @@ denormalized root id that could go stale.
   Use one connection with `PRAGMA busy_timeout = 5000` and an `effect/Semaphore`
   that grants exclusive access for each transaction.
 - Enable foreign keys. Preserve keys, foreign keys and delete
-  actions, check constraints (including due time and scheduled end), and indexes
+  actions, check constraints (including due time), and indexes
   (including `TodoItem(ProjectId, FolderId)`, `TodoItem(ParentItemId)`,
   `TodoItem(TicketNumber)`, `TodoItem(DueDate)` and `Folder(ProjectId, ParentFolderId)`).
 - Effect owns future migration history. Validate EF history and actual schema before
@@ -347,8 +345,8 @@ finished items move into a Completed section, so open work is never hidden.
 `calculateUrgency(item, now, timeZone, thresholds)` in Core. It resolves the
 item's floating deadline with `FloatingTime` (§5.4) using the `timeZone` passed in.
 
-**Effective deadline** = the due date/time if set; otherwise the scheduled start if set;
-otherwise none. So a discussion with only a meeting time still turns yellow/red as it nears.
+**Effective deadline** = the due date/time if set; otherwise none. A due date without a time
+is due at the end of that local day.
 
 | Condition | Urgency | Default color |
 |-----------|---------|---------------|
@@ -484,7 +482,7 @@ Why typed columns instead of a JSON blob: range queries ("severity ≥ 3",
 
 **Field registry.** The field registry returns every searchable field as a
 `SearchableField { Key, DisplayName, DataType, Source }`. `Source` is either a built-in
-column (`title`, `ticket`, `priority`, `type`, `due`, `scheduled`, `status`, `completed`, `link`) or a
+column (`title`, `ticket`, `priority`, `type`, `due`, `status`, `completed`, `link`) or a
 `FieldDefinition`. Search code treats both the same.
 
 **Query model** (Core, storage-agnostic):
@@ -530,8 +528,8 @@ which SQLite may renumber during `VACUUM` or a table rebuild:
 All search code is tested against real SQLite.
 
 - Built-in field types include title, ticket and status (Text), type and priority (Choice),
-  due and scheduled (Date), and completed (Boolean, displayed as "Completed"). Scheduled
-  comparisons use the date of `ScheduledStart`.
+  due (Date), and completed (Boolean, displayed as "Completed"). The `scheduled` field went
+  with the item schedule (§7.4); a saved search that still names it reports an unknown field.
 - Text supports Equals and NotEquals (trimmed and case-insensitive), Contains
   (case-insensitive), IsEmpty and IsNotEmpty. Number and Date also support ordered
   comparisons and inclusive Between with a valid min ≤ max range. Boolean and Choice
@@ -570,30 +568,29 @@ The text syntax and saved searches are specified in §7.7.
 ### 7.4 Calendar (Phase 5)
 
 **Due dates only (owner, 23 Nov 2026).** Items carry a due date (and optional due time)
-and no scheduled start or end. The add views and editor no longer offer the schedule,
-cards show only the due date, and the calendar shows only due entries. Within a day,
-all-day entries come first, then entries run in priority order like the workspace's
-levels (most important first, no priority last), then by time and title. Stored
-`ScheduledStart`/`ScheduledEnd` values are kept, not migrated: the server still sends
-scheduled entries and urgency still falls back to a schedule, but the calendar leaves
-those entries out and the editor shows a stored schedule only so it can be cleared.
-The schedule rules below describe the earlier behaviour.
+and nothing else to place them in time. The scheduled start and end were removed
+completely: migration `14_DropItemSchedule` drops `TodoItem.ScheduledStart`,
+`ScheduledEnd` and their check (a repeating item that had only a schedule takes the
+schedule's start date as its due date, so its rule keeps a date), and older JSON and CSV
+files still import with their schedule ignored. Within a day, all-day entries come first,
+then entries run in priority order like the workspace's levels (most important first, no
+priority last), then by time and title.
 
-- A due date produces an all-day entry, or a timed entry when DueTime is set. A schedule produces a separate block; a missing end, or an end that is not after the start (a zero-length schedule), makes a 30-minute block. Both entries appear when both fields are set, including on sub-items.
+- A due date produces an all-day entry, or a timed entry when DueTime is set, including on sub-items. Items without a due date are not on the calendar.
 - Completed entries are hidden by default; Include completed shows them muted and checked. Deleted items, folders, and projects are excluded.
 - Month shows six weeks starting on the culture's first day of week. Days outside the month are dimmed. All-day entries precede timed entries; after three entries, +N more opens that day in Week.
-- Week has seven columns, an all-day row, and a 00:00–24:00 time grid at 48 pixels per hour. It opens scrolled to 07:00. Timed due entries are 30-minute markers and scheduled blocks are exactly as tall as their duration (a block with no end is 30 minutes); entries split width only when their real intervals overlap, so touching blocks do not. A marker that would pass 24:00 is moved up to end at midnight. Blocks shorter than 40 pixels put the urgency label and title on one line. The all-day row grows to hold every all-day entry of the week, and entries fill their day column. Within a day entries are ordered all-day first, then by start, then by title (culture-aware, ignoring case), then by item id.
+- Week has seven columns, an all-day row, and a 00:00–24:00 time grid at 48 pixels per hour. It opens scrolled to 07:00. Timed due entries are 30-minute markers, so they put the urgency label and title on one line; markers split width only when their intervals overlap, so touching markers do not. A marker that would pass 24:00 is moved up to end at midnight. The all-day row grows to hold every all-day entry of the week, and entries fill their day column. Within a day entries are ordered all-day first, then by priority, then by start, then by title (culture-aware, ignoring case), then by item id.
 - Today comes from the injected Effect Clock and explicit local time zone. Previous, Today, Next, Month and Week control the period. PageUp/PageDown change periods (also with an entry focused, but not while a text box has focus); Ctrl+Shift+M/W switch views. With an entry focused, plain ↑/↓ move through that day's entries, ←/→ go to the nearest day with entries, and Home/End go to the first and last entry shown.
 - The scope is All projects from Home or This project from a workspace. Include completed is available in either scope.
 - Home, workspace, and Ctrl+Shift+C open the calendar. Back or Escape (with no modifiers) restores the previous page. Search and Calendar never stack: opening one from the other disposes it and keeps the original page as the single return target, so Back lands on that page and activating an entry or result asks that page's unsaved-changes guard once. An entry activation still pending when the calendar is left is dropped. Activating an entry opens its current workspace folder and selects it, subject to the unsaved-changes guard. A deleted item reloads the calendar and reports “This item no longer exists”. Month navigation moves from the first day of the month.
 - Entries use their own urgency, refreshed each minute, and show it as a label (Approaching, Imminent, Overdue) with a bold title when overdue, never by colour alone; tooltips show type and priority.
 - Drag to reschedule (Phase 5b). Pointer and keyboard use the same rules, with a typed intent from React and a server transaction that revalidates the item and rejects deleted items:
   - A press that moves less than 4 pixels is a click and still opens the item. Past that the entry is dragged; Escape cancels, and releasing outside every day area saves nothing. A drop that lands on the same slot is a no-op and does not save. Completed entries can be dragged too.
-  - Month: dropping on another day cell sets a due entry's date and keeps its DueTime; a scheduled entry's start moves to the same time on that day, keeping its length (a schedule without an end stays without one). The cell is outlined while the pointer is over it.
-  - Week all-day row: a due entry changes date; a timed due entry also loses its DueTime. A scheduled block cannot be dropped there (ignored, no indicator).
-  - Week time grid: a due entry (all-day or timed) takes the dropped day and time; a block's start becomes the dropped time and its length is kept. A ghost block with the time shows the snapped position. The drop position uses where the block was grabbed, so it does not jump (an all-day entry is placed by the pointer itself).
-  - Times snap to 15 minutes and are clamped to 00:00–23:45 so the start stays on the dropped day. A block that crosses midnight moves as a whole, whichever day of it is dragged.
-  - Keyboard: with an entry focused, Alt+←/→ moves it one day and Alt+↑/↓ moves a timed due entry or scheduled block 15 minutes (month and week). Alt+↑/↓ does nothing for an all-day entry. A time between quarter hours first lands on the next quarter in the direction of the key (10:07 goes to 10:15 with Alt+↓ and to 10:00 with Alt+↑). Timed entries stop at 00:00 and 23:45 instead of crossing midnight.
+  - Month: dropping on another day cell sets the entry's due date and keeps its DueTime. The cell is outlined while the pointer is over it.
+  - Week all-day row: the entry changes date; a timed entry also loses its DueTime.
+  - Week time grid: an entry (all-day or timed) takes the dropped day and time. A ghost marker with the time shows the snapped position. The drop position uses where the marker was grabbed, so it does not jump (an all-day entry is placed by the pointer itself).
+  - Times snap to 15 minutes and are clamped to 00:00–23:45 so the time stays on the dropped day.
+  - Keyboard: with an entry focused, Alt+←/→ moves it one day and Alt+↑/↓ moves a timed entry 15 minutes (month and week). Alt+↑/↓ does nothing for an all-day entry. A time between quarter hours first lands on the next quarter in the direction of the key (10:07 goes to 10:15 with Alt+↓ and to 10:00 with Alt+↑). Timed entries stop at 00:00 and 23:45 instead of crossing midnight.
   - Focus stays on the moved entry after the reload. If it is no longer shown, focus goes to its day's "+N more" button, or to Previous or Next when the entry left the visible period; the period itself does not move.
   - While a move is saving, newer key steps on the same entry are added together and a newer drop replaces a waiting one; the waiting move is planned against the entry as reloaded (or as last saved when it left the visible period), so a held key keeps moving it and a reload between pointer press and drop never uses stale values. A failed move discards the waiting ones.
   - Pointer details: only the left button drags. A press that did not start on an entry (including "+N more" and scrollbars) never drags; a hover after a lost button release does not drag; releasing another button mid-drag does not drop; scrolling the week grid with the wheel during a drag updates the ghost time. Extra buttons pressed mid-gesture never start or retarget a drag.
@@ -860,7 +857,7 @@ The TypeScript port carries forward the behavior and coverage.
 | SavedSearchService | `SaveAsync` (new or overwrite), `RenameAsync`, `DeleteAsync`, `ReorderAsync` | No | Undoable | |
 | TrashService | `RestoreAsync` | Yes | Undoable | |
 | TrashService | `PurgeAsync`, `EmptyAsync` | No | Excluded | Intentional permanent removal of rows, including owned data. A purge prevents replay of any soft delete or restore that needs those rows. |
-| CalendarRescheduleService | `MoveDueAsync`, `MoveScheduleAsync` | Yes | Undoable | |
+| CalendarRescheduleService | `MoveDueAsync` (`MoveScheduleAsync` went with the schedule, §7.4) | Yes | Undoable | |
 | TicketService | `MoveAsync`, `SetPriorityAsync` | Yes | Undoable | |
 | ReminderService | `SnoozeAsync` | Yes | Undoable | |
 | ReminderService | `RecordDeliveryAsync` | No | Excluded | Delivery bookkeeping prevents repeated notifications. |
@@ -887,8 +884,7 @@ camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\
 `fields` (global and project definitions with `key`, `displayName`, `dataType`, `projectId`, archived flag, sort order and their
 `choices` with ids, labels, order and archived flag), `globalSettings` (reference only), `projects`, `savedSearches`.
 A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
-`dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `scheduledStart`/`scheduledEnd` as floating local values **without offset**
-(`2026-11-21T09:00:00`, §5.4), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
+`dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
 `links` (optional, §7.10), `recurrence`, `recurrenceSeriesId` and `recurrenceSuccessorCreated` (optional, §7.11), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
 Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
 culture throughout.
@@ -934,7 +930,7 @@ can also assign missing ranks to existing tickets in those sections (§7.16).
 **CSV export** writes a project's items (all of them, in screen order: root, then folders, sub-items under their parent) or the
 current search results (all matches, not just the first 200, in result order) as a flat table, UTF-8 **with BOM** (for Excel),
 RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
-quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Priority reference, Status, Due date, Due time, Scheduled start, Scheduled end,
+quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Priority reference, Status, Due date, Due time,
 Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), `Repeats` (read-only, §7.11), then one column per custom field by
 display name (active fields, and archived ones that have a value; fields sharing a name share a column). Dates and numbers are ISO
 and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the culture.
@@ -1061,10 +1057,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   - **End:** never, on a date (the last allowed occurrence date, inclusive), or after N occurrences.
     The remaining count is stored on the rule and decreases on each new occurrence. When the end is
     reached, completing creates nothing and the status line says "That was the last repeat."
-- **Dates that move.** A rule needs a due date or a scheduled start; the editor says so and won't
-  save a rule without one. The due date moves to the next date. The due time, a floating local time,
-  stays the same. A scheduled block moves by the same number of days as the due date, keeping its
-  start time and length. With only a scheduled block, the block's start date is the anchor. "From
+- **Dates that move.** A rule needs a due date; the editor says so and won't save a rule without
+  one. The due date moves to the next date. The due time, a floating local time, stays the same. "From
   the due date" skips missed dates: an item three weeks overdue on a weekly rule gets the first date
   after the current due date, not one occurrence per missed week.
 - **Skip.** "Skip this one" moves the item's own dates to the next occurrence without completing it
@@ -1113,7 +1107,7 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
   intervals advance the anchor's month or year before applying the selected day. A count includes
   the current occurrence. Skip consumes one occurrence and leaves the final occurrence in place
   when there is no next date. Skip uses today's local date for a completion-date anchor. The editor
-  derives a yearly rule's month and day from the due date or scheduled start. Editing other fields
+  derives a yearly rule's month and day from the due date. Editing other fields
   preserves an existing yearly pattern even when its occurrence was clamped.
 - **One successor per occurrence.** The source records successor creation in the same undoable save.
   The marker survives manual reopening, rule edits and JSON round-trips. Completing the source again
@@ -1130,8 +1124,8 @@ Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for 
 
 Decisions (made autonomously per the owner's 2026-11-14 instruction; listed for review):
 
-- **What reminds.** Only open, non-deleted items that have a due date. Scheduled blocks do not
-  remind in this phase. Completed, deleted and archived-project items never remind. A repeating
+- **What reminds.** Only open, non-deleted items that have a due date. Completed, deleted and
+  archived-project items never remind. A repeating
   item's next occurrence reminds through its own due date.
 - **When.** The reminder instant is the due moment minus an offset.
   - A timed due item's due moment is its due date and time.
@@ -1315,14 +1309,13 @@ were made autonomously; they are listed for review.
   **Ctrl+Shift+P** on the selected item. It is not handled while a text box has focus.
 - **What it moves.**
   - The item's due date moves one day later, and the due time stays the same.
-  - If the item has a scheduled block, the block's start and end both move one day later.
   - The move counts from the item's own current date, not from today, so an item three days
     overdue becomes two days overdue.
   - Only that item moves. Its sub-items keep their dates.
   - On a repeating item (§7.11), only this occurrence moves. The rule is unchanged.
   - A reminder (§7.12) re-arms by itself.
 - **When it is unavailable.** It is disabled, with an explanatory tooltip, for completed items and
-  for items with no due date and no scheduled block.
+  for items with no due date.
 - **Undo.** Each push back is one labelled undo step, "Push back ⟨title⟩" (§7.8).
 
 **Today view**
@@ -1560,7 +1553,7 @@ below were made while building it and are listed for review.
 
 - **Cards.** Each open top-level item in the area is one card. The card header has the
   completion checkbox, the title (up to three lines), the status chip, and a line with the
-  type icon, ticket number, due or scheduled date, urgency label, the "from sub-item" marker and
+  type icon, ticket number, due date, urgency label, the "from sub-item" marker and
   the repeat marker. Urgency tints the header (§6.3). Sub-items never get cards of their own.
 - **Card body.** The owner's request from 2026-11-23: the body reads like a simple dotted list.
   In order:
@@ -1745,7 +1738,7 @@ workspace header has the same two buttons, which add to the area, or to the dril
   Reminder. Ticket: Ticket #, Summary, Detail, Module, Interface, Dispatched to, Parent
   ticket, Priority. Enter in a single-line box saves.
 - An **expand** button at its top right switches to the **detailed add view**, keeping what
-  was typed. The ToDo view adds Notes, Type, Status, the scheduled block and custom fields.
+  was typed. The ToDo view adds Notes, Type, Status and custom fields.
   The Ticket view has every ticket field above, except comments, which are added after.
 - App Settings has **Open the detailed view when adding a ToDo** and **…a Ticket**
   (`todoAddOpensDetails`, `ticketAddOpensDetails`, global booleans, default off).
@@ -1761,7 +1754,7 @@ folders and item chain. Routes are `/projects/$projectId/items/$itemId` and
 Edit stays on the card and row menus and Enter. On 23 Nov 2026 the owner removed **Open**,
 **Rename**, **Add ToDo…** and **Add Ticket…** from the item menu: the card buttons and
 double-click cover them, and F2 still renames. A ticket's editor shows its fixed fields in place of type,
-repeat, the scheduled block and custom fields.
+repeat and custom fields.
 
 **Shell.**
 - The theme choice (Light, Dark, System) moves from the sidebar to App Settings ›
@@ -1856,7 +1849,7 @@ share the row width proportionally and truncate instead of collapsing a column.
 2. **Project workspace.** The sidebar contains the root and nested folder tree, with
    context actions to create, rename, move and delete. Breadcrumbs show the current
    area. The main pane shows the open item tree with completion, type, title, ticket,
-   priority, due/scheduled dates and urgency. Completed sections collapse at each
+   priority, due date and urgency. Completed sections collapse at each
    level (§6.2). Quick-add is an empty line at the end of the open list. Press Enter to
    create an item. Right-click → Edit opens a floating panel with metadata and
    sub-items. Group related fields compactly and keep all five custom-field controls.
@@ -1887,10 +1880,6 @@ The week starts on the locale's first day, as in the Calendar. Arrows move by da
 week, PageUp and PageDown by month (Shift for a year), and Home and End to the start
 and end of the week. Enter or Space picks the day, and Escape closes the grid and
 returns focus to the button without closing the editor. Time inputs stay native.
-Items no longer take a schedule (§7.4); the editor shows Scheduled start or end only
-while an item still has one stored, so it can be cleared. That row keeps the native
-date-time input with the same button for its date part, and picking a date keeps the
-time.
 
 ### Legacy feature port
 
@@ -2026,6 +2015,9 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
     runner rather than users' Windows 11 desktops, and each update needed extra CI
     rounds. Windows look is checked by the owner's hands-on review and by an
     on-demand workflow that captures Windows screenshots for review.
+12. **Due dates only (23 Nov 2026).** Items have a due date and an optional due time
+    and nothing else. The scheduled start and end are removed end to end, including
+    their columns, without preserving stored values (§7.4).
 
 ## Appendix A. Historical review log
 

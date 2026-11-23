@@ -9,14 +9,10 @@ import { editFields, type SearchServices, withSearchServices } from "./search-fi
 
 const due = Temporal.PlainDate.from("2026-11-10");
 const dueTime = Temporal.PlainTime.from("15:30");
-const start = due.toPlainDateTime("23:45");
-const end = start.add({ hours: 2 });
 
 interface StoredDates {
   readonly DueDate: string | null;
   readonly DueTime: string | null;
-  readonly ScheduledStart: string | null;
-  readonly ScheduledEnd: string | null;
   readonly RecurrenceFrequency: number | null;
   readonly RecurrenceRemaining: number | null;
   readonly UpdatedAtUtc: string;
@@ -29,8 +25,7 @@ const setup = (svc: SearchServices) =>
     const create = (title: string, parentId: string | null = null) =>
       svc.items.create(project.id, null, parentId, title);
     const read = (itemId: string) =>
-      svc.sql<StoredDates>`SELECT DueDate, DueTime, ScheduledStart, ScheduledEnd,
-          RecurrenceFrequency, RecurrenceRemaining, UpdatedAtUtc
+      svc.sql<StoredDates>`SELECT DueDate, DueTime, RecurrenceFrequency, RecurrenceRemaining, UpdatedAtUtc
         FROM TodoItem WHERE Id = ${itemId}`.pipe(
         svc.sql.withTransaction,
         Effect.map((rows) => rows[0]!),
@@ -51,7 +46,7 @@ const test = (
     withSearchServices((svc) => Effect.flatMap(setup(svc), (world) => body(svc, world))),
   );
 
-test("Push back shifts both floating dates and keeps the repeat rule and child dates", (svc, world) =>
+test("Push back shifts the floating due date and keeps the repeat rule and child dates", (svc, world) =>
   Effect.gen(function* () {
     const parent = yield* world.create("Overdue");
     const child = yield* world.create("Child", parent.id);
@@ -61,8 +56,6 @@ test("Push back shifts both floating dates and keeps the repeat rule and child d
       editFields("Overdue", {
         dueDate: due,
         dueTime,
-        scheduledStart: start,
-        scheduledEnd: end,
         recurrence: rule,
       }),
     );
@@ -74,8 +67,6 @@ test("Push back shifts both floating dates and keeps the repeat rule and child d
     expect(yield* world.read(parent.id)).toMatchObject({
       DueDate: "2026-11-11",
       DueTime: "15:30:00",
-      ScheduledStart: "2026-11-11 23:45:00",
-      ScheduledEnd: "2026-11-12 01:45:00",
       RecurrenceFrequency: 1,
       RecurrenceRemaining: 3,
       UpdatedAtUtc: "2026-11-13 12:01:00",
@@ -87,26 +78,12 @@ test("Push back shifts both floating dates and keeps the repeat rule and child d
 
     expect(yield* world.read(parent.id)).toMatchObject({
       DueDate: "2026-11-10",
-      ScheduledStart: "2026-11-10 23:45:00",
+      DueTime: "15:30:00",
     });
 
     yield* world.undo.apply("redo");
 
     expect((yield* world.read(parent.id)).DueDate).toBe("2026-11-11");
-  }));
-
-test("Push back moves a scheduled block that has no due date", (svc, world) =>
-  Effect.gen(function* () {
-    const item = yield* world.create("Block");
-    yield* svc.items.edit(item.id, editFields("Block", { scheduledStart: start }));
-
-    yield* svc.items.pushBackOneDay(item.id);
-
-    expect(yield* world.read(item.id)).toMatchObject({
-      DueDate: null,
-      ScheduledStart: "2026-11-11 23:45:00",
-      ScheduledEnd: null,
-    });
   }));
 
 test("Push back rejects completed, undated and overflowing items without saving", (svc, world) =>
@@ -117,10 +94,7 @@ test("Push back rejects completed, undated and overflowing items without saving"
     yield* svc.items.edit(completed.id, editFields("Completed", { dueDate: due }));
     yield* svc.items.setCompleted(world.projectId, null, completed.id, true);
     const last = Temporal.PlainDate.from("9999-12-31");
-    yield* svc.items.edit(
-      overflow.id,
-      editFields("Overflow", { dueDate: last, scheduledStart: start }),
-    );
+    yield* svc.items.edit(overflow.id, editFields("Overflow", { dueDate: last, dueTime }));
     const before = yield* readItems();
 
     const failures = yield* Effect.forEach([undated, completed, overflow], (item) =>
@@ -128,7 +102,7 @@ test("Push back rejects completed, undated and overflowing items without saving"
     );
 
     expect(failures).toEqual([
-      new MetadataRuleError("This item has no due date or scheduled block."),
+      new MetadataRuleError("This item has no due date."),
       new MetadataRuleError("Completed items cannot be pushed back."),
       new MetadataRuleError("Pushing back would move a date outside the supported calendar."),
     ]);

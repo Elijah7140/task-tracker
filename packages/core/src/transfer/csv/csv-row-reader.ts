@@ -5,12 +5,7 @@ import { nameKey } from "../../metadata/names.js";
 import { trimText as trim } from "../../text/dotnet-white-space.js";
 import { NAME_MAX_LENGTH, TICKET_NUMBER_MAX_LENGTH } from "../json/import-checks.js";
 import type { IssueList } from "../transfer-issue.js";
-import {
-  parseTransferDate,
-  parseTransferLocal,
-  parseTransferTime,
-  parseTransferUtc,
-} from "../transfer-time-format.js";
+import { parseTransferDate, parseTransferTime, parseTransferUtc } from "../transfer-time-format.js";
 import { unprotectCsvCell } from "./csv-cells.js";
 import { CSV_COLUMNS as C, TICKET_CSV_COLUMNS } from "./csv-columns.js";
 
@@ -51,7 +46,6 @@ export class CsvRowReader {
     const itemTypeId = this.#readLookup(C.type, "type", this.context.itemTypes);
     const priorityLevelId = readCsvPriority(this.#textCell.bind(this), this.context, this.#fail);
     const [dueDate, dueTime] = this.#readDue();
-    const [scheduledStart, scheduledEnd] = this.#readSchedule();
     const [statusId, completedAtUtc] = this.#readStatusAndCompletion();
     const fieldValues = readCsvFieldValues(this.header, this.context, this.record, this.#fail);
     const linkUrls = this.#readLinks();
@@ -70,8 +64,6 @@ export class CsvRowReader {
       statusId,
       dueDate,
       dueTime,
-      scheduledStart,
-      scheduledEnd,
       completedAtUtc,
       fieldValues,
       linkUrls,
@@ -158,19 +150,6 @@ export class CsvRowReader {
       this.#fail(C.dueTime, "A due time needs a due date.");
     }
     return [date, time];
-  }
-
-  #readSchedule(): [Temporal.PlainDateTime | null, Temporal.PlainDateTime | null] {
-    const message = "Expected a local date and time such as 2026-11-13T15:00.";
-    const start = this.#readValue(C.scheduledStart, parseTransferLocal, message);
-    const end = this.#readValue(C.scheduledEnd, parseTransferLocal, message);
-    if (end !== null && start === null && isBlank(this.#cell(C.scheduledStart))) {
-      this.#fail(C.scheduledEnd, "A scheduled end needs a scheduled start.");
-    }
-    if (start !== null && end !== null && Temporal.PlainDateTime.compare(end, start) < 0) {
-      this.#fail(C.scheduledEnd, "The scheduled end must not be before the start.");
-    }
-    return [start, end];
   }
 
   /** Parses a trimmed date or time cell; blank is null and a bad value records `message`. */

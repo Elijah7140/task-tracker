@@ -20,8 +20,6 @@ const edit = (title: string) => ({
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 });
 
 const setup = Effect.gen(function* () {
@@ -328,8 +326,6 @@ it.effect("Editing built-in fields round-trips floating values and UTC timestamp
         priorityLevelId: priority.id,
         dueDate: Temporal.PlainDate.from("2026-11-14"),
         dueTime: Temporal.PlainTime.from("17:45:00.1234567"),
-        scheduledStart: Temporal.PlainDateTime.from("2026-11-14T09:30:00.1234567"),
-        scheduledEnd: Temporal.PlainDateTime.from("2026-11-14T10:30:00.1234567"),
       };
       yield* TestClock.adjust("1 second");
 
@@ -348,8 +344,6 @@ it.effect("Editing built-in fields round-trips floating values and UTC timestamp
       const stored = saved.items.open[0]?.item;
       expect(stored?.dueDate?.toString()).toBe("2026-11-14");
       expect(stored?.dueTime?.toString()).toBe("17:45:00.1234567");
-      expect(stored?.scheduledStart?.toString()).toBe("2026-11-14T09:30:00.1234567");
-      expect(stored?.scheduledEnd?.toString()).toBe("2026-11-14T10:30:00.1234567");
       expect(stored?.createdAtUtc.toString()).toBe("2026-11-13T12:00:00Z");
       expect(stored?.updatedAtUtc.toString()).toBe("2026-11-13T12:00:01Z");
     }),

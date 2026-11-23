@@ -90,7 +90,6 @@ export const ItemSearchResult = Schema.Struct({
   dueDate: Schema.NullOr(IsoDate),
   dueTime: Schema.NullOr(IsoTime),
   isCompleted: Schema.Boolean,
-  hasSchedule: Schema.Boolean,
   location: Schema.Array(Schema.String),
   typeName: Schema.NullOr(Schema.String),
   priorityLabel: Schema.NullOr(Schema.String),

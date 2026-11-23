@@ -23,8 +23,6 @@ export interface SeedItem {
   readonly status?: FakeStatusName;
   readonly dueDate?: string;
   readonly dueTime?: string;
-  readonly scheduledStart?: string;
-  readonly scheduledEnd?: string;
   readonly completedAtUtc?: string;
   readonly urgency?: FakeUrgency;
   /** Overrides the displayed urgency, for example one rolled up from a sub-item. */
@@ -161,8 +159,6 @@ export class FakeAreaBuilder {
         seed.priority === undefined ? null : lookupId(2, PRIORITIES.indexOf(seed.priority)),
       dueDate: seed.dueDate ?? null,
       dueTime: seed.dueTime ?? null,
-      scheduledStart: seed.scheduledStart ?? null,
-      scheduledEnd: seed.scheduledEnd ?? null,
       sortOrder,
       createdAtUtc: TIMESTAMP,
       updatedAtUtc: TIMESTAMP,

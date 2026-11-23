@@ -36,8 +36,6 @@ const fields = (ticketNumber: string, title: string, overrides: Partial<ItemEdit
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
   ...overrides,
 });
 

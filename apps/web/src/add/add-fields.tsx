@@ -117,7 +117,7 @@ export function DraftDate({
 }: DraftProps & {
   readonly field: AddDraftTextKey;
   readonly label: string;
-  readonly type: "date" | "time" | "datetime-local";
+  readonly type: "date" | "time";
   readonly testId: string;
 }) {
   return (

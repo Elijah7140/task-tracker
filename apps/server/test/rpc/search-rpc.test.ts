@@ -34,8 +34,6 @@ it.effect("Lists fields and choices, runs scoped search, locates items and maps 
           priorityLevelId: null,
           dueDate: null,
           dueTime: null,
-          scheduledStart: null,
-          scheduledEnd: null,
         },
         customValues: [{ fieldDefinitionId: severity.id, choiceId: major.id }],
       });

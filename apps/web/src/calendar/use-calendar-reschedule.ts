@@ -11,18 +11,17 @@ type Snapshot = typeof CalendarSnapshot.Type | null;
 
 interface FocusRequest {
   readonly itemId: string;
-  readonly kind: Request["kind"];
   readonly date: string;
   readonly before: Snapshot;
   readonly view: string;
 }
 
-function sameEntry(left: Request, right: Request) {
-  return left.itemId === right.itemId && left.kind === right.kind;
-}
-
 function merge(waiting: Request | null, next: Request): Request {
-  if (waiting?.target.type !== "step" || next.target.type !== "step" || !sameEntry(waiting, next)) {
+  if (
+    waiting?.target.type !== "step" ||
+    next.target.type !== "step" ||
+    waiting.itemId !== next.itemId
+  ) {
     return next;
   }
   return {
@@ -36,8 +35,8 @@ function merge(waiting: Request | null, next: Request): Request {
 }
 
 function restoreFocus(root: HTMLElement, request: FocusRequest, fromDate: string) {
-  const { itemId, kind, date } = request;
-  const entry = `[data-item-id="${itemId}"][data-entry-kind="${kind}"]`;
+  const { itemId, date } = request;
+  const entry = `[data-testid="calendar-entry"][data-item-id="${itemId}"]`;
   const day = `[data-date="${date}"]`;
   const period = date < fromDate ? "previous" : "next";
   const target =
@@ -121,7 +120,7 @@ export function useCalendarReschedule(options: Options) {
     markReturnPageStale();
     const { date } = exit.value;
     if (request.target.type === "step") {
-      setFocus({ itemId: request.itemId, kind: request.kind, date, before, view });
+      setFocus({ itemId: request.itemId, date, before, view });
     }
   };
 
@@ -152,7 +151,7 @@ export function useCalendarReschedule(options: Options) {
    * then focuses the entry on `date` once Calendar has reloaded.
    */
   const follow = async (
-    entry: Pick<FocusRequest, "itemId" | "kind" | "date">,
+    entry: Pick<FocusRequest, "itemId" | "date">,
     write: () => Promise<boolean>,
   ) => {
     const { snapshot: before, view } = latest.current;

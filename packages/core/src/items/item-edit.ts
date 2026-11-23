@@ -16,8 +16,6 @@ export type ItemEdit = Pick<
   | "priorityLevelId"
   | "dueDate"
   | "dueTime"
-  | "scheduledStart"
-  | "scheduledEnd"
 > & {
   readonly statusId?: string | null;
   /** The replacement repeat rule; omitted keeps the stored rule, null stops repeating. */
@@ -32,7 +30,7 @@ const noSeriesId = (): string => {
 
 /**
  * Validate a replacement of built-in item fields, preserving structure and completion.
- * A stored or replacement rule must still have a due date or scheduled start (§7.11).
+ * A stored or replacement rule must still have a due date (§7.11).
  */
 export function editItem(
   item: TodoItem,
@@ -41,18 +39,12 @@ export function editItem(
   newSeriesId: () => string = noSeriesId,
 ): TodoItem {
   const title = itemTitle(edit.title);
-  const { ticketNumber, dueDate, dueTime, scheduledStart, scheduledEnd } = edit;
+  const { ticketNumber, dueDate, dueTime } = edit;
   if (ticketNumber !== null && trimText(ticketNumber).length > 100) {
     throw new MetadataRuleError("Ticket number must be at most 100 characters.");
   }
   if (dueDate === null && dueTime !== null) {
     throw new MetadataRuleError("Due time requires a due date.");
-  }
-  if (
-    scheduledEnd !== null &&
-    (scheduledStart === null || Temporal.PlainDateTime.compare(scheduledStart, scheduledEnd) > 0)
-  ) {
-    throw new MetadataRuleError("Scheduled end requires a start no later than the end.");
   }
   const rule = edit.recurrence === undefined ? item.recurrence : edit.recurrence;
   const recurrence = itemRecurrence(item, edit, rule, newSeriesId);
@@ -70,8 +62,6 @@ export function editItem(
     priorityLevelId: edit.priorityLevelId,
     dueDate,
     dueTime,
-    scheduledStart,
-    scheduledEnd,
     ...recurrence,
     reminder,
     updatedAtUtc: now,

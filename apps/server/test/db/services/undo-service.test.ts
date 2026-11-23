@@ -111,8 +111,6 @@ const edit = (title: string) => ({
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 });
 
 const branch = Effect.gen(function* () {

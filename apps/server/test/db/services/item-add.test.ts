@@ -38,8 +38,6 @@ const fields = (overrides: Partial<ItemEdit> = {}): ItemEdit => ({
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
   ...overrides,
 });
 

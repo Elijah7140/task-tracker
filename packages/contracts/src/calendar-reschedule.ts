@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { CalendarEntryKind, CalendarItemLocation } from "./calendar-entry.js";
+import { CalendarItemLocation } from "./calendar-entry.js";
 import { Guid } from "./guid.js";
 import { IsoDate } from "./iso-date-time.js";
 
@@ -14,11 +14,9 @@ const target = Schema.Union([
   Schema.Struct({ type: Schema.Literal("step"), days: Schema.Int, quarters: Schema.Int }),
 ]);
 
-/** An absolute drop or relative Alt+arrow move, applied to the current stored entry. */
+/** An absolute drop or relative Alt+arrow move, applied to the item's current due date. */
 export const CalendarReschedule = Schema.Struct({
   itemId: Guid,
-  kind: CalendarEntryKind,
-  sourceDay: IsoDate,
   target,
 });
 

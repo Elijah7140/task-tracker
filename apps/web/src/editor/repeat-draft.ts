@@ -35,15 +35,15 @@ export interface RepeatDraftStatus {
 }
 
 /** Shown when a rule has no date to advance, as the server says it. */
-export const REPEAT_DATE_REQUIRED = "A repeating item needs a due date or a scheduled start.";
+export const REPEAT_DATE_REQUIRED = "A repeating item needs a due date.";
 
-/** The date a rule advances: the due date, else the scheduled start's date. */
-export function repeatDate(dates: Pick<BuiltInTexts, "dueDate" | "scheduledStart">): string | null {
-  return dates.dueDate || dates.scheduledStart.slice(0, 10) || null;
+/** The date a rule advances: the due date. */
+export function repeatDate(dates: Pick<BuiltInTexts, "dueDate">): string | null {
+  return dates.dueDate || null;
 }
 
 function storedRepeatDate(item: ItemRecord): string | null {
-  return item.dueDate ?? item.scheduledStart?.slice(0, 10) ?? null;
+  return item.dueDate;
 }
 
 /** The draft that shows the stored rule, or a weekly-ready draft seeded from the item's date. */

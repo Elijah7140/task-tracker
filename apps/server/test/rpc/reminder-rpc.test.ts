@@ -11,8 +11,6 @@ const fields = {
   dueDate: "2026-11-13",
   // 07:00 in the server zone (New York) is the test's start instant.
   dueTime: "07:00:00",
-  scheduledStart: null,
-  scheduledEnd: null,
 };
 
 it.effect("Delivers a saved reminder to a waiting panel, then snoozes it as one undo step", () =>

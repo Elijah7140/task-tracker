@@ -14,12 +14,7 @@ export interface CalendarDragFeedback {
   readonly height: number;
 }
 
-function targetAt(
-  point: Point,
-  root: HTMLElement,
-  occurrence: CalendarOccurrence,
-  grabOffset: number,
-): CalendarDropTarget | null {
+function targetAt(point: Point, root: HTMLElement, grabOffset: number): CalendarDropTarget | null {
   const hit = document.elementFromPoint(point.clientX, point.clientY);
   const cell = hit?.closest<HTMLElement>("[data-calendar-drop-zone]");
   if (cell == null || !root.contains(cell)) {
@@ -31,7 +26,7 @@ function targetAt(
     const minute = snapCalendarMinute(point.clientY - cell.getBoundingClientRect().top, grabOffset);
     return { type: "time", date, minute };
   }
-  if (zone === "month" || (zone === "all-day" && occurrence.entry.kind === "due")) {
+  if (zone === "month" || zone === "all-day") {
     return { type: zone, date };
   }
   return null;
@@ -54,7 +49,7 @@ export function useCalendarDrag(move: (request: Request) => void) {
       button.closest("[data-calendar-drop-zone='time']") === null
         ? 0
         : event.clientY - button.getBoundingClientRect().top;
-    const hit = (point: Point) => targetAt(point, root, occurrence, offset);
+    const hit = (point: Point) => targetAt(point, root, offset);
     start(event, {
       focusOnPress: true,
       move: (point) => {
@@ -68,8 +63,7 @@ export function useCalendarDrag(move: (request: Request) => void) {
       drop: (point) => {
         const target = hit(point);
         if (target !== null) {
-          const { itemId, kind } = occurrence.entry;
-          move({ itemId, kind, sourceDay: occurrence.day, target });
+          move({ itemId: occurrence.entry.itemId, target });
         }
       },
       end: () => {

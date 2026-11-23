@@ -9,7 +9,6 @@ import {
   listOf,
   nameKey,
   parseTransferDate,
-  parseTransferLocal,
   parseTransferTime,
   parseTransferUtc,
   trimText,
@@ -124,8 +123,6 @@ class ContentImport {
       priorityLevelId: this.#lookupId(document, "priority"),
       dueDate: parseTransferDate(document.dueDate),
       dueTime: parseTransferTime(document.dueTime),
-      scheduledStart: parseTransferLocal(document.scheduledStart),
-      scheduledEnd: parseTransferLocal(document.scheduledEnd),
       ...this.#completion(document),
       recurrence: document.recurrence as RecurrenceRule | null,
       recurrenceSeriesId:

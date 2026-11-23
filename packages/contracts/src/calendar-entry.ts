@@ -1,24 +1,18 @@
 import { Schema } from "effect";
 import { Guid } from "./guid.js";
-import { IsoDate, IsoFloatingDateTime, IsoTime } from "./iso-date-time.js";
-
-/** Why an item appears on the calendar. */
-export const CalendarEntryKind = Schema.Literals(["due", "scheduled"]);
+import { IsoDate, IsoTime } from "./iso-date-time.js";
 
 /** Server-computed urgency for a calendar entry. */
 export const CalendarUrgency = Schema.Literals(["None", "Approaching", "Imminent", "Overdue"]);
 
-/** One due date or scheduled block projected for the renderer calendar. */
+/** One item's due date projected for the renderer calendar. */
 export const CalendarEntry = Schema.Struct({
   itemId: Guid,
   projectId: Guid,
   folderId: Schema.NullOr(Guid),
   title: Schema.String,
-  kind: CalendarEntryKind,
   date: IsoDate,
   startTime: Schema.NullOr(IsoTime),
-  scheduledStart: Schema.NullOr(IsoFloatingDateTime),
-  scheduledEnd: Schema.NullOr(IsoFloatingDateTime),
   isCompleted: Schema.Boolean,
   dueDate: Schema.NullOr(IsoDate),
   dueTime: Schema.NullOr(IsoTime),

@@ -93,7 +93,7 @@ export function CalendarWeekGrid({
               >
                 {day.allDayEntries.map((occurrence, index) => (
                   <CalendarEntryButton
-                    key={`${occurrence.entry.itemId}-${occurrence.entry.kind}`}
+                    key={occurrence.entry.itemId}
                     occurrence={occurrence}
                     variant="inline"
                     navIndex={index}
@@ -151,7 +151,7 @@ export function CalendarWeekGrid({
                   ) : null}
                   {day.timedEntries.map((occurrence, index) => (
                     <CalendarEntryButton
-                      key={`${occurrence.entry.itemId}-${occurrence.entry.kind}`}
+                      key={occurrence.entry.itemId}
                       occurrence={occurrence}
                       variant="block"
                       navIndex={day.allDayEntries.length + index}

@@ -27,7 +27,7 @@ export const IsoDate = Schema.String.check(
 /** A wall-clock time with optional seconds and fractional precision. */
 export const IsoTime = Schema.String.check(Schema.isPattern(new RegExp(`^${timePattern}$`)));
 
-/** A scheduled local date and time, with no offset or zone. */
+/** A local date and time, with no offset or zone. */
 export const IsoFloatingDateTime = Schema.String.check(
   Schema.isPattern(new RegExp(`^${datePattern}T${timePattern}$`)),
   validCalendarDay,

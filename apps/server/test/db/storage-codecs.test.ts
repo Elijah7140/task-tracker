@@ -5,7 +5,6 @@ import {
   Bit,
   DateText,
   FieldDataType,
-  FloatingTimestamp,
   Guid,
   Real,
   TimeText,
@@ -17,20 +16,16 @@ import { insertItem, insertProject, itemId, projectId, withSchema } from "./stor
 const dates = Schema.Struct({
   DueDate: Schema.NullOr(DateText),
   DueTime: Schema.NullOr(TimeText),
-  ScheduledStart: Schema.NullOr(FloatingTimestamp),
-  ScheduledEnd: Schema.NullOr(FloatingTimestamp),
   CreatedAtUtc: UtcTimestamp,
 });
 
-it.effect("Round-trips EF dates, floating times and UTC instants as SQLite text", () =>
+it.effect("Round-trips EF dates, times and UTC instants as SQLite text", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const item = {
       Id: itemId.toLowerCase(),
       DueDate: Temporal.PlainDate.from("2026-12-01"),
       DueTime: Temporal.PlainTime.from("15:30:00"),
-      ScheduledStart: Temporal.PlainDateTime.from("2026-11-30T09:00:00"),
-      ScheduledEnd: Temporal.PlainDateTime.from("2026-11-30T10:00:00.1234001"),
       CreatedAtUtc: Temporal.Instant.from("2026-11-13T12:00:00.1234000Z"),
     };
     const insert = SqlSchema.void({
@@ -53,25 +48,13 @@ it.effect("Round-trips EF dates, floating times and UTC instants as SQLite text"
     yield* sql.withTransaction(insertProject.pipe(Effect.andThen(insert(item))));
     const restored = yield* sql.withTransaction(read(item.Id));
     const stored = yield* sql.withTransaction(
-      sql`SELECT Id, DueDate, DueTime, ScheduledStart, ScheduledEnd, CreatedAtUtc FROM TodoItem`
-        .values,
+      sql`SELECT Id, DueDate, DueTime, CreatedAtUtc FROM TodoItem`.values,
     );
 
     expect(restored.DueDate?.equals(item.DueDate)).toBe(true);
     expect(restored.DueTime?.equals(item.DueTime)).toBe(true);
-    expect(restored.ScheduledStart?.equals(item.ScheduledStart)).toBe(true);
-    expect(restored.ScheduledEnd?.equals(item.ScheduledEnd)).toBe(true);
     expect(restored.CreatedAtUtc.equals(item.CreatedAtUtc)).toBe(true);
-    expect(stored).toEqual([
-      [
-        itemId,
-        "2026-12-01",
-        "15:30:00",
-        "2026-11-30 09:00:00",
-        "2026-11-30 10:00:00.1234001",
-        "2026-11-13 12:00:00.1234",
-      ],
-    ]);
+    expect(stored).toEqual([[itemId, "2026-12-01", "15:30:00", "2026-11-13 12:00:00.1234"]]);
   }).pipe(withSchema),
 );
 
@@ -81,7 +64,7 @@ it("Encodes fractional times with seven digits and accepts legacy timestamp prec
 
   expect(Schema.encodeSync(TimeText)(time)).toBe("15:30:00.5000000");
   expect(decoded.toString()).toBe("2026-11-13T12:00:00.1234567Z");
-  expect(() => Schema.decodeUnknownSync(FloatingTimestamp)("2026-11-13 12:00:00Z")).toThrow();
+  expect(() => Schema.decodeUnknownSync(UtcTimestamp)("2026-11-13 12:00:00Z")).toThrow();
   expect(() => Schema.decodeUnknownSync(DateText)("2026-02-30")).toThrow();
 });
 

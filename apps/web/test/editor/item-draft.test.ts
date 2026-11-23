@@ -24,8 +24,6 @@ const ITEM: ItemRecord = {
   priorityLevelId: PRIORITY_ID,
   dueDate: "2026-11-20",
   dueTime: "17:00:00.1234567",
-  scheduledStart: "2026-11-19T09:30:00",
-  scheduledEnd: null,
   sortOrder: 0,
   createdAtUtc: "2026-11-13T12:00:00Z",
   updatedAtUtc: "2026-11-13T12:00:00Z",
@@ -44,8 +42,6 @@ const STORED_EDIT = {
   priorityLevelId: PRIORITY_ID,
   dueDate: "2026-11-20",
   dueTime: "17:00:00.1234567",
-  scheduledStart: "2026-11-19T09:30:00",
-  scheduledEnd: null,
 };
 
 describe("storedTexts", () => {
@@ -61,8 +57,6 @@ describe("storedTexts", () => {
       dueDate: "2026-11-20",
       dueTime: "17:00",
       statusId: "",
-      scheduledStart: "2026-11-19T09:30",
-      scheduledEnd: "",
     });
   });
 });
@@ -109,7 +103,6 @@ describe("itemEdit", () => {
       description: "Line one\nLine two",
       ticketNumber: "  ",
       dueTime: "08:15",
-      scheduledEnd: "2026-11-19T10:00",
     });
 
     expect(edit).toEqual({
@@ -118,7 +111,6 @@ describe("itemEdit", () => {
       description: "Line one\nLine two",
       ticketNumber: null,
       dueTime: "08:15",
-      scheduledEnd: "2026-11-19T10:00",
     });
   });
 
@@ -154,10 +146,9 @@ describe("itemEdit", () => {
   });
 
   it("Clears dates and times that were emptied", () => {
-    const edit = itemEdit(ITEM, { dueDate: "", dueTime: "", scheduledStart: "" });
+    const edit = itemEdit(ITEM, { dueDate: "", dueTime: "" });
 
     expect(edit.dueDate).toBeNull();
     expect(edit.dueTime).toBeNull();
-    expect(edit.scheduledStart).toBeNull();
   });
 });

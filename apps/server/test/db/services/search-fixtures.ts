@@ -58,8 +58,6 @@ export function editFields(title: string, overrides: Partial<ItemEdit> = {}): It
     priorityLevelId: null,
     dueDate: null,
     dueTime: null,
-    scheduledStart: null,
-    scheduledEnd: null,
     ...overrides,
   };
 }
@@ -126,7 +124,6 @@ export const seedFilterMatrix = Effect.fnUntraced(function* (svc: SearchServices
       itemTypeId: typeA!.id,
       priorityLevelId: priorityA!.id,
       dueDate: day("2026-11-20"),
-      scheduledStart: Temporal.PlainDateTime.from("2026-11-21T10:00:00"),
     }),
     [
       { fieldDefinitionId: note.id, textValue: "red" },
@@ -143,7 +140,6 @@ export const seedFilterMatrix = Effect.fnUntraced(function* (svc: SearchServices
       itemTypeId: typeB!.id,
       priorityLevelId: priorityB!.id,
       dueDate: day("2026-11-30"),
-      scheduledStart: Temporal.PlainDateTime.from("2026-12-01T10:00:00"),
     }),
     [
       { fieldDefinitionId: note.id, textValue: "blue" },

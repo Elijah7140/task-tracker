@@ -133,8 +133,6 @@ export interface ItemDocument {
   readonly reopenStatusId: string | null;
   readonly dueDate: string | null;
   readonly dueTime: string | null;
-  readonly scheduledStart: string | null;
-  readonly scheduledEnd: string | null;
   readonly completedAtUtc: string | null;
   readonly sortOrder: number | null;
   readonly createdAtUtc: string | null;

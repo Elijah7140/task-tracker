@@ -54,8 +54,6 @@ const edit = (title: string) => ({
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 });
 
 test("Listing and empty ignore live rows when nothing has been deleted", ({

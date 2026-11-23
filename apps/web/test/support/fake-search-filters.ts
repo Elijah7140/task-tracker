@@ -35,8 +35,6 @@ function builtInValue(item: Item, key: string, context: FakeFilterContext): Valu
       return item.priorityLevelId;
     case "due":
       return item.dueDate;
-    case "scheduled":
-      return item.scheduledStart?.slice(0, 10) ?? null;
     case "status":
       return item.statusId === null ? null : context.statusName(item.statusId);
     default:

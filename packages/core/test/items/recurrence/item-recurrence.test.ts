@@ -23,8 +23,6 @@ function edit(source: TodoItem, overrides: Partial<ItemEdit> = {}): ItemEdit {
     priorityLevelId: source.priorityLevelId,
     dueDate: source.dueDate,
     dueTime: source.dueTime,
-    scheduledStart: source.scheduledStart,
-    scheduledEnd: source.scheduledEnd,
     ...overrides,
   };
 }
@@ -60,21 +58,13 @@ describe("editing a recurrence rule", () => {
   it.each([
     ["a new rule", { recurrence: weekly }],
     ["the stored rule after clearing the dates", { dueDate: null }],
-  ])("Refuses %s without a due date or scheduled start", (_name, overrides) => {
+  ])("Refuses %s without a due date", (_name, overrides) => {
     const task = item("task", { dueDate: due, recurrence: weekly, recurrenceSeriesId: "series" });
     const draft = edit(task, { dueDate: null, ...overrides });
 
     const save = () => editItem(task, draft, now, () => "series");
 
-    expect(save).toThrow("A repeating item needs a due date or a scheduled start.");
-  });
-
-  it("Accepts a scheduled start as the recurrence date", () => {
-    const task = item("task", { scheduledStart: Temporal.PlainDateTime.from("2026-11-13T09:00") });
-
-    const edited = editItem(task, edit(task, { recurrence: weekly }), now, () => "series");
-
-    expect(edited.recurrence).toEqual(weekly);
+    expect(save).toThrow("A repeating item needs a due date.");
   });
 
   it("Refuses an invalid rule with its message", () => {
@@ -87,12 +77,11 @@ describe("editing a recurrence rule", () => {
 });
 
 describe("skipping an occurrence", () => {
-  it("Moves every date to the next occurrence and consumes one count", () => {
+  it("Moves the due date to the next occurrence and consumes one count", () => {
     const rule = { ...weekly, endKind: "AfterCount" as const, remaining: 2 };
     const task = item("task", {
       dueDate: due,
-      scheduledStart: Temporal.PlainDateTime.from("2026-11-13T09:15"),
-      scheduledEnd: Temporal.PlainDateTime.from("2026-11-13T10:45"),
+      dueTime: Temporal.PlainTime.from("09:15"),
       recurrence: rule,
       recurrenceSeriesId: "series",
     });
@@ -100,8 +89,7 @@ describe("skipping an occurrence", () => {
     const skipped = skipOccurrence(task, due, now);
 
     expect(skipped?.dueDate?.toString()).toBe("2026-11-20");
-    expect(skipped?.scheduledStart?.toString()).toBe("2026-11-20T09:15:00");
-    expect(skipped?.scheduledEnd?.toString()).toBe("2026-11-20T10:45:00");
+    expect(skipped?.dueTime?.toString()).toBe("09:15:00");
     expect(skipped).toMatchObject({ recurrence: { remaining: 1 }, recurrenceSeriesId: "series" });
     expect(skipOccurrence(skipped!, due, now)).toBeNull();
   });
@@ -124,19 +112,6 @@ describe("skipping an occurrence", () => {
     const skip = () => skipOccurrence(task, due, now);
 
     expect(skip).toThrow(new MetadataRuleError("Only an open repeating item can be skipped."));
-  });
-
-  it("Refuses a skip that leaves the supported calendar", () => {
-    const task = item("task", {
-      dueDate: Temporal.PlainDate.from("9999-12-30"),
-      scheduledStart: Temporal.PlainDateTime.from("9999-12-30T09:00"),
-      scheduledEnd: Temporal.PlainDateTime.from("9999-12-31T09:00"),
-      recurrence: recurrenceRule("Daily"),
-    });
-
-    const skip = () => skipOccurrence(task, due, now);
-
-    expect(skip).toThrow("The next repeat would move a date outside the supported calendar.");
   });
 });
 

@@ -16,8 +16,6 @@ const STANDARD_HEADER = [
   "Status",
   "Due date",
   "Due time",
-  "Scheduled start",
-  "Scheduled end",
   "Completed",
   "Completed at",
   "Project",
@@ -93,8 +91,7 @@ describe("CSV export", () => {
           "",
         ]);
         const addIndex = csvRow(text, "Add index");
-        expect(addIndex["Scheduled start"]).toBe("2026-11-21T09:00:00");
-        expect(addIndex["Scheduled end"]).toBe("2026-11-21T10:30:00");
+        expect(addIndex).not.toHaveProperty("Scheduled start");
         expect(addIndex.Completed).toBe("yes");
         expect(addIndex["Completed at"]).toMatch(/Z$/);
       }),

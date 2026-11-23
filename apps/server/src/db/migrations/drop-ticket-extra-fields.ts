@@ -33,6 +33,9 @@ const keptColumns = [
 ].join(", ");
 
 function withoutDroppedColumns(statement: string) {
+  if (!statement.startsWith("CREATE TABLE TicketDetail")) {
+    return statement;
+  }
   return droppedColumnText.reduce((text, column) => {
     if (!text.includes(column)) {
       throw new Error(`TicketDetail DDL no longer contains ${column.trim()}.`);

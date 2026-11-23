@@ -4,8 +4,8 @@ import { advanceRule, daysUntil, recurrenceDate, shiftItemDates } from "./occurr
 import { nextOccurrence } from "./recurrence-calculator.js";
 import { findRecurrenceError, type RecurrenceRule } from "./recurrence-rule.js";
 
-/** Shown when a rule has neither a due date nor a scheduled start to advance. */
-export const RECURRENCE_DATE_REQUIRED = "A repeating item needs a due date or a scheduled start.";
+/** Shown when a rule has no due date to advance. */
+export const RECURRENCE_DATE_REQUIRED = "A repeating item needs a due date.";
 
 /**
  * Validates `rule` against the item's final dates and returns the rule and
@@ -13,7 +13,7 @@ export const RECURRENCE_DATE_REQUIRED = "A repeating item needs a due date or a 
  */
 export function itemRecurrence(
   item: TodoItem,
-  dates: Pick<TodoItem, "dueDate" | "scheduledStart" | "scheduledEnd">,
+  dates: Pick<TodoItem, "dueDate">,
   rule: RecurrenceRule | null,
   newSeriesId: () => string,
 ): Pick<TodoItem, "recurrence" | "recurrenceSeriesId"> {

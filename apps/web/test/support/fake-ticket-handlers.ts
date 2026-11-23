@@ -63,7 +63,6 @@ function board(store: FakeProjectStore, projectId: string | null): typeof Ticket
     priorityLevelId: item.priorityLevelId,
     dueDate: item.dueDate,
     dueTime: item.dueTime,
-    hasSchedule: item.scheduledStart !== null,
   });
   const section = (priorityLevelId: string | null, label: string, isArchived: boolean) => ({
     priorityLevelId,

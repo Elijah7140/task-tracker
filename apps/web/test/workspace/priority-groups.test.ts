@@ -49,8 +49,6 @@ function itemNode(
       reopenStatusId: null,
       dueDate: null,
       dueTime: null,
-      scheduledStart: null,
-      scheduledEnd: null,
       completedAtUtc: null,
       sortOrder: options.sortOrder ?? 0,
       createdAtUtc: "2026-11-18T12:00:00Z",

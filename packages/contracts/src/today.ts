@@ -16,7 +16,7 @@ const todayRowFields = {
   state: TodayRowState,
   /** Descendants completed today, which a collapsed row shows. */
   completedDescendants: Schema.Int,
-  /** Whether the item has a due date or scheduled block, for Push back one day. */
+  /** Whether the item has a due date, for Push back one day. */
   hasDates: Schema.Boolean,
   statusId: Schema.NullOr(Guid),
   statusName: Schema.NullOr(Schema.String),

@@ -17,8 +17,6 @@ const ITEM: typeof Item.Type = {
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
   sortOrder: 0,
   createdAtUtc: "2026-11-13T12:00:00Z",
   updatedAtUtc: "2026-11-13T12:00:00Z",

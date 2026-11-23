@@ -139,17 +139,7 @@ function useCreateItemActions(scope: ItemActionScope) {
 
 /** The built-in fields EditItem takes, copied from the item with `changes` applied. */
 function editedFields(item: ItemNode["item"], changes: Partial<typeof ItemEdit.Type>) {
-  const {
-    title,
-    description,
-    ticketNumber,
-    itemTypeId,
-    priorityLevelId,
-    dueDate,
-    dueTime,
-    scheduledStart,
-    scheduledEnd,
-  } = item;
+  const { title, description, ticketNumber, itemTypeId, priorityLevelId, dueDate, dueTime } = item;
   const fields = {
     title,
     description,
@@ -158,8 +148,6 @@ function editedFields(item: ItemNode["item"], changes: Partial<typeof ItemEdit.T
     priorityLevelId,
     dueDate,
     dueTime,
-    scheduledStart,
-    scheduledEnd,
   };
   return { ...fields, ...changes };
 }
