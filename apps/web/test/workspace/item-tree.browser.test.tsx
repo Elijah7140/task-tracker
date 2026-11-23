@@ -37,7 +37,7 @@ describe("ItemTree", () => {
       );
     await expect
       .element(row("Schema review with the data team"))
-      .toHaveAccessibleDescription("Open, Discussion, Medium, Scheduled Nov 19, 2026, 3:00 PM");
+      .toHaveAccessibleDescription("Open, Discussion, Medium");
   });
 
   it("Shows open items first and finished items in a collapsed Completed section", async () => {

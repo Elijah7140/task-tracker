@@ -174,7 +174,7 @@ desktopTest(
       await repairSavedSearch(page);
       await openNestedFolder(page);
       await expectLegacyItemValues(page);
-      expect(await ticketState(page)).toEqual({ status: "In progress", due: "2026-12-11" });
+      expect(await ticketState(page)).toEqual({ status: "In progress", due: "12/11/2026" });
 
       await itemRow(page, AREA, TICKET)
         .getByTestId("item-title")
@@ -187,7 +187,7 @@ desktopTest(
         .toBe("Testing");
       await selectItem(page, AREA, TICKET);
       await page.keyboard.press("Control+Shift+P");
-      await expect.poll(() => ticketState(page)).toEqual({ status: "Testing", due: "2026-12-12" });
+      await expect.poll(() => ticketState(page)).toEqual({ status: "Testing", due: "12/12/2026" });
 
       await goHome(page);
       await chooseMenuCommand(page, "view", "menu-trash");
@@ -213,7 +213,7 @@ desktopTest(
       await openNestedFolder(page);
       await expectLegacyItemValues(page);
 
-      expect(await ticketState(page)).toEqual({ status: "Testing", due: "2026-12-12" });
+      expect(await ticketState(page)).toEqual({ status: "Testing", due: "12/12/2026" });
       const parent = itemRow(page, AREA, "Sample parent");
       expect(await isCompleted(parent)).toBe("false");
       expect(await isCompleted(itemRow(page, AREA, "Deleted child"))).toBe("false");

@@ -174,13 +174,26 @@ export function clipEntryToDay(entry: Entry, day: string): CalendarOccurrence | 
   return buildOccurrence(entry, day, clippedStartMinutes, clippedEndMinutes);
 }
 
+/** A level's rank, 0 for the most important; an item with no priority sorts after every level. */
+function priorityRank(entry: Entry, ranks: ReadonlyMap<string, number>): number {
+  return entry.priorityLevelId === null
+    ? Number.MAX_SAFE_INTEGER
+    : (ranks.get(entry.priorityLevelId) ?? Number.MAX_SAFE_INTEGER);
+}
+
 function compareOccurrences(
   left: CalendarOccurrence,
   right: CalendarOccurrence,
-  collator: Intl.Collator,
+  context: Pick<DayContext, "collator" | "priorityRanks">,
 ): number {
+  const { collator, priorityRanks } = context;
   if (left.isAllDay !== right.isAllDay) {
     return left.isAllDay ? -1 : 1;
+  }
+  const byPriority =
+    priorityRank(left.entry, priorityRanks) - priorityRank(right.entry, priorityRanks);
+  if (byPriority !== 0) {
+    return byPriority;
   }
   const leftStart = left.startMinutes ?? -1;
   const rightStart = right.startMinutes ?? -1;
@@ -254,6 +267,7 @@ interface DayContext {
   readonly today: string;
   readonly entries: ReadonlyArray<Entry>;
   readonly collator: Intl.Collator;
+  readonly priorityRanks: ReadonlyMap<string, number>;
   readonly locale: string | undefined;
 }
 
@@ -267,7 +281,7 @@ function buildDay(date: string, context: DayContext): CalendarDay {
   const clipped = context.entries
     .map((entry) => clipEntryToDay(entry, date))
     .filter((occurrence): occurrence is CalendarOccurrence => occurrence !== null)
-    .toSorted((left, right) => compareOccurrences(left, right, context.collator));
+    .toSorted((left, right) => compareOccurrences(left, right, context));
   const laidOut = splitOverlaps(clipped);
   return {
     date,
@@ -287,7 +301,8 @@ function buildDay(date: string, context: DayContext): CalendarDay {
 /**
  * Builds `count` consecutive calendar days starting at `fromDate`, clipping and
  * ordering entries and laying out overlapping timed blocks side by side. Days
- * outside `anchorMonth`'s month are marked for dimming.
+ * outside `anchorMonth`'s month are marked for dimming. Within a day, all-day entries come first, then each group runs in priority
+ * order (`priorityRanks`, most important first, no priority last), then by time.
  */
 export function buildCalendarDays(
   fromDate: string,
@@ -295,6 +310,7 @@ export function buildCalendarDays(
   anchorMonth: string,
   today: string,
   entries: ReadonlyArray<Entry>,
+  priorityRanks: ReadonlyMap<string, number> = new Map(),
   locale?: string,
 ): ReadonlyArray<CalendarDay> {
   const context: DayContext = {
@@ -302,6 +318,7 @@ export function buildCalendarDays(
     today,
     entries,
     collator: new Intl.Collator(locale, { sensitivity: "accent" }),
+    priorityRanks,
     locale,
   };
   return Array.from({ length: count }, (_, index) => buildDay(addDays(fromDate, index), context));

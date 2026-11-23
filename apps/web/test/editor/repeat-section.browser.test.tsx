@@ -158,7 +158,7 @@ describe("Repeat section", () => {
 
     await repeat().getByRole("button", { name: "Skip this one" }).click();
 
-    await expect.element(editor().getByTestId("item-editor-due-date")).toHaveValue("2026-11-27");
+    await expect.element(editor().getByTestId("item-editor-due-date")).toHaveValue("11/27/2026");
     expect(stored()?.dueDate).toBe("2026-11-27");
     await repeat().getByRole("button", { name: "Stop repeating" }).click();
     await expect
@@ -178,7 +178,7 @@ describe("Repeat section", () => {
     await expect.element(question).toBeVisible();
     await question.getByRole("button", { name: "Save" }).click();
 
-    await expect.element(editor().getByTestId("item-editor-due-date")).toHaveValue("2026-11-27");
+    await expect.element(editor().getByTestId("item-editor-due-date")).toHaveValue("11/27/2026");
     expect(store.findItemByTitle(projectId, null, "Renamed")?.item.id).toBe(id);
   });
 

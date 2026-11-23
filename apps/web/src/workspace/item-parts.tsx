@@ -1,14 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
 import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/contracts";
-import {
-  CalendarClock,
-  CalendarDays,
-  Circle,
-  CircleCheck,
-  CornerDownRight,
-  Ellipsis,
-  Repeat,
-} from "lucide-react";
+import { CalendarDays, Circle, CircleCheck, CornerDownRight, Ellipsis, Repeat } from "lucide-react";
 import { deadlineLabel, formatInstantDate } from "../format/item-dates.js";
 import { describeRepeat } from "../format/recurrence-summary.js";
 import { cx } from "../ui/class-names.js";
@@ -61,7 +53,7 @@ export function CompletionMark({
   );
 }
 
-/** The date an item shows: its completion date when finished, otherwise its due or scheduled date. */
+/** The date an item shows: its completion date when finished, otherwise its due date. */
 export function dateCell(node: ItemNode, timeZone: string) {
   if (node.isFinished && node.item.completedAtUtc !== null) {
     return {
@@ -74,11 +66,10 @@ export function dateCell(node: ItemNode, timeZone: string) {
   if (deadline === null) {
     return null;
   }
-  const due = deadline.kind === "due";
   return {
-    icon: due ? CalendarDays : CalendarClock,
+    icon: CalendarDays,
     text: deadline.text,
-    spoken: `${due ? "Due" : "Scheduled"} ${deadline.text}`,
+    spoken: `Due ${deadline.text}`,
   };
 }
 

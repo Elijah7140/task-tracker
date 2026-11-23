@@ -30,7 +30,7 @@ async function expectNextOccurrence(page: Page, title: string) {
     "Repeats: Weekly on Mon",
   );
   const editor = await openItemEditor(page, card);
-  expect(await editor.getByLabel("Due date", { exact: true }).inputValue()).toBe("2026-11-23");
+  expect(await editor.getByLabel("Due date", { exact: true }).inputValue()).toBe("11/23/2026");
   await closeEditor(page, editor);
 }
 

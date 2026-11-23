@@ -14,6 +14,7 @@ import {
   openProject,
   saveItemEditor,
   selectItem,
+  shownDate as fieldDate,
 } from "../support/workflows.js";
 
 /** A ticket row on the Tickets page, named after its item. */
@@ -167,7 +168,7 @@ desktopTest(
         .filter({ hasNotText: exactText(savedDateText) })
         .first()
         .waitFor();
-      expect(await shownDueDate(page, moved)).toBe(localDate(1));
+      expect(await shownDueDate(page, moved)).toBe(fieldDate(localDate(1)));
     });
 
     await withDesktop(desktop, async (page) => {
@@ -177,7 +178,7 @@ desktopTest(
       await expectGone(page.getByTestId("today-page"));
       await openProject(page);
 
-      expect(await shownDueDate(page, moved)).toBe(localDate(1));
+      expect(await shownDueDate(page, moved)).toBe(fieldDate(localDate(1)));
     });
   },
 );

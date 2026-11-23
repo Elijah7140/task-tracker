@@ -77,7 +77,7 @@ desktopTest(
       );
       expect(await editor.getByLabel("Effort", { exact: true }).inputValue()).toBe("12.5");
       expect(await editor.getByLabel("Review date", { exact: true }).inputValue()).toBe(
-        "2026-11-20",
+        "11/20/2026",
       );
       expect(await editor.getByRole("combobox", { name: "Approved" }).innerText()).toBe("Yes");
       await expect

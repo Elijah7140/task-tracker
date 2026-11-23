@@ -46,7 +46,7 @@ async function expectFixtureValues(editor: Locator, estimate: string) {
   await editor.getByTestId("archived-fields").getByText("Notes", { exact: true }).waitFor();
   await editor.getByTestId("archived-field").getByText("Example text", { exact: true }).waitFor();
   expect(await editor.getByLabel("Estimate", { exact: true }).inputValue()).toBe(estimate);
-  expect(await editor.getByLabel("Review date", { exact: true }).inputValue()).toBe("2026-12-08");
+  expect(await editor.getByLabel("Review date", { exact: true }).inputValue()).toBe("12/08/2026");
   expect(await editor.getByRole("combobox", { name: "Reviewed" }).innerText()).toBe("No");
   await expect
     .poll(() =>

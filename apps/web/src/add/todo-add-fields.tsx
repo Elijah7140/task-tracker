@@ -50,7 +50,7 @@ function QuickTodoFields({
 
 /**
  * The ToDo's fields: quick add's four, or the detailed view with notes, type, status,
- * parent, the scheduled block and the custom fields from the field manager.
+ * parent, the due date block and the custom fields from the field manager.
  */
 export function TodoAddFields(props: TodoAddFieldsProps) {
   const { detailed, lookups, firstFieldRef, custom, ...draft } = props;
@@ -100,20 +100,6 @@ export function TodoAddFields(props: TodoAddFieldsProps) {
       <FieldColumn title="Schedule">
         <DraftDate {...draft} field="dueDate" label="Due date" type="date" testId="add-due-date" />
         <DraftDate {...draft} field="dueTime" label="Due time" type="time" testId="add-due-time" />
-        <DraftDate
-          {...draft}
-          field="scheduledStart"
-          label="Scheduled start"
-          type="datetime-local"
-          testId="add-scheduled-start"
-        />
-        <DraftDate
-          {...draft}
-          field="scheduledEnd"
-          label="Scheduled end"
-          type="datetime-local"
-          testId="add-scheduled-end"
-        />
         <DraftReminder {...draft} />
       </FieldColumn>
       <div className="md:col-span-2">

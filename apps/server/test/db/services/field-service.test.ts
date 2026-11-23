@@ -115,7 +115,7 @@ it.effect("Choice rename and restore recheck active labels", () =>
   withServices(
     Effect.gen(function* () {
       const fields = yield* FieldService;
-      const field = yield* fields.create("Status", "Choice", null);
+      const field = yield* fields.create("Stage", "Choice", null);
       const first = yield* fields.addChoice(field.id, " First ");
       const second = yield* fields.addChoice(field.id, "Second");
 
@@ -187,7 +187,7 @@ it.effect("Choices reorder within their field and restore to their saved positio
   withServices(
     Effect.gen(function* () {
       const fields = yield* FieldService;
-      const field = yield* fields.create("Status", "Choice", null);
+      const field = yield* fields.create("Stage", "Choice", null);
       const other = yield* fields.create("Other", "Choice", null);
       const first = yield* fields.addChoice(field.id, "First");
       const second = yield* fields.addChoice(field.id, "Second");
@@ -215,7 +215,7 @@ it.effect("Identifies missing fields and choices by entity", () =>
   withServices(
     Effect.gen(function* () {
       const fields = yield* FieldService;
-      const field = yield* fields.create("Status", "Choice", null);
+      const field = yield* fields.create("Stage", "Choice", null);
       const missingId = "0190A1B2-0000-7000-8000-000000000999";
 
       const missingField = yield* Effect.flip(fields.addChoice(missingId, "Ready"));

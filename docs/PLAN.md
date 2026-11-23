@@ -569,6 +569,16 @@ The text syntax and saved searches are specified in §7.7.
 
 ### 7.4 Calendar (Phase 5)
 
+**Due dates only (owner, 23 Nov 2026).** Items carry a due date (and optional due time)
+and no scheduled start or end. The add views and editor no longer offer the schedule,
+cards show only the due date, and the calendar shows only due entries. Within a day,
+all-day entries come first, then entries run in priority order like the workspace's
+levels (most important first, no priority last), then by time and title. Stored
+`ScheduledStart`/`ScheduledEnd` values are kept, not migrated: the server still sends
+scheduled entries and urgency still falls back to a schedule, but the calendar leaves
+those entries out and the editor shows a stored schedule only so it can be cleared.
+The schedule rules below describe the earlier behaviour.
+
 - A due date produces an all-day entry, or a timed entry when DueTime is set. A schedule produces a separate block; a missing end, or an end that is not after the start (a zero-length schedule), makes a 30-minute block. Both entries appear when both fields are set, including on sub-items.
 - Completed entries are hidden by default; Include completed shows them muted and checked. Deleted items, folders, and projects are excluded.
 - Month shows six weeks starting on the culture's first day of week. Days outside the month are dimmed. All-day entries precede timed entries; after three entries, +N more opens that day in Week.
@@ -1864,8 +1874,9 @@ and Ctrl+Shift+K (Tickets). The Menu key and Shift+F10 expose row actions.
 
 Date picker — Date fields in the editor, the add dialogs, custom fields, the repeat end
 date and Search's date filters use the app's own picker, not the native date input,
-so they look the same on every platform. The field accepts typed `YYYY-MM-DD` text,
-with one-digit months and days allowed. Text that is not a date is marked invalid
+so they look the same on every platform. The field shows dates as `MM/DD/YYYY`
+(the owner's choice, 23 Nov 2026) and accepts typed `MM/DD/YYYY` or `YYYY-MM-DD`
+text, with one-digit months and days allowed; the stored value stays `YYYY-MM-DD`. Text that is not a date is marked invalid
 and is restored to the last date when focus leaves. A calendar button opens a month
 grid on the selected date's month, or today's month when the field is empty. The
 selected day is filled with the accent and today has an accent ring. A **Today**
@@ -1874,9 +1885,11 @@ zone, the same source the Calendar uses (§5.4), and is read each time the grid 
 The week starts on the locale's first day, as in the Calendar. Arrows move by day and
 week, PageUp and PageDown by month (Shift for a year), and Home and End to the start
 and end of the week. Enter or Space picks the day, and Escape closes the grid and
-returns focus to the button without closing the editor. Scheduled start and end keep
-the native date-time input and add the same button for their date part. Picking a
-date keeps the time, or uses 09:00 when no time is set. Time inputs stay native.
+returns focus to the button without closing the editor. Time inputs stay native.
+Items no longer take a schedule (§7.4); the editor shows Scheduled start or end only
+while an item still has one stored, so it can be cleared. That row keeps the native
+date-time input with the same button for its date part, and picking a date keeps the
+time.
 
 ### Legacy feature port
 

@@ -738,7 +738,7 @@ it.effect("An unchanged archived choice keeps its value through an item edit", (
     Effect.gen(function* () {
       const { root, items, snapshot } = yield* setup;
       const fields = yield* FieldService;
-      const field = yield* fields.create("Status", "Choice", null);
+      const field = yield* fields.create("Stage", "Choice", null);
       const choice = yield* fields.addChoice(field.id, "Ready");
       const item = yield* root("Original");
       yield* items.edit(item.id, edit("Original"), [

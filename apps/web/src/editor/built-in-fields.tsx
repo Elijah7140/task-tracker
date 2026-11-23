@@ -143,9 +143,16 @@ interface ScheduleInput {
   readonly testId: string;
 }
 
-const SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
+const DUE_INPUTS: ReadonlyArray<ScheduleInput> = [
   { key: "dueDate", label: "Due date", type: "date", testId: "due-date" },
   { key: "dueTime", label: "Due time", type: "time", testId: "due-time" },
+];
+
+/**
+ * Items carry only due dates since 23 Nov 2026 (§7.4). A scheduled value stored
+ * earlier still shows, so it can be cleared, and its row goes once it is empty.
+ */
+const LEGACY_SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
   {
     key: "scheduledStart",
     label: "Scheduled start",
@@ -160,11 +167,18 @@ const TICKET_SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
   { key: "dueDate", label: "Est. comp. date", type: "date", testId: "due-date" },
 ];
 
+function scheduleInputs(texts: ChangeProps["texts"], ticket: boolean) {
+  if (ticket) {
+    return TICKET_SCHEDULE_INPUTS;
+  }
+  return [...DUE_INPUTS, ...LEGACY_SCHEDULE_INPUTS.filter((input) => texts[input.key] !== "")];
+}
+
 function ScheduleGroup({ texts, onChange, ticket }: ChangeProps & { readonly ticket: boolean }) {
   return (
     <EditorGroup title="Schedule" testId="item-editor-schedule">
       <div className="flex flex-col gap-1.5">
-        {(ticket ? TICKET_SCHEDULE_INPUTS : SCHEDULE_INPUTS).map((input) => (
+        {scheduleInputs(texts, ticket).map((input) => (
           <EditorField key={input.key} label={input.label}>
             <ClearableInput
               type={input.type}
@@ -183,7 +197,7 @@ function ScheduleGroup({ texts, onChange, ticket }: ChangeProps & { readonly tic
 
 /**
  * The item's built-in metadata as compact property rows: Details (type,
- * priority, ticket) and Schedule (due date and time, scheduled start and end).
+ * priority, ticket) and Schedule (due date and time).
  */
 export function PropertyFields(props: Omit<BuiltInFieldsProps, "titleRef">) {
   return (

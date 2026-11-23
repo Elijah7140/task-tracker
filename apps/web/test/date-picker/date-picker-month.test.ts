@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatTypedDate,
   isInMonth,
   parseTypedDate,
   pickerKeyTarget,
@@ -12,6 +13,9 @@ const MONDAY = 1;
 
 describe("parseTypedDate", () => {
   it.each([
+    ["11/23/2026", "2026-11-23"],
+    ["1/5/2026", "2026-01-05"],
+    ["02/29/2028", "2028-02-29"],
     ["2026-11-23", "2026-11-23"],
     ["2026-1-5", "2026-01-05"],
     [" 2028-02-29 ", "2028-02-29"],
@@ -23,14 +27,31 @@ describe("parseTypedDate", () => {
     expect(parsed).toBe(expected);
   });
 
-  it.each(["2026-11", "2026-13-01", "2026-02-29", "2026-11-31", "23/11/2026", "tomorrow"])(
-    "Rejects %j",
-    (text) => {
-      const parsed = parseTypedDate(text);
+  it.each([
+    "2026-11",
+    "2026-13-01",
+    "2026-02-29",
+    "2026-11-31",
+    "23/11/2026",
+    "11/23/26",
+    "tomorrow",
+  ])("Rejects %j", (text) => {
+    const parsed = parseTypedDate(text);
 
-      expect(parsed).toBeNull();
-    },
-  );
+    expect(parsed).toBeNull();
+  });
+});
+
+describe("formatTypedDate", () => {
+  it.each([
+    ["2026-11-23", "11/23/2026"],
+    ["2027-01-05", "01/05/2027"],
+    ["", ""],
+  ])("Shows %j as %j", (isoDate, expected) => {
+    const shown = formatTypedDate(isoDate);
+
+    expect(shown).toBe(expected);
+  });
 });
 
 describe("pickerMonthDays", () => {
