@@ -1,4 +1,4 @@
-import { isBlankText } from "@task-tracker/contracts";
+import { isBlankText, type ItemEdit } from "@task-tracker/contracts";
 import { useAtomSet } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Exit } from "effect";
@@ -104,12 +104,78 @@ function useCreateItemActions(scope: ItemActionScope) {
     }
   };
 
-  return { quickAdd, addSubItem };
+  /**
+   * The outline's inline add on a card (§7.17): a titled ToDo under `parentItemId`, placed
+   * right after `afterItemId` when given, else appended. Resolves the new item's ID, or
+   * null when nothing was created.
+   */
+  const addOutlineItem = async (
+    parentItemId: string,
+    title: string,
+    afterItemId?: string,
+  ): Promise<string | null> => {
+    if (isBlankText(title)) {
+      return null;
+    }
+    const placement = afterItemId === undefined ? {} : { afterItemId };
+    const exit = await create({
+      payload: {
+        projectId: scope.projectId,
+        folderId: scope.folderId,
+        parentItemId,
+        title,
+        ...placement,
+      },
+      reactivityKeys: keys,
+    });
+    if (!(await reportItemFailure(exit)) || !Exit.isSuccess(exit)) {
+      return null;
+    }
+    return exit.value.id;
+  };
+
+  return { quickAdd, addSubItem, addOutlineItem };
+}
+
+/** The built-in fields EditItem takes, copied from the item with `changes` applied. */
+function editedFields(item: ItemNode["item"], changes: Partial<typeof ItemEdit.Type>) {
+  const {
+    title,
+    description,
+    ticketNumber,
+    itemTypeId,
+    priorityLevelId,
+    dueDate,
+    dueTime,
+    scheduledStart,
+    scheduledEnd,
+  } = item;
+  const fields = {
+    title,
+    description,
+    ticketNumber,
+    itemTypeId,
+    priorityLevelId,
+    dueDate,
+    dueTime,
+    scheduledStart,
+    scheduledEnd,
+  };
+  return { ...fields, ...changes };
+}
+
+function useEditFields(scope: ItemActionScope) {
+  const edit = useAtomSet(editItemAtom, { mode: "promiseExit" });
+  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId)];
+  return async (node: ItemNode, changes: Partial<typeof ItemEdit.Type>) => {
+    const fields = editedFields(node.item, changes);
+    const exit = await edit({ payload: { itemId: node.item.id, fields }, reactivityKeys: keys });
+    return reportItemFailure(exit);
+  };
 }
 
 function useRenameItem(scope: ItemActionScope) {
-  const edit = useAtomSet(editItemAtom, { mode: "promiseExit" });
-  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId)];
+  const editFields = useEditFields(scope);
 
   return async (node: ItemNode) => {
     const title = await prompt({
@@ -122,32 +188,25 @@ function useRenameItem(scope: ItemActionScope) {
     if (title === null) {
       return;
     }
-    const {
-      id,
-      description,
-      ticketNumber,
-      itemTypeId,
-      priorityLevelId,
-      dueDate,
-      dueTime,
-      scheduledStart,
-      scheduledEnd,
-    } = node.item;
-    const fields = {
-      title,
-      description,
-      ticketNumber,
-      itemTypeId,
-      priorityLevelId,
-      dueDate,
-      dueTime,
-      scheduledStart,
-      scheduledEnd,
-    };
-    const exit = await edit({ payload: { itemId: id, fields }, reactivityKeys: keys });
-    if (await reportItemFailure(exit)) {
-      scope.onFocusItem({ id, afterNodes: scope.items });
+    if (await editFields(node, { title })) {
+      scope.onFocusItem({ id: node.item.id, afterNodes: scope.items });
     }
+  };
+}
+
+/**
+ * Saves a card's inline-edited notes, the item's Markdown description (§7.10, §7.17), as
+ * one undoable edit. Blank notes clear the description. Resolves true once saved or
+ * when nothing changed.
+ */
+function useSaveNotes(scope: ItemActionScope) {
+  const editFields = useEditFields(scope);
+  return async (node: ItemNode, notes: string): Promise<boolean> => {
+    const description = isBlankText(notes) ? null : notes;
+    if (description === (node.item.description ?? null)) {
+      return true;
+    }
+    return editFields(node, { description });
   };
 }
 
@@ -277,7 +336,7 @@ function openEditor(node: ItemNode) {
  */
 export function useItemActions(scope: ItemActionScope) {
   const once = useSingleRunPerItem();
-  const { quickAdd, addSubItem } = useCreateItemActions(scope);
+  const { quickAdd, addSubItem, addOutlineItem } = useCreateItemActions(scope);
   const { deleteItem, restoreBatch } = useDeleteAndRestore(scope);
   const structure = useItemStructureActions(scope);
   const setStatus = useSetItemStatus();
@@ -294,6 +353,8 @@ export function useItemActions(scope: ItemActionScope) {
     addItem,
     quickAdd,
     addSubItem: once("addSubItem", addSubItem),
+    addOutlineItem,
+    saveNotes: useSaveNotes(scope),
     renameItem: once("renameItem", useRenameItem(scope)),
     setPriority: once("setPriority", useSetPriority(scope)),
     toggleComplete: once("toggleComplete", useToggleComplete(scope)),

@@ -1,4 +1,11 @@
-import { createItem, dropItem, FolderTree, ItemTree, type TodoItem } from "@task-tracker/core";
+import {
+  createItem,
+  dropItem,
+  FolderTree,
+  HierarchyError,
+  ItemTree,
+  type TodoItem,
+} from "@task-tracker/core";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { folderRepository } from "../db/repositories/folder-repository.js";
@@ -16,6 +23,17 @@ import { type UndoService, undoLabel } from "./undo-service.js";
 const decodeId = Schema.decodeEffect(Guid);
 const decodeIds = Schema.decodeEffect(Schema.Array(Guid));
 const decodeNullableId = Schema.decodeEffect(Schema.NullOr(Guid));
+
+/**
+ * Moves a just-created item right after an open sibling under the same parent, so an
+ * outline's inline add inserts in place within the create's one undo step (§7.17).
+ */
+function placeAfterSibling(tree: ItemTree, itemId: string, afterId: string, now: Temporal.Instant) {
+  if (tree.get(afterId).parentItemId !== tree.get(itemId).parentItemId) {
+    throw new HierarchyError("The new item must be placed after a sibling.");
+  }
+  dropItem(tree, itemId, afterId, "after", now);
+}
 
 /** Load and persist item hierarchies, reconciling completion when parent relationships change. */
 export function itemStructureOperations(
@@ -88,11 +106,16 @@ export function itemStructureOperations(
     folderId: string | null,
     parentId: string | null,
     title: string,
+    afterItemId?: string,
   ) {
     const parent = yield* decodeNullableId(parentId);
+    const after = afterItemId === undefined ? undefined : yield* decodeId(afterItemId);
     return yield* editTree(projectId, folderId, (tree, now) => {
       const row = createItem(newId(now), tree.projectId, tree.folderId, parent, title, now);
       tree.add(row, now);
+      if (after !== undefined) {
+        placeAfterSibling(tree, row.id, after, now);
+      }
       return {
         result: tree.get(row.id),
         label: undoLabel("Create", row.title),

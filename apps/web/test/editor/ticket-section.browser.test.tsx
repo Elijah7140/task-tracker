@@ -25,7 +25,7 @@ async function openTicketEditor() {
   app.history.push(`/projects/${app.store.summaries[0]?.project.id}`);
   const card = page
     .getByRole("treeitem", { name: "Employee training data", exact: true })
-    .getByTestId("item-row")
+    .getByTestId("item-card-header")
     .first();
   await card.dblClick();
   await page.getByTestId("details-edit").click();

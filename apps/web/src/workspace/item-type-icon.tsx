@@ -1,4 +1,4 @@
-import { Bug, Circle, Diamond, MessagesSquare, Pencil } from "lucide-react";
+import { Bug, Diamond, MessagesSquare, Pencil } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 const builtInIcons: Readonly<Record<string, LucideIcon>> = {
@@ -15,19 +15,24 @@ export interface ItemTypeIconProps {
 
 /**
  * A small glyph for an item's type, as the legacy rows showed. Seeded types
- * have their own icon, user types share a diamond and no type shows a dot.
- * The name is exposed for assistive technology through the row description.
+ * have their own icon and user types share a diamond. An item without a type
+ * shows nothing, so a sub-item row reads as a dotted list with only its
+ * completion circle (§7.17). The name reaches assistive technology through the
+ * row description.
  */
 export function ItemTypeIcon({ name }: ItemTypeIconProps) {
-  const Icon = name === null ? Circle : (builtInIcons[name] ?? Diamond);
+  if (name === null) {
+    return null;
+  }
+  const Icon = builtInIcons[name] ?? Diamond;
   return (
     <span
       aria-hidden="true"
-      title={name ?? undefined}
+      title={name}
       data-testid="item-type"
       className="grid size-4 shrink-0 place-items-center text-fg-subtle"
     >
-      <Icon size={name === null ? 5 : 13} strokeWidth={name === null ? 6 : 2} />
+      <Icon size={13} strokeWidth={2} />
     </span>
   );
 }

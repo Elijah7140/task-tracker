@@ -1,11 +1,10 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
-import { ChevronRight, GripVertical } from "lucide-react";
-import type { MouseEvent, PointerEvent } from "react";
+import { GripVertical, Plus } from "lucide-react";
+import type { PointerEvent } from "react";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
-import { treeStyles } from "../ui/tree-styles.js";
 import { ItemMenuItems } from "./item-menu-items.js";
-import { isEmptyLevel, type ItemNode } from "./item-outline.js";
+import type { ItemNode } from "./item-outline.js";
 import {
   CompletionMark,
   dateCell,
@@ -25,12 +24,16 @@ import { UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
 
+/** The left padding, in rem, of a card outline line at `depth` (1 for direct sub-items). */
+export function outlineIndent(depth: number) {
+  return Math.max(0, depth - 1) * 1.25;
+}
+
 /** Props for {@link ItemRow}. */
 export interface ItemRowProps {
   readonly node: ItemNode;
   /** Nesting depth below the card: 1 for the card's direct sub-items. */
   readonly depth: number;
-  readonly expanded: boolean;
   readonly selected: boolean;
   readonly menuOpen: boolean;
   readonly canIndent: boolean;
@@ -41,7 +44,8 @@ export interface ItemRowProps {
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
   readonly onSelect: () => void;
-  readonly onExpandedChange: (expanded: boolean) => void;
+  /** Opens the inline add line under this row (§7.17); absent for finished rows. */
+  readonly onInlineAdd?: (() => void) | undefined;
   readonly onMenuOpenChange: (open: boolean) => void;
   /** A left-button press anywhere on the row that may become a drag (§7.5). */
   readonly onStartDrag: (event: PointerEvent<HTMLElement>) => void;
@@ -94,27 +98,37 @@ function DropFeedback({ position }: { readonly position: ItemDropPosition | null
   );
 }
 
-function ExpandToggle({
-  node,
-  expanded,
-  onExpandedChange,
-}: Pick<ItemRowProps, "node" | "expanded" | "onExpandedChange">) {
-  if (isEmptyLevel(node.children)) {
-    return <span className="size-5 shrink-0" aria-hidden="true" />;
-  }
-  const toggle = (event: MouseEvent) => {
-    event.stopPropagation();
-    onExpandedChange(!expanded);
-  };
+/**
+ * The "+" shown on hover or selection that opens the outline's add line under the row
+ * (§7.17). Like the other hover actions it never takes a Tab stop (§8).
+ */
+function InlineAddButton({
+  title,
+  selected,
+  onInlineAdd,
+}: {
+  readonly title: string;
+  readonly selected: boolean;
+  readonly onInlineAdd: () => void;
+}) {
   return (
-    <span
-      aria-hidden="true"
-      data-testid="item-toggle"
-      onClick={toggle}
-      className={cx(treeStyles.chevron, expanded && "rotate-90")}
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-label={`Add a ToDo after ${title}`}
+      data-testid="item-inline-add"
+      onClick={(event) => {
+        event.stopPropagation();
+        onInlineAdd();
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+      className={cx(
+        "grid size-5 shrink-0 cursor-default place-items-center rounded-full text-fg-subtle hover:bg-pressed hover:text-fg",
+        selected ? "opacity-100" : "opacity-0 group-hover/row:opacity-100",
+      )}
     >
-      <ChevronRight size={14} />
-    </span>
+      <Plus size={13} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -183,7 +197,7 @@ function RowDetails({
   return (
     <div
       data-testid="item-row-details"
-      className="flex min-w-0 flex-wrap items-center gap-x-1.5 pl-17 text-xs text-fg-muted"
+      className="flex min-w-0 flex-wrap items-center gap-x-1.5 pl-11 text-xs text-fg-muted"
     >
       {parts.flatMap((part, index) => (index === 0 ? [part] : [DETAIL_SEPARATOR, part]))}
     </div>
@@ -191,7 +205,7 @@ function RowDetails({
 }
 
 function RowContent(props: ItemRowProps) {
-  const { node, expanded, lookups, actions, onExpandedChange } = props;
+  const { node, selected, lookups, actions, onInlineAdd } = props;
   const date = dateCell(node, lookups.timeZone);
   const source = urgencySourceTitle(node, lookups);
   const repeat = repeatSummary(node);
@@ -199,7 +213,6 @@ function RowContent(props: ItemRowProps) {
     <>
       <div className="flex min-w-0 items-center gap-1">
         <DragHandle />
-        <ExpandToggle node={node} expanded={expanded} onExpandedChange={onExpandedChange} />
         <CompletionMark
           title={node.item.title}
           completed={node.item.completedAtUtc !== null}
@@ -212,6 +225,13 @@ function RowContent(props: ItemRowProps) {
           <UrgencyBadge urgency={node.displayedUrgency.value} />
           {source === undefined ? null : <UrgencySource title={source} />}
           {repeat === null ? null : <RepeatMarker summary={repeat} />}
+          {onInlineAdd === undefined ? null : (
+            <InlineAddButton
+              title={node.item.title}
+              selected={selected}
+              onInlineAdd={onInlineAdd}
+            />
+          )}
           <ItemOverflowMenu {...props} />
         </span>
       </div>
@@ -222,9 +242,10 @@ function RowContent(props: ItemRowProps) {
 }
 
 /**
- * A sub-item row inside a workspace card (§7.17): drag handle, expand chevron, completion
- * button, type, title, status chip, urgency with sub-item attribution and the actions menu,
- * then a details line with the ticket, priority and date. Each nesting level indents it.
+ * A sub-item row inside a workspace card (§7.17): drag handle, completion button, type (none
+ * for an untyped item), title, status chip, urgency with sub-item attribution, the inline add
+ * "+" and the actions menu, then a details line with the ticket, priority and date. Rows read
+ * as a dotted list: one circle per item, and each nesting level only indents the row.
  */
 export function ItemRow(props: ItemRowProps) {
   const { node, depth, selected, canIndent, hasFolders, dragging, dropIndicator } = props;
@@ -243,7 +264,7 @@ export function ItemRow(props: ItemRowProps) {
           actions.editItem(node);
         }}
         onPointerDown={onStartDrag}
-        style={{ paddingLeft: `${Math.max(0, depth - 1) * 0.875}rem` }}
+        style={{ paddingLeft: `${outlineIndent(depth)}rem` }}
         className={cx(
           "group/row relative flex min-h-7 min-w-0 cursor-default flex-col justify-center rounded-control py-0.5 pr-1 text-[13px] transition-colors",
           dropIndicator === "into"

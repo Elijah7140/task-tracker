@@ -26,6 +26,7 @@ import {
   isEmptyLevel,
 } from "./item-outline.js";
 import type { ItemRowLookups } from "./item-parts.js";
+import { InlineAddLine, type InlineAdd, useInlineAdd } from "./inline-add-line.js";
 import { ItemRow } from "./item-row.js";
 import { buildPriorityGroups, type PriorityGroup } from "./priority-groups.js";
 import { PrioritySection } from "./priority-section.js";
@@ -37,14 +38,20 @@ const COMPLETED_PREFIX = "completed:";
 /** Tree node ID of a Completed section, keyed by area key or parent item ID. */
 const completedNodeId = (sectionKey: string) => `${COMPLETED_PREFIX}${sectionKey}`;
 
+/**
+ * Only Completed sections collapse. Cards and sub-item rows always show their sub-items,
+ * so Left on them moves to the parent instead (§7.17).
+ */
+const isCompletedNode = (nodeId: string) => nodeId.startsWith(COMPLETED_PREFIX);
+
 interface TreeContext {
   readonly allNodes: ItemSiblings;
   readonly cardColumns: number;
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
   readonly hasFolders: boolean;
-  readonly expandedItems: ReadonlySet<string>;
   readonly expandedCompleted: ReadonlySet<string>;
+  readonly inlineAdd: InlineAdd;
   readonly selectedItemId: string | null;
   readonly menuFor: string | null;
   readonly dragState: ActiveItemDrag | null;
@@ -221,6 +228,10 @@ function CardBranch({ node, context }: { readonly node: ItemNode; readonly conte
   );
 }
 
+/**
+ * A sub-item row inside a card. Its own sub-items always show nested under it, at any depth,
+ * so the card reads as a dotted list; only "n completed" sections collapse (§7.17).
+ */
 function ItemBranch({
   node,
   depth,
@@ -232,15 +243,15 @@ function ItemBranch({
 }) {
   const { id } = node.item;
   const hasChildren = !isEmptyLevel(node.children);
-  const expanded = hasChildren && context.expandedItems.has(id);
   const selected = context.selectedItemId === id;
   const target = context.dragState?.target;
   const dropIndicator = target?.kind === "row" && target.id === id ? target.position : null;
+  const { inlineAdd } = context;
   return (
     <li
       role="treeitem"
       aria-level={depth + 1}
-      aria-expanded={hasChildren ? expanded : undefined}
+      aria-expanded={hasChildren ? true : undefined}
       aria-selected={selected}
       aria-labelledby={`item-title-${id}`}
       aria-describedby={`item-details-${id}`}
@@ -253,7 +264,6 @@ function ItemBranch({
       <ItemRow
         node={node}
         depth={depth}
-        expanded={expanded}
         selected={selected}
         menuOpen={context.menuFor === id}
         canIndent={canIndentNode(context.allNodes, node)}
@@ -263,11 +273,12 @@ function ItemBranch({
         lookups={context.lookups}
         actions={context.actions}
         onSelect={() => context.onSelect(id)}
-        onExpandedChange={(next) => context.onExpandedChange(id, next)}
+        onInlineAdd={node.isFinished ? undefined : () => inlineAdd.open(id)}
         onMenuOpenChange={(open) => context.onMenuFor(open ? id : null)}
         onStartDrag={(event) => context.onStartDrag(node, event)}
       />
-      {expanded ? <SubItems node={node} depth={depth + 1} context={context} /> : null}
+      {inlineAdd.shownAt === id ? <InlineAddLine depth={depth} inlineAdd={inlineAdd} /> : null}
+      {hasChildren ? <SubItems node={node} depth={depth + 1} context={context} /> : null}
     </li>
   );
 }
@@ -276,7 +287,7 @@ function visibleNodeIds(
   groups: ReadonlyArray<PriorityGroup>,
   finishedTopLevel: ReadonlyArray<ItemNode>,
   areaSectionKey: string,
-  state: Pick<TreeContext, "expandedItems" | "expandedCompleted">,
+  state: Pick<TreeContext, "expandedCompleted">,
 ) {
   const ids = new Set<string>();
   const visitSection = (
@@ -297,9 +308,7 @@ function visibleNodeIds(
   };
   function visitNested(node: ItemNode) {
     ids.add(node.item.id);
-    if (state.expandedItems.has(node.item.id)) {
-      visitNestedChildren(node);
-    }
+    visitNestedChildren(node);
   }
   function visitCard(node: ItemNode) {
     ids.add(node.item.id);
@@ -465,11 +474,6 @@ function RootEndIndicator() {
   );
 }
 
-/** Items at the card level are cards, whose sub-items always show. */
-function isCard(nodes: ItemSiblings, id: string, levelParentId: string | null) {
-  return findItemNode(nodes, id)?.item.parentItemId === levelParentId;
-}
-
 /**
  * Tracks the item pane viewport height so about two open card rows fit at once (§7.17).
  * While a covering page hides the workspace the tree has no layout, so the height is
@@ -573,8 +577,8 @@ function useTreeContext(
     lookups: props.lookups,
     actions,
     hasFolders: props.hasFolders,
-    expandedItems: store.expandedItems,
     expandedCompleted: store.expandedCompleted,
+    inlineAdd: useInlineAdd(props.allNodes ?? nodes, actions, treeRef),
     selectedItemId: store.selectedItemId,
     menuFor: menu.menuFor,
     dragState: drag.dragState,
@@ -621,11 +625,6 @@ export function ItemTree(props: ItemTreeProps) {
   const allNodes = props.allNodes ?? nodes;
   const rowKeys = { allNodes, actions: props.actions, onMenuFor: setMenuFor };
   const onItemKey = itemKeyHandler(rowKeys, expandedCompleted, onExpandedChange);
-  const onKeyExpandedChange = (id: string, expanded: boolean) => {
-    if (expanded || !isCard(allNodes, id, props.levelParentId ?? null)) {
-      onExpandedChange(id, expanded);
-    }
-  };
 
   return (
     <ul
@@ -634,7 +633,7 @@ export function ItemTree(props: ItemTreeProps) {
       aria-label={label}
       data-testid="item-tree"
       onKeyDown={(event) =>
-        handleTreeKeyDown(event, { onExpandedChange: onKeyExpandedChange, onItemKey })
+        handleTreeKeyDown(event, { onExpandedChange, onItemKey, canCollapse: isCompletedNode })
       }
       className="flex list-none flex-col gap-5 p-0"
     >

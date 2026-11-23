@@ -212,6 +212,43 @@ it.effect("Moves, indents, outdents and reorders items while reconciling complet
   ),
 );
 
+it.effect("Creates an item right after a sibling as one undoable step", () =>
+  withItemRpc(
+    Effect.gen(function* () {
+      const { client, area, create } = yield* setup;
+      const parent = yield* create("Parent");
+      const first = yield* create("First", parent.id);
+      const last = yield* create("Last", parent.id);
+
+      const inserted = yield* client.CreateItem({
+        ...area,
+        parentItemId: parent.id,
+        title: "Middle",
+        afterItemId: first.id,
+      });
+      const placed = yield* client.LoadArea(area);
+      const history = yield* client.GetHistory();
+      yield* client.ApplyHistory({ direction: "undo" });
+      const undone = yield* client.LoadArea(area);
+      const refused = yield* Effect.flip(
+        client.CreateItem({ ...area, parentItemId: null, title: "Stray", afterItemId: first.id }),
+      );
+
+      expect(placed.items.open[0]?.children.open.map((node) => node.item.id)).toEqual([
+        first.id,
+        inserted.id,
+        last.id,
+      ]);
+      expect(history.undo).toBe("Create 'Middle'");
+      expect(undone.items.open[0]?.children.open.map((node) => node.item.id)).toEqual([
+        first.id,
+        last.id,
+      ]);
+      expect(refused).toMatchObject({ _tag: "RuleViolation" });
+    }),
+  ),
+);
+
 it.effect("Carries earlier deletion batches with a moved branch and restores them separately", () =>
   withItemRpc(
     Effect.gen(function* () {

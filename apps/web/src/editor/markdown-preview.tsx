@@ -2,6 +2,7 @@ import { externalLinkAddress } from "@task-tracker/contracts";
 import type { Token } from "markdown-it";
 import { Fragment, type ReactNode, useMemo } from "react";
 import { openExternalLink } from "../native/open-external-link.js";
+import { cx } from "../ui/class-names.js";
 import { tokenizeMarkdown } from "./markdown-tokens.js";
 
 const maxNesting = 16;
@@ -247,13 +248,26 @@ function previewContents(source: string) {
   return { nodes, shortened: shortened || budget.shortened };
 }
 
+/** Props for {@link MarkdownPreview}. */
+export interface MarkdownPreviewProps {
+  readonly source: string;
+  /** Defaults to the editor preview's ID. */
+  readonly testId?: string | undefined;
+  /** Text size and color; defaults to the editor preview's. */
+  readonly className?: string | undefined;
+}
+
 /** Renders only the supported Markdown tokens as inert React content and launcher buttons. */
-export function MarkdownPreview({ source }: { readonly source: string }) {
+export function MarkdownPreview({
+  source,
+  testId = "item-editor-description-preview",
+  className = "text-sm text-fg",
+}: MarkdownPreviewProps) {
   const { nodes, shortened } = useMemo(() => previewContents(source), [source]);
   return (
     <div
-      data-testid="item-editor-description-preview"
-      className="markdown-preview min-w-0 text-sm leading-relaxed wrap-anywhere text-fg"
+      data-testid={testId}
+      className={cx("markdown-preview min-w-0 leading-relaxed wrap-anywhere", className)}
     >
       {nodes}
       {shortened ? <p className="text-fg-muted">{notice}</p> : null}
