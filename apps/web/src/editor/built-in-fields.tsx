@@ -115,7 +115,7 @@ function DetailsGroup({
           onValueChange={(value) => onChange("priorityLevelId", value)}
         />
         <LookupSelect
-          label="Workflow status"
+          label="Status"
           value={texts.statusId}
           options={lookupOptions(statuses, item.statusId)}
           testId="item-editor-status"

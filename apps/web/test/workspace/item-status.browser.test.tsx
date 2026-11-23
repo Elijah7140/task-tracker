@@ -97,7 +97,7 @@ it("Saves the status chosen in the editor", async () => {
   await openWorkspace();
   await openEditor(TASK);
 
-  await pick("Workflow status", "In progress");
+  await pick("Status", "In progress");
   await editor().getByTestId("item-editor-save").click();
 
   await expect
@@ -109,7 +109,7 @@ it("Confirms open sub-items before an editor save sets a Done status", async () 
   const { store, projectId } = await openWorkspace("Testing");
   await openEditor(TASK);
 
-  await pick("Workflow status", "Completed");
+  await pick("Status", "Completed");
   await editor().getByTestId("item-editor-save").click();
   const prompt = page.getByRole("alertdialog", { name: "Complete sub-items" });
   await expect.element(prompt).toHaveAccessibleDescription("Also complete 1 open sub-item?");
@@ -128,7 +128,7 @@ it("Keeps the editor open with the draft after cancelling a Done cascade", async
   const { store, projectId } = await openWorkspace("Testing");
   await openEditor(TASK);
 
-  await pick("Workflow status", "Completed");
+  await pick("Status", "Completed");
   await editor().getByTestId("item-editor-save").click();
   await page
     .getByRole("alertdialog", { name: "Complete sub-items" })
@@ -136,7 +136,7 @@ it("Keeps the editor open with the draft after cancelling a Done cascade", async
     .click();
 
   await expect
-    .element(editor().getByRole("combobox", { name: "Workflow status" }))
+    .element(editor().getByRole("combobox", { name: "Status" }))
     .toHaveTextContent("Completed");
   expect(store.findItemByTitle(projectId, null, TASK)!.item.completedAtUtc).toBeNull();
 });
@@ -147,7 +147,7 @@ for (const theme of THEMES) {
     await openEditor(TASK);
     await settleTheme(theme);
 
-    await editor().getByRole("combobox", { name: "Workflow status", exact: true }).click();
+    await editor().getByRole("combobox", { name: "Status", exact: true }).click();
     await expect.element(page.getByRole("option", { name: "Testing", exact: true })).toBeVisible();
 
     await expect.element(page.getByTestId("app-shell")).toMatchScreenshot(`editor-status-${theme}`);

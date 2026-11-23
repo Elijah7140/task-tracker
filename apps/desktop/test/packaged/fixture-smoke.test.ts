@@ -49,7 +49,9 @@ async function expectFixtureValues(editor: Locator, estimate: string) {
   expect(await editor.getByLabel("Review date", { exact: true }).inputValue()).toBe("2026-12-08");
   expect(await editor.getByRole("combobox", { name: "Reviewed" }).innerText()).toBe("No");
   await expect
-    .poll(() => editor.getByRole("combobox", { name: "Status", exact: true }).innerText())
+    .poll(() =>
+      editor.locator('[data-testid="custom-field-choice"][aria-label="Status"]').innerText(),
+    )
     .toBe("Retired option (archived)");
 }
 
@@ -73,8 +75,8 @@ desktopTest(
       await editor.getByLabel("Estimate", { exact: true }).fill("17.25");
       await saveItemEditor(editor);
 
-      await parent.getByTestId("item-title").first().click({ button: "right" });
-      await page.getByTestId("item-context-menu").getByRole("menuitem", { name: "Rename" }).click();
+      await parent.focus();
+      await page.keyboard.press("F2");
       await expectFocused(page.getByRole("textbox", { name: "Title", exact: true }));
       await page.getByRole("textbox", { name: "Title", exact: true }).fill("Renamed parent");
       await page.keyboard.press("Enter");

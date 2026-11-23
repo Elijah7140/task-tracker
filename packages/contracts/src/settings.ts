@@ -3,6 +3,7 @@ import { CardColumns } from "./card-columns.js";
 import { DurationTicks } from "./duration-ticks.js";
 import { Guid } from "./guid.js";
 import { EffectiveReminderSettings, ReminderDefaults, ReminderOverrides } from "./reminder.js";
+import { UrgencyColors } from "./urgency-colors.js";
 
 const effectiveValue = <Value extends Schema.Constraint>(value: Value) =>
   Schema.Struct({ value, source: Schema.Literals(["Global", "Project"]) });
@@ -32,6 +33,11 @@ export const GlobalSettings = Schema.Struct({
   addOpensDetails: Schema.optionalKey(
     Schema.Struct({ todo: Schema.Boolean, ticket: Schema.Boolean }),
   ),
+  /**
+   * The chosen urgency colors (§6.3). The server always sends them; a save without
+   * them keeps them.
+   */
+  urgencyColors: Schema.optionalKey(UrgencyColors),
 });
 
 /** Project overrides to save together. Null removes an override so the global value applies. */

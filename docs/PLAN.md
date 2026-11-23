@@ -374,6 +374,16 @@ tooltip naming it, so the user knows the parent's own deadline isn't the cause.
   a manual refresh.
 - The indicator uses theme tokens with readable contrast and a label or icon so its
   meaning is available without color.
+- **Urgency colors are settings** (§6.5): `UrgencyApproachingColor` for Approaching and
+  `UrgencyOverdueColor` shared by Imminent and Overdue, as the theme's red is. Each is a
+  `#rrggbb` color or empty for the theme color, so nothing changes until the user picks
+  one. App Settings shows a color box, a badge preview and "Reset to default" per color;
+  the choice applies when the defaults are saved and is undoable with them. The renderer
+  sets the chosen colors as CSS custom properties on `<html>` (and in the tray card), and
+  styles.css derives the rest so badges stay readable in both themes: text and dots keep
+  the hue at no more than 0.5 OKLCH lightness in the light theme and at least 0.75 in
+  the dark one, and tints mix the chosen color with transparent. A malformed stored color
+  reads as the theme color.
 
 ### 6.4 Moving and ordering
 
@@ -399,6 +409,7 @@ otherwise the global value.
 | `UrgencyRedThreshold` | duration | 24 hours | yes |
 | `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
 | `TodoAddOpensDetails` / `TicketAddOpensDetails` | boolean | off | no (§7.19) |
+| `UrgencyApproachingColor` / `UrgencyOverdueColor` | `#rrggbb` color or empty | empty (theme color) | no (§6.3) |
 
 Design:
 
@@ -1540,10 +1551,25 @@ below were made while building it and are listed for review.
 - **Cards.** Each open top-level item in the area is one card. The card header has the
   completion checkbox, the title (up to three lines), the status chip, and a line with the
   type icon, ticket number, due or scheduled date, urgency label, the "from sub-item" marker and
-  the repeat marker. Urgency tints the header (§6.3). Below the header are a short
-  description preview (up to four lines) and the item's sub-items as the usual rows (expand,
-  complete, drag, menus), with their own collapsed "n completed" expander. Sub-items never get
-  cards of their own.
+  the repeat marker. Urgency tints the header (§6.3). Sub-items never get cards of their own.
+- **Card body.** The owner's request from 2026-11-23: the body reads like a simple dotted list.
+  In order:
+  - **Notes.** The item's Description (§7.10, labelled Notes), rendered in full as Markdown, so
+    bullet lists show as lists. Clicking the notes swaps in a textarea with the raw Markdown;
+    blur or Ctrl+Enter saves it as one undoable edit and Escape cancels. A card without notes
+    shows **Add notes** only on hover or selection. Links inside the notes open as usual.
+  - **Outline.** Every descendant shows nested under its parent at any depth, always
+    expanded, with no chevrons. Rows keep complete, drag and menus, and each level keeps its
+    collapsed "n completed" expander. Depth is shown by indentation only: one circle (the
+    completion mark) per row, and an untyped item shows no type glyph.
+  - **Inline add.** An open row shows a **+** on hover or selection (no Tab stop, §8). It
+    opens a one-line input under the row at that row's level. Enter adds a ToDo right after
+    the row; Shift+Enter adds it as the row's child. The input then follows the new item so
+    typing continues; Escape, or blur while empty, closes it.
+  - **Add line.** Every open card ends with an "Add a ToDo…" line. Enter appends a ToDo as a
+    direct child of the card's item; Shift+Enter adds it under the card's last open direct
+    child, or directly when there is none.
+  Added items are plain ToDos with only a title, one "Create ⟨title⟩" undo step each.
 - **Sections.** "No priority" comes first, then one section per priority level in level sort
   order (never by number, §7.15). Archived levels get a section while items still use them. A
   section shows its name and item count. Empty sections are hidden; use **Set priority ▸** to
@@ -1579,14 +1605,22 @@ below were made while building it and are listed for review.
   - Archived sections accept moves only from their own cards; Alt+↑/↓ steps over other
     archived sections. Because empty sections are hidden, a card that empties its section
     cannot step back into it.
-  - Cards are expanded tree items: their sub-item rows always show, Right moves to the first
-    sub-item and Left does not collapse a card. Each section's cards form a group named by
-    its header. Sub-item rows put the ticket, priority and date on a second line.
+  - Cards and sub-item rows are expanded tree items: their sub-items always show, Right
+    moves to the first sub-item and Left moves to the parent instead of collapsing. Only
+    "n completed" sections collapse. Each section's cards form a group named by its header.
+    Sub-item rows put the ticket, priority and date on a second line.
+  - Inline add places the new item with CreateItem's optional `afterItemId`, so the insert
+    is one write and one undo step. The add inputs and **Add notes** take no Tab stop, so
+    the tree stays one Tab stop; keyboard users add with the editor and **Add sub-item**.
+    Finished cards show no add line. Pressing inside the notes or an add input never starts
+    a drag or opens the card; double-click the header to drill in (§7.19).
   - The repeat marker joins the card header when recurring items land (§7.11).
 - **Tests.** Core: the move operation on real SQLite, including undo, sub-item promotion and
   an archived level. React: the section order (with a 1, 7, 2 numbering), the drop and step
   mapping, header drops and the setting. Headless: the grid layout, card and header drags, and
-  Alt+↓ across a section. Light and dark snapshots of the grid.
+  Alt+↓ across a section; the card body's Markdown notes and inline edit, row inline add
+  and add line with Enter and Shift+Enter, nested descendants and the missing type dot. Server:
+  CreateItem after a sibling as one undo step. Light and dark snapshots of the grid.
 
 ### 7.18 In-progress items and the tray card
 
@@ -1598,7 +1632,7 @@ that stays open.
 - **In progress statuses.** `StatusLevel.IsInProgress` marks the statuses whose items the tray
   card lists. Any number of statuses can be marked; only Open statuses can be (Core rule and a
   storage `CHECK`). Migration 13 adds the column and marks the seeded "In progress" status.
-  - App Settings › Workflow statuses has an **In progress** box on each Open row. Each change is
+  - App Settings › Statuses has an **In progress** box on each Open row. Each change is
     one undo step, "Mark in progress ⟨name⟩" or "Unmark in progress ⟨name⟩".
   - New statuses start unmarked. JSON import adds new statuses unmarked; the file format does not
     carry the mark.
@@ -1673,9 +1707,12 @@ be the parent of either kind. A kind is chosen when the item is added and does n
   | Requestor, Dispatched to, Pending user | `TicketDetail` → **People** list |
   | Application › Module › Interface | `TicketDetail` → **Ticket levels** tree |
   | Ticket type | `TicketDetail` → **Ticket types** list |
-  | Version (text), Est. hours (≥ 0), % complete (0–100), Urgent, System outage | `TicketDetail` columns |
+  | Version (text), Est. hours (≥ 0), % complete (0–100), Urgent, System outage | `TicketDetail` columns, no longer shown (below) |
   | Comments | `TicketComment` rows, newest first |
 
+  On 23 Nov 2026 the owner removed Version, Est. hours, % complete, Urgent and System outage
+  from the add views, the editor and the details panel. The columns, search keys and
+  transfer fields stay, so stored values survive and an edit keeps them unchanged.
   Site-specific fields from the reference screen (plant, office and cell numbers, Helix and
   work-order numbers, mill impacted, tested/documented by, testing date) are left out.
 - **Lists in App Settings.** People, Ticket types and Ticket levels are one
@@ -1710,9 +1747,9 @@ details panel shows its fields, with **Edit** and, for a ticket, its comments. D
 a child card goes one level deeper, with no depth limit. Breadcrumbs show the project,
 folders and item chain. Routes are `/projects/$projectId/items/$itemId` and
 `…/folders/$folderId/items/$itemId`. `MoveItemToPriorityGroup` takes the level's parent.
-Edit stays on the card and row menus and Enter. The item menu also has **Open**, **Add ToDo…** and
-**Add Ticket…**, the keyboard equivalents of double-click and the card buttons, which, like
-⋯, show on hover and take no Tab stop. A ticket's editor shows its fixed fields in place of type,
+Edit stays on the card and row menus and Enter. On 23 Nov 2026 the owner removed **Open**,
+**Rename**, **Add ToDo…** and **Add Ticket…** from the item menu: the card buttons and
+double-click cover them, and F2 still renames. A ticket's editor shows its fixed fields in place of type,
 repeat, the scheduled block and custom fields.
 
 **Shell.**
@@ -1721,7 +1758,9 @@ repeat, the scheduled block and custom fields.
   app starts dark.
 - The decorative check mark at the left of the menu bar is removed. It had no action.
 - The sidebar collapses to an icon rail with Home and the project icons, and starts
-  collapsed. A toggle at its top expands it. The state is a per-device preference.
+  collapsed. The state is a per-device preference. Revised 23 Nov 2026 by the owner: the
+  **New project** button sits below the project list, and the collapse toggle and Home are
+  pinned to the bottom of the sidebar, Home bottom-most.
 - **Project icons.** `Project.IconKey` names one of a fixed set of icons. **Change icon…**
   on the project card menu picks one, or the initial again. The icon shows on the Home card
   and in the sidebar. The change is one undo step, "Change icon of ⟨name⟩".
@@ -1822,6 +1861,22 @@ Phase 4. The legacy port adds Ctrl+Z and Ctrl+Y or Ctrl+Shift+Z (§7.8),
 Ctrl+Shift+C and the calendar controls (§7.4), Ctrl+Shift+T (Trash),
 Ctrl+Shift+R (Reminders), Ctrl+Shift+D (Today), Ctrl+Shift+P (Push back one day)
 and Ctrl+Shift+K (Tickets). The Menu key and Shift+F10 expose row actions.
+
+Date picker — Date fields in the editor, the add dialogs, custom fields, the repeat end
+date and Search's date filters use the app's own picker, not the native date input,
+so they look the same on every platform. The field accepts typed `YYYY-MM-DD` text,
+with one-digit months and days allowed. Text that is not a date is marked invalid
+and is restored to the last date when focus leaves. A calendar button opens a month
+grid on the selected date's month, or today's month when the field is empty. The
+selected day is filled with the accent and today has an accent ring. A **Today**
+button picks today. Today comes from the renderer's Effect Clock in the server's
+zone, the same source the Calendar uses (§5.4), and is read each time the grid opens.
+The week starts on the locale's first day, as in the Calendar. Arrows move by day and
+week, PageUp and PageDown by month (Shift for a year), and Home and End to the start
+and end of the week. Enter or Space picks the day, and Escape closes the grid and
+returns focus to the button without closing the editor. Scheduled start and end keep
+the native date-time input and add the same button for their date part. Picking a
+date keeps the time, or uses 09:00 when no time is set. Time inputs stay native.
 
 ### Legacy feature port
 

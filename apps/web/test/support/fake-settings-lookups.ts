@@ -269,6 +269,7 @@ export class FakeSettingsAndLookups {
     keepRunningInTray: false,
     startWithSystem: false,
     addOpensDetails: { todo: false, ticket: false },
+    urgencyColors: { approaching: null, overdue: null },
   };
   itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
@@ -478,8 +479,10 @@ export class FakeSettingsAndLookups {
     const keepRunningInTray = next.keepRunningInTray ?? this.globalSettings.keepRunningInTray;
     const startWithSystem = next.startWithSystem ?? this.globalSettings.startWithSystem;
     const addOpensDetails = next.addOpensDetails ?? this.globalSettings.addOpensDetails;
+    const urgencyColors = next.urgencyColors ?? this.globalSettings.urgencyColors;
     this.globalSettings = {
       ...next,
+      ...(urgencyColors === undefined ? {} : { urgencyColors }),
       ...(addOpensDetails === undefined ? {} : { addOpensDetails }),
       ...(reminders === undefined ? {} : { reminders }),
       ...(keepRunningInTray === undefined ? {} : { keepRunningInTray }),

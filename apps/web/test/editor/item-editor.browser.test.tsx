@@ -566,7 +566,7 @@ describe("Item editor", () => {
     it("Matches the reviewed item editor baseline", async () => {
       await openEditorWorkspace({ configure: seedEditorBaseline });
       await openEditor();
-      await expect.element(customInput("Status")).toHaveTextContent("Ready");
+      await expect.element(customInput("Stage")).toHaveTextContent("Ready");
       await expect.element(customInput("Effort")).toHaveValue("3.5");
 
       await settleTheme(theme);
@@ -577,7 +577,7 @@ describe("Item editor", () => {
     it("Matches the reviewed invalid custom number baseline", async () => {
       await openEditorWorkspace({ configure: seedEditorBaseline });
       await openEditor();
-      await expect.element(customInput("Status")).toHaveTextContent("Ready");
+      await expect.element(customInput("Stage")).toHaveTextContent("Ready");
       await customInput("Effort").fill("twelve");
       await expect.element(editor().getByTestId("custom-field-number-error")).toBeVisible();
 

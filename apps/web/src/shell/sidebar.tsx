@@ -6,19 +6,21 @@ import { cx } from "../ui/class-names.js";
 import { SidebarLink } from "./sidebar-link.js";
 import { SidebarProjectList } from "./sidebar-project-list.js";
 
-function NewProjectButton() {
+/** The + below the project list: an icon on the rail, an icon and label when expanded. */
+function NewProjectButton({ collapsed }: { readonly collapsed: boolean }) {
   const { createProject } = useProjectActions();
   return (
     <Button
       variant="ghost"
-      size="icon"
-      className="size-6"
+      size={collapsed ? "icon" : "sm"}
+      className={collapsed ? "mx-auto" : "justify-start gap-2 px-2 text-fg-muted"}
       aria-label="New project"
       title="New project"
       onClick={() => void createProject()}
       data-testid="sidebar-new-project"
     >
       <Plus size={14} aria-hidden="true" />
+      {collapsed ? null : <span>New project</span>}
     </Button>
   );
 }
@@ -26,17 +28,13 @@ function NewProjectButton() {
 function ProjectsSection({ collapsed }: { readonly collapsed: boolean }) {
   return (
     <section aria-label="Projects" className="flex flex-col gap-1">
-      {collapsed ? (
-        <div className="flex h-7 items-center justify-center">
-          <NewProjectButton />
-        </div>
-      ) : (
-        <div className="flex h-7 items-center justify-between pr-1 pl-2">
+      {collapsed ? null : (
+        <div className="flex h-7 items-center pr-1 pl-2">
           <h2 className="text-xs font-medium text-fg-subtle">Projects</h2>
-          <NewProjectButton />
         </div>
       )}
       <SidebarProjectList collapsed={collapsed} />
+      <NewProjectButton collapsed={collapsed} />
     </section>
   );
 }
@@ -65,9 +63,9 @@ function CollapseToggle({ collapsed }: { readonly collapsed: boolean }) {
 }
 
 /**
- * The app's navigation sidebar: Home and the projects, with the open project's folder tree
- * nested under its link. It starts collapsed to an icon rail of Home and the project icons,
- * and the toggle at its top expands it (§7.19). App-wide pages, settings and the theme live
+ * The app's navigation sidebar: the projects, with the open project's folder tree nested
+ * under its link and the New project button below them, then the collapse toggle and Home
+ * at the bottom. It starts collapsed to an icon rail (§7.19, §8). App-wide pages, settings and the theme live
  * in the menu bar and App Settings (§8).
  */
 export function Sidebar() {
@@ -82,10 +80,13 @@ export function Sidebar() {
         collapsed ? "w-12" : "w-60",
       )}
     >
-      <div className="flex h-10 shrink-0 items-center px-2">
-        <CollapseToggle collapsed={collapsed} />
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-3">
+        <ProjectsSection collapsed={collapsed} />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pb-3">
+      <div className="flex shrink-0 flex-col gap-1 border-t border-line px-2 py-2">
+        <div className="flex h-8 items-center">
+          <CollapseToggle collapsed={collapsed} />
+        </div>
         <SidebarLink
           target={{ to: "/" }}
           icon={<House size={15} aria-hidden="true" />}
@@ -95,7 +96,6 @@ export function Sidebar() {
         >
           Home
         </SidebarLink>
-        <ProjectsSection collapsed={collapsed} />
       </div>
     </nav>
   );

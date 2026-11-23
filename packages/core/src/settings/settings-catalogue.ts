@@ -2,6 +2,7 @@ import { ticksPerDay, ticksPerHour } from "../time/duration-ticks.js";
 import { booleanCodec } from "./boolean-codec.js";
 import { durationCodec } from "./duration-codec.js";
 import { localTimeCodec } from "./local-time-codec.js";
+import { optionalHexColorCodec } from "./optional-hex-color-codec.js";
 import { reminderOffsetCodec } from "./reminder-offset-codec.js";
 import { SettingDefinition } from "./setting-definition.js";
 import { wholeNumberCodec } from "./whole-number-codec.js";
@@ -20,6 +21,26 @@ export const SettingsCatalogue = {
     ticksPerDay,
     true,
     durationCodec,
+  ),
+  /**
+   * The `#rrggbb` color of Approaching urgency (§6.3), or null for the theme's yellow.
+   * Global only.
+   */
+  urgencyApproachingColor: new SettingDefinition(
+    "urgencyApproachingColor",
+    null,
+    false,
+    optionalHexColorCodec,
+  ),
+  /**
+   * The `#rrggbb` color of Imminent and Overdue urgency (§6.3), or null for the theme's
+   * red. Global only.
+   */
+  urgencyOverdueColor: new SettingDefinition(
+    "urgencyOverdueColor",
+    null,
+    false,
+    optionalHexColorCodec,
   ),
   workspaceCardColumns: new SettingDefinition(
     "workspaceCardColumns",

@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { SearchableField, SearchChoice, SearchScope } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
+import { DateField } from "../date-picker/date-field.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { searchChoicesAtom } from "../rpc/search-queries.js";
 import { fieldStyles } from "../ui/field-styles.js";
@@ -30,19 +31,30 @@ function Joiner({ text }: { readonly text: string }) {
 
 function TextInputs({ row, field, onChange }: FilterValueInputsProps) {
   const between = row.operator === "between";
-  const input = (part: "first" | "second", label: string) => (
-    <span className="w-40">
-      <input
-        type={field.dataType === "Date" ? "date" : "text"}
-        inputMode={field.dataType === "Number" ? "decimal" : undefined}
-        value={row[part]}
-        aria-label={`${field.displayName} ${label}`}
-        data-testid={`filter-value-${part}`}
-        onChange={(event) => onChange({ [part]: event.target.value })}
-        className={fieldStyles.compactControl}
-      />
-    </span>
-  );
+  const input = (part: "first" | "second", label: string) =>
+    field.dataType === "Date" ? (
+      <span className="flex w-48 items-center gap-1">
+        <DateField
+          value={row[part]}
+          onValueChange={(value) => onChange({ [part]: value })}
+          ariaLabel={`${field.displayName} ${label}`}
+          pickLabel={`Choose ${field.displayName} ${label}`}
+          testId={`filter-value-${part}`}
+        />
+      </span>
+    ) : (
+      <span className="w-40">
+        <input
+          type="text"
+          inputMode={field.dataType === "Number" ? "decimal" : undefined}
+          value={row[part]}
+          aria-label={`${field.displayName} ${label}`}
+          data-testid={`filter-value-${part}`}
+          onChange={(event) => onChange({ [part]: event.target.value })}
+          className={fieldStyles.compactControl}
+        />
+      </span>
+    );
   return (
     <>
       {input("first", between ? "from" : "value")}

@@ -6,6 +6,7 @@ import { DialogHost } from "../dialogs/dialog-host.js";
 import { rpcProtocolAtom, type RpcProtocolLayer } from "../rpc/task-tracker-client.js";
 import { rendererClockAtom } from "../rpc/urgency-refresh.js";
 import { useAppliedTheme } from "../state/use-applied-theme.js";
+import { useAppliedUrgencyColors } from "../state/use-applied-urgency-colors.js";
 import { createAppRouter } from "./router.js";
 
 /** Props for {@link AppRoot}. */
@@ -19,6 +20,7 @@ export interface AppRootProps {
 function ThemedRouter({ history }: { readonly history: RouterHistory }) {
   const [router] = useState(() => createAppRouter(history));
   useAppliedTheme();
+  useAppliedUrgencyColors();
   return <RouterProvider router={router} />;
 }
 

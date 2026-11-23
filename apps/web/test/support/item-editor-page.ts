@@ -43,7 +43,7 @@ export interface SeededFields {
 /** Adds the legacy tests' Summary, Effort, Review date, Approved and Status fields. */
 export function seedEveryFieldType(store: FakeProjectStore): SeededFields {
   const fields = store.customFields;
-  const status = fields.addFieldSeed("Status", "Choice");
+  const status = fields.addFieldSeed("Stage", "Choice");
   const ids = {
     summary: fields.addFieldSeed("Summary", "Text").id,
     effort: fields.addFieldSeed("Effort", "Number").id,

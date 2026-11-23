@@ -82,6 +82,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         keepRunningInTray: false,
         startWithSystem: false,
         addOpensDetails: { todo: false, ticket: false },
+        urgencyColors: { approaching: null, overdue: null },
       });
       expect(result).toEqual({ kind: "applied" });
       expect(saved).toEqual({
@@ -90,6 +91,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         keepRunningInTray: false,
         startWithSystem: false,
         addOpensDetails: { todo: false, ticket: false },
+        urgencyColors: { approaching: null, overdue: null },
       });
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },
@@ -120,6 +122,44 @@ it.effect("Saves the tray choice with the global defaults and keeps it when a sa
         { Key: "autoCompleteParents", Value: "false" },
         { Key: "keepRunningInTray", Value: "true" },
       ]);
+    }),
+  ),
+);
+
+it.effect("Saves urgency colors in lowercase and keeps them when a save omits them", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const defaults = yield* client.LoadGlobalSettings();
+
+      yield* client.SaveGlobalSettings({
+        settings: { ...defaults, urgencyColors: { approaching: "#00AA88", overdue: null } },
+      });
+      const { urgencyColors: _omitted, ...withoutColors } = defaults;
+      yield* client.SaveGlobalSettings({
+        settings: { ...withoutColors, autoCompleteParents: false },
+      });
+      const saved = yield* client.LoadGlobalSettings();
+
+      expect(saved.urgencyColors).toEqual({ approaching: "#00aa88", overdue: null });
+      expect(yield* storedRows("GlobalSetting")).toEqual([
+        { Key: "autoCompleteParents", Value: "false" },
+        { Key: "urgencyApproachingColor", Value: "#00aa88" },
+      ]);
+    }),
+  ),
+);
+
+it.effect("Reads a malformed stored urgency color as the theme color", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const client = yield* connectRenderer;
+      yield* sql`INSERT INTO GlobalSetting (Key, Value) VALUES ('urgencyOverdueColor', 'crimson')`;
+
+      const settings = yield* client.LoadGlobalSettings();
+
+      expect(settings.urgencyColors).toEqual({ approaching: null, overdue: null });
     }),
   ),
 );

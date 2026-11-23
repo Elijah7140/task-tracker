@@ -99,7 +99,7 @@ export function StatusListCard({ rows }: { readonly rows: ReadonlyArray<Status> 
 
   return (
     <SectionCard
-      title="Workflow statuses"
+      title="Statuses"
       description="Done statuses complete the item. Changes save immediately."
       testId="lookup-list-statuses"
     >

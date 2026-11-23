@@ -31,12 +31,6 @@ function levelPath(detail: Detail, entries: ReadonlyArray<Entry>) {
   return names.length === 0 ? null : names.join(" › ");
 }
 
-function flags(detail: Detail) {
-  const set = [detail.isUrgent ? "Urgent" : null, detail.isSystemOutage ? "System outage" : null];
-  const shown = set.filter((flag) => flag !== null);
-  return shown.length === 0 ? null : shown.join(", ");
-}
-
 function TicketFields({
   detail,
   entries,
@@ -44,8 +38,6 @@ function TicketFields({
   readonly detail: Detail;
   readonly entries: ReadonlyArray<Entry>;
 }) {
-  const hours = detail.estimatedHours === null ? null : `${detail.estimatedHours} h`;
-  const percent = detail.percentComplete === null ? null : `${detail.percentComplete}%`;
   return (
     <DetailSection title="Ticket" testId="details-ticket">
       <dl className="flex flex-col gap-1.5">
@@ -54,10 +46,6 @@ function TicketFields({
         <DetailRow label="Dispatched to" value={nameOf(entries, detail.dispatchedToId)} />
         <DetailRow label="Pending user" value={nameOf(entries, detail.pendingPersonId)} />
         <DetailRow label="Ticket type" value={nameOf(entries, detail.ticketTypeId)} />
-        <DetailRow label="Version" value={detail.version} />
-        <DetailRow label="Est. hours" value={hours} />
-        <DetailRow label="% complete" value={percent} />
-        <DetailRow label="Flags" value={flags(detail)} />
       </dl>
     </DetailSection>
   );

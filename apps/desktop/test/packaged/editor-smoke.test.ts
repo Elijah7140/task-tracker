@@ -19,7 +19,7 @@ const fields = [
   { name: "Effort", type: "Number" },
   { name: "Review date", type: "Date" },
   { name: "Approved", type: "Boolean" },
-  { name: "Status", type: "Choice" },
+  { name: "Stage", type: "Choice" },
 ] as const;
 
 async function pick(page: Page, control: Locator, option: string) {
@@ -35,7 +35,7 @@ async function createCustomFields(page: Page) {
     await page.getByTestId("field-add").click();
     await page.getByRole("listitem", { name, exact: true }).waitFor();
   }
-  const status = page.getByRole("listitem", { name: "Status", exact: true });
+  const status = page.getByRole("listitem", { name: "Stage", exact: true });
   const choices = status.getByTestId("field-choices-toggle");
   if ((await choices.getAttribute("aria-expanded")) === "false") {
     await choices.click();
@@ -51,7 +51,7 @@ async function fillCustomFields(page: Page, editor: Locator) {
   await editor.getByLabel("Effort", { exact: true }).fill("12.5");
   await editor.getByLabel("Review date", { exact: true }).fill("2026-11-20");
   await pick(page, editor.getByRole("combobox", { name: "Approved" }), "Yes");
-  await pick(page, editor.getByRole("combobox", { name: "Status", exact: true }), "Ready");
+  await pick(page, editor.getByRole("combobox", { name: "Stage", exact: true }), "Ready");
 }
 
 desktopTest(
@@ -81,7 +81,7 @@ desktopTest(
       );
       expect(await editor.getByRole("combobox", { name: "Approved" }).innerText()).toBe("Yes");
       await expect
-        .poll(() => editor.getByRole("combobox", { name: "Status", exact: true }).innerText())
+        .poll(() => editor.getByRole("combobox", { name: "Stage", exact: true }).innerText())
         .toBe("Ready");
     });
   },
