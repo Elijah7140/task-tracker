@@ -123,10 +123,10 @@ async function expectLegacyItemValues(page: Page) {
     "Repeats: Every 2 days",
   );
   const editor = await openItemEditor(page, card);
-  await editor.getByTestId("item-editor-description-preview-tab").click();
-  expect(
-    await editor.getByTestId("item-editor-description-preview").locator("strong").innerText(),
-  ).toBe("Sample notes");
+  await editor.getByTestId("item-editor-notes-preview-tab").click();
+  expect(await editor.getByTestId("item-editor-notes-preview").locator("strong").innerText()).toBe(
+    "Sample notes",
+  );
   await page.keyboard.press("Escape");
   await expectGone(editor);
 }

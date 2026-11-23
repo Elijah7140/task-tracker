@@ -14,8 +14,10 @@ export interface SeedItem {
   readonly title: string;
   /** ToDo unless seeded as a ticket (§7.19). */
   readonly kind?: "Todo" | "Ticket";
-  /** Plain description text, shown as a card preview (§7.17). */
+  /** A ticket's Detail (§7.19). */
   readonly description?: string;
+  /** Markdown notes, shown on the card (§7.17). */
+  readonly notes?: string;
   readonly ticketNumber?: string;
   readonly type?: "Change" | "Error" | "Discussion" | "Review";
   readonly priority?: "Critical" | "High" | "Medium" | "Low";
@@ -152,6 +154,7 @@ export class FakeAreaBuilder {
       parentItemId,
       title: seed.title,
       description: seed.description ?? null,
+      notes: seed.notes ?? null,
       ticketNumber: seed.ticketNumber ?? null,
       kind: seed.kind ?? "Todo",
       itemTypeId: seed.type === undefined ? null : lookupId(1, TYPES.indexOf(seed.type)),

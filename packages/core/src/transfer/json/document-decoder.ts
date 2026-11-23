@@ -313,6 +313,7 @@ const itemProperties = object(
     parentItemId: optionalGuid,
     title: optionalText,
     description: optionalText,
+    notes: optionalText,
     ticketNumber: optionalText,
     itemTypeId: optionalGuid,
     itemType: optionalText,

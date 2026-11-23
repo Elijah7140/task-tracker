@@ -273,7 +273,8 @@ describe("CSV formula safety", () => {
         const copy = yield* onlyItem(world, target);
         expect(copy.item).toMatchObject({
           Title: "=SUM(1,2)",
-          Description: "'=already quoted",
+          Description: null,
+          Notes: "'=already quoted",
           TicketNumber: "-9",
         });
         expect(copy.values).toEqual({ Notes: "@mention" });
@@ -289,7 +290,7 @@ describe("CSV formula safety", () => {
         yield* world.importCsv("Title,Description\r\n'=typed,'just a quote\r\n", target);
 
         const [item] = yield* readItems(world, target);
-        expect(item).toMatchObject({ Title: "=typed", Description: "'just a quote" });
+        expect(item).toMatchObject({ Title: "=typed", Description: null, Notes: "'just a quote" });
       }),
     ),
   );

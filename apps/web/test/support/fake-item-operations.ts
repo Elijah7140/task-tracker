@@ -224,6 +224,7 @@ export function applyCreateItem(
         kind: "Todo",
         title: trimmed,
         description: null,
+        notes: null,
         ticketNumber: null,
         itemTypeId: null,
         priorityLevelId: null,

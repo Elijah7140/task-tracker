@@ -32,6 +32,18 @@ describe("buildAddPayload", () => {
     expect(undated.ok && undated.fields).toMatchObject({ dueDate: null, dueTime: null });
   });
 
+  it("Sends a ticket's Detail and notes and only the notes of a ToDo", () => {
+    const texts = { description: "Detail text", notes: "Notes text" };
+    const ticket = buildAddPayload("Ticket", draft({ ticketNumber: "1", title: "T", ...texts }));
+    const todo = buildAddPayload("Todo", draft({ title: "T", ...texts }));
+
+    expect(ticket.ok && ticket.fields).toMatchObject({
+      description: "Detail text",
+      notes: "Notes text",
+    });
+    expect(todo.ok && todo.fields).toMatchObject({ description: null, notes: "Notes text" });
+  });
+
   it("Maps the reminder choice to its wire form", () => {
     const choices = ["default", "none", "30"].map((reminder) => {
       const result = buildAddPayload("Todo", draft({ title: "Call", reminder }));

@@ -270,13 +270,13 @@ test("Undo of a removal and reorder puts the old links back", (svc, world) =>
 test("Link changes and field changes are one undo step", (svc, world) =>
   Effect.gen(function* () {
     const item = yield* world.create("Task");
-    const fields = editFields("Task", { description: "New description" });
+    const fields = editFields("Task", { notes: "New description" });
     yield* svc.items.edit(item.id, fields, [], undefined, [link("https://a.example")]);
 
     yield* world.undo.apply("undo");
 
     expect(yield* world.urls(item.id)).toEqual([]);
-    expect((yield* readItems())[0]?.Description).toBeNull();
+    expect((yield* readItems())[0]?.Notes).toBeNull();
   }));
 
 test("Undo is refused when a link changed since", (svc, world) =>

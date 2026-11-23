@@ -237,6 +237,7 @@ export class FakeProjectStore {
       id: this.nextId(),
       name,
       description: null,
+      notes: null,
       sortOrder: this.summaries.length,
       createdAtUtc: TIMESTAMP,
       updatedAtUtc: TIMESTAMP,

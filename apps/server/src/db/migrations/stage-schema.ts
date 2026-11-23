@@ -1,6 +1,11 @@
 import { customFieldSchema } from "./add-custom-fields.js";
 import { inProgressStatusColumns } from "./add-in-progress-statuses.js";
 import { itemLinkSchema } from "./add-item-links.js";
+import {
+  itemNotesColumns,
+  itemSearchSchemaWithNotes,
+  searchShadowSchemaWithNotes,
+} from "./add-item-notes.js";
 import { itemSearchSchema, searchShadowSchema } from "./add-item-search.js";
 import { recurrenceColumns } from "./add-recurrence.js";
 import { reminderColumns } from "./add-reminders.js";
@@ -33,6 +38,7 @@ function extendInitialSchema(stage: number) {
     ...(stage >= 9 ? statusColumns : []),
     ...(stage >= 10 ? ticketRankColumns : []),
     ...(stage >= 11 ? itemKindColumns : []),
+    ...(stage >= 16 ? itemNotesColumns : []),
   ];
   return initialSchema
     .filter(
@@ -72,12 +78,19 @@ function statusSchema(stage: number) {
   );
 }
 
+/** The full-text search schema, with the Notes column from stage 16 (§7.2). */
+function searchSchema(stage: number) {
+  return stage >= 16
+    ? [...itemSearchSchemaWithNotes, ...searchShadowSchemaWithNotes]
+    : [...itemSearchSchema, ...searchShadowSchema];
+}
+
 /** Returns the stored application schema expected at a validated migration prefix. */
 export function stageSchema(stage: number) {
   return [
     ...(stage >= 1 ? extendInitialSchema(stage) : []),
     ...(stage >= 2 ? customFieldSchema : []),
-    ...(stage >= 3 ? [...itemSearchSchema, ...searchShadowSchema] : []),
+    ...(stage >= 3 ? searchSchema(stage) : []),
     ...(stage >= 4 ? savedSearchSchema : []),
     ...(stage >= 5 ? itemLinkSchema : []),
     ...(stage >= 8 ? todayCompletionsSchema : []),

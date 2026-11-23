@@ -26,6 +26,7 @@ const kindField = { kind: Schema.Literals(["Todo", "Ticket"]) };
 const editFields = {
   title: Schema.String,
   description: Schema.NullOr(Schema.String),
+  notes: Schema.NullOr(Schema.String),
   ticketNumber: Schema.NullOr(Schema.String),
   itemTypeId: Schema.NullOr(Guid),
   priorityLevelId: Schema.NullOr(Guid),
@@ -40,6 +41,7 @@ const columns = {
   kind: "ItemKind",
   title: "Title",
   description: "Description",
+  notes: "Notes",
   ticketNumber: "TicketNumber",
   itemTypeId: "ItemTypeId",
   priorityLevelId: "PriorityLevelId",

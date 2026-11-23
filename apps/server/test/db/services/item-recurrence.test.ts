@@ -30,7 +30,7 @@ const testingStatusId = "019A0000-0000-7000-8000-000000000203";
 /** The legacy test's edit: the due date and time set, plus an optional rule. */
 function repeatEdit(title: string, recurrence: RecurrenceRule | null): ItemEdit {
   return editFields(title, {
-    description: "Details",
+    notes: "Details",
     ticketNumber: "AUD-1",
     dueDate: due,
     dueTime: Temporal.PlainTime.from("12:30"),
@@ -42,7 +42,7 @@ interface StoredItem {
   readonly Id: string;
   readonly ParentItemId: string | null;
   readonly Title: string;
-  readonly Description: string | null;
+  readonly Notes: string | null;
   readonly TicketNumber: string | null;
   readonly TicketRank: number | null;
   readonly StatusId: string | null;
@@ -150,7 +150,7 @@ const assertCopiedTree = Effect.fnUntraced(function* (
   const [child] = yield* world.children(next.Id);
   expect(next).toMatchObject({
     Title: "Audit",
-    Description: "Details",
+    Notes: "Details",
     TicketNumber: "AUD-1",
     CompletedAtUtc: null,
     RecurrenceSeriesId: roots[0]!.RecurrenceSeriesId,

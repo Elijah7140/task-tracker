@@ -82,7 +82,7 @@ class CsvExporter {
       protectCsvCell(id === null ? "" : names.get(id)!);
     const cells = [
       protectCsvCell(item.title),
-      protectCsvCell(item.description ?? ""),
+      protectCsvCell((item.kind === "Ticket" ? item.description : item.notes) ?? ""),
       protectCsvCell(item.ticketNumber ?? ""),
       lookup(this.#types, item.itemTypeId),
       protectCsvCell(priority === null ? "" : priorityLabel(priority)),
@@ -109,13 +109,16 @@ class CsvExporter {
     ];
   }
 
-  /** Kind and the fixed ticket fields (§7.19); a ToDo leaves the ticket cells blank. */
+  /**
+   * Kind, the fixed ticket fields and the notes (§7.19). A ToDo leaves them blank, because
+   * its notes are in Description.
+   */
   #ticketCells(rows: ProjectCsvRows, item: TodoItem): string[] {
     if (item.kind !== "Ticket") {
       return ["ToDo", ...TICKET_CSV_COLUMN_NAMES.slice(1).map(() => "")];
     }
     const cells = writeCsvTicketCells(rows.ticketOf(item), this.#entries);
-    return ["Ticket", ...cells.map((cell) => protectCsvCell(cell))];
+    return ["Ticket", ...[...cells, item.notes ?? ""].map((cell) => protectCsvCell(cell))];
   }
 
   #fieldCell(rows: ProjectCsvRows, item: TodoItem, column: FieldColumn): string {

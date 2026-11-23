@@ -139,10 +139,12 @@ function useCreateItemActions(scope: ItemActionScope) {
 
 /** The built-in fields EditItem takes, copied from the item with `changes` applied. */
 function editedFields(item: ItemNode["item"], changes: Partial<typeof ItemEdit.Type>) {
-  const { title, description, ticketNumber, itemTypeId, priorityLevelId, dueDate, dueTime } = item;
+  const { title, description, notes, ticketNumber, itemTypeId, priorityLevelId, dueDate, dueTime } =
+    item;
   const fields = {
     title,
     description,
+    notes,
     ticketNumber,
     itemTypeId,
     priorityLevelId,
@@ -183,18 +185,18 @@ function useRenameItem(scope: ItemActionScope) {
 }
 
 /**
- * Saves a card's inline-edited notes, the item's Markdown description (§7.10, §7.17), as
- * one undoable edit. Blank notes clear the description. Resolves true once saved or
- * when nothing changed.
+ * Saves a card's inline-edited Markdown notes (§7.10, §7.17) as one undoable edit. A
+ * ticket's Detail is a separate field and stays as it is. Blank notes clear them.
+ * Resolves true once saved or when nothing changed.
  */
 function useSaveNotes(scope: ItemActionScope) {
   const editFields = useEditFields(scope);
   return async (node: ItemNode, notes: string): Promise<boolean> => {
-    const description = isBlankText(notes) ? null : notes;
-    if (description === (node.item.description ?? null)) {
+    const saved = isBlankText(notes) ? null : notes;
+    if (saved === (node.item.notes ?? null)) {
       return true;
     }
-    return editFields(node, { description });
+    return editFields(node, { notes: saved });
   };
 }
 

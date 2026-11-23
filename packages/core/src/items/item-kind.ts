@@ -20,3 +20,10 @@ export function requireTicketNumber(kind: ItemKind, ticketNumber: string | null)
     throw new MetadataRuleError("A ticket needs a ticket number.");
   }
 }
+
+/** Only a ticket has a Detail; a ToDo keeps its longer text in its notes (§7.19). */
+export function requireTicketDetail(kind: ItemKind, description: string | null) {
+  if (kind === "Todo" && description !== null) {
+    throw new MetadataRuleError("Only a ticket has a detail. Put a ToDo's text in its notes.");
+  }
+}

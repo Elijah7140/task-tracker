@@ -53,11 +53,11 @@ export class CsvRowReader {
     if (this.issues.count !== problemsBefore) {
       return null;
     }
-    const description = this.#readDescription();
     return {
       rowNumber: this.record.rowNumber,
       title,
-      description,
+      description: this.#readLongText(C.description),
+      notes: this.#readLongText(TICKET_CSV_COLUMNS.notes),
       ticketNumber,
       itemTypeId,
       priorityLevelId,
@@ -108,9 +108,9 @@ export class CsvRowReader {
     return title;
   }
 
-  #readDescription(): string | null {
-    const description = this.#textCell(C.description);
-    return isBlank(description) ? null : description;
+  #readLongText(column: string): string | null {
+    const text = this.#textCell(column);
+    return isBlank(text) ? null : text;
   }
 
   #readTicket(): string | null {

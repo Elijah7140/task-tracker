@@ -8,7 +8,7 @@ import { cx } from "../ui/class-names.js";
 export interface CardNotesProps {
   /** The item's title, for accessible names. */
   readonly title: string;
-  /** The item's Markdown description (§7.10), or null when it has none. */
+  /** The item's Markdown notes (§7.10), or null when it has none. */
   readonly notes: string | null;
   /** Shows "Add notes" without hovering, as for the selected card. */
   readonly revealAdd: boolean;
@@ -89,7 +89,7 @@ function NotesEditor({
 }
 
 /**
- * A card's notes (§7.17): the item's Markdown description rendered in full, so bullet lists
+ * A card's notes (§7.17): the item's Markdown notes rendered in full, so bullet lists
  * read as lists. A click swaps in the raw Markdown; blur or Ctrl+Enter saves one undoable
  * edit and Escape cancels. An empty card shows "Add notes" only on hover or selection.
  */

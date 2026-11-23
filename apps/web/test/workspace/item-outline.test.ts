@@ -37,6 +37,7 @@ const node = (
     parentItemId: options.parentItemId ?? null,
     title,
     description: null,
+    notes: null,
     ticketNumber: null,
     itemTypeId: null,
     priorityLevelId: null,

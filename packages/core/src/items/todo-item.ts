@@ -14,7 +14,10 @@ export interface TodoItem extends DeletionFields {
   /** ToDo or Ticket, chosen when the item is added (§7.19). */
   readonly kind: ItemKind;
   readonly title: string;
+  /** A ticket's Detail; always null for a ToDo (§7.19). */
   readonly description: string | null;
+  /** The item's Markdown notes, kept apart from a ticket's Detail (§7.10, §7.17). */
+  readonly notes: string | null;
   readonly ticketNumber: string | null;
   readonly priorityLevelId: string | null;
   readonly itemTypeId: string | null;
@@ -63,6 +66,7 @@ export function createItem(
     kind,
     title: itemTitle(title),
     description: null,
+    notes: null,
     ticketNumber: null,
     priorityLevelId: null,
     itemTypeId: null,

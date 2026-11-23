@@ -16,6 +16,7 @@ export type BuiltInOverrides = Partial<BuiltInTexts>;
 const BUILT_IN_KEYS: ReadonlyArray<BuiltInKey> = [
   "title",
   "description",
+  "notes",
   "ticketNumber",
   "itemTypeId",
   "priorityLevelId",
@@ -32,6 +33,7 @@ export function storedTexts(item: ItemRecord): BuiltInTexts {
   return {
     title: item.title,
     description: item.description ?? "",
+    notes: item.notes ?? "",
     ticketNumber: item.ticketNumber ?? "",
     itemTypeId: item.itemTypeId ?? "",
     priorityLevelId: item.priorityLevelId ?? "",
@@ -77,6 +79,7 @@ export function itemEdit(item: ItemRecord, overrides: BuiltInOverrides): Edit {
   return {
     title: changed.has("title") ? (overrides.title ?? "") : item.title,
     description: valueOf("description"),
+    notes: valueOf("notes"),
     ticketNumber: valueOf("ticketNumber"),
     itemTypeId: valueOf("itemTypeId"),
     priorityLevelId: valueOf("priorityLevelId"),

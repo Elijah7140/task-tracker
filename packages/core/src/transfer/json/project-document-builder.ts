@@ -85,7 +85,7 @@ class ItemDocuments {
       ["folderId", exportGuid(item.folderId)],
       ["parentItemId", exportGuid(item.parentItemId)],
       ["title", jsonString(item.title)],
-      ["description", optionalString(item.description)],
+      ["description", optionalString(item.kind === "Ticket" ? item.description : item.notes)],
       ["ticketNumber", optionalString(item.ticketNumber)],
       ["itemTypeId", exportGuid(item.itemTypeId)],
       ["itemType", name(this.#typeNames, item.itemTypeId)],
@@ -174,6 +174,7 @@ function ticketMembers(item: TodoItem, extras: ItemExtras) {
   }
   return [
     ["kind", jsonString("Ticket")],
+    ["notes", optionalString(item.notes)],
     ["ticket", extras.ticket === undefined ? null : ticketDocument(extras.ticket)],
     ["comments", commentsDocument(extras.comments)],
   ] as const;

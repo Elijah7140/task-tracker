@@ -11,7 +11,7 @@ const PROJECT = {
   items: [
     {
       title: "Training rollout",
-      description: "Move employee training onto the new qualifications model.",
+      notes: "Move employee training onto the new qualifications model.",
       children: [
         { title: "Conversion script", children: [{ title: "Map qualifications" }] },
         { title: "Manual sheet import", priority: "High" as const },

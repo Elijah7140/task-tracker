@@ -26,7 +26,7 @@ describe("data change broadcast", () => {
     const { store } = await openWorkspace();
     const projectId = store.summaries[0]!.project.id;
     const { item: task } = store.findItemByTitle(projectId, null, TASK)!;
-    store.patchItem(task.id, { description: "Written from the tray card." });
+    store.patchItem(task.id, { notes: "Written from the tray card." });
 
     announceDataChanged();
 

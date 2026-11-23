@@ -27,7 +27,10 @@ export function readCsvKind(text: CellText, fail: Fail): ItemKind {
   return "Todo";
 }
 
-const TICKET_ONLY_COLUMNS = Object.values(T).filter((column) => column !== T.kind);
+/** The ticket fields a ToDo row cannot hold. A ToDo's Notes cell joins its Description. */
+const TICKET_ONLY_COLUMNS = Object.values(T).filter(
+  (column) => column !== T.kind && column !== T.notes,
+);
 
 /** True when a ToDo row has a value in a ticket-only column, which it cannot hold. */
 export function hasCsvTicketCells(text: CellText): boolean {

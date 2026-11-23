@@ -19,6 +19,7 @@ import {
   type RecurrenceRule,
   type ReminderChoice,
   type TodoItem,
+  importedItemText,
 } from "@task-tracker/core";
 import { type ImportContext, importTimestamps } from "./import-plan.js";
 import type { ImportedProject } from "./project-import.js";
@@ -117,7 +118,11 @@ class ContentImport {
       parentItemId: document.parentItemId === null ? null : map.items.get(document.parentItemId)!,
       kind: document.kind === "Ticket" ? "Ticket" : "Todo",
       title: trimText(document.title!),
-      description: document.description,
+      ...importedItemText(
+        document.kind === "Ticket" ? "Ticket" : "Todo",
+        document.description,
+        document.notes,
+      ),
       ticketNumber: isBlankText(document.ticketNumber) ? null : trimText(document.ticketNumber!),
       itemTypeId: this.#lookupId(document, "type"),
       priorityLevelId: this.#lookupId(document, "priority"),

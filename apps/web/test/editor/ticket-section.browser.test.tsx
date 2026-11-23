@@ -5,7 +5,14 @@ import { renderApp } from "../support/render-app.js";
 
 const PROJECT = {
   name: "ClockTower",
-  items: [{ title: "Employee training data", kind: "Ticket" as const, ticketNumber: "385405" }],
+  items: [
+    {
+      title: "Employee training data",
+      kind: "Ticket" as const,
+      ticketNumber: "385405",
+      description: "Qualifications are missing after the import.",
+    },
+  ],
 };
 
 const editor = () => page.getByRole("dialog", { name: "Edit ticket" });
@@ -69,5 +76,23 @@ describe("TicketSection in the item editor", () => {
 
     await expect.element(editor()).not.toBeInTheDocument();
     expect(store.ticketFields.lastEditTicket).toBeUndefined();
+  });
+
+  it("Edits the Detail and the notes as separate fields", async () => {
+    const { store } = await openTicketEditor();
+    const detail = editor().getByRole("textbox", { name: "Detail" });
+    const notes = editor().getByRole("textbox", { name: "Notes" });
+    await expect.element(detail).toHaveValue("Qualifications are missing after the import.");
+    await expect.element(notes).toHaveValue("");
+
+    await notes.fill("Asked HR for the source sheet.");
+    await editor().getByTestId("item-editor-save").click();
+
+    await expect.element(editor()).not.toBeInTheDocument();
+    const projectId = store.summaries[0]?.project.id ?? "";
+    expect(store.findItemByTitle(projectId, null, PROJECT.items[0]!.title)?.item).toMatchObject({
+      description: "Qualifications are missing after the import.",
+      notes: "Asked HR for the source sheet.",
+    });
   });
 });

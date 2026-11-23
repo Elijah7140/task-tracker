@@ -41,7 +41,8 @@ describe("Item editor", () => {
       await expect.element(field("Priority")).toHaveTextContent("High");
       await expect.element(field("Due date")).toHaveValue("11/20/2026");
       await expect.element(field("Due time")).toHaveValue("");
-      await expect.element(field("Description")).toHaveValue("");
+      await expect.element(field("Notes")).toHaveValue("");
+      await expect.element(editor().getByTestId("item-editor-description")).not.toBeInTheDocument();
     });
 
     it("Opens from the row overflow menu", async () => {
@@ -82,7 +83,7 @@ describe("Item editor", () => {
 
       for (const testId of [
         "item-editor-title",
-        "item-editor-description",
+        "item-editor-notes",
         "item-editor-ticket",
         "item-editor-type",
         "item-editor-priority",
@@ -115,7 +116,7 @@ describe("Item editor", () => {
       await openEditor(OTHER_ITEM);
 
       await editorTitle().fill("Fix nightly export");
-      await field("Description").fill("Line one\nLine two");
+      await field("Notes").fill("Line one\nLine two");
       await field("Ticket number").fill("OPS-89");
       await pick("Type", "Discussion");
       await pick("Priority", "Low");
@@ -126,7 +127,8 @@ describe("Item editor", () => {
       await expect.element(editor()).not.toBeInTheDocument();
       await expect.element(itemRow("Fix nightly export")).toBeVisible();
       expect(storedItem(app, "Fix nightly export")).toMatchObject({
-        description: "Line one\nLine two",
+        description: null,
+        notes: "Line one\nLine two",
         ticketNumber: "OPS-89",
         itemTypeId: "019A0000-0000-7000-8000-000000001002",
         priorityLevelId: "019A0000-0000-7000-8000-000000002003",
@@ -547,7 +549,7 @@ describe("Item editor", () => {
       const fields = seedEveryFieldType(store);
       const id = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
       store.patchItem(id, {
-        description: "Speeds up the customer invoice lookup on the billing dashboard.",
+        notes: "Speeds up the customer invoice lookup on the billing dashboard.",
       });
       store.customFields.setValue(id, fields.summary, { textValue: "Check cost" });
       store.customFields.setValue(id, fields.effort, { numberValue: 3.5 });

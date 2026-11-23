@@ -236,7 +236,7 @@ export function ItemCard(props: ItemCardProps) {
   const { node, selected, canIndent, hasFolders, dragging, dropIndicator, lookups, actions } =
     props;
   const date = dateCell(node, lookups.timeZone);
-  const hasNotes = !isBlankText(node.item.description ?? "");
+  const hasNotes = !isBlankText(node.item.notes ?? "");
   const open = !node.isFinished;
   const hasBody = hasNotes || open || props.children !== undefined;
   return (
@@ -279,7 +279,7 @@ export function ItemCard(props: ItemCardProps) {
             {hasNotes || open ? (
               <CardNotes
                 title={node.item.title}
-                notes={node.item.description}
+                notes={node.item.notes}
                 revealAdd={selected}
                 onSave={(notes) => actions.saveNotes(node, notes)}
               />

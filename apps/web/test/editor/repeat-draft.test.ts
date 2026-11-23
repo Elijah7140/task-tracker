@@ -18,6 +18,7 @@ const ITEM: ItemRecord = {
   parentItemId: null,
   title: "Task",
   description: null,
+  notes: null,
   ticketNumber: null,
   itemTypeId: null,
   priorityLevelId: null,

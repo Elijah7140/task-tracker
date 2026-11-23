@@ -154,6 +154,7 @@ function DetailedTicketFields({
         />
         <DraftText {...draft} field="title" label="Summary" testId="add-title" />
         <DraftArea {...draft} field="description" label="Detail" testId="add-description" />
+        <DraftArea {...draft} field="notes" label="Notes" testId="add-notes" />
         <DraftSelect
           {...draft}
           field="requestorId"

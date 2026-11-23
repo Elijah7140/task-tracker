@@ -6,7 +6,10 @@ import type { TicketDetailInput } from "../../tickets/ticket-detail.js";
 export interface CsvImportRow {
   readonly rowNumber: number;
   readonly title: string;
+  /** The Description cell: a ticket's Detail, or a ToDo's notes in older files. */
   readonly description: string | null;
+  /** The Notes cell: a ticket's notes. */
+  readonly notes: string | null;
   readonly ticketNumber: string | null;
   readonly itemTypeId: string | null;
   readonly priorityLevelId: string | null;
