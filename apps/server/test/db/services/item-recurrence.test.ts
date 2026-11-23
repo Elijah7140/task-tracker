@@ -600,9 +600,7 @@ test("A rule without a due date saves nothing", (svc, world) =>
       svc.items.edit(item.id, editFields("Changed", { recurrence: weekly }), []),
     );
 
-    expect(failure).toEqual(
-      new MetadataRuleError("A repeating item needs a due date."),
-    );
+    expect(failure).toEqual(new MetadataRuleError("A repeating item needs a due date."));
     expect((yield* world.read(item.id)).Title).toBe("Audit");
   }));
 

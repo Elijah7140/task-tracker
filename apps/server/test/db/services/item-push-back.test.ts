@@ -94,10 +94,7 @@ test("Push back rejects completed, undated and overflowing items without saving"
     yield* svc.items.edit(completed.id, editFields("Completed", { dueDate: due }));
     yield* svc.items.setCompleted(world.projectId, null, completed.id, true);
     const last = Temporal.PlainDate.from("9999-12-31");
-    yield* svc.items.edit(
-      overflow.id,
-      editFields("Overflow", { dueDate: last, dueTime }),
-    );
+    yield* svc.items.edit(overflow.id, editFields("Overflow", { dueDate: last, dueTime }));
     const before = yield* readItems();
 
     const failures = yield* Effect.forEach([undated, completed, overflow], (item) =>

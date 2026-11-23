@@ -31,24 +31,9 @@ it("classifies exact threshold and deadline boundaries", () => {
   const task = item("task");
   const thresholds = new UrgencyThresholds(3n * day, day);
 
-  const yellow = calculateUrgency(
-    { ...task, ...dueIn({ hours: 72 }) },
-    now,
-    zone,
-    thresholds,
-  );
-  const red = calculateUrgency(
-    { ...task, ...dueIn({ hours: 24 }) },
-    now,
-    zone,
-    thresholds,
-  );
-  const atDeadline = calculateUrgency(
-    { ...task, ...dueIn({ seconds: 0 }) },
-    now,
-    zone,
-    thresholds,
-  );
+  const yellow = calculateUrgency({ ...task, ...dueIn({ hours: 72 }) }, now, zone, thresholds);
+  const red = calculateUrgency({ ...task, ...dueIn({ hours: 24 }) }, now, zone, thresholds);
+  const atDeadline = calculateUrgency({ ...task, ...dueIn({ seconds: 0 }) }, now, zone, thresholds);
   const overdue = calculateUrgency(
     { ...task, ...dueIn({ nanoseconds: -100 }) },
     now,

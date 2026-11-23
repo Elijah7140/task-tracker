@@ -31,6 +31,9 @@ import { useCalendarReschedule } from "./use-calendar-reschedule.js";
 import { usePriorityRanks } from "./use-priority-ranks.js";
 import { useCalendarPeriod } from "./use-calendar-period.js";
 
+/** A stable empty list while the first snapshot loads, so the day layout is not rebuilt. */
+const NO_ENTRIES: ReadonlyArray<typeof CalendarEntry.Type> = [];
+
 /** Props for {@link CalendarPage}. */
 export interface CalendarPageProps {
   readonly onBack: () => void;
@@ -71,14 +74,16 @@ function CalendarError({ message }: { readonly message: string }) {
 
 function entryAt(target: EventTarget, days: ReadonlyArray<CalendarDay>) {
   const button =
-    target instanceof Element ? target.closest<HTMLElement>("[data-entry-kind]") : null;
+    target instanceof Element
+      ? target.closest<HTMLElement>('[data-testid="calendar-entry"]')
+      : null;
   if (button === null) {
     return;
   }
-  const { date, itemId, entryKind } = button.dataset;
+  const { date, itemId } = button.dataset;
   const occurrence = days
     .find((day) => day.date === date)
-    ?.entries.find(({ entry }) => entry.itemId === itemId && entry.kind === entryKind);
+    ?.entries.find(({ entry }) => entry.itemId === itemId);
   return occurrence === undefined ? undefined : { button, occurrence };
 }
 
@@ -121,8 +126,8 @@ function useEntryPushBack(
   const pushBackItem = usePushBackOneDay();
   return (entry, day) => {
     clearErrors();
-    const { itemId, kind, projectId, folderId } = entry;
-    void follow({ itemId, kind, date: addDays(day, 1) }, () =>
+    const { itemId, projectId, folderId } = entry;
+    void follow({ itemId, date: addDays(day, 1) }, () =>
       pushBackItem({ id: itemId, projectId, folderId }),
     );
   };
@@ -135,16 +140,8 @@ function isEscape(event: KeyboardEvent) {
 }
 
 /**
- * Items carry only due dates since 23 Nov 2026 (§7.4), so scheduled blocks stored
- * earlier are left off the calendar.
- */
-function dueEntriesOnly(entries: ReadonlyArray<typeof CalendarEntry.Type>) {
-  return entries.filter((entry) => entry.kind === "due");
-}
-
-/**
- * Month and week calendar covering page (§7.4). Displays due dates and scheduled
- * blocks with server-computed urgency refreshed every minute, scope and
+ * Month and week calendar covering page (§7.4). Displays due dates with
+ * server-computed urgency refreshed every minute, scope and
  * completion filters, keyboard period and view shortcuts, and guarded item opening.
  */
 export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
@@ -170,7 +167,7 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     setLoadedToday(snapshot.today);
   }
 
-  const entries = useMemo(() => dueEntriesOnly(snapshot?.entries ?? []), [snapshot]);
+  const entries = snapshot?.entries ?? NO_ENTRIES;
   const priorityRanks = usePriorityRanks();
   const days = useMemo(
     () =>
@@ -241,8 +238,7 @@ export function CalendarPage({ onBack, runGuards }: CalendarPageProps) {
     event.preventDefault();
     if (!occurrence.isAllDay || step.quarters === 0) {
       activation.clearError();
-      const { itemId, kind } = occurrence.entry;
-      reschedule.move({ itemId, kind, sourceDay: occurrence.day, target: step });
+      reschedule.move({ itemId: occurrence.entry.itemId, target: step });
     }
   };
   const weekdays = useMemo(() => weekdayHeaders(period.weekStartsOn), [period.weekStartsOn]);

@@ -50,7 +50,7 @@ function todayRow(
         total + child.completedDescendants + Number(child.state === "completedToday"),
       0,
     ),
-    hasDates: item.dueDate !== null || item.scheduledStart !== null,
+    hasDates: item.dueDate !== null,
     statusId: item.statusId,
     statusName: statusName(item.statusId),
     priorityLevelId: item.priorityLevelId,

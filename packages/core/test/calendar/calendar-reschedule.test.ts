@@ -122,4 +122,3 @@ it.each<[string | null, Target]>([
 ])("Leaves a due entry at %s unchanged for %j", (time, target) => {
   expect(planCalendarMove(due(time), { target })).toBeNull();
 });
-

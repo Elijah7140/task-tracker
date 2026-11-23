@@ -134,13 +134,9 @@ describe("Repeat section", () => {
 
     await editor().getByTestId("item-editor-clear-due-date").click();
 
-    await expect
-      .element(repeatError())
-      .toHaveTextContent("A repeating item needs a due date or a scheduled start.");
+    await expect.element(repeatError()).toHaveTextContent("A repeating item needs a due date.");
     await saveButton().click();
-    await expect
-      .element(footerError())
-      .toHaveTextContent("A repeating item needs a due date or a scheduled start.");
+    await expect.element(footerError()).toHaveTextContent("A repeating item needs a due date.");
   });
 
   it("Choosing Does not repeat removes the rule", async () => {

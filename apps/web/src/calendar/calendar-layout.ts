@@ -1,14 +1,8 @@
 import type { CalendarEntry } from "@task-tracker/contracts";
-import {
-  addDays,
-  formatDayHeader,
-  formatDayName,
-  isoDateToUtcMillis,
-  parseIsoDate,
-} from "./calendar-dates.js";
+import { addDays, formatDayHeader, formatDayName, parseIsoDate } from "./calendar-dates.js";
 import {
   DAY_MINUTES,
-  DEFAULT_BLOCK_MINUTES,
+  DUE_MARKER_MINUTES,
   MAX_VISIBLE_MONTH_ENTRIES,
   PIXELS_PER_MINUTE,
   TWO_LINE_HEIGHT,
@@ -17,14 +11,12 @@ import {
 type Entry = typeof CalendarEntry.Type;
 
 const TIME_PARTS = /^(\d{2}):(\d{2})(?::(\d{2}))?/;
-const FLOATING_PARTS = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/;
 
-/** One entry occurrence clipped to a single calendar day, with week-grid placement. */
+/** An entry on its calendar day, with week-grid placement. */
 export interface CalendarOccurrence {
   readonly entry: Entry;
   readonly day: string;
   readonly startMinutes: number | null;
-  readonly endMinutes: number | null;
   readonly isAllDay: boolean;
   readonly durationMinutes: number;
   readonly layoutStartMinutes: number;
@@ -65,15 +57,6 @@ function timeToMinutes(isoTime: string): number {
   return Number(match[1]) * 60 + Number(match[2]) + Number(match[3] ?? 0) / 60;
 }
 
-function floatingToUtcMillis(isoDateTime: string): number {
-  const match = FLOATING_PARTS.exec(isoDateTime);
-  if (match === null) {
-    return 0;
-  }
-  const { year, month, day } = parseIsoDate(match[1]!);
-  return Date.UTC(year, month - 1, day, Number(match[2]), Number(match[3]), Number(match[4] ?? 0));
-}
-
 function formatHourMinute(minutes: number): string {
   const whole = Math.floor(minutes);
   const hour = Math.floor(whole / 60);
@@ -81,26 +64,13 @@ function formatHourMinute(minutes: number): string {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function describeTiming(
-  kind: Entry["kind"],
-  startMinutes: number | null,
-  endMinutes: number | null,
-): string {
-  if (startMinutes === null) {
-    return "due all day";
-  }
-  if (kind === "due" || endMinutes === null) {
-    return `due ${formatHourMinute(startMinutes)}`;
-  }
-  return `scheduled ${formatHourMinute(startMinutes)} to ${formatHourMinute(endMinutes)}`;
+function describeTiming(startMinutes: number | null): string {
+  return startMinutes === null ? "due all day" : `due ${formatHourMinute(startMinutes)}`;
 }
 
-/** Week-grid geometry from the clipped times; a late marker is moved up to end at midnight. */
-function geometry(startMinutes: number | null, endMinutes: number | null) {
-  const durationMinutes =
-    startMinutes !== null && endMinutes !== null
-      ? Math.max(0, endMinutes - startMinutes)
-      : DEFAULT_BLOCK_MINUTES;
+/** Week-grid geometry of a due marker; a late marker is moved up to end at midnight. */
+function geometry(startMinutes: number | null) {
+  const durationMinutes = DUE_MARKER_MINUTES;
   const layoutStartMinutes = Math.min(startMinutes ?? 0, DAY_MINUTES - durationMinutes);
   const heightPx = durationMinutes * PIXELS_PER_MINUTE;
   return {
@@ -114,11 +84,11 @@ function geometry(startMinutes: number | null, endMinutes: number | null) {
 }
 
 /** Visible, tooltip and screen reader text for one occurrence. */
-function labels(entry: Entry, startMinutes: number | null, endMinutes: number | null) {
+function labels(entry: Entry, startMinutes: number | null) {
   const label = entry.isCompleted ? `✓ ${entry.title}` : entry.title;
   const summary = `${entry.itemType ?? "No type"} · ${entry.priority ?? "No priority"}`;
   const urgency = entry.urgency === "None" ? [] : [entry.urgency];
-  const timing = describeTiming(entry.kind, startMinutes, endMinutes);
+  const timing = describeTiming(startMinutes);
   return {
     label,
     monthLabel: startMinutes === null ? label : `${formatHourMinute(startMinutes)} ${label}`,
@@ -127,51 +97,25 @@ function labels(entry: Entry, startMinutes: number | null, endMinutes: number | 
   };
 }
 
-function buildOccurrence(
-  entry: Entry,
-  day: string,
-  startMinutes: number | null,
-  endMinutes: number | null,
-): CalendarOccurrence {
+function buildOccurrence(entry: Entry, startMinutes: number | null): CalendarOccurrence {
   return {
     entry,
-    day,
+    day: entry.date,
     startMinutes,
-    endMinutes,
-    isAllDay: entry.kind === "due" && startMinutes === null,
-    ...geometry(startMinutes, endMinutes),
+    isAllDay: startMinutes === null,
+    ...geometry(startMinutes),
     widthFraction: 1,
     leftFraction: 0,
-    ...labels(entry, startMinutes, endMinutes),
+    ...labels(entry, startMinutes),
   };
 }
 
-/**
- * Clips an entry to a single calendar day. Due entries appear on their due date;
- * scheduled blocks appear on every day they overlap and are clipped to midnight.
- */
-export function clipEntryToDay(entry: Entry, day: string): CalendarOccurrence | null {
-  if (entry.kind === "due") {
-    if (entry.date !== day) {
-      return null;
-    }
-    const startMinutes = entry.startTime === null ? null : timeToMinutes(entry.startTime);
-    return buildOccurrence(entry, day, startMinutes, null);
-  }
-  if (entry.scheduledStart === null) {
+/** The entry's occurrence on `day`: a due entry appears only on its due date (§7.4). */
+export function entryOnDay(entry: Entry, day: string): CalendarOccurrence | null {
+  if (entry.date !== day) {
     return null;
   }
-  const startMs = floatingToUtcMillis(entry.scheduledStart);
-  const rawEndMs = entry.scheduledEnd === null ? startMs : floatingToUtcMillis(entry.scheduledEnd);
-  const endMs = rawEndMs > startMs ? rawEndMs : startMs + DEFAULT_BLOCK_MINUTES * 60_000;
-  const dayStartMs = isoDateToUtcMillis(day);
-  const dayEndMs = dayStartMs + DAY_MINUTES * 60_000;
-  if (startMs >= dayEndMs || endMs <= dayStartMs) {
-    return null;
-  }
-  const clippedStartMinutes = (Math.max(startMs, dayStartMs) - dayStartMs) / 60_000;
-  const clippedEndMinutes = (Math.min(endMs, dayEndMs) - dayStartMs) / 60_000;
-  return buildOccurrence(entry, day, clippedStartMinutes, clippedEndMinutes);
+  return buildOccurrence(entry, entry.startTime === null ? null : timeToMinutes(entry.startTime));
 }
 
 /** A level's rank, 0 for the most important; an item with no priority sorts after every level. */
@@ -204,11 +148,11 @@ function compareOccurrences(
   if (byTitle !== 0) {
     return byTitle;
   }
-  if (left.entry.itemId !== right.entry.itemId) {
-    // Uppercase GUID text sorts like .NET Guid comparison when compared ordinally.
-    return left.entry.itemId < right.entry.itemId ? -1 : 1;
+  if (left.entry.itemId === right.entry.itemId) {
+    return 0;
   }
-  return left.entry.kind === right.entry.kind ? 0 : left.entry.kind === "due" ? -1 : 1;
+  // Uppercase GUID text sorts like .NET Guid comparison when compared ordinally.
+  return left.entry.itemId < right.entry.itemId ? -1 : 1;
 }
 
 function placeOverlapGroup(
@@ -278,11 +222,11 @@ function dayName(date: string, context: DayContext): string {
 
 function buildDay(date: string, context: DayContext): CalendarDay {
   const parts = parseIsoDate(date);
-  const clipped = context.entries
-    .map((entry) => clipEntryToDay(entry, date))
+  const occurrences = context.entries
+    .map((entry) => entryOnDay(entry, date))
     .filter((occurrence): occurrence is CalendarOccurrence => occurrence !== null)
     .toSorted((left, right) => compareOccurrences(left, right, context));
-  const laidOut = splitOverlaps(clipped);
+  const laidOut = splitOverlaps(occurrences);
   return {
     date,
     dayNumber: parts.day,
@@ -299,8 +243,8 @@ function buildDay(date: string, context: DayContext): CalendarDay {
 }
 
 /**
- * Builds `count` consecutive calendar days starting at `fromDate`, clipping and
- * ordering entries and laying out overlapping timed blocks side by side. Days
+ * Builds `count` consecutive calendar days starting at `fromDate`, placing and
+ * ordering entries and laying out overlapping timed markers side by side. Days
  * outside `anchorMonth`'s month are marked for dimming. Within a day, all-day entries come first, then each group runs in priority
  * order (`priorityRanks`, most important first, no priority last), then by time.
  */

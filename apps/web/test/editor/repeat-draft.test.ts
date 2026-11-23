@@ -23,8 +23,6 @@ const ITEM: ItemRecord = {
   priorityLevelId: null,
   dueDate: "2026-11-19",
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
   sortOrder: 0,
   createdAtUtc: "2026-11-13T12:00:00Z",
   updatedAtUtc: "2026-11-13T12:00:00Z",
@@ -143,7 +141,7 @@ describe("repeatDraftStatus", () => {
     expect(status).toMatchObject({ error: message, summary: null, changed: true });
   });
 
-  it("Requires a due date or scheduled start, even for an untouched stored rule", () => {
+  it("Requires a due date, even for an untouched stored rule", () => {
     const item = { ...ITEM, recurrence: WEEKLY };
 
     const touched = repeatDraftStatus(ITEM, draft(ITEM, { frequency: "Daily" }), null);
@@ -153,13 +151,9 @@ describe("repeatDraftStatus", () => {
     expect(untouched.recurrence).toBeUndefined();
   });
 
-  it("Takes the date from the due date, else the scheduled start", () => {
-    const dates = [
-      repeatDate({ dueDate: "2026-11-19", scheduledStart: "2026-11-20T09:00" }),
-      repeatDate({ dueDate: "", scheduledStart: "2026-11-20T09:00" }),
-      repeatDate({ dueDate: "", scheduledStart: "" }),
-    ];
+  it("Takes the date from the due date", () => {
+    const dates = [repeatDate({ dueDate: "2026-11-19" }), repeatDate({ dueDate: "" })];
 
-    expect(dates).toEqual(["2026-11-19", "2026-11-20", null]);
+    expect(dates).toEqual(["2026-11-19", null]);
   });
 });

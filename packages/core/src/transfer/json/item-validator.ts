@@ -1,9 +1,6 @@
 import { recurrenceErrors, type RecurrenceRule } from "../../items/recurrence/recurrence-rule.js";
 import { REMINDER_OFFSET_MINUTES } from "../../reminders/reminder-choice.js";
-import {
-  parseTransferDate,
-  parseTransferTime,
-} from "../transfer-time-format.js";
+import { parseTransferDate, parseTransferTime } from "../transfer-time-format.js";
 import type { IssueList } from "../transfer-issue.js";
 import type { ItemDocument, ProjectDocument } from "./export-document.js";
 import { listOf } from "./export-document.js";

@@ -142,4 +142,3 @@ export default Effect.gen(function* () {
   yield* restoreChildren(children);
   yield* reconcileSearch;
 });
-

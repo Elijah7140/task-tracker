@@ -312,14 +312,7 @@ it.effect("Returns a typed edit error and preserves the stored fields", () =>
     Effect.gen(function* () {
       const { client, area, create } = yield* setup;
       const item = yield* create("Original");
-      const {
-        title,
-        description,
-        ticketNumber,
-        itemTypeId,
-        priorityLevelId,
-        dueDate,
-      } = item;
+      const { title, description, ticketNumber, itemTypeId, priorityLevelId, dueDate } = item;
 
       const error = yield* Effect.flip(
         client.EditItem({

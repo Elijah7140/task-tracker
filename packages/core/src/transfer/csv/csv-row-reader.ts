@@ -5,11 +5,7 @@ import { nameKey } from "../../metadata/names.js";
 import { trimText as trim } from "../../text/dotnet-white-space.js";
 import { NAME_MAX_LENGTH, TICKET_NUMBER_MAX_LENGTH } from "../json/import-checks.js";
 import type { IssueList } from "../transfer-issue.js";
-import {
-  parseTransferDate,
-  parseTransferTime,
-  parseTransferUtc,
-} from "../transfer-time-format.js";
+import { parseTransferDate, parseTransferTime, parseTransferUtc } from "../transfer-time-format.js";
 import { unprotectCsvCell } from "./csv-cells.js";
 import { CSV_COLUMNS as C, TICKET_CSV_COLUMNS } from "./csv-columns.js";
 

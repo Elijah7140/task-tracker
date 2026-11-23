@@ -229,8 +229,6 @@ export function applyCreateItem(
         priorityLevelId: null,
         dueDate: null,
         dueTime: null,
-        scheduledStart: null,
-        scheduledEnd: null,
         sortOrder: 0,
         createdAtUtc: now,
         updatedAtUtc: now,
@@ -274,14 +272,6 @@ export function applyEditItem(
     }
     if (fields.dueDate === null && fields.dueTime !== null) {
       return yield* Effect.fail(new RuleViolation({ message: "Due time requires a due date." }));
-    }
-    if (
-      fields.scheduledEnd !== null &&
-      (fields.scheduledStart === null || fields.scheduledStart > fields.scheduledEnd)
-    ) {
-      return yield* Effect.fail(
-        new RuleViolation({ message: "Scheduled end requires a start no later than the end." }),
-      );
     }
     for (const area of store.allAreas()) {
       if (locateNode(area.nodes, itemId) !== undefined) {

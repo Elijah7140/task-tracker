@@ -54,14 +54,7 @@ it.effect("Round-trips EF dates, times and UTC instants as SQLite text", () =>
     expect(restored.DueDate?.equals(item.DueDate)).toBe(true);
     expect(restored.DueTime?.equals(item.DueTime)).toBe(true);
     expect(restored.CreatedAtUtc.equals(item.CreatedAtUtc)).toBe(true);
-    expect(stored).toEqual([
-      [
-        itemId,
-        "2026-12-01",
-        "15:30:00",
-        "2026-11-13 12:00:00.1234",
-      ],
-    ]);
+    expect(stored).toEqual([[itemId, "2026-12-01", "15:30:00", "2026-11-13 12:00:00.1234"]]);
   }).pipe(withSchema),
 );
 

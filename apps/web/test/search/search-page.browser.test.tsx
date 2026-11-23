@@ -449,9 +449,7 @@ it("Pushes back the focused result with Ctrl+Shift+P and disables it for an unda
 
   await expect.element(page.getByTestId("search-result-menu")).toBeVisible();
   await expect.element(pushBackItem()).toHaveAttribute("aria-disabled", "true");
-  await expect
-    .element(pushBackItem())
-    .toHaveAccessibleDescription("This item has no due date or scheduled block.");
+  await expect.element(pushBackItem()).toHaveAccessibleDescription("This item has no due date.");
   expect(pushBacks(store)).toBe(1);
 });
 

@@ -30,7 +30,6 @@ export const BILLING_ITEMS: ReadonlyArray<SeedItem> = [
     title: "Schema review with the data team",
     type: "Discussion",
     priority: "Medium",
-    scheduledStart: "2026-11-19T15:00:00",
   },
   {
     title: "Retire legacy billing views",

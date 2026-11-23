@@ -1,14 +1,13 @@
 import { Input } from "@base-ui/react/input";
 import { X } from "lucide-react";
 import { DateField } from "../date-picker/date-field.js";
-import { DatePickerButton } from "../date-picker/date-picker-button.js";
 import { Button } from "../ui/button.js";
 import { fieldStyles } from "../ui/field-styles.js";
 import { emptyTimePlaceholder } from "./time-placeholder.js";
 
 /** Props for {@link ClearableInput}. */
 export interface ClearableInputProps {
-  readonly type: "date" | "time" | "datetime-local";
+  readonly type: "date" | "time";
   readonly value: string;
   readonly onValueChange: (value: string) => void;
   /** The clear button's accessible name, such as "Clear due date". */
@@ -19,19 +18,15 @@ export interface ClearableInputProps {
   readonly locale?: string | undefined;
 }
 
-/** The time a date-time takes when its date is picked before any time is set. */
-const DEFAULT_PICKED_TIME = "09:00";
-
 /** Names the calendar button after the clear button, so "Clear due date" gives "Choose due date". */
 function pickLabelFor(clearLabel: string): string {
   return clearLabel.replace(/^Clear\b/, "Choose");
 }
 
 /**
- * A date, time or date-time input with a button that removes the value, as the
- * legacy editor's pickers had. Dates are typeable `YYYY-MM-DD` text with the
- * app's calendar popover; date-times keep the native input and add the popover
- * for their date part. Empty time inputs expose a neutral dash placeholder
+ * A date or time input with a button that removes the value, as the legacy
+ * editor's pickers had. Dates are typeable `YYYY-MM-DD` text with the app's
+ * calendar popover. Empty time inputs expose a neutral dash placeholder
  * matching the locale's 12-hour or 24-hour clock format.
  * Use inside an {@link EditorField}.
  */
@@ -74,28 +69,17 @@ function ValueControl({
       />
     );
   }
-  const timePlaceholder = type === "time" ? emptyTimePlaceholder(locale) : undefined;
+  const timePlaceholder = emptyTimePlaceholder(locale);
   return (
-    <>
-      <Input
-        type={type}
-        value={value}
-        onValueChange={onValueChange}
-        placeholder={timePlaceholder}
-        aria-placeholder={timePlaceholder}
-        data-empty={value === "" ? "true" : undefined}
-        data-testid={testId}
-        className={fieldStyles.compactControl}
-      />
-      {type === "datetime-local" ? (
-        <DatePickerButton
-          value={value.slice(0, 10)}
-          onSelect={(date) => onValueChange(`${date}T${value.slice(11) || DEFAULT_PICKED_TIME}`)}
-          label={pickLabelFor(clearLabel)}
-          testId={`${testId}-picker`}
-          locale={locale}
-        />
-      ) : null}
-    </>
+    <Input
+      type={type}
+      value={value}
+      onValueChange={onValueChange}
+      placeholder={timePlaceholder}
+      aria-placeholder={timePlaceholder}
+      data-empty={value === "" ? "true" : undefined}
+      data-testid={testId}
+      className={fieldStyles.compactControl}
+    />
   );
 }

@@ -19,11 +19,7 @@ describe("transfer time format", () => {
       formatTransferUtc(Temporal.Instant.from("2026-11-13T12:00:00Z")),
     ];
 
-    expect(texts).toEqual([
-      "2026-11-13",
-      "15:30:00",
-      "2026-11-13T12:00:00Z",
-    ]);
+    expect(texts).toEqual(["2026-11-13", "15:30:00", "2026-11-13T12:00:00Z"]);
   });
 
   it("Parses an ISO date and rejects other cultures' forms", () => {

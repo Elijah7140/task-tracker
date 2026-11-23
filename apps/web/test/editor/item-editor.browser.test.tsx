@@ -97,18 +97,15 @@ describe("Item editor", () => {
       }
     });
 
-    it("Shows no scheduled start or end for an item without one stored", async () => {
+    it("Offers a due date and time and no other date", async () => {
       await openEditorWorkspace();
 
       await openEditor();
 
-      await expect.element(editor().getByTestId("item-editor-due-date")).toBeVisible();
-      await expect
-        .element(editor().getByTestId("item-editor-scheduled-start"))
-        .not.toBeInTheDocument();
-      await expect
-        .element(editor().getByTestId("item-editor-scheduled-end"))
-        .not.toBeInTheDocument();
+      const schedule = editor().getByTestId("item-editor-schedule");
+      await expect.element(schedule.getByTestId("item-editor-due-date")).toBeVisible();
+      await expect.element(schedule.getByTestId("item-editor-due-time")).toBeVisible();
+      expect(schedule.element().querySelectorAll("input").length).toBe(2);
     });
   });
 
@@ -153,21 +150,15 @@ describe("Item editor", () => {
       });
     });
 
-    it("Clears dates, times and a stored schedule with their clear buttons", async () => {
+    it("Clears the due date and time with their clear buttons", async () => {
       const app = await openEditorWorkspace({
         configure: (store, projectId) => {
           const id = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
-          store.patchItem(id, {
-            dueTime: "17:00:00",
-            scheduledStart: "2026-11-19T09:00:00",
-            scheduledEnd: "2026-11-19T10:00:00",
-          });
+          store.patchItem(id, { dueTime: "17:00:00" });
         },
       });
       await openEditor();
 
-      await editor().getByRole("button", { name: "Clear scheduled end" }).click();
-      await editor().getByRole("button", { name: "Clear scheduled start" }).click();
       await editor().getByRole("button", { name: "Clear due time" }).click();
       await editor().getByRole("button", { name: "Clear due date" }).click();
       await saveButton().click();
@@ -176,8 +167,6 @@ describe("Item editor", () => {
       expect(storedItem(app, EDITOR_ITEM)).toMatchObject({
         dueDate: null,
         dueTime: null,
-        scheduledStart: null,
-        scheduledEnd: null,
       });
     });
 

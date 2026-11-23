@@ -6,24 +6,11 @@ import {
   RuleViolation,
 } from "@task-tracker/contracts";
 import { Effect } from "effect";
-import { isoDateToUtcMillis, parseIsoDate } from "../../src/calendar/calendar-dates.js";
-import { DEFAULT_BLOCK_MINUTES } from "../../src/calendar/calendar-metrics.js";
 import { FAKE_LOOKUPS, type FakeItemNode } from "./fake-area-items.js";
 import { fakeCalendarMove } from "./fake-calendar-move.js";
 import type { FakeProjectStore } from "./fake-task-tracker-server.js";
 
 type WireEntry = typeof CalendarEntry.Type;
-
-const FLOATING_PARTS = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/;
-
-function floatingToUtcMillis(isoDateTime: string): number {
-  const match = FLOATING_PARTS.exec(isoDateTime);
-  if (match === null) {
-    return 0;
-  }
-  const { year, month, day } = parseIsoDate(match[1]!);
-  return Date.UTC(year, month - 1, day, Number(match[2]), Number(match[3]), Number(match[4] ?? 0));
-}
 
 function collectNodes(nodes: ReadonlyArray<FakeItemNode>): Array<FakeItemNode> {
   const result: Array<FakeItemNode> = [];
@@ -97,8 +84,6 @@ export function calendarHandlers(store: FakeProjectStore) {
           const types = typeNames();
           const priorities = priorityLabels();
           const statuses = statusNames();
-          const rangeStartMs = isoDateToUtcMillis(fromDate);
-          const rangeEndMs = isoDateToUtcMillis(toDateExclusive);
           const entries: Array<WireEntry> = [];
 
           for (const node of activeItems()) {
@@ -115,8 +100,6 @@ export function calendarHandlers(store: FakeProjectStore) {
               projectId: item.projectId,
               folderId: item.folderId,
               title: item.title,
-              scheduledStart: item.scheduledStart,
-              scheduledEnd: item.scheduledEnd,
               isCompleted,
               dueDate: item.dueDate,
               dueTime: item.dueTime,
@@ -136,28 +119,7 @@ export function calendarHandlers(store: FakeProjectStore) {
               item.dueDate >= fromDate &&
               item.dueDate < toDateExclusive
             ) {
-              entries.push({
-                ...shared,
-                kind: "due",
-                date: item.dueDate,
-                startTime: item.dueTime,
-              });
-            }
-
-            if (item.scheduledStart !== null) {
-              const startMs = floatingToUtcMillis(item.scheduledStart);
-              const rawEndMs =
-                item.scheduledEnd === null ? startMs : floatingToUtcMillis(item.scheduledEnd);
-              const endMs =
-                rawEndMs > startMs ? rawEndMs : startMs + DEFAULT_BLOCK_MINUTES * 60_000;
-              if (startMs < rangeEndMs && endMs > rangeStartMs) {
-                entries.push({
-                  ...shared,
-                  kind: "scheduled",
-                  date: item.scheduledStart.slice(0, 10),
-                  startTime: item.scheduledStart.slice(11),
-                });
-              }
+              entries.push({ ...shared, date: item.dueDate, startTime: item.dueTime });
             }
           }
 
@@ -179,14 +141,9 @@ export function calendarHandlers(store: FakeProjectStore) {
                 new NotFound({ entity: "Item", message: "Item is missing or deleted." }),
               );
             }
-            if (request.kind === "due" ? item.dueDate === null : item.scheduledStart === null) {
+            if (item.dueDate === null) {
               return yield* Effect.fail(
-                new RuleViolation({
-                  message:
-                    request.kind === "due"
-                      ? "Item has no due date to move."
-                      : "Item has no schedule to move.",
-                }),
+                new RuleViolation({ message: "Item has no due date to move." }),
               );
             }
             const dates = fakeCalendarMove(item, request);
@@ -194,8 +151,7 @@ export function calendarHandlers(store: FakeProjectStore) {
               return null;
             }
             store.patchItem(item.id, { ...dates, updatedAtUtc: store.nextTimestamp() });
-            const date =
-              request.kind === "due" ? dates.dueDate! : dates.scheduledStart!.slice(0, 10);
+            const date = dates.dueDate!;
             return { itemId: item.id, folderId: item.folderId, projectId: item.projectId, date };
           }),
         ),

@@ -26,8 +26,6 @@ export interface AddItemDraft {
   readonly itemTypeId: string;
   readonly dueDate: string;
   readonly dueTime: string;
-  readonly scheduledStart: string;
-  readonly scheduledEnd: string;
   /** "default", "none" or an offset in minutes, as the editor's reminder picker uses. */
   readonly reminder: string;
   readonly requestorId: string;
@@ -61,8 +59,6 @@ export function emptyAddDraft(parentItemId: string | null): AddItemDraft {
     itemTypeId: "",
     dueDate: "",
     dueTime: "",
-    scheduledStart: "",
-    scheduledEnd: "",
     reminder: "default",
     requestorId: "",
     applicationId: "",
@@ -95,7 +91,7 @@ const orNull = (text: string) => (isBlankText(text) ? null : text);
 /** A time input gives `HH:mm`; the wire wants seconds too. */
 const withSeconds = (time: string) => (time.length === 5 ? `${time}:00` : time);
 
-const floatingDateTime = (text: string) => (isBlankText(text) ? null : withSeconds(text));
+const timeOrNull = (text: string) => (isBlankText(text) ? null : withSeconds(text));
 
 function reminderChoice(value: string): typeof ReminderChoice.Type {
   if (value === "default" || value === "none") {
@@ -125,9 +121,7 @@ function itemFields(kind: AddKind, draft: AddItemDraft): typeof ItemEdit.Type {
     priorityLevelId: orNull(draft.priorityLevelId),
     statusId: orNull(draft.statusId),
     dueDate: orNull(draft.dueDate),
-    dueTime: draft.dueDate === "" ? null : floatingDateTime(draft.dueTime),
-    scheduledStart: todo ? floatingDateTime(draft.scheduledStart) : null,
-    scheduledEnd: todo ? floatingDateTime(draft.scheduledEnd) : null,
+    dueTime: draft.dueDate === "" ? null : timeOrNull(draft.dueTime),
   };
 }
 

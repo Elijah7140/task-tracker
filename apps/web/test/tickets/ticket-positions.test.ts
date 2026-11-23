@@ -21,7 +21,6 @@ const ticket = (itemId: string, priorityLevelId: string | null) => ({
   priorityLevelId,
   dueDate: null,
   dueTime: null,
-  hasSchedule: false,
 });
 
 const section = (
