@@ -1,7 +1,7 @@
 import { Input } from "@base-ui/react/input";
 import { useState } from "react";
 import { fieldStyles } from "../ui/field-styles.js";
-import { parseTypedDate } from "./date-picker-month.js";
+import { formatTypedDate, parseTypedDate } from "./date-picker-month.js";
 import { DatePickerButton } from "./date-picker-button.js";
 
 /** Props for {@link DateField}. */
@@ -18,7 +18,8 @@ export interface DateFieldProps {
 }
 
 /**
- * A typeable `YYYY-MM-DD` date with a calendar button. Typing reports each
+ * A typeable date shown as `MM/DD/YYYY` with a calendar button. Callers still
+ * get `YYYY-MM-DD`. Typing reports each
  * complete, real date; blank text reports `""`. Text that is not a date is
  * marked invalid and leaves the value unchanged, and leaving the field puts the
  * current value back.
@@ -31,11 +32,11 @@ export function DateField({
   ariaLabel,
   locale,
 }: DateFieldProps) {
-  const [text, setText] = useState(value);
+  const [text, setText] = useState(() => formatTypedDate(value));
   const [shownValue, setShownValue] = useState(value);
   if (value !== shownValue) {
     setShownValue(value);
-    setText(value);
+    setText(formatTypedDate(value));
   }
   const parsed = parseTypedDate(text);
   const type = (next: string) => {
@@ -55,8 +56,8 @@ export function DateField({
         spellCheck={false}
         value={text}
         onValueChange={type}
-        onBlur={() => setText(value)}
-        placeholder="YYYY-MM-DD"
+        onBlur={() => setText(formatTypedDate(value))}
+        placeholder="MM/DD/YYYY"
         aria-label={ariaLabel}
         aria-invalid={parsed === null ? true : undefined}
         data-empty={value === "" ? "true" : undefined}

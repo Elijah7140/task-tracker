@@ -25,8 +25,8 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
           },
           {
             title: "Client standup",
-            scheduledStart: "2026-11-16T09:00:00",
-            scheduledEnd: "2026-11-16T10:30:00",
+            dueDate: "2026-11-16",
+            dueTime: "09:00:00",
             type: "Discussion",
             priority: "Medium",
             status: "In progress",
@@ -34,16 +34,16 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
           },
           {
             title: "Overlapping triage",
-            scheduledStart: "2026-11-16T09:30:00",
-            scheduledEnd: "2026-11-16T10:30:00",
+            dueDate: "2026-11-16",
+            dueTime: "09:15:00",
             type: "Error",
             priority: "Critical",
             urgency: "Imminent",
           },
           {
             title: "Touching handoff",
-            scheduledStart: "2026-11-16T10:30:00",
-            scheduledEnd: "2026-11-16T11:30:00",
+            dueDate: "2026-11-16",
+            dueTime: "09:45:00",
             type: "Change",
             priority: "Low",
           },
@@ -55,8 +55,8 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
           },
           {
             title: "Overnight deploy",
-            scheduledStart: "2026-11-17T22:30:00",
-            scheduledEnd: "2026-11-18T01:30:00",
+            dueDate: "2026-11-17",
+            dueTime: "22:30:00",
             type: "Change",
             priority: "High",
           },
@@ -67,31 +67,11 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
             completedAtUtc: "2026-11-15T10:00:00Z",
             urgency: "Overdue",
           },
-          {
-            title: "Stand-up",
-            scheduledStart: "2026-11-20T08:00:00",
-            scheduledEnd: "2026-11-20T08:10:00",
-          },
-          {
-            title: "Sync",
-            scheduledStart: "2026-11-20T08:15:00",
-            scheduledEnd: "2026-11-20T08:30:00",
-          },
-          {
-            title: "Review",
-            scheduledStart: "2026-11-20T08:30:00",
-            scheduledEnd: "2026-11-20T08:50:00",
-          },
-          {
-            title: "Ping",
-            scheduledStart: "2026-11-20T08:40:00",
-            scheduledEnd: "2026-11-20T08:40:00",
-          },
-          {
-            title: "Planning",
-            scheduledStart: "2026-11-20T09:00:00",
-            scheduledEnd: "2026-11-20T10:00:00",
-          },
+          { title: "Stand-up", dueDate: "2026-11-20", dueTime: "08:00:00" },
+          { title: "Sync", dueDate: "2026-11-20", dueTime: "08:15:00" },
+          { title: "Review", dueDate: "2026-11-20", dueTime: "08:30:00" },
+          { title: "Ping", dueDate: "2026-11-20", dueTime: "08:40:00" },
+          { title: "Planning", dueDate: "2026-11-20", dueTime: "09:00:00" },
         ],
       },
     ],
@@ -438,44 +418,47 @@ describe("entry display", () => {
     }
   });
 
-  it("Splits only overlapping blocks and draws them at their real height", async () => {
+  it("Splits only overlapping due markers and draws each one half an hour tall", async () => {
     await openWeek();
 
-    expect(rect("Client standup").width).toBeCloseTo(rect("Overlapping triage").width, 0);
-    expect(rect("Client standup").width).toBeLessThan(columnRect("Client standup").width / 2);
-    expect(rect("Touching handoff").width).toBeCloseTo(columnRect("Touching handoff").width - 2, 0);
-    expect(rect("Client standup").height).toBeCloseTo(1.5 * HOUR_HEIGHT, 0);
+    const standup = rect("Client standup");
+    const handoff = rect("Touching handoff");
+
+    expect(standup.width).toBeCloseTo(rect("Overlapping triage").width, 0);
+    expect(standup.width).toBeLessThan(columnRect("Client standup").width / 2);
+    expect(handoff.width).toBeCloseTo(columnRect("Touching handoff").width - 2, 0);
+    expect(standup.height).toBeCloseTo(HOUR_HEIGHT / 2, 0);
+    expect(handoff.top).toBeCloseTo(standup.top + (3 * HOUR_HEIGHT) / 4, 0);
     await expect.element(entry("Quick ping")).toHaveAttribute("data-compact", "true");
-    await expect.element(entry("Client standup")).toHaveAttribute("data-compact", "false");
-    expect(entry("Overnight deploy").elements()).toHaveLength(2);
   });
 
-  it("Draws adjacent half-hour blocks at full width and real height", async () => {
+  it("Lists a day's all-day entries in priority order and leaves out scheduled-only items", async () => {
     const items = [
+      { title: "Alpha", dueDate: "2026-11-18", priority: "Low" as const },
+      { title: "Bravo", dueDate: "2026-11-18" },
+      { title: "Charlie", dueDate: "2026-11-18", priority: "High" as const },
+      { title: "Delta", dueDate: "2026-11-18", priority: "Critical" as const },
       {
-        title: "First half",
-        scheduledStart: "2026-11-17T09:00:00",
-        scheduledEnd: "2026-11-17T09:30:00",
+        title: "Scheduled only",
+        scheduledStart: "2026-11-18T09:00:00",
+        scheduledEnd: "2026-11-18T10:00:00",
       },
-      {
-        title: "Second half",
-        scheduledStart: "2026-11-17T09:30:00",
-        scheduledEnd: "2026-11-17T10:00:00",
-      },
-      { title: "No end", scheduledStart: "2026-11-17T11:00:00" },
     ];
     await openWeek([{ name: "Billing", items }]);
-    const halfHour = HOUR_HEIGHT / 2;
+    const allDay = page.getByRole("group", { name: "Wednesday, November 18, 2026, all day" });
 
-    const first = rect("First half");
-    const second = rect("Second half");
+    const names = allDay
+      .getByTestId("calendar-entry")
+      .elements()
+      .map((button) => button.getAttribute("aria-label"));
 
-    expect(first.height).toBeCloseTo(halfHour, 0);
-    expect(second.height).toBeCloseTo(halfHour, 0);
-    expect(rect("No end").height).toBeCloseTo(halfHour, 0);
-    expect(first.width).toBeCloseTo(columnRect("First half").width - 2, 0);
-    expect(second.width).toBeCloseTo(first.width, 0);
-    expect(second.top).toBeCloseTo(first.top + halfHour, 0);
+    expect(names).toEqual([
+      "Delta, due all day",
+      "Charlie, due all day",
+      "Alpha, due all day",
+      "Bravo, due all day",
+    ]);
+    await expect.element(entry("Scheduled only")).not.toBeInTheDocument();
   });
 
   it("Keeps a 23:59 marker and its title inside the day column", async () => {
@@ -528,14 +511,14 @@ describe("keyboard navigation", () => {
     await focusEntry("Audit ledger");
 
     await userEvent.keyboard("{ArrowDown}");
-    await expect.element(entry("Client standup")).toHaveFocus();
+    await expect.element(entry("Overlapping triage")).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}{ArrowDown}");
     await expect.element(more("Monday")).toHaveFocus();
     await userEvent.keyboard("{ArrowRight}");
     await expect.element(entry("Late cutoff")).toHaveFocus();
     await userEvent.keyboard("{ArrowLeft}");
-    await expect.element(entry("Client standup")).toHaveFocus();
-    await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+    await expect.element(entry("Overlapping triage")).toHaveFocus();
+    await userEvent.keyboard("{ArrowUp}");
     await expect.element(entry("Audit ledger")).toHaveFocus();
     await userEvent.keyboard("{End}");
     await expect.element(more("Friday")).toHaveFocus();
@@ -550,7 +533,7 @@ describe("keyboard navigation", () => {
     await focusEntry("Audit ledger");
 
     await userEvent.keyboard("{ArrowDown}");
-    await expect.element(entry("Client standup")).toHaveFocus();
+    await expect.element(entry("Overlapping triage")).toHaveFocus();
     await userEvent.keyboard("{ArrowRight}");
 
     await expect.element(entry("Late cutoff")).toHaveFocus();
@@ -567,7 +550,7 @@ describe("keyboard navigation", () => {
     await expect
       .element(
         page.getByRole("button", {
-          name: "Client standup, scheduled 09:00 to 10:30, Approaching",
+          name: "Client standup, due 09:00, Approaching",
           exact: true,
         }),
       )
@@ -811,20 +794,17 @@ describe("push back one day", () => {
     expect(pushBacks(store)).toBe(1);
   });
 
-  it("Moves both ends of a block from the pointer menu", async () => {
+  it("Pushes back a timed due entry from the pointer menu and keeps its time", async () => {
     const { store } = await openWeek();
     const billing = store.summaries[0]!.project.id;
     const invoices = store.folders.find((folder) => folder.name === "Invoices")!.id;
+    const standup = () => store.findItemByTitle(billing, invoices, "Client standup")?.item;
 
     await entry("Client standup").first().click({ button: "right" });
     await pushBackItem().click();
 
-    await expect
-      .poll(() => store.findItemByTitle(billing, invoices, "Client standup")?.item.scheduledStart)
-      .toBe("2026-11-17T09:00:00");
-    expect(store.findItemByTitle(billing, invoices, "Client standup")?.item.scheduledEnd).toBe(
-      "2026-11-17T10:30:00",
-    );
+    await expect.poll(() => standup()?.dueDate).toBe("2026-11-17");
+    expect(standup()?.dueTime).toBe("09:00:00");
     await expect.element(entry("Client standup")).toHaveAttribute("data-date", "2026-11-17");
   });
 
@@ -876,41 +856,8 @@ describe("row menu baselines", () => {
   }
 });
 
-/** The legacy short-blocks scene: adjacent half hours, a quarter hour, an open end and a due time. */
-const SHORT_BLOCK_PROJECTS: ReadonlyArray<SeedProject> = [
-  {
-    name: "Billing DB",
-    items: [
-      {
-        title: "Standup",
-        scheduledStart: "2026-11-17T09:00:00",
-        scheduledEnd: "2026-11-17T09:30:00",
-      },
-      {
-        title: "Review",
-        scheduledStart: "2026-11-17T09:30:00",
-        scheduledEnd: "2026-11-17T10:00:00",
-      },
-      {
-        title: "Quick sync",
-        scheduledStart: "2026-11-17T10:15:00",
-        scheduledEnd: "2026-11-17T10:30:00",
-      },
-      { title: "Open ended", scheduledStart: "2026-11-17T11:00:00" },
-      { title: "Send agenda", dueDate: "2026-11-17", dueTime: "12:00:00" },
-    ],
-  },
-];
-
 describe("baselines", () => {
   for (const theme of THEMES) {
-    it(`Matches the adjacent half-hour blocks baseline in ${theme} mode`, async () => {
-      await openWeek(SHORT_BLOCK_PROJECTS);
-      await settleTheme(theme);
-
-      await expect.element(calendar()).toMatchScreenshot(`calendar-week-short-blocks-${theme}`);
-    });
-
     it(`Matches the month, week, late-night and narrow baselines in ${theme} mode`, async () => {
       await openFromHome();
       const shot = async (name: string) => {

@@ -183,6 +183,12 @@ export async function openFolder(page: Page, name: string, project = SMOKE_PROJE
   await page.getByRole("heading", { level: 1, name }).waitFor();
 }
 
+/** A `YYYY-MM-DD` date as the app's date fields show it, `MM/DD/YYYY`. */
+export function shownDate(isoDate: string) {
+  const [year, month, day] = isoDate.split("-");
+  return `${month}/${day}/${year}`;
+}
+
 /**
  * The local calendar date `days` from now on the real clock in the OS zone,
  * which the packaged app also reads, as `YYYY-MM-DD`.

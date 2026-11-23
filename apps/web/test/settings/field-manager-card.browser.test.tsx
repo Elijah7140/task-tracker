@@ -78,7 +78,7 @@ function seedGlobalBaselineFields(store: FakeProjectStore) {
   store.customFields.addFieldSeed("Effort", "Number");
   store.customFields.addFieldSeed("Review date", "Date");
   store.customFields.addFieldSeed("Legacy code", "Text", { isArchived: true });
-  const status = store.customFields.addFieldSeed("Status", "Choice");
+  const status = store.customFields.addFieldSeed("Stage", "Choice");
   store.customFields.addChoiceSeed(status.id, "Ready");
   store.customFields.addChoiceSeed(status.id, "Blocked");
   store.customFields.addChoiceSeed(status.id, "Retired", { isArchived: true });
@@ -101,15 +101,15 @@ describe("FieldManagerCard", () => {
       await chooseOption(newType(), "Boolean");
       await addField("Approved", "button");
       await chooseOption(newType(), "Choice");
-      await addField("Status", "enter");
+      await addField("Stage", "enter");
 
-      await expect.element(fieldRows().nth(4)).toHaveAccessibleName("Status");
+      await expect.element(fieldRows().nth(4)).toHaveAccessibleName("Stage");
       expect(store.customFields.fieldNames(null)).toEqual([
         "Summary",
         "Effort",
         "Review date",
         "Approved",
-        "Status",
+        "Stage",
       ]);
       expect(store.customFields.scope(null).map((field) => field.dataType)).toEqual([
         "Text",
@@ -146,19 +146,19 @@ describe("FieldManagerCard", () => {
       await openAppSettings();
       await chooseOption(newType(), "Choice");
 
-      await addField("Status", "enter");
+      await addField("Stage", "enter");
 
-      await expect.element(choicesToggle("Status")).toHaveAttribute("aria-expanded", "true");
-      await expect.element(newChoice("Status")).toBeVisible();
+      await expect.element(choicesToggle("Stage")).toHaveAttribute("aria-expanded", "true");
+      await expect.element(newChoice("Stage")).toBeVisible();
     });
 
     it("Gives only choice fields a choices panel", async () => {
       await openAppSettings((appStore) => {
         appStore.customFields.addFieldSeed("Effort", "Number");
-        appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addFieldSeed("Stage", "Choice");
       });
 
-      await expect.element(choicesToggle("Status")).toBeVisible();
+      await expect.element(choicesToggle("Stage")).toBeVisible();
       await expect.element(choicesToggle("Effort")).not.toBeInTheDocument();
     });
 
@@ -217,7 +217,7 @@ describe("FieldManagerCard", () => {
     it("Saves a new type for an unused field and opens the panel when it becomes a choice field", async () => {
       const { store } = await openAppSettings((appStore) => {
         appStore.customFields.addFieldSeed("Effort");
-        appStore.customFields.addFieldSeed("Status");
+        appStore.customFields.addFieldSeed("Stage");
       });
 
       await chooseOption(fieldRow("Effort").getByTestId("field-type"), "Number");
@@ -227,10 +227,10 @@ describe("FieldManagerCard", () => {
         .element(fieldRow("Effort").getByTestId("field-type"))
         .toHaveTextContent("Number");
 
-      await chooseOption(fieldRow("Status").getByTestId("field-type"), "Choice");
+      await chooseOption(fieldRow("Stage").getByTestId("field-type"), "Choice");
 
-      await expect.element(choicesToggle("Status")).toHaveAttribute("aria-expanded", "true");
-      expect(store.customFields.fieldNamed("Status").dataType).toBe("Choice");
+      await expect.element(choicesToggle("Stage")).toHaveAttribute("aria-expanded", "true");
+      expect(store.customFields.fieldNamed("Stage").dataType).toBe("Choice");
     });
 
     it("Changes a type with the keyboard", async () => {
@@ -440,56 +440,56 @@ describe("FieldManagerCard", () => {
   describe("choices", () => {
     it("Adds choices with Enter and the Add choice button and clears only that box", async () => {
       const { store } = await openAppSettings((appStore) => {
-        appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addFieldSeed("Size", "Choice");
       });
-      await choicesToggle("Status").click();
+      await choicesToggle("Stage").click();
       await choicesToggle("Size").click();
       await newChoice("Size").fill("Half typed");
 
-      await newChoice("Status").fill("Ready");
+      await newChoice("Stage").fill("Ready");
       await userEvent.keyboard("{Enter}");
-      await expect.element(choiceRow("Status", "Ready")).toBeVisible();
-      await newChoice("Status").fill("Blocked");
-      await fieldRow("Status").getByTestId("choice-add").click();
+      await expect.element(choiceRow("Stage", "Ready")).toBeVisible();
+      await newChoice("Stage").fill("Blocked");
+      await fieldRow("Stage").getByTestId("choice-add").click();
 
-      await expect.element(choiceRow("Status", "Blocked")).toBeVisible();
-      const status = store.customFields.fieldNamed("Status");
+      await expect.element(choiceRow("Stage", "Blocked")).toBeVisible();
+      const status = store.customFields.fieldNamed("Stage");
       expect(store.customFields.choiceLabels(status.id)).toEqual(["Ready", "Blocked"]);
-      await expect.element(newChoice("Status")).toHaveValue("");
+      await expect.element(newChoice("Stage")).toHaveValue("");
       await expect.element(newChoice("Size")).toHaveValue("Half typed");
-      await expect.element(choicesToggle("Status")).toHaveTextContent("Choices (2)");
+      await expect.element(choicesToggle("Stage")).toHaveTextContent("Choices (2)");
     });
 
     it("Rejects a duplicate choice label and keeps it in the box", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
       });
-      await choicesToggle("Status").click();
+      await choicesToggle("Stage").click();
 
-      await newChoice("Status").fill("ready");
+      await newChoice("Stage").fill("ready");
       await userEvent.keyboard("{Enter}");
 
       await dismissValidation("Choice label is already used by this field.");
-      await expect.element(newChoice("Status")).toHaveValue("ready");
+      await expect.element(newChoice("Stage")).toHaveValue("ready");
       expect(store.customFields.choices).toHaveLength(1);
     });
 
     it("Ignores a second Move down click while the first choice move is still saving", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
         appStore.customFields.addChoiceSeed(status.id, "Blocked");
         appStore.customFields.addChoiceSeed(status.id, "Done");
       });
-      const statusId = store.customFields.fieldNamed("Status").id;
-      await choicesToggle("Status").click();
-      const moveDown = () => choiceRow("Status", "Ready").getByTestId("choice-move-down");
+      const statusId = store.customFields.fieldNamed("Stage").id;
+      await choicesToggle("Stage").click();
+      const moveDown = () => choiceRow("Stage", "Ready").getByTestId("choice-move-down");
 
       await clickMoveTwiceWhileSaving(moveDown(), store, "ReorderFieldChoices");
 
-      await expect.element(choiceRows("Status").nth(1)).toHaveAccessibleName("Ready");
+      await expect.element(choiceRows("Stage").nth(1)).toHaveAccessibleName("Ready");
       await expect.element(moveDown()).not.toHaveAttribute("aria-disabled", "true");
       expect(store.calls.filter((call) => call === "ReorderFieldChoices")).toHaveLength(1);
       expect(store.customFields.choiceLabels(statusId)).toEqual(["Blocked", "Ready", "Done"]);
@@ -497,12 +497,12 @@ describe("FieldManagerCard", () => {
 
     it("Keeps the choice rename prompt open with Enter a name when the label is blank", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
       });
-      await choicesToggle("Status").click();
+      await choicesToggle("Stage").click();
 
-      await choiceRow("Status", "Ready").getByTestId("choice-rename").click();
+      await choiceRow("Stage", "Ready").getByTestId("choice-rename").click();
       await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
 
       await expect
@@ -514,40 +514,40 @@ describe("FieldManagerCard", () => {
 
     it("Renames a choice through the prompt", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
       });
-      await choicesToggle("Status").click();
+      await choicesToggle("Stage").click();
 
-      await choiceRow("Status", "Ready").getByTestId("choice-rename").click();
+      await choiceRow("Stage", "Ready").getByTestId("choice-rename").click();
       await expect.element(page.getByRole("dialog", { name: "Rename choice" })).toBeVisible();
       await userEvent.keyboard("{Control>}a{/Control}Done{Enter}");
 
-      await expect.element(choiceRow("Status", "Done")).toBeVisible();
-      const status = store.customFields.fieldNamed("Status");
+      await expect.element(choiceRow("Stage", "Done")).toBeVisible();
+      const status = store.customFields.fieldNamed("Stage");
       expect(store.customFields.choiceLabels(status.id)).toEqual(["Done"]);
     });
 
     it("Reorders choices with buttons, Alt+Arrow keys and dragging, keeping archived ones", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
         appStore.customFields.addChoiceSeed(status.id, "Retired", { isArchived: true });
         appStore.customFields.addChoiceSeed(status.id, "Blocked");
         appStore.customFields.addChoiceSeed(status.id, "Done");
       });
-      const statusId = store.customFields.fieldNamed("Status").id;
-      await choicesToggle("Status").click();
+      const statusId = store.customFields.fieldNamed("Stage").id;
+      await choicesToggle("Stage").click();
 
       await expect
-        .element(choiceRow("Status", "Ready").getByTestId("choice-move-up"))
+        .element(choiceRow("Stage", "Ready").getByTestId("choice-move-up"))
         .toBeDisabled();
       await expect
-        .element(choiceRow("Status", "Done").getByTestId("choice-move-down"))
+        .element(choiceRow("Stage", "Done").getByTestId("choice-move-down"))
         .toBeDisabled();
-      await choiceRow("Status", "Ready").getByTestId("choice-move-down").click();
+      await choiceRow("Stage", "Ready").getByTestId("choice-move-down").click();
 
-      await expect.element(choiceRows("Status").nth(0)).toHaveAccessibleName("Blocked");
+      await expect.element(choiceRows("Stage").nth(0)).toHaveAccessibleName("Blocked");
       expect(store.customFields.choiceLabels(statusId, true)).toEqual([
         "Blocked",
         "Retired",
@@ -555,20 +555,20 @@ describe("FieldManagerCard", () => {
         "Done",
       ]);
 
-      choiceRow("Status", "Done").element().focus();
+      choiceRow("Stage", "Done").element().focus();
       await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
 
-      await expect.element(choiceRows("Status").nth(1)).toHaveAccessibleName("Done");
-      await expect.element(choiceRow("Status", "Done")).toHaveFocus();
+      await expect.element(choiceRows("Stage").nth(1)).toHaveAccessibleName("Done");
+      await expect.element(choiceRow("Stage", "Done")).toHaveFocus();
       expect(store.customFields.choiceLabels(statusId)).toEqual(["Blocked", "Done", "Ready"]);
-      expect(store.customFields.fieldNames(null)).toEqual(["Status"]);
+      expect(store.customFields.fieldNames(null)).toEqual(["Stage"]);
 
       await userEvent.dragAndDrop(
-        choiceRow("Status", "Ready").getByTestId("choice-drag-handle"),
-        choiceRow("Status", "Blocked"),
+        choiceRow("Stage", "Ready").getByTestId("choice-drag-handle"),
+        choiceRow("Stage", "Blocked"),
       );
 
-      await expect.element(choiceRows("Status").nth(0)).toHaveAccessibleName("Ready");
+      await expect.element(choiceRows("Stage").nth(0)).toHaveAccessibleName("Ready");
       expect(store.customFields.choiceLabels(statusId, true)).toEqual([
         "Ready",
         "Retired",
@@ -579,52 +579,52 @@ describe("FieldManagerCard", () => {
 
     it("Archives a choice, lists it under Show archived and restores it", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
         appStore.customFields.addChoiceSeed(status.id, "Retired");
       });
-      const statusId = store.customFields.fieldNamed("Status").id;
-      await choicesToggle("Status").click();
+      const statusId = store.customFields.fieldNamed("Stage").id;
+      await choicesToggle("Stage").click();
 
-      await choiceRow("Status", "Retired").getByTestId("choice-archive").click();
+      await choiceRow("Stage", "Retired").getByTestId("choice-archive").click();
 
-      await expect.element(choiceRow("Status", "Retired")).not.toBeInTheDocument();
-      await expect.element(choicesToggle("Status")).toHaveTextContent("Choices (1)");
+      await expect.element(choiceRow("Stage", "Retired")).not.toBeInTheDocument();
+      await expect.element(choicesToggle("Stage")).toHaveTextContent("Choices (1)");
       expect(store.customFields.choiceLabels(statusId)).toEqual(["Ready"]);
 
       await showArchived().click();
 
-      const archived = choiceRow("Status", "Retired");
+      const archived = choiceRow("Stage", "Retired");
       await expect.element(archived).toHaveAttribute("data-archived", "true");
-      await expect.element(choicesToggle("Status")).toHaveTextContent("Choices (1)");
+      await expect.element(choicesToggle("Stage")).toHaveTextContent("Choices (1)");
       await archived.getByTestId("choice-restore").click();
 
       await expect
-        .element(choiceRow("Status", "Retired"))
+        .element(choiceRow("Stage", "Retired"))
         .not.toHaveAttribute("data-archived", "true");
       expect(store.customFields.choiceLabels(statusId)).toEqual(["Ready", "Retired"]);
     });
 
     it("Offers no new choices on an archived field", async () => {
       await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice", { isArchived: true });
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice", { isArchived: true });
         appStore.customFields.addChoiceSeed(status.id, "Ready");
       });
       await showArchived().click();
 
-      await choicesToggle("Status").click();
+      await choicesToggle("Stage").click();
 
-      await expect.element(choiceRow("Status", "Ready")).toBeVisible();
-      await expect.element(newChoice("Status")).not.toBeInTheDocument();
+      await expect.element(choiceRow("Stage", "Ready")).toBeVisible();
+      await expect.element(newChoice("Stage")).not.toBeInTheDocument();
     });
 
     it("Keeps open panels open and closed panels closed when the list reloads", async () => {
       await openAppSettings((appStore) => {
-        appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addFieldSeed("Size", "Choice");
         appStore.customFields.addFieldSeed("Effort", "Number");
       });
-      await choicesToggle("Status").click();
+      await choicesToggle("Stage").click();
       await choicesToggle("Size").click();
       await choicesToggle("Size").click();
 
@@ -632,19 +632,19 @@ describe("FieldManagerCard", () => {
       await userEvent.keyboard("{Control>}a{/Control}Story points{Enter}");
       await expect.element(fieldRow("Story points")).toBeVisible();
 
-      await expect.element(choicesToggle("Status")).toHaveAttribute("aria-expanded", "true");
+      await expect.element(choicesToggle("Stage")).toHaveAttribute("aria-expanded", "true");
       await expect.element(choicesToggle("Size")).toHaveAttribute("aria-expanded", "false");
     });
 
     it("Counts only active choices in the panel header", async () => {
       await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
         appStore.customFields.addChoiceSeed(status.id, "Retired", { isArchived: true });
       });
 
-      await expect.element(choicesToggle("Status")).toHaveTextContent("Choices (1)");
-      await expect.element(choicesToggle("Status")).toHaveAttribute("aria-expanded", "false");
+      await expect.element(choicesToggle("Stage")).toHaveTextContent("Choices (1)");
+      await expect.element(choicesToggle("Stage")).toHaveAttribute("aria-expanded", "false");
     });
   });
 
@@ -763,13 +763,13 @@ describe("FieldManagerCard", () => {
 
     it("Names a choice rename in the Edit menu and Ctrl+Z refreshes the open panel", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
       });
-      await choicesToggle("Status").click();
-      await choiceRow("Status", "Ready").getByTestId("choice-rename").click();
+      await choicesToggle("Stage").click();
+      await choiceRow("Stage", "Ready").getByTestId("choice-rename").click();
       await userEvent.keyboard("{Control>}a{/Control}Done{Enter}");
-      await expect.element(choiceRow("Status", "Done")).toBeVisible();
+      await expect.element(choiceRow("Stage", "Done")).toBeVisible();
 
       await openMenu("edit");
       await expect
@@ -778,19 +778,19 @@ describe("FieldManagerCard", () => {
       await userEvent.keyboard("{Escape}");
       await userEvent.keyboard("{Control>}z{/Control}");
 
-      await expect.element(choiceRow("Status", "Ready")).toBeVisible();
-      const status = store.customFields.fieldNamed("Status");
+      await expect.element(choiceRow("Stage", "Ready")).toBeVisible();
+      const status = store.customFields.fieldNamed("Stage");
       expect(store.customFields.choiceLabels(status.id)).toEqual(["Ready"]);
     });
 
     it("Blocks undo while a new choice label is typed and leaves the choice unchanged", async () => {
       const { store } = await openAppSettings((appStore) => {
-        const status = appStore.customFields.addFieldSeed("Status", "Choice");
+        const status = appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addChoiceSeed(status.id, "Ready");
       });
-      await choicesToggle("Status").click();
-      await choiceRow("Status", "Ready").getByTestId("choice-archive").click();
-      await newChoice("Status").fill("Blocked");
+      await choicesToggle("Stage").click();
+      await choiceRow("Stage", "Ready").getByTestId("choice-archive").click();
+      await newChoice("Stage").fill("Blocked");
 
       await openMenu("edit");
       await page.getByRole("menuitem", { name: "Undo: Archive choice 'Ready'" }).click();
@@ -820,8 +820,8 @@ describe("FieldManagerCard", () => {
   describe.each(THEMES)("in the %s theme", (theme) => {
     it("Matches the reviewed global field manager baseline", async () => {
       await openAppSettings(seedGlobalBaselineFields);
-      await choicesToggle("Status").click();
-      await expect.element(choiceRow("Status", "Blocked")).toBeVisible();
+      await choicesToggle("Stage").click();
+      await expect.element(choiceRow("Stage", "Blocked")).toBeVisible();
 
       await settleTheme(theme);
 
@@ -831,8 +831,8 @@ describe("FieldManagerCard", () => {
     it("Matches the reviewed archived field manager baseline", async () => {
       await openAppSettings(seedGlobalBaselineFields);
       await showArchived().click();
-      await choicesToggle("Status").click();
-      await expect.element(choiceRow("Status", "Retired")).toBeVisible();
+      await choicesToggle("Stage").click();
+      await expect.element(choiceRow("Stage", "Retired")).toBeVisible();
       await expect.element(fieldRow("Legacy code")).toBeVisible();
 
       await settleTheme(theme);
@@ -843,7 +843,7 @@ describe("FieldManagerCard", () => {
     it("Matches the reviewed project field manager baseline", async () => {
       await openProjectSettings((appStore, projectId) => {
         appStore.customFields.addFieldSeed("Effort", "Number");
-        appStore.customFields.addFieldSeed("Status", "Choice");
+        appStore.customFields.addFieldSeed("Stage", "Choice");
         appStore.customFields.addFieldSeed("Customer", "Text", { projectId });
         appStore.customFields.addFieldSeed("Go-live", "Date", { projectId });
       });

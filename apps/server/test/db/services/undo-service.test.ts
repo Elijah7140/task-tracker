@@ -288,7 +288,7 @@ it.effect("Refuses to resurrect a removed choice and rolls back the other row wr
   Effect.gen(function* () {
     const { root, items, undo, sql } = yield* setup;
     const fields = yield* FieldService;
-    const status = yield* fields.create("Status", "Choice", null);
+    const status = yield* fields.create("Stage", "Choice", null);
     const choice = yield* fields.addChoice(status.id, "Ready");
     const item = yield* root("Task");
     yield* items.edit(item.id, edit("Task"), [

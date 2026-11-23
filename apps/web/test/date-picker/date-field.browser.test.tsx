@@ -16,10 +16,16 @@ const day = (name: string) => popup().getByRole("button", { name, exact: true })
 const clearButton = () => editor().getByTestId("item-editor-clear-due-date");
 
 /** Opens the editor on an item due 20 November 2026 with the clock on 23 November. */
-async function openDueDate(now = "2026-11-23T12:00:00Z") {
+async function openDueDate(now = "2026-11-23T12:00:00Z", scheduledStart: string | null = null) {
   const testClock = createTestClock();
   await testClock.setTime(now);
-  const app = await openEditorWorkspace({ clock: testClock.clock });
+  const app = await openEditorWorkspace({
+    clock: testClock.clock,
+    configure: (store, projectId) => {
+      const id = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
+      store.patchItem(id, { scheduledStart });
+    },
+  });
   await openEditor();
   const stored = () => app.store.findItemByTitle(app.projectId, null, EDITOR_ITEM)?.item;
   return { ...app, testClock, stored };
@@ -55,7 +61,7 @@ describe("Date field", () => {
     await day("Wednesday, December 16, 2026").click();
 
     await expect.element(popup()).not.toBeInTheDocument();
-    await expect.element(dueDate()).toHaveValue("2026-12-16");
+    await expect.element(dueDate()).toHaveValue("12/16/2026");
     await expect.element(pickerButton()).toHaveFocus();
     await editor().getByTestId("item-editor-save").click();
     expect(stored()?.dueDate).toBe("2026-12-16");
@@ -68,7 +74,7 @@ describe("Date field", () => {
 
     await userEvent.keyboard("{ArrowDown}{ArrowRight}{Enter}");
 
-    await expect.element(dueDate()).toHaveValue("2026-11-28");
+    await expect.element(dueDate()).toHaveValue("11/28/2026");
     await expect.element(pickerButton()).toHaveFocus();
 
     await userEvent.keyboard("{Enter}");
@@ -78,7 +84,7 @@ describe("Date field", () => {
     await expect.element(popup()).not.toBeInTheDocument();
     await expect.element(editor()).toBeVisible();
     await expect.element(pickerButton()).toHaveFocus();
-    await expect.element(dueDate()).toHaveValue("2026-11-28");
+    await expect.element(dueDate()).toHaveValue("11/28/2026");
   });
 
   it("Opens on today's month when the date is empty and picks today with the Today button", async () => {
@@ -90,7 +96,7 @@ describe("Date field", () => {
     await expect.element(day("Monday, November 23, 2026")).toHaveFocus();
     await page.getByTestId("date-picker-today").click();
 
-    await expect.element(dueDate()).toHaveValue("2026-11-23");
+    await expect.element(dueDate()).toHaveValue("11/23/2026");
     await expect.element(clearButton()).toBeEnabled();
   });
 
@@ -101,7 +107,7 @@ describe("Date field", () => {
     await pickerButton().click();
     await page.getByTestId("date-picker-today").click();
 
-    await expect.element(dueDate()).toHaveValue("2026-11-24");
+    await expect.element(dueDate()).toHaveValue("11/24/2026");
   });
 
   it("Accepts a typed date and shows it selected in the calendar", async () => {
@@ -113,7 +119,7 @@ describe("Date field", () => {
     await expect.element(popup().getByRole("grid")).toHaveAccessibleName("January 2027");
     await expect.element(day("Tuesday, January 5, 2027")).toHaveAttribute("data-selected", "true");
     await userEvent.keyboard("{Escape}");
-    await expect.element(dueDate()).toHaveValue("2027-01-05");
+    await expect.element(dueDate()).toHaveValue("01/05/2027");
     await editor().getByTestId("item-editor-save").click();
     expect(stored()?.dueDate).toBe("2027-01-05");
   });
@@ -125,7 +131,7 @@ describe("Date field", () => {
     await expect.element(dueDate()).toHaveAttribute("aria-invalid", "true");
     await editor().getByLabelText("Ticket number", { exact: true }).click();
 
-    await expect.element(dueDate()).toHaveValue("2026-11-20");
+    await expect.element(dueDate()).toHaveValue("11/20/2026");
     await expect.element(dueDate()).not.toHaveAttribute("aria-invalid");
   });
 
@@ -142,27 +148,16 @@ describe("Date field", () => {
     await expect.element(clearButton()).toBeDisabled();
   });
 
-  it("Picks the date part of a scheduled start and keeps its time", async () => {
-    await openDueDate();
+  it("Picks the date part of a stored scheduled start and keeps its time", async () => {
+    await openDueDate("2026-11-23T12:00:00Z", "2026-11-24T14:30:00");
     const start = editor().getByTestId("item-editor-scheduled-start");
-    await start.fill("2026-11-24T14:30");
+    await expect.element(start).toHaveValue("2026-11-24T14:30");
 
     await editor().getByTestId("item-editor-scheduled-start-picker").click();
     await expect.element(day("Tuesday, November 24, 2026")).toHaveFocus();
     await userEvent.keyboard("{ArrowRight}{Enter}");
 
     await expect.element(start).toHaveValue("2026-11-25T14:30");
-  });
-
-  it("Starts an empty scheduled start at 09:00 on the picked day", async () => {
-    await openDueDate();
-
-    await editor().getByTestId("item-editor-scheduled-end-picker").click();
-    await page.getByTestId("date-picker-today").click();
-
-    await expect
-      .element(editor().getByTestId("item-editor-scheduled-end"))
-      .toHaveValue("2026-11-23T09:00");
   });
 
   it.each(THEMES)("Matches the open date picker baseline in %s", async (theme) => {

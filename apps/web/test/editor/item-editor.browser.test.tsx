@@ -39,7 +39,7 @@ describe("Item editor", () => {
       await expect.element(field("Ticket number")).toHaveValue("JIRA-1234");
       await expect.element(field("Type")).toHaveTextContent("Change");
       await expect.element(field("Priority")).toHaveTextContent("High");
-      await expect.element(field("Due date")).toHaveValue("2026-11-20");
+      await expect.element(field("Due date")).toHaveValue("11/20/2026");
       await expect.element(field("Due time")).toHaveValue("");
       await expect.element(field("Description")).toHaveValue("");
     });
@@ -88,8 +88,6 @@ describe("Item editor", () => {
         "item-editor-priority",
         "item-editor-due-date",
         "item-editor-due-time",
-        "item-editor-scheduled-start",
-        "item-editor-scheduled-end",
         "item-editor-discard",
         "item-editor-cancel",
         "item-editor-save",
@@ -97,6 +95,20 @@ describe("Item editor", () => {
       ]) {
         await expect.element(editor().getByTestId(testId)).toHaveAccessibleName();
       }
+    });
+
+    it("Shows no scheduled start or end for an item without one stored", async () => {
+      await openEditorWorkspace();
+
+      await openEditor();
+
+      await expect.element(editor().getByTestId("item-editor-due-date")).toBeVisible();
+      await expect
+        .element(editor().getByTestId("item-editor-scheduled-start"))
+        .not.toBeInTheDocument();
+      await expect
+        .element(editor().getByTestId("item-editor-scheduled-end"))
+        .not.toBeInTheDocument();
     });
   });
 
@@ -112,8 +124,6 @@ describe("Item editor", () => {
       await pick("Priority", "Low");
       await field("Due date").fill("2026-11-21");
       await field("Due time").fill("08:15");
-      await field("Scheduled start").fill("2026-11-19T09:00");
-      await field("Scheduled end").fill("2026-11-19T10:30");
       await saveButton().click();
 
       await expect.element(editor()).not.toBeInTheDocument();
@@ -125,8 +135,6 @@ describe("Item editor", () => {
         priorityLevelId: "019A0000-0000-7000-8000-000000002003",
         dueDate: "2026-11-21",
         dueTime: "08:15",
-        scheduledStart: "2026-11-19T09:00",
-        scheduledEnd: "2026-11-19T10:30",
       });
     });
 
@@ -145,7 +153,7 @@ describe("Item editor", () => {
       });
     });
 
-    it("Clears dates and times with their clear buttons", async () => {
+    it("Clears dates, times and a stored schedule with their clear buttons", async () => {
       const app = await openEditorWorkspace({
         configure: (store, projectId) => {
           const id = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
@@ -551,7 +559,6 @@ describe("Item editor", () => {
       const id = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
       store.patchItem(id, {
         description: "Speeds up the customer invoice lookup on the billing dashboard.",
-        scheduledStart: "2026-11-19T09:00:00",
       });
       store.customFields.setValue(id, fields.summary, { textValue: "Check cost" });
       store.customFields.setValue(id, fields.effort, { numberValue: 3.5 });

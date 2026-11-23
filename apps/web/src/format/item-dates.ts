@@ -2,9 +2,9 @@ import type { Item } from "@task-tracker/contracts";
 
 type ItemRecord = typeof Item.Type;
 
-/** The date an item row shows, and whether it is a due date or a scheduled start. */
+/** The due date an item row shows. */
 export interface DeadlineLabel {
-  readonly kind: "due" | "scheduled";
+  readonly kind: "due";
   readonly text: string;
 }
 
@@ -76,8 +76,8 @@ export function formatInstantDate(instant: string, timeZone: string): string {
 }
 
 /**
- * The date a row shows: the due date (with its time when set), otherwise the
- * scheduled start. This mirrors the effective deadline in §6.3 for display only.
+ * The date a row shows: the due date, with its time when set. Items carry only due
+ * dates since 23 Nov 2026, so a stored scheduled start is not shown (§7.4).
  */
 export function deadlineLabel(item: ItemRecord): DeadlineLabel | null {
   if (item.dueDate !== null) {
@@ -86,9 +86,6 @@ export function deadlineLabel(item: ItemRecord): DeadlineLabel | null {
         ? formatFloatingDate(item.dueDate)
         : formatFloatingDateTime(item.dueDate, item.dueTime);
     return { kind: "due", text };
-  }
-  if (item.scheduledStart !== null) {
-    return { kind: "scheduled", text: formatFloatingDateTime(item.scheduledStart) };
   }
   return null;
 }

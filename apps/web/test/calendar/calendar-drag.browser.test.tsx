@@ -15,7 +15,7 @@ const cell = (kind: string, date: string) =>
 const defaultItems: NonNullable<SeedProject["items"]> = [
   { title: "Review", dueDate: "2026-11-16", dueTime: "10:07:00" },
   { title: "Audit", dueDate: "2026-11-16" },
-  { title: "Meeting", scheduledStart: "2026-11-16T09:00:00", scheduledEnd: "2026-11-16T10:30:00" },
+  { title: "Meeting", dueDate: "2026-11-16", dueTime: "09:00:00" },
 ];
 
 const calendar = () => page.getByTestId("calendar-page");
@@ -102,7 +102,7 @@ it("Alt+Down snaps a focused entry to the next quarter and restores its focus", 
   await expect.element(entry("Review")).toHaveFocus();
 });
 
-it("Shows a month cell outline and moves a scheduled entry without changing its length", async () => {
+it("Shows a month cell outline and moves a timed due entry there with its time", async () => {
   const { store, projectId } = await openCalendar();
   const target = cell("month-cell", "2026-11-17");
   const position = point(target.element());
@@ -113,12 +113,10 @@ it("Shows a month cell outline and moves a scheduled entry without changing its 
 
   await expect.element(target).not.toHaveAttribute("data-drop-active");
   await expect.element(entry("Meeting")).toHaveAttribute("data-date", "2026-11-17");
-  expect(store.findItemByTitle(projectId, null, "Meeting")?.item.scheduledEnd).toBe(
-    "2026-11-17T10:30:00",
-  );
+  expect(store.findItemByTitle(projectId, null, "Meeting")?.item.dueTime).toBe("09:00:00");
 });
 
-it("Uses the original grab offset and snaps the week ghost and schedule to the same time", async () => {
+it("Uses the original grab offset and snaps the week ghost and due time to the same time", async () => {
   await openCalendar();
   await week();
   const position = cellPoint("time-column", "2026-11-17", 48 * 11 + 18);
@@ -127,7 +125,7 @@ it("Uses the original grab offset and snaps the week ghost and schedule to the s
 
   await expect.element(ghost()).toHaveTextContent("11:00");
   await releaseAt(position);
-  await expect.element(entry("Meeting")).toHaveAccessibleName("Meeting, scheduled 11:00 to 12:30");
+  await expect.element(entry("Meeting")).toHaveAccessibleName("Meeting, due 11:00");
   await expect.element(entry("Meeting")).toHaveAttribute("data-date", "2026-11-17");
   await expect.element(ghost()).not.toBeInTheDocument();
 });
@@ -154,43 +152,18 @@ it("Moves a due entry between a week time column and the all-day row", async () 
   await expect.element(entry("Audit")).toHaveAttribute("data-date", "2026-11-18");
 });
 
-it("Moves an all-day entry to another all-day cell and ignores a schedule dropped there", async () => {
-  const { store } = await openCalendar();
+it("Moves an all-day entry to another all-day cell", async () => {
+  await openCalendar();
   await week();
   const target = cell("allday-cell", "2026-11-18");
   const position = point(target.element());
 
-  await drag(entryPoint("Meeting"), position);
-  await expect.element(calendar()).toHaveAttribute("data-dragging");
-  await expect.element(target).not.toHaveAttribute("data-drop-active");
-  await releaseAt(position);
-  expect(store.calls).not.toContain(moveTag);
-
   await drag(entryPoint("Audit"), position);
+  await expect.element(target).toHaveAttribute("data-drop-active", "true");
   await releaseAt(position);
 
   await expect.element(entry("Audit")).toHaveAttribute("data-date", "2026-11-18");
   await expect.element(entry("Audit")).toHaveAccessibleName("Audit, due all day");
-});
-
-it("Clamps a week drop at the bottom of the grid to 23:45 and moves an entire block", async () => {
-  const { store, projectId } = await openCalendar([
-    { title: "Deploy", scheduledStart: "2026-11-16T22:00:00", scheduledEnd: "2026-11-16T23:00:00" },
-  ]);
-  await week();
-  scroll().scrollTop = scroll().scrollHeight;
-  const position = cellPoint("time-column", "2026-11-17", 48 * 24 - 2);
-
-  await drag(entryPoint("Deploy", 5), position);
-
-  await expect.element(ghost()).toHaveTextContent("23:45");
-  await releaseAt(position);
-  await expect
-    .poll(() => store.findItemByTitle(projectId, null, "Deploy")?.item.scheduledStart)
-    .toBe("2026-11-17T23:45:00");
-  expect(store.findItemByTitle(projectId, null, "Deploy")?.item.scheduledEnd).toBe(
-    "2026-11-18T00:45:00",
-  );
 });
 
 it("Updates the week ghost when the wheel scrolls beneath a stationary pointer", async () => {
@@ -388,7 +361,7 @@ it("Restores an all-day entry's focus on Alt+Right and replays the calendar move
   await expect.element(entry("Audit")).toHaveAttribute("data-date", "2026-11-17");
 });
 
-it("Snaps Alt+Up and Alt+Down in Week view and nudges a block in Month view", async () => {
+it("Snaps Alt+Up and Alt+Down in Week view and nudges a due time in Month view", async () => {
   await openCalendar();
   await week();
   focus("Review");
@@ -401,7 +374,7 @@ it("Snaps Alt+Up and Alt+Down in Week view and nudges a block in Month view", as
   focus("Meeting");
   await pressAlt("{ArrowDown}");
 
-  await expect.element(entry("Meeting")).toHaveAccessibleName("Meeting, scheduled 09:15 to 10:45");
+  await expect.element(entry("Meeting")).toHaveAccessibleName("Meeting, due 09:15");
 });
 
 it("Ignores minute keys on all-day entries and arrows with other modifiers", async () => {
@@ -544,30 +517,6 @@ it("Dragging from overflow or the scroll gutter does not start a drag", async ()
   expect(store.calls).not.toContain(moveTag);
 });
 
-it("Alt+Up, Down and Left operate on the whole block from its midnight continuation", async () => {
-  const { store, projectId } = await openCalendar([
-    { title: "Night", scheduledStart: "2026-11-17T23:00:00", scheduledEnd: "2026-11-18T01:00:00" },
-  ]);
-  const focusContinuation = (date: string) => {
-    (cell("month-cell", date).getByTestId("calendar-entry").element() as HTMLElement).focus();
-  };
-  const block = () => store.findItemByTitle(projectId, null, "Night")?.item;
-  focusContinuation("2026-11-18");
-
-  await pressAlt("{ArrowUp}");
-  expect(block()?.scheduledStart).toBe("2026-11-17T23:00:00");
-  await pressAlt("{ArrowDown}");
-  await expect.poll(() => block()?.scheduledStart).toBe("2026-11-17T23:15:00");
-  await expect
-    .element(cell("month-cell", "2026-11-17").getByTestId("calendar-entry"))
-    .toHaveFocus();
-  focusContinuation("2026-11-18");
-  await pressAlt("{ArrowLeft}");
-
-  await expect.poll(() => block()?.scheduledStart).toBe("2026-11-16T23:15:00");
-  expect(block()?.scheduledEnd).toBe("2026-11-17T01:15:00");
-});
-
 for (const theme of THEMES) {
   it(`Matches the month, time-grid and all-day drag feedback in ${theme} mode`, async () => {
     await openCalendar();
@@ -597,25 +546,9 @@ for (const theme of THEMES) {
   });
 }
 
-it("Restores focus to a visible continuation when a moved block starts before the week", async () => {
-  await openCalendar([
-    { title: "Night", scheduledStart: "2026-11-15T23:00:00", scheduledEnd: "2026-11-17T01:00:00" },
-  ]);
-  await week();
-  const firstDay = cell("time-column", "2026-11-15");
-  firstDay.getByTestId("calendar-entry").element().focus();
-
-  await pressAlt("{ArrowLeft}");
-
-  await expect
-    .element(cell("time-column", "2026-11-16").getByTestId("calendar-entry"))
-    .toHaveAccessibleName("Night, scheduled 00:00 to 01:00");
-  await expect.element(firstDay.getByTestId("calendar-entry")).toHaveFocus();
-});
-
-it("Combines day and quarter-hour keys for a schedule outside the visible period", async () => {
+it("Combines day and quarter-hour keys for a due time outside the visible period", async () => {
   const { store, projectId } = await openCalendar([
-    { title: "Deploy", scheduledStart: "2026-11-21T09:00:00", scheduledEnd: "2026-11-21T10:00:00" },
+    { title: "Deploy", dueDate: "2026-11-21", dueTime: "09:00:00" },
   ]);
   await week();
   const release = store.hold(moveTag);
@@ -627,8 +560,9 @@ it("Combines day and quarter-hour keys for a schedule outside the visible period
   release();
 
   await expect
-    .poll(() => store.findItemByTitle(projectId, null, "Deploy")?.item.scheduledStart)
-    .toBe("2026-11-24T09:30:00");
+    .poll(() => store.findItemByTitle(projectId, null, "Deploy")?.item.dueDate)
+    .toBe("2026-11-24");
+  expect(store.findItemByTitle(projectId, null, "Deploy")?.item.dueTime).toBe("09:30:00");
   await expect.element(page.getByTestId("calendar-next")).toHaveFocus();
   expect(store.calls.filter((tag) => tag === moveTag)).toHaveLength(2);
 });

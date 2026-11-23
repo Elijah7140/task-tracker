@@ -59,13 +59,13 @@ describe("deadlineLabel", () => {
     expect(label).toEqual({ kind: "due", text: "Nov 20, 2026, 9:00 AM" });
   });
 
-  it("Falls back to the scheduled start", () => {
+  it("Ignores a scheduled start without a due date", () => {
     const label = deadlineLabel({
       ...item,
       scheduledStart: "2026-11-19T10:00:00",
     } as Parameters<typeof deadlineLabel>[0]);
 
-    expect(label).toEqual({ kind: "scheduled", text: "Nov 19, 2026, 10:00 AM" });
+    expect(label).toBeNull();
   });
 
   it("Returns null without a due date or scheduled start", () => {

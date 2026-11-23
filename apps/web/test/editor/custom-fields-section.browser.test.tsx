@@ -50,7 +50,7 @@ async function fillEveryField() {
 async function expectEveryFieldFilled() {
   await expect.element(customInput("Summary")).toHaveValue("Check cost");
   await expect.element(customInput("Effort")).toHaveValue("3.5");
-  await expect.element(customInput("Review date")).toHaveValue("2026-11-19");
+  await expect.element(customInput("Review date")).toHaveValue("11/19/2026");
   await expect.element(customInput("Approved")).toHaveTextContent("Yes");
   await expect.element(customInput("Stage")).toHaveTextContent("Ready");
 }

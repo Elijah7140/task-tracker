@@ -43,7 +43,7 @@ async function renderManagerWithPicker() {
   const store = new FakeProjectStore([{ name: "Billing DB" }]);
   const projectId = store.summaries[0]!.project.id;
   store.customFields.addFieldSeed("Effort", "Number");
-  const status = store.customFields.addFieldSeed("Status", "Choice");
+  const status = store.customFields.addFieldSeed("Stage", "Choice");
   store.customFields.addChoiceSeed(status.id, "Ready");
   store.customFields.addChoiceSeed(status.id, "Blocked");
   store.customFields.addFieldSeed("Customer", "Text", { projectId });
@@ -59,7 +59,7 @@ async function renderManagerWithPicker() {
   );
   await expect
     .element(page.getByTestId("picker-fields"))
-    .toHaveTextContent("Effort, Status, Customer");
+    .toHaveTextContent("Effort, Stage, Customer");
   await expect.element(page.getByTestId("picker-choices")).toHaveTextContent("Ready, Blocked");
   return { store };
 }
@@ -75,29 +75,29 @@ describe("field queries", () => {
     await userEvent.keyboard("{Enter}");
     await expect
       .element(page.getByTestId("picker-fields"))
-      .toHaveTextContent("Effort, Status, Review date, Customer");
+      .toHaveTextContent("Effort, Stage, Review date, Customer");
 
     await fieldRow("Effort").getByTestId("field-rename").click();
     await userEvent.keyboard("{Control>}a{/Control}Story points{Enter}");
     await expect
       .element(page.getByTestId("picker-fields"))
-      .toHaveTextContent("Story points, Status, Review date, Customer");
+      .toHaveTextContent("Story points, Stage, Review date, Customer");
 
     await fieldRow("Review date").getByTestId("field-move-up").click();
     await expect
       .element(page.getByTestId("picker-fields"))
-      .toHaveTextContent("Story points, Review date, Status, Customer");
+      .toHaveTextContent("Story points, Review date, Stage, Customer");
 
     await fieldRow("Story points").getByTestId("field-archive").click();
     await expect
       .element(page.getByTestId("picker-fields"))
-      .toHaveTextContent("Review date, Status, Customer");
+      .toHaveTextContent("Review date, Stage, Customer");
   });
 
   it("Refreshes mounted choice pickers after choices are added, renamed, reordered and archived", async () => {
     await renderManagerWithPicker();
-    await fieldRow("Status").getByTestId("field-choices-toggle").click();
-    const status = () => fieldRow("Status");
+    await fieldRow("Stage").getByTestId("field-choices-toggle").click();
+    const status = () => fieldRow("Stage");
 
     await status().getByTestId("choice-new-label").fill("Done");
     await userEvent.keyboard("{Enter}");

@@ -9,26 +9,48 @@ import {
 } from "../calendar/calendar-dates.js";
 import { MONTH_DAY_COUNT } from "../calendar/calendar-metrics.js";
 
-const TYPED_DATE = /^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$/;
+const US_DATE = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/;
+const ISO_DATE = /^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$/;
+
+/** The year, month and day of typed `MM/DD/YYYY` text, or of `YYYY-MM-DD` text. */
+function typedParts(text: string) {
+  const us = US_DATE.exec(text);
+  if (us !== null) {
+    return { year: Number(us[3]), month: Number(us[1]), day: Number(us[2]) };
+  }
+  const iso = ISO_DATE.exec(text);
+  if (iso !== null) {
+    return { year: Number(iso[1]), month: Number(iso[2]), day: Number(iso[3]) };
+  }
+  return null;
+}
 
 /**
- * Reads a typed date as `YYYY-MM-DD`, accepting one-digit months and days.
- * Returns `""` for blank text and `null` for text that is not a real date.
+ * Reads a typed date as `MM/DD/YYYY` (the owner's preference), also accepting
+ * one-digit months and days and `YYYY-MM-DD`. Returns the `YYYY-MM-DD` value,
+ * `""` for blank text and `null` for text that is not a real date.
  */
 export function parseTypedDate(text: string): string | null {
   if (text.trim() === "") {
     return "";
   }
-  const match = TYPED_DATE.exec(text);
-  if (match === null) {
+  const parts = typedParts(text);
+  if (parts === null) {
     return null;
   }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
+  const { year, month, day } = parts;
   const iso = formatIsoDateInZone(Date.UTC(year, month - 1, day), "UTC");
-  const padded = `${match[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const padded = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   return iso === padded ? iso : null;
+}
+
+/** Shows a `YYYY-MM-DD` value as `MM/DD/YYYY`; `""` stays blank. */
+export function formatTypedDate(isoDate: string): string {
+  if (isoDate === "") {
+    return "";
+  }
+  const [year, month, day] = isoDate.split("-");
+  return `${month}/${day}/${year}`;
 }
 
 /** The 42 days of the six-week grid showing `month`, starting on `weekStartsOn`. */

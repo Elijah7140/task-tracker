@@ -12,6 +12,7 @@ import {
   openItemEditor,
   openProject,
   saveItemEditor,
+  shownDate,
 } from "../support/workflows.js";
 
 const escapeRegExp = (text: string) => text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -80,27 +81,27 @@ async function expectMovedAfterRelaunch(desktop: DesktopFixture, title: string, 
     await expect.poll(() => isInCell(page, title, date)).toBe(true);
     await entry(page, title).click();
 
-    expect(await openedDueDate(page, title)).toBe(date);
+    expect(await openedDueDate(page, title)).toBe(shownDate(date));
   });
 }
 
 desktopTest(
-  "Calendar shows due and scheduled items in month and week, opens one, and shows them after relaunch",
+  "Calendar shows due items in month and week, opens one, and shows them after relaunch",
   async ({ desktop }) => {
     const due = "Calendar due item";
-    const scheduled = "Calendar scheduled item";
+    const second = "Calendar second item";
     await withDesktop(desktop, async (page) => {
       await createProject(page);
       await openProject(page);
       await addItem(page, SMOKE_PROJECT, due);
       await setDateField(page, due, "Due date", localDate(0));
-      await addItem(page, SMOKE_PROJECT, scheduled);
-      await setDateField(page, scheduled, "Scheduled start", `${localDate(0)}T00:00`);
+      await addItem(page, SMOKE_PROJECT, second);
+      await setDateField(page, second, "Due date", localDate(0));
 
       await openCalendar(page);
       expect(await page.getByTestId("calendar-scope").innerText()).toContain("This project");
       await expect.poll(() => isInCell(page, due, localDate(0))).toBe(true);
-      expect(await isInCell(page, scheduled, localDate(0))).toBe(true);
+      expect(await isInCell(page, second, localDate(0))).toBe(true);
       await page.getByTestId("calendar-next").click();
       await page.getByTestId("calendar-previous").click();
       await page.getByTestId("calendar-today").click();
@@ -108,7 +109,7 @@ desktopTest(
       await page.getByTestId("calendar-view-week").click();
       await page.getByTestId("calendar-week-grid").waitFor();
       await entry(page, due).waitFor();
-      await entry(page, scheduled).waitFor();
+      await entry(page, second).waitFor();
       await entry(page, due).click();
 
       await expectGone(page.getByTestId("calendar-page"));
@@ -122,7 +123,7 @@ desktopTest(
       await openCalendar(page);
 
       await expect.poll(() => isInCell(page, due, localDate(0))).toBe(true);
-      expect(await isInCell(page, scheduled, localDate(0))).toBe(true);
+      expect(await isInCell(page, second, localDate(0))).toBe(true);
     });
   },
 );
@@ -141,7 +142,7 @@ desktopTest(
       await expect.poll(() => isInCell(page, title, localDate(2))).toBe(true);
       await entry(page, title).click();
 
-      expect(await openedDueDate(page, title)).toBe(localDate(2));
+      expect(await openedDueDate(page, title)).toBe(shownDate(localDate(2)));
     });
 
     await expectMovedAfterRelaunch(desktop, title, localDate(2));
@@ -167,7 +168,7 @@ desktopTest(
 
       await expect.poll(() => isInCell(page, title, localDate(2))).toBe(true);
       await entry(page, title).click();
-      expect(await openedDueDate(page, title)).toBe(localDate(2));
+      expect(await openedDueDate(page, title)).toBe(shownDate(localDate(2)));
     });
 
     await expectMovedAfterRelaunch(desktop, title, localDate(2));

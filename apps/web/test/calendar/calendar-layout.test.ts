@@ -72,16 +72,63 @@ function clip(value: Entry, day = MONDAY): CalendarOccurrence {
 }
 
 function buildDay(date: string, entries: ReadonlyArray<Entry>): CalendarDay {
-  return buildCalendarDays(date, 1, date, date, entries, "en-US")[0]!;
+  return buildCalendarDays(date, 1, date, date, entries, new Map(), "en-US")[0]!;
 }
 
 function named(day: CalendarDay, title: string): CalendarOccurrence {
   return day.entries.find((occurrence) => occurrence.entry.title === title)!;
 }
 
+describe("priority order within a day", () => {
+  it("Lists all-day entries by priority rank, most important first and no priority last", () => {
+    const ranks = new Map([
+      ["0190A1B2-0000-7000-8000-00000000AAAA", 0],
+      ["0190A1B2-0000-7000-8000-00000000BBBB", 1],
+    ]);
+    const entries = [
+      due(MONDAY, "A no priority"),
+      due(MONDAY, "B low", null, { priorityLevelId: "0190A1B2-0000-7000-8000-00000000BBBB" }),
+      due(MONDAY, "C critical", null, { priorityLevelId: "0190A1B2-0000-7000-8000-00000000AAAA" }),
+    ];
+
+    const [day] = buildCalendarDays(MONDAY, 1, MONDAY, MONDAY, entries, ranks, "en-US");
+
+    expect(day!.entries.map((occurrence) => occurrence.entry.title)).toEqual([
+      "C critical",
+      "B low",
+      "A no priority",
+    ]);
+  });
+
+  it("Keeps all-day entries ahead of timed ones whatever their priority", () => {
+    const ranks = new Map([["0190A1B2-0000-7000-8000-00000000AAAA", 0]]);
+    const entries = [
+      due(MONDAY, "Timed critical", "09:00:00", {
+        priorityLevelId: "0190A1B2-0000-7000-8000-00000000AAAA",
+      }),
+      due(MONDAY, "All day"),
+    ];
+
+    const [day] = buildCalendarDays(MONDAY, 1, MONDAY, MONDAY, entries, ranks, "en-US");
+
+    expect(day!.entries.map((occurrence) => occurrence.entry.title)).toEqual([
+      "All day",
+      "Timed critical",
+    ]);
+  });
+});
+
 describe("buildCalendarDays", () => {
   it("Marks days outside the month and today", () => {
-    const days = buildCalendarDays("2026-11-01", 42, "2026-11-13", "2026-11-13", [], "en-US");
+    const days = buildCalendarDays(
+      "2026-11-01",
+      42,
+      "2026-11-13",
+      "2026-11-13",
+      [],
+      new Map(),
+      "en-US",
+    );
 
     expect(days).toHaveLength(42);
     expect(days.filter((day) => !day.isOutsideMonth)).toHaveLength(30);
@@ -282,7 +329,7 @@ describe("accessible names", () => {
   });
 
   it("Names each day with its full date and marks today", () => {
-    const days = buildCalendarDays(MONDAY, 2, MONDAY, MONDAY, [], "en-US");
+    const days = buildCalendarDays(MONDAY, 2, MONDAY, MONDAY, [], new Map(), "en-US");
 
     expect(days.map((day) => day.accessibleName)).toEqual([
       "Monday, November 16, 2026, today",
