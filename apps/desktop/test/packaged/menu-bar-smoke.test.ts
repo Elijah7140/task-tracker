@@ -1,6 +1,6 @@
 import type { ElectronApplication, Page } from "playwright";
 import { expect } from "vitest";
-import { desktopTest, withDesktop } from "./support/desktop-app.js";
+import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import {
   addItem,
   chooseMenuCommand,
@@ -12,7 +12,7 @@ import {
   openAppSettingsFromMenu,
   openProject,
   SMOKE_PROJECT,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 const menuBar = (page: Page) => page.getByRole("menubar", { name: "Main menu" });
 

@@ -1,6 +1,6 @@
 import { FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
 import { expect, test } from "vitest";
-import { unpackedExecutable as executable } from "../scripts/package-paths.ts";
+import { unpackedExecutable as executable } from "../../scripts/package-paths.ts";
 
 // The fuse wire stores ASCII "1" and "0"; the package does not export its FuseState enum.
 const FuseState = { ENABLE: "1".charCodeAt(0), DISABLE: "0".charCodeAt(0) };

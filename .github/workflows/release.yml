@@ -5,6 +5,15 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # A dry run does everything a release does except publish: it packages and
+  # smoke-tests every platform and verifies the assembled files. Run it before
+  # tagging, because nothing else builds the macOS package.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to rehearse, such as v0.2.0. Nothing is published.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -13,9 +22,13 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # The pushed tag, or the version a dry run rehearses.
+  RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+
 jobs:
   package:
-    if: github.ref_type == 'tag' && !github.event.deleted
+    if: github.event_name == 'workflow_dispatch' || (github.ref_type == 'tag' && !github.event.deleted)
     name: Package ${{ matrix.target }}
     strategy:
       # One platform's failure must not cancel the others' packaging and smoke.
@@ -32,23 +45,16 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      # The same setup as CI, so the smoke runs under the conditions CI proved.
+      - uses: ./.github/actions/setup-workspace
         with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Install Linux browser and Electron dependencies
-        if: runner.os == 'Linux'
-        run: |
-          pnpm exec playwright install --with-deps chromium
-          sudo apt-get install -y --no-install-recommends xvfb xauth dbus
-      - name: Build the tagged package
+          linux-desktop: "true"
+      - name: Build the release package
         shell: bash
-        run: pnpm run package:desktop "$GITHUB_REF_NAME"
+        run: pnpm run package:desktop "$RELEASE_TAG"
       # The packaged Chromium sandbox helper must be setuid root (WP22).
       - name: Run packaged desktop smoke on Linux
         if: runner.os == 'Linux'
@@ -62,7 +68,7 @@ jobs:
         run: pnpm run test:desktop
       # Installers, blockmaps, latest*.yml or beta*.yml, and SHA256SUMS.json from
       # the native build.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.target }}
           path: apps/desktop/dist/package/release/
@@ -70,35 +76,38 @@ jobs:
           overwrite: true
 
   publish:
+    name: ${{ github.event_name == 'push' && 'Verify and publish' || 'Verify only (dry run)' }}
     needs: package
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # The only job that can write: it creates the draft, uploads and publishes.
+    # Only the publish step receives the token, and a dry run skips that step.
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
       # Download each native build's verified payload into its own directory.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-win-x64
           path: release-bundles/win-x64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-linux-x64
           path: release-bundles/linux-x64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-mac-arm64
           path: release-bundles/mac-arm64
       - name: Verify the release assembly
-        run: node apps/desktop/scripts/publish-release.ts "$GITHUB_REF_NAME" release-bundles
+        run: node apps/desktop/scripts/publish-release.ts "$RELEASE_TAG" release-bundles
       - name: Upload and publish the verified draft
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node apps/desktop/scripts/publish-release.ts "$GITHUB_REF_NAME" release-bundles --publish
+        run: node apps/desktop/scripts/publish-release.ts "$RELEASE_TAG" release-bundles --publish

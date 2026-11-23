@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import { desktopTest, withDesktop } from "./support/desktop-app.js";
+import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import {
   addItem,
   createProject,
@@ -8,7 +8,7 @@ import {
   openProject,
   saveItemEditor,
   SMOKE_PROJECT,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 const title = "Launch test";
 const description = "[Spec](https://example.com/spec)";

@@ -4,18 +4,23 @@ name: CI
 on:
   push:
     branches: [main]
+    # A change to Markdown alone cannot change a build or a test.
+    paths-ignore: ["**/*.md"]
   pull_request:
+    paths-ignore: ["**/*.md"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A pull request keeps one run: a newer push cancels the run in progress. On main
+# every commit gets its own group, so its run neither waits behind an earlier one
+# nor is dropped while pending when a later commit arrives.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  # Finish every main build so its history stays complete.
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || (github.ref == 'refs/heads/main' && github.sha) || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-# The jobs run in parallel. Each OS gets one checks job, two browser-test shards and
+# The jobs run in parallel. Each OS gets one checks job, three browser-test shards and
 # two packaged-smoke shards.
 jobs:
   checks:
@@ -31,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
@@ -62,14 +67,38 @@ jobs:
       - name: Verify Electron runtime on Windows
         if: runner.os == 'Windows'
         run: pnpm run check:electron
+      # The installers a person can download to try this build. The smoke jobs test
+      # the unpacked app, so they skip the slower installer step.
+      # electron-builder downloads NSIS and 7-Zip on every Windows package otherwise.
+      - name: Restore electron-builder downloads
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/electron-builder
+          key: electron-builder-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-builder-${{ runner.os }}-
+      - name: Build desktop installers
+        run: pnpm --filter @task-tracker/desktop run package
+        env:
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.platform }}-x64
+          path: |
+            apps/desktop/dist/package/*.AppImage
+            apps/desktop/dist/package/*.exe
+          if-no-files-found: error
+          retention-days: 7
 
   browser:
-    name: Browser tests (${{ matrix.platform }}, ${{ matrix.shard }}/2)
+    name: Browser tests (${{ matrix.platform }}, ${{ matrix.shard }}/3)
     strategy:
       fail-fast: false
       matrix:
         platform: [linux, windows]
-        shard: [1, 2]
+        # Vitest splits files by a hash of their paths. Two shards left one with
+        # most of the slow suites; three keep the slowest shard well under the smoke.
+        shard: [1, 2, 3]
         include:
           - platform: linux
             runner: ubuntu-latest
@@ -78,16 +107,16 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
         with:
           chromium: "true"
-      - run: pnpm run test:browser --shard=${{ matrix.shard }}/2
+      - run: pnpm run test:browser --shard=${{ matrix.shard }}/3
       - name: Upload differing browser screenshots
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-screenshot-diffs-${{ matrix.platform }}-${{ matrix.shard }}
           path: |
@@ -111,22 +140,25 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
         with:
           linux-desktop: "true"
-      # electron-builder downloads NSIS and 7-Zip on every Windows package otherwise.
+      # electron-builder downloads its Windows tools on every package otherwise.
       - name: Restore electron-builder downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/electron-builder
           key: electron-builder-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: electron-builder-${{ runner.os }}-
+      # The smoke drives the unpacked app, so it skips the installer. The checks
+      # job builds and uploads the installers.
       - run: pnpm run package:desktop
         env:
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
+          TASKTRACKER_PACKAGE_UNPACKED: "1"
       # The packaged Chromium sandbox helper must be setuid root (WP22).
       - name: Run packaged desktop smoke on Linux
         if: runner.os == 'Linux'
@@ -138,13 +170,3 @@ jobs:
       - name: Run packaged desktop smoke on Windows
         if: runner.os == 'Windows'
         run: pnpm run test:desktop --shard=${{ matrix.shard }}/2
-      - name: Upload desktop installers
-        if: matrix.shard == 1
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-${{ matrix.platform }}-x64
-          path: |
-            apps/desktop/dist/package/*.AppImage
-            apps/desktop/dist/package/*.exe
-          if-no-files-found: error
-          retention-days: 7

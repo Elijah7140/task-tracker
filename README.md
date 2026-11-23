@@ -19,7 +19,7 @@ pnpm dev
 `pnpm dev` opens Electron with the Vite renderer and a local RPC server. Set
 `TASKTRACKER_DB_PATH` to develop against an isolated SQLite file. The app uses
 the existing Task Tracker data path by default and backs up recognized legacy
-databases before adopting them. Support for the final .NET schema is tracked in WP25. For path and rollback details, see
+databases before adopting them, including the final .NET schema. For path and rollback details, see
 [database continuity](docs/PLAN.md#52-database-specifics-and-continuity).
 
 On Linux, Electron requires GTK 3. If installed user-locally under
@@ -28,6 +28,7 @@ On Linux, Electron requires GTK 3. If installed user-locally under
 ## Build and test
 
 ```sh
+pnpm install --frozen-lockfile
 pnpm exec playwright install chromium
 pnpm run build
 pnpm exec vp check --deny-warnings
@@ -36,7 +37,8 @@ pnpm run test:browser
 pnpm run test:server-db:electron
 ```
 
-On a Linux host that needs Chromium system dependencies, use
+Build before the static check: packages resolve each other through their build
+output. On a Linux host that needs Chromium system dependencies, use
 `pnpm exec playwright install --with-deps chromium`. For a focused test run,
 pass a Vitest project such as `--project core` to `pnpm exec vp test run`.
 `test:node` runs every Node project except the server's SQLite and RPC suites,
@@ -142,7 +144,17 @@ overrides it. Feeds must use HTTPS, except on the loopback interface.
 1. Make sure CI is green on the commit to release.
 2. Choose the version, such as `v0.2.0`, or `v0.2.0-rc.1` for a prerelease.
    The tag supplies the version to every package, so no file needs a bump.
-3. Tag the commit and push the tag:
+3. Rehearse the release from `main` and wait for it to pass:
+
+   ```sh
+   gh workflow run release.yml -f version=v0.2.0
+   ```
+
+   The dry run packages and smoke-tests all three platforms and verifies the
+   assembled files, then stops without publishing. CI builds no macOS package,
+   so this is the only check of it before the tag.
+
+4. Tag the commit and push the tag:
 
    ```sh
    git tag v0.2.0

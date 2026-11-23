@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { expect } from "vitest";
-import { desktopTest, withDesktop } from "./support/desktop-app.js";
+import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import {
   addItem,
   answerPrompt,
@@ -17,7 +17,7 @@ import {
   quickAdd,
   SMOKE_PROJECT,
   selectItem,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 desktopTest(
   "Opening a project focuses quick-add and its new item persists after relaunch",

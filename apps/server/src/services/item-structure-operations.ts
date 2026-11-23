@@ -5,7 +5,7 @@ import { folderRepository } from "../db/repositories/folder-repository.js";
 import { itemRepository } from "../db/repositories/item-repository.js";
 import { projectRepository } from "../db/repositories/project-repository.js";
 import { Guid } from "../db/storage-codecs.js";
-import { areaUndoSources } from "./area-undo-sources.js";
+import { addsTicketOccurrence, areaUndoSources } from "./area-undo-sources.js";
 import { checkRules } from "./check-rules.js";
 import type { itemCompletionOperations } from "./item-completion-operations.js";
 import { newId } from "./new-id.js";
@@ -76,7 +76,8 @@ export function itemStructureOperations(
     const now = yield* operationTime;
     const { result, label, affectedParents } = yield* checkRules(() => change(tree, now));
     const applied = yield* completion.planReconciliation(tree, affectedParents, now, occurrences);
-    yield* undo.capture(label, areaUndoSources(sql, tree.projectId, tree.folderId));
+    const ranksTickets = addsTicketOccurrence(tree, applied);
+    yield* undo.capture(label, areaUndoSources(sql, tree.projectId, tree.folderId, ranksTickets));
     yield* saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);
     return result;

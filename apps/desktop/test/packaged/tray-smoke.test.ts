@@ -9,10 +9,10 @@ import {
   executable,
   firstWindow,
   launch,
-} from "./support/desktop-app.js";
-import { openAppSettingsFromMenu } from "./support/workflows.js";
-import { isRunning, serverPid } from "./support/desktop-processes.js";
-import { type FakeSessionBus, startFakeSessionBus } from "./support/fake-tray-host.js";
+} from "../support/desktop-app.js";
+import { openAppSettingsFromMenu } from "../support/workflows.js";
+import { isRunning, serverPid } from "../support/desktop-processes.js";
+import { type FakeSessionBus, startFakeSessionBus } from "../support/fake-tray-host.js";
 
 interface TrayState {
   menus: Electron.Menu[];

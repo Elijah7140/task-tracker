@@ -5,6 +5,7 @@ import {
   type ItemTree,
   type OccurrenceContext,
   type OccurrenceCopy,
+  type TodoItem,
 } from "@task-tracker/core";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -99,8 +100,11 @@ export function itemCompletionOperations(sql: SqlClient.SqlClient, timeZone: str
     );
   });
 
-  /** Completes or reopens one item with its cascade, and saves any next occurrences. */
-  const setCompleted = Effect.fnUntraced(function* (
+  /**
+   * Plans completing or reopening one item with its cascade. Only the loaded
+   * tree changes, so the caller can capture undo rows before saving the plan.
+   */
+  const planCompleted = Effect.fnUntraced(function* (
     tree: ItemTree,
     itemId: string,
     completed: boolean,
@@ -116,12 +120,19 @@ export function itemCompletionOperations(sql: SqlClient.SqlClient, timeZone: str
         ? CompletionService.complete(tree, itemId, autoComplete, now, approval, context)
         : CompletionService.reopen(tree, itemId, autoComplete, now),
     );
-    if (result.kind === "applied") {
-      yield* saveItemRows(items, tree, original);
-      yield* apply(tree.projectId, now, result);
-    }
-    return result;
+    return { result, original, now };
   });
 
-  return { apply, occurrenceContext, planReconciliation, setCompleted };
+  /** Saves the rows an applied completion plan changed, then any next occurrences. */
+  const saveCompleted = Effect.fnUntraced(function* (
+    tree: ItemTree,
+    original: ReadonlyMap<string, TodoItem>,
+    now: Temporal.Instant,
+    applied: AppliedCompletion,
+  ) {
+    yield* saveItemRows(items, tree, original);
+    yield* apply(tree.projectId, now, applied);
+  });
+
+  return { apply, occurrenceContext, planReconciliation, planCompleted, saveCompleted };
 }

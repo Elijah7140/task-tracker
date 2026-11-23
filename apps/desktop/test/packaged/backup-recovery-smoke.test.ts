@@ -13,8 +13,8 @@ import {
   launch,
   phase3Fixture,
   withDesktop,
-} from "./support/desktop-app.js";
-import { serverPid } from "./support/desktop-processes.js";
+} from "../support/desktop-app.js";
+import { serverPid } from "../support/desktop-processes.js";
 import {
   SMOKE_PROJECT,
   addItem,
@@ -29,7 +29,7 @@ import {
   openFolder,
   openProject,
   projectCard,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 interface DialogState {
   messages: MessageBoxOptions[];

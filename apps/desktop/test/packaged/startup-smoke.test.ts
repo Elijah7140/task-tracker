@@ -2,9 +2,9 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { expect } from "vitest";
-import { desktopTest, withDesktop } from "./support/desktop-app.js";
-import { openAppSettingsFromMenu } from "./support/workflows.js";
-import { fakeAppImageInstall } from "./support/installed-app.js";
+import { desktopTest, withDesktop } from "../support/desktop-app.js";
+import { openAppSettingsFromMenu } from "../support/workflows.js";
+import { fakeAppImageInstall } from "../support/installed-app.js";
 
 const startWithSystem = (page: Page) =>
   page.getByRole("checkbox", { name: "Start Task Tracker when I sign in" });

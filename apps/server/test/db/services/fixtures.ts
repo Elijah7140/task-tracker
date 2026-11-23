@@ -10,6 +10,8 @@ export function seedItem(
     FolderId?: string;
     ParentItemId?: string;
     DueDate?: string;
+    DueTime?: string;
+    ScheduledStart?: string;
     CompletedAtUtc?: string;
     ItemTypeId?: string;
     PriorityLevelId?: string;

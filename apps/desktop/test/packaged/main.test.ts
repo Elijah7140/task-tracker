@@ -14,9 +14,9 @@ import {
   firstWindow,
   launch,
   phase3Fixture,
-} from "./support/desktop-app.js";
-import { isRunning, serverPid } from "./support/desktop-processes.js";
-import { answerPrompt } from "./support/workflows.js";
+} from "../support/desktop-app.js";
+import { isRunning, serverPid } from "../support/desktop-processes.js";
+import { answerPrompt } from "../support/workflows.js";
 
 /** Starts another instance against the same profile and returns its exit code and signal. */
 async function runSecondInstance(desktop: DesktopFixture) {

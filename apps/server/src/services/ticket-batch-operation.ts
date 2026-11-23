@@ -92,7 +92,11 @@ export function ticketBatchOperation(
     );
     const applied = yield* completion.planReconciliation(tree, [null], now);
     const titles = prepared.map(({ row }) => row.title);
-    yield* undo.capture(batchLabel(titles), areaUndoSources(sql, tree.projectId, tree.folderId));
+    // Every new ticket is ranked, so the step records ranks outside the area too.
+    yield* undo.capture(
+      batchLabel(titles),
+      areaUndoSources(sql, tree.projectId, tree.folderId, true),
+    );
     yield* dependencies.saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);
     yield* Effect.forEach(prepared, steps.writeExtras, { discard: true });

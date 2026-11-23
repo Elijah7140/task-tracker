@@ -1,6 +1,6 @@
 # Task Tracker — Project Plan
 
-Status: **Revision 7 — TypeScript cutover complete, legacy feature port planned** · Owner: Elijah Harris · PM: Claude
+Status: **Revision 7 — TypeScript cutover and legacy feature port complete; v0.1.0 released 20 Nov 2026** · Owner: Elijah Harris · PM: Claude
 
 ## 1. Goal
 
@@ -59,7 +59,7 @@ The TypeScript cutover includes the shipped Phase 3 custom fields. Sections 7.2 
 | IDs | Uppercase GUID strings on the wire. Normalize on decode. Generate UUIDv7 for new IDs and preserve existing IDs | Time order keeps index locality and leaves room for future sync |
 | Time | Effect `Clock` for current time and timers. Temporal in Core for floating calendar values and explicit zone conversion (§5.4). ISO strings on the wire | Deterministic rules with calendar values kept separate from instants |
 | Boundary | Effect Schema contracts and typed RPC over local WebSocket/HTTP using Effect HTTP and `effect/rpc` | One wire contract for the server and renderer |
-| Web | React 19.3, Vite, TanStack Router, Tailwind 4, `@base-ui/react`, `lucide-react`, `@dnd-kit`, Zustand, `@effect/atom-react`, and `@fontsource-variable/inter` | Accessible primitives, keyboard and pointer interactions, and shared design tokens |
+| Web | React 19.3, Vite, TanStack Router, Tailwind 4, `@base-ui/react`, `lucide-react`, a project pointer-drag hook, Zustand, `@effect/atom-react`, and `@fontsource-variable/inter` | Accessible primitives, keyboard and pointer interactions, and shared design tokens |
 | Desktop | Electron with embedded Node supporting `node:sqlite` and FTS5, and electron-builder | Windows-first desktop distribution with a local server and narrow native IPC |
 | Tests | Vitest, `@effect/vitest`, `@vitest/browser-playwright`, Playwright | Fast domain and database suites, real browser input and desktop smoke coverage |
 
@@ -1898,7 +1898,7 @@ clipboard reconstruction and Pending notes remain proposals from 13 Nov 2026. Se
 | Web behavior | Vitest and `@vitest/browser-playwright` | Controller state, mounted React components and real browser input for focus, shortcuts, gestures, click paths and dialogs | Every phase once web work lands, CI on both OSes |
 | Visual baselines | Playwright screenshots in Chromium | Approved key screens and dialogs in light and dark. Review changes before updating images | With browser tests on Linux. Windows captures on demand for review (decision 11) |
 | Desktop smoke | Playwright Electron | Launch the packaged app, navigate, perform 5–10 core workflows and verify persistence after restart | CI on Windows and Linux |
-| Owner review | Hands-on demo | Check the phase's deliverable and review changed baselines | End of each phase, before merge |
+| Owner review | Hands-on use | Check what landed and review changed baselines. Findings become follow-up fixes with regression tests | After a change lands on `main`. It never gates a merge ([AGENTS.md](../AGENTS.md)) |
 
 - A new shortcut, gesture or dialog ships with a simulated-input browser test.
   Use accessible roles/names and stable `data-testid` identifiers on interactive
@@ -1912,26 +1912,18 @@ clipboard reconstruction and Pending notes remain proposals from 13 Nov 2026. Se
 
 ### 11.2 Commands
 
-Run these root commands with Node 26 and pnpm 12.
-Vite+ enables type-aware checking and type diagnostics. Build and
-static checks must finish with zero warnings.
+The README lists the commands under [Build and test](../README.md#build-and-test)
+and [Package and smoke-test](../README.md#package-and-smoke-test). Run them from
+the root with Node 26 and pnpm 12. Vite+ enables type-aware checking and type
+diagnostics. Build and static checks must finish with zero warnings.
 [Vite+ check](https://www.viteplus.dev/guide/check)
 
-```sh
-pnpm install --frozen-lockfile
-pnpm exec vp check --deny-warnings
-pnpm run build
-pnpm exec playwright install chromium
-pnpm exec vp test run
-pnpm exec vp test run --project core
-pnpm run package:desktop
-pnpm run test:desktop
-```
-
-`build` builds the workspace in dependency order. `package:desktop` produces the
-current platform's electron-builder output and unpacked executable. `test:desktop`
-runs Playwright smoke against that executable. On headless Linux, source
-`scripts/dev-env.sh` for user-local GTK and run `xvfb-run -a pnpm run test:desktop`.
+`build` builds the workspace in dependency order and comes before the static
+check, because packages resolve each other through their build output.
+`package:desktop` produces the current platform's electron-builder output and
+unpacked executable. `test:desktop` runs Playwright smoke against that executable.
+On headless Linux, source `scripts/dev-env.sh` for user-local GTK and run
+`xvfb-run -a pnpm run test:desktop`.
 
 CI runs on GitHub-hosted runners for every pull request and push to `main`. The local gate in
 [CI.md](CI.md) is an optional pre-push check.

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Page } from "playwright";
 import { expect } from "vitest";
-import { desktopTest, withDesktop } from "./support/desktop-app.js";
+import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import {
   SMOKE_PROJECT,
   addItem,
@@ -12,7 +12,7 @@ import {
   itemRow,
   openProject,
   projectCard,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 const IMPORTED = `${SMOKE_PROJECT} (imported)`;
 

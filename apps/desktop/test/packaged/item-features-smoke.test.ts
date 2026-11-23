@@ -1,6 +1,6 @@
 import type { Locator, Page } from "playwright";
 import { expect } from "vitest";
-import { desktopTest, withDesktop } from "./support/desktop-app.js";
+import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import {
   SMOKE_PROJECT,
   addItem,
@@ -14,7 +14,7 @@ import {
   openProject,
   pickOption,
   saveItemEditor,
-} from "./support/workflows.js";
+} from "../support/workflows.js";
 
 /** Closes the editor without changes. */
 async function closeEditor(page: Page, editor: Locator) {

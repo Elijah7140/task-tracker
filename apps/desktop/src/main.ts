@@ -2,27 +2,12 @@ import { randomUUID } from "node:crypto";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  ADD_TICKETS_HASH,
-  externalLinkAddress,
-  Guid,
-  type RpcConnection,
-  IN_PROGRESS_WINDOW_HASH,
-  TRAY_CARD_HASH,
-} from "@task-tracker/contracts";
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  Menu,
-  Notification,
-  powerMonitor,
-  session,
-  shell,
-} from "electron";
-import { Effect, Option, Schema } from "effect";
+import type { RpcConnection } from "@task-tracker/contracts";
+import { app, BrowserWindow, dialog, Menu, Notification, powerMonitor, session } from "electron";
+import { Effect } from "effect";
 import { createAppTray } from "./app-tray.js";
+import { type AuxiliaryWindows, createAuxiliaryWindows } from "./auxiliary-windows.js";
+import { mainFrameGuard } from "./frame-guard.js";
 import { instanceProfile } from "./instance-scope.js";
 import { withLaunchLock } from "./launch-lock.js";
 import {
@@ -34,6 +19,7 @@ import {
 import { registerInstallationHandlers } from "./installation/installation-ipc.js";
 import type { UpdateHandoff } from "./installation/update-handoff.js";
 import { makeNativeNotifier } from "./native-notifier.js";
+import { createQuitCoordinator } from "./quit-coordinator.js";
 import { createReminderNotifications } from "./reminder-notifications.js";
 import {
   type RendererAddress,
@@ -42,6 +28,7 @@ import {
   servePackagedRenderer,
 } from "./renderer.js";
 import type { ServerMessage } from "./server-messages.js";
+import { registerRendererIpc } from "./renderer-ipc.js";
 import { type RelaunchCommand, relaunchAfterExit } from "./relaunch-after-exit.js";
 import { relaunchCommand } from "./relaunch-command.js";
 import { relaunchOnExit } from "./relaunch-on-exit.js";
@@ -54,9 +41,6 @@ import {
 } from "./server-process.js";
 import { serverStoppedPage } from "./server-stopped-page.js";
 import { registerTransferFileHandler } from "./transfer-file-handler.js";
-import { createTicketBatchWindow, type TicketBatchWindow } from "./ticket-batch-window.js";
-import { createTrayCardWindow, type TrayCardWindow } from "./tray-card-window.js";
-import { createInProgressWindow, type InProgressWindow } from "./in-progress-window.js";
 import { applicationMenuTemplate } from "./application-menu.js";
 import { decideTrayClose } from "./tray-close-decision.js";
 import { windowsAppIdentity } from "./windows-app-identity.js";
@@ -67,8 +51,6 @@ const REMINDER_ACTIVATED_CHANNEL = "task-tracker:reminder-activated";
 let window: BrowserWindow | undefined;
 let server: ServerProcess | undefined;
 let connection: RpcConnection | undefined;
-let quitting = false;
-let relaunchScheduled = false;
 /** The `KeepRunningInTray` setting as the server last reported it. */
 let keepRunningInTray = false;
 /** Whether a close hid the window to the tray, so only the tray or a new launch shows it. */
@@ -79,19 +61,37 @@ const iconPath = app.isPackaged
   ? join(process.resourcesPath, "icon.png")
   : fileURLToPath(new URL("../../../assets/icon.png", import.meta.url));
 
-/** The in-progress card a left click on the tray icon shows (§7.18). */
-let trayCard: TrayCardWindow | undefined;
-/** The card's stack popped out into a window that stays open (§7.18). */
-let inProgressWindow: InProgressWindow | undefined;
-/** The multi-ticket add window the tray menu opens (§7.20). */
-let ticketBatch: TicketBatchWindow | undefined;
+/** The narrow preload every window shares. */
+const preloadPath = fileURLToPath(new URL("./preload.cjs", import.meta.url));
+
+/** The tray card, its pop-out and the add-tickets window, once the app is ready. */
+let auxiliary: AuxiliaryWindows | undefined;
 
 const tray = createAppTray({
   iconPath,
   onOpen: showWindow,
-  onAddTickets: () => ticketBatch?.show(),
+  onAddTickets: () => auxiliary?.ticketBatch.show(),
   onQuit: () => app.quit(),
-  onClick: () => trayCard?.toggle(),
+  onClick: () => auxiliary?.trayCard.toggle(),
+});
+
+const appQuit = createQuitCoordinator({
+  server: () => server,
+  onServerStopped: (stop, exit) => {
+    logServerStop(stop, exit);
+    server = undefined;
+  },
+  onQuit: () => tray.destroy(),
+  quit: () => app.quit(),
+  showWindow,
+  relaunchAfterQuit: () =>
+    relaunchAfterQuit(
+      relaunchCommand({
+        executable: process.execPath,
+        args: process.argv.slice(1),
+        environment: process.env,
+      }),
+    ),
 });
 
 const reminders = createReminderNotifications({
@@ -184,27 +184,6 @@ function handleServerMessage(message: ServerMessage) {
   }
 }
 
-/**
- * The quitting instance keeps the single-instance lock until its server has stopped,
- * so a launch during that window starts the app again once the quit finishes.
- */
-function onSecondInstance() {
-  if (!quitting) {
-    showWindow();
-    return;
-  }
-  if (!relaunchScheduled) {
-    relaunchScheduled = true;
-    relaunchAfterQuit(
-      relaunchCommand({
-        executable: process.execPath,
-        args: process.argv.slice(1),
-        environment: process.env,
-      }),
-    );
-  }
-}
-
 /** Starts `command` once this process has exited, through Electron where the OS needs it. */
 function relaunchAfterQuit(command: RelaunchCommand) {
   relaunchOnExit(command, { afterExit: relaunchAfterExit, electron: electronRelaunch });
@@ -222,26 +201,6 @@ function electronRelaunch(options: { execPath: string; args: string[] }) {
 /** Quits and finishes the update, relaunching a replaced AppImage after the exit. */
 function restartWithUpdate(handoff: UpdateHandoff) {
   quitAndFinishUpdate(handoff, relaunchAfterQuit);
-}
-
-/** Holds the quit until the server child has closed its database. */
-function beforeQuit(event: Electron.Event) {
-  if (server === undefined) {
-    quitting = true;
-    tray.destroy();
-    return;
-  }
-  event.preventDefault();
-  if (quitting) {
-    return;
-  }
-  quitting = true;
-  const child = server;
-  void child.stop().then(async (stop) => {
-    logServerStop(stop, await child.closed);
-    server = undefined;
-    app.quit();
-  });
 }
 
 /**
@@ -267,7 +226,7 @@ function createWindow(url: string) {
     minHeight: 500,
     show: false,
     webPreferences: {
-      preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),
+      preload: preloadPath,
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -286,18 +245,12 @@ function createWindow(url: string) {
     }
   });
   renderer.on("close", (event) => handleClose(renderer, event));
-  // Windows reports a sign-out or shutdown here; the app quits as usual then.
-  renderer.on("session-end", () => {
-    quitting = true;
-  });
+  // Windows reports a sign-out or shutdown here, and nothing can hold the session open.
+  renderer.on("session-end", appQuit.endSession);
   renderer.on("focus", requestReminderCheck);
   renderer.once("closed", () => {
     window = undefined;
-    // A hidden card or the pop-out would otherwise keep the app running after its last window.
-    trayCard?.destroy();
-    inProgressWindow?.destroy();
-    // The add window asks first when it holds tickets that Done has not saved.
-    ticketBatch?.close();
+    auxiliary?.closeWithApp();
   });
   return renderer;
 }
@@ -305,14 +258,14 @@ function createWindow(url: string) {
 /**
  * Hides to the tray or minimises instead of closing when reminders should keep
  * running. Electron does not say why a window closes, so a quit or the end of
- * the OS session marks `quitting` first and every other close is the user's.
+ * the OS session marks the app as quitting first and every other close is the user's.
  */
 function handleClose(renderer: BrowserWindow, event: Electron.Event) {
   const state = {
     keepRunningInTray,
     trayIconShown: tray.shown(),
     minimized: renderer.isMinimized(),
-    quitting,
+    quitting: appQuit.quitting(),
   };
   const action = decideTrayClose(state, "user");
   if (action === "hide-to-tray") {
@@ -327,7 +280,7 @@ function handleClose(renderer: BrowserWindow, event: Electron.Event) {
 
 /** Offers to reload the page or quit after the renderer process ends unexpectedly. */
 async function handleRendererGone(renderer: BrowserWindow, url: string, reason: string) {
-  if (quitting || renderer.isDestroyed()) {
+  if (appQuit.quitting() || renderer.isDestroyed()) {
     return;
   }
   const { response } = await dialog.showMessageBox(renderer, {
@@ -339,7 +292,7 @@ async function handleRendererGone(renderer: BrowserWindow, url: string, reason: 
     defaultId: 0,
     cancelId: 1,
   });
-  if (response !== 0 || quitting || renderer.isDestroyed()) {
+  if (response !== 0 || appQuit.quitting() || renderer.isDestroyed()) {
     app.quit();
     return;
   }
@@ -357,16 +310,14 @@ async function showServerStopped(renderer: BrowserWindow) {
 async function handleCrash(diagnostic: string, address: RendererAddress) {
   server = undefined;
   connection = undefined;
-  // The card's and pop-out's pages hold the old connection; the next click opens them afresh.
-  trayCard?.destroy();
-  inProgressWindow?.destroy();
-  ticketBatch?.destroy();
-  if (quitting || window === undefined) {
+  // Their pages hold the old connection; the next click opens them afresh.
+  auxiliary?.destroyAll();
+  if (appQuit.quitting() || window === undefined) {
     return;
   }
   showWindow();
   await showServerStopped(window);
-  if (quitting || window === undefined) {
+  if (appQuit.quitting() || window === undefined) {
     return;
   }
   const { response } = await dialog.showMessageBox(window, {
@@ -378,7 +329,7 @@ async function handleCrash(diagnostic: string, address: RendererAddress) {
     defaultId: 0,
     cancelId: 1,
   });
-  if (response === 0 && !quitting) {
+  if (response === 0 && !appQuit.quitting()) {
     await start(address);
   } else {
     app.quit();
@@ -403,7 +354,7 @@ function spawnServer(address: RendererAddress) {
 /** Waits for the server (launching one unless given) and (re)loads the renderer. */
 async function start(address: RendererAddress, child = spawnServer(address)) {
   connection = await child.ready;
-  if (quitting) {
+  if (appQuit.quitting()) {
     return;
   }
   void child.closed.then(({ diagnostic }) => handleCrash(diagnostic, address)).catch(startupFailed);
@@ -415,7 +366,7 @@ async function start(address: RendererAddress, child = spawnServer(address)) {
 }
 
 async function startupFailed(error: unknown) {
-  if (quitting) {
+  if (appQuit.quitting()) {
     return;
   }
   await dialog.showMessageBox({
@@ -487,23 +438,12 @@ async function openApplication(early: EarlyStart | Error) {
     servePackagedRenderer(() => connection?.port);
   }
   denyPermissions();
-  const preload = fileURLToPath(new URL("./preload.cjs", import.meta.url));
-  trayCard = createTrayCardWindow({
-    url: `${address.url}${TRAY_CARD_HASH}`,
-    preload,
+  auxiliary = createAuxiliaryWindows({
+    rendererUrl: address.url,
+    preload: preloadPath,
     devTools: !app.isPackaged,
   });
-  inProgressWindow = createInProgressWindow({
-    url: `${address.url}${IN_PROGRESS_WINDOW_HASH}`,
-    preload,
-    devTools: !app.isPackaged,
-  });
-  ticketBatch = createTicketBatchWindow({
-    url: `${address.url}${ADD_TICKETS_HASH}`,
-    preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),
-    devTools: !app.isPackaged,
-  });
-  registerRendererHandlers(address, installation);
+  registerRendererHandlers(address, installation, auxiliary);
   powerMonitor.on("resume", requestReminderCheck);
   await start(address, child);
 }
@@ -516,123 +456,34 @@ function denyPermissions() {
   session.defaultSession.setPermissionCheckHandler(() => false);
 }
 
-/** Limits native calls to the main frame of the app window at the renderer page. */
-function isRendererFrame(event: Electron.IpcMainInvokeEvent, address: RendererAddress) {
-  const frame = event.senderFrame;
-  return (
-    event.sender === window?.webContents &&
-    frame?.parent === null &&
-    frame.url.split("#")[0] === address.url
-  );
-}
-
-/** Limits tray card calls to the main frame of the card window at the card page (§7.18). */
-function isTrayCardFrame(
-  event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent,
-  address: RendererAddress,
-) {
-  const frame = event.senderFrame;
-  return (
-    trayCard?.isSender(event.sender) === true &&
-    frame?.parent === null &&
-    frame.url === `${address.url}${TRAY_CARD_HASH}`
-  );
-}
-
-/** Limits pop-out calls to the main frame of the in-progress window at its page (§7.18). */
-function isInProgressWindowFrame(event: Electron.IpcMainInvokeEvent, address: RendererAddress) {
-  const frame = event.senderFrame;
-  return (
-    inProgressWindow?.isSender(event.sender) === true &&
-    frame?.parent === null &&
-    frame.url === `${address.url}${IN_PROGRESS_WINDOW_HASH}`
-  );
-}
-
-/** Hides the card and shows its stack in the window that stays open (§7.18). */
-function popOutTrayCard() {
-  trayCard?.hide();
-  inProgressWindow?.show();
-  return inProgressWindow !== undefined;
-}
-
-/** Limits the add window's calls to its main frame at the add-tickets page (§7.20). */
-function isTicketBatchFrame(event: Electron.IpcMainInvokeEvent, address: RendererAddress) {
-  const frame = event.senderFrame;
-  return (
-    ticketBatch?.isSender(event.sender) === true &&
-    frame?.parent === null &&
-    frame.url === `${address.url}${ADD_TICKETS_HASH}`
-  );
-}
-
-const decodeItemId = Schema.decodeUnknownOption(Guid);
-
-/** Hides the card and opens a valid item in the main window, as reminder activation does. */
-function openItemFromTrayCard(value: unknown) {
-  const itemId = Option.getOrUndefined(decodeItemId(value));
-  if (itemId === undefined) {
-    return false;
-  }
-  trayCard?.hide();
-  activateReminder(itemId);
-  return true;
-}
-
+/**
+ * Registers every call a page may make to Electron main. Native calls from the
+ * app window are limited to its main frame at the renderer page, on any route.
+ */
 function registerRendererHandlers(
   address: RendererAddress,
   installation: DesktopInstallationServices,
+  windows: AuxiliaryWindows,
 ) {
+  const isRendererFrame = mainFrameGuard(
+    (contents) => contents === window?.webContents,
+    (url) => url.split("#")[0] === address.url,
+  );
   registerInstallationHandlers({
     ...installation,
-    isRendererFrame: (event) => isRendererFrame(event, address),
+    isRendererFrame,
     restartWith: restartWithUpdate,
   });
   registerTransferFileHandler({
-    isRendererFrame: (event) => isRendererFrame(event, address),
+    isRendererFrame,
     window: () => window,
     grant: (grant) => server?.send(grant) ?? false,
   });
-  ipcMain.handle("task-tracker:get-rpc-connection", (event) => {
-    const allowed =
-      isRendererFrame(event, address) ||
-      isTrayCardFrame(event, address) ||
-      isInProgressWindowFrame(event, address) ||
-      isTicketBatchFrame(event, address);
-    if (!allowed) {
-      throw new Error("RPC connection requested by an unexpected frame.");
-    }
-    return connection;
-  });
-  ipcMain.handle("task-tracker:open-item-from-tray-card", (event, value: unknown) =>
-    isTrayCardFrame(event, address) || isInProgressWindowFrame(event, address)
-      ? openItemFromTrayCard(value)
-      : false,
-  );
-  ipcMain.handle("task-tracker:pop-out-tray-card", (event) =>
-    isTrayCardFrame(event, address) ? popOutTrayCard() : false,
-  );
-  ipcMain.handle("task-tracker:set-in-progress-window-on-top", (event, value: unknown) =>
-    isInProgressWindowFrame(event, address)
-      ? (inProgressWindow?.setAlwaysOnTop(value) ?? false)
-      : false,
-  );
-  ipcMain.on("task-tracker:tray-card-height", (event, value: unknown) => {
-    if (isTrayCardFrame(event, address)) {
-      trayCard?.resize(value);
-    }
-  });
-  ipcMain.handle("task-tracker:open-external-link", async (event, value: unknown) => {
-    const link = isRendererFrame(event, address) ? externalLinkAddress(value) : undefined;
-    if (link === undefined) {
-      return false;
-    }
-    try {
-      await shell.openExternal(link);
-      return true;
-    } catch {
-      return false;
-    }
+  registerRendererIpc({
+    isRendererFrame,
+    windows,
+    connection: () => connection,
+    openItem: activateReminder,
   });
 }
 
@@ -677,8 +528,8 @@ function requestSingleInstance() {
 
 if (requestSingleInstance()) {
   registerRendererScheme();
-  app.on("second-instance", onSecondInstance);
-  app.on("before-quit", beforeQuit);
+  app.on("second-instance", appQuit.onSecondInstance);
+  app.on("before-quit", appQuit.beforeQuit);
   app.on("window-all-closed", () => app.quit());
   const early = startServerEarly();
   void app
