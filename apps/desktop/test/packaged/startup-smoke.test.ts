@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { expect } from "vitest";
+import { packagedManifest } from "../../scripts/package-paths.ts";
 import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import { openAppSettingsFromMenu } from "../support/workflows.js";
 import { fakeAppImageInstall } from "../support/installed-app.js";
@@ -66,12 +67,19 @@ desktopTest.runIf(process.platform === "linux")(
   },
 );
 
+/** The version this package was built as: 0.1.0 in CI, the tag's version in a release. */
+async function packagedVersion() {
+  const manifest: { version: string } = JSON.parse(await readFile(packagedManifest, "utf8"));
+  return manifest.version;
+}
+
 desktopTest("An unpacked build does not offer start with system", async ({ desktop }) => {
+  const version = await packagedVersion();
   await withDesktop(desktop, async (page) => {
     await openAppSettings(page);
 
     expect(await page.getByTestId("about-version").textContent()).toBe(
-      "Task Tracker version 0.1.0",
+      `Task Tracker version ${version}`,
     );
     expect(await startWithSystem(page).count()).toBe(0);
   });

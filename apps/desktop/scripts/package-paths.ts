@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 /** electron-builder's output directory. */
 export const packageOutput = fileURLToPath(new URL("../dist/package", import.meta.url));
 
+/** The manifest the packaging step wrote into the app, which carries the packaged version. */
+export const packagedManifest = fileURLToPath(
+  new URL("../dist/staging/app/package.json", import.meta.url),
+);
+
 /** The native unpacked executable retained for Playwright smoke tests. */
 export const unpackedExecutable =
   process.platform === "darwin"
