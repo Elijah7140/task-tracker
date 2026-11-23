@@ -22,7 +22,9 @@ import {
   recordingAppImage,
 } from "../support/installed-app.js";
 
-const APPIMAGE = "task-tracker-0.2.0-linux-x64.AppImage";
+/** Newer than any build under test, so a release of any version is offered it. */
+const UPDATE_VERSION = "999.0.0";
+const APPIMAGE = `task-tracker-${UPDATE_VERSION}-linux-x64.AppImage`;
 
 const updateStatus = (page: Page) => page.getByTestId("update-status");
 
@@ -36,7 +38,7 @@ function updatePayload(install: FakeAppImageInstall) {
 async function startUpdateFeed(install: FakeAppImageInstall) {
   const feed = await startFakeUpdateFeed();
   const payload = updatePayload(install);
-  feed.serve("latest-linux.yml", { body: releaseMetadata("0.2.0", APPIMAGE, payload) });
+  feed.serve("latest-linux.yml", { body: releaseMetadata(UPDATE_VERSION, APPIMAGE, payload) });
   feed.serve(APPIMAGE, { body: payload });
   return { feed, payload };
 }
@@ -46,7 +48,7 @@ async function downloadUpdate(page: Page) {
   await openAppSettingsFromMenu(page);
   await page.getByTestId("about-card").waitFor();
   await page.getByRole("button", { name: "Check for updates" }).click();
-  await page.getByText("Version 0.2.0 is available.").waitFor();
+  await page.getByText(`Version ${UPDATE_VERSION} is available.`).waitFor();
   await page.getByRole("button", { name: "Download", exact: true }).click();
   await page.getByRole("button", { name: "Restart to update" }).waitFor();
 }

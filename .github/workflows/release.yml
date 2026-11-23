@@ -76,7 +76,7 @@ jobs:
           overwrite: true
 
   publish:
-    name: ${{ github.event_name == 'push' && 'Verify and publish' || 'Verify only (dry run)' }}
+    name: Verify the assembly and publish a tagged release
     needs: package
     runs-on: ubuntu-latest
     timeout-minutes: 30
