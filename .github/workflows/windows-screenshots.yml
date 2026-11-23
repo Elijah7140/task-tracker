@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-workspace
@@ -29,7 +29,7 @@ jobs:
           TASKTRACKER_CAPTURE_SCREENSHOTS: "1"
       - name: Upload Windows screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-screenshots
           path: apps/web/test/**/__screenshots__/**/*-win32.png

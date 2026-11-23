@@ -19,6 +19,8 @@ import {
 
 const target = nativeReleaseTarget();
 const tag = process.argv[2];
+// A smoke-only build skips the installer, which the packaged suites never launch.
+const unpackedOnly = process.env.TASKTRACKER_PACKAGE_UNPACKED === "1";
 const version = tag === undefined ? "0.1.0" : releaseVersion(tag);
 const repository = process.env.GITHUB_REPOSITORY ?? "Elijah7140/task-tracker";
 const [owner, repo] = repository.split("/");
@@ -114,7 +116,7 @@ await buildInstaller({
       enableEmbeddedAsarIntegrityValidation: true,
       onlyLoadAppFromAsar: true,
     },
-    win: { target: "nsis", icon: join(assets, "icon.ico") },
+    win: { target: unpackedOnly ? "dir" : "nsis", icon: join(assets, "icon.ico") },
     nsis: {
       // One-click per-user installation under LocalAppData/Programs. The database
       // and backups live separately in LocalAppData/TaskTracker (§7.13).
@@ -131,7 +133,7 @@ await buildInstaller({
       // electron-builder names the macOS bundle and its binary after executableName,
       // so the Linux and Windows "task-tracker" would ship as task-tracker.app.
       executableName: "Task Tracker",
-      target: ["dmg", "zip"],
+      target: unpackedOnly ? "dir" : ["dmg", "zip"],
       icon: join(assets, "icon.svg"),
       category: "public.app-category.productivity",
       // Apple silicon requires a valid local signature after flipping the fuses.
@@ -142,7 +144,7 @@ await buildInstaller({
       bundleShortVersion: version.split("-")[0],
     },
     linux: {
-      target: "AppImage",
+      target: unpackedOnly ? "dir" : "AppImage",
       icon: join(assets, "icon.png"),
       category: "Office",
       syncDesktopName: true,
@@ -164,4 +166,6 @@ await flipFuses(unpackedExecutable, {
   [FuseV1Options.EnableNodeCliInspectArguments]: true,
 });
 
-await stageReleaseFiles(packageOutput, join(packageOutput, "release"), target, version);
+if (!unpackedOnly) {
+  await stageReleaseFiles(packageOutput, join(packageOutput, "release"), target, version);
+}
