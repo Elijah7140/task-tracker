@@ -215,6 +215,26 @@ test("Completing the last child copies the repeating parent and undo removes the
     yield* assertCopiedTree(svc, world, parent.id, sibling.id);
   }));
 
+test("Undo of a numbered next occurrence unranks the legacy ticket it ranked in another project", (svc, world) =>
+  Effect.gen(function* () {
+    const other = yield* svc.projects.create("Other");
+    const legacy = yield* svc.items.create(other.id, null, null, "Legacy");
+    const item = yield* world.create("Audit");
+    yield* world.repeat(item.id, "Audit", weekly);
+    yield* svc.sql`UPDATE TodoItem SET TicketNumber = 'OLD-1', TicketRank = NULL
+      WHERE Id = ${legacy.id}`;
+
+    yield* world.complete(item.id);
+
+    expect((yield* world.read(legacy.id)).TicketRank).not.toBeNull();
+
+    yield* world.undo.apply("undo");
+
+    expect((yield* world.read(legacy.id)).TicketRank).toBeNull();
+    yield* world.undo.apply("redo");
+    expect((yield* world.read(legacy.id)).TicketRank).not.toBeNull();
+  }));
+
 test("The next occurrence copies the reminder choice without delivery or snooze", (svc, world) =>
   Effect.gen(function* () {
     const item = yield* world.create("Audit");

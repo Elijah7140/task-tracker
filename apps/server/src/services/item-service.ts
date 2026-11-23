@@ -11,6 +11,7 @@ import {
   type FieldValueInput,
   type ItemEdit,
   type ItemLinkInput,
+  type ItemTree,
   type TicketDetailInput,
   type TodoItem,
 } from "@task-tracker/core";
@@ -26,7 +27,7 @@ import { ticketDetailRepository } from "../db/repositories/ticket-detail-reposit
 import { ticketListRepository } from "../db/repositories/ticket-list-repository.js";
 import { Guid } from "../db/storage-codecs.js";
 import { projectAreaItems, type AreaSnapshot } from "./area-snapshot.js";
-import { areaUndoSources } from "./area-undo-sources.js";
+import { addsTicketOccurrence, areaUndoSources } from "./area-undo-sources.js";
 import { readEffectiveSettings } from "./effective-settings-service.js";
 import { checkRules } from "./check-rules.js";
 import { itemAddOperation } from "./item-add-operation.js";
@@ -130,7 +131,8 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     const plan = yield* planStatus(item, statusId, now, confirmedOpenItemIds);
     const { result } = plan;
     if (result.kind === "applied") {
-      const sources = areaUndoSources(sql, item.projectId, item.folderId);
+      const ranksTickets = addsTicketOccurrence(plan.tree, result);
+      const sources = areaUndoSources(sql, item.projectId, item.folderId, ranksTickets);
       yield* undo.capture(undoLabel("Set status of", item.title), sources);
       yield* applyStatus(item, statusId, now, { ...plan, result });
     }
@@ -167,9 +169,14 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
    * The rows an editor save can change. A status change can cascade through the
    * area, and newly numbering an item ranks it and any legacy tickets (§7.16).
    */
-  const editUndoSources = (item: TodoItem, statusChanged: boolean, numbered: boolean) => {
-    if (statusChanged) {
-      return areaUndoSources(sql, item.projectId, item.folderId);
+  const editUndoSources = (
+    item: TodoItem,
+    numbered: boolean,
+    statusChange: { readonly tree: ItemTree; readonly result: AppliedCompletion } | null,
+  ) => {
+    if (statusChange !== null) {
+      const ranksTickets = numbered || addsTicketOccurrence(statusChange.tree, statusChange.result);
+      return areaUndoSources(sql, item.projectId, item.folderId, ranksTickets);
     }
     const own = [
       { table: "TodoItem", where: sql`Id = ${item.id}` },
@@ -256,9 +263,10 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
       return result;
     }
     const numbered = item.ticketNumber === null && edited.ticketNumber !== null;
+    const statusChange = status.plan === null ? null : { tree: status.plan.tree, result };
     yield* undo.capture(
       editLabel(item, edited, status.changed),
-      editUndoSources(item, status.changed, numbered),
+      editUndoSources(item, numbered, statusChange),
     );
     yield* items.updateEdit(edited);
     yield* items.saveRecurrence(edited);
@@ -329,7 +337,8 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     const label = priorityChanged
       ? undoLabel("Set priority of", item.title)
       : undoLabel("Move", item.title);
-    yield* undo.capture(label, areaUndoSources(sql, tree.projectId, tree.folderId));
+    const ranksTickets = addsTicketOccurrence(tree, applied);
+    yield* undo.capture(label, areaUndoSources(sql, tree.projectId, tree.folderId, ranksTickets));
     yield* saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);
     if (priorityChanged) {
@@ -392,11 +401,15 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     // Read the tree and settings again even when the caller is confirming a preview.
     const tree = yield* loadAreaTree(projectId, folderId);
     const item = yield* checkRules(() => tree.get(key));
-    yield* undo.capture(
-      undoLabel(completed ? "Complete" : "Reopen", item.title),
-      areaUndoSources(sql, tree.projectId, tree.folderId),
-    );
-    return yield* completion.setCompleted(tree, key, completed, approval);
+    const label = undoLabel(completed ? "Complete" : "Reopen", item.title);
+    const plan = yield* completion.planCompleted(tree, key, completed, approval);
+    const { result } = plan;
+    if (result.kind === "applied") {
+      const ranksTickets = addsTicketOccurrence(tree, result);
+      yield* undo.capture(label, areaUndoSources(sql, tree.projectId, tree.folderId, ranksTickets));
+      yield* completion.saveCompleted(tree, plan.original, plan.now, result);
+    }
+    return result;
   }, undo.record);
 
   const loadArea = Effect.fnUntraced(function* (projectId: string, folderId: string | null) {

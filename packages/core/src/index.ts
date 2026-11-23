@@ -166,7 +166,9 @@ export {
   calculateDisplayedUrgency,
   calculateUrgency,
   effectiveDeadline,
+  isOverdue,
   urgencyForDeadline,
+  type DeadlineFields,
   type UrgencyNode,
 } from "./urgency/urgency-calculator.js";
 export { compareInProgress, type InProgressSortKey } from "./in-progress/in-progress-order.js";
@@ -178,7 +180,11 @@ export {
   setProjectIcon,
 } from "./projects/project.js";
 export { createFolder, renameFolder } from "./projects/folder.js";
-export { summarizeProject, type ProjectSummary } from "./projects/project-summary.js";
+export {
+  overdueDateBound,
+  summarizeProject,
+  type ProjectSummary,
+} from "./projects/project-summary.js";
 export { createItem } from "./items/todo-item.js";
 export * from "./items/item-kind.js";
 export * from "./tickets/ticket-list-entry.js";

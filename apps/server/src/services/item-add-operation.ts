@@ -19,7 +19,7 @@ import { statusRepository } from "../db/repositories/status-repository.js";
 import { ticketDetailRepository } from "../db/repositories/ticket-detail-repository.js";
 import { ticketListRepository } from "../db/repositories/ticket-list-repository.js";
 import { Guid } from "../db/storage-codecs.js";
-import { areaUndoSources } from "./area-undo-sources.js";
+import { addsTicketOccurrence, areaUndoSources } from "./area-undo-sources.js";
 import { checkRules } from "./check-rules.js";
 import type { itemCompletionOperations } from "./item-completion-operations.js";
 import { activePriorityCheck, itemCustomValues } from "./item-custom-values.js";
@@ -193,9 +193,10 @@ export function itemAddOperation(
     const now = yield* operationTime;
     const prepared = yield* steps.prepare(tree, input, now);
     const applied = yield* completion.planReconciliation(tree, [prepared.parentId], now);
+    const ranksTickets = prepared.row.ticketNumber !== null || addsTicketOccurrence(tree, applied);
     yield* undo.capture(
       undoLabel("Create", prepared.row.title),
-      areaUndoSources(sql, tree.projectId, tree.folderId),
+      areaUndoSources(sql, tree.projectId, tree.folderId, ranksTickets),
     );
     yield* dependencies.saveStructure(tree, original);
     yield* completion.apply(tree.projectId, now, applied);

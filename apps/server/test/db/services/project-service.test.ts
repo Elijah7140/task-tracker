@@ -110,6 +110,61 @@ it.effect("Project summaries count open and overdue items", () =>
   ),
 );
 
+it.effect(
+  "Project summaries count each project apart and skip deadlines that have not passed",
+  () =>
+    withServices(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const projects = yield* ProjectService;
+        const first = yield* projects.create("First");
+        const second = yield* projects.create("Second");
+        const empty = yield* projects.create("Empty");
+        type Dates = Omit<Parameters<typeof seedItem>[1], "Id">;
+        const seed = (projectId: string, suffix: string, fields: Dates) =>
+          seedItem(projectId, { Id: `019A0000-0000-7000-8000-0000000000${suffix}`, ...fields });
+        yield* seed(first.id, "A1", { DueDate: "2026-11-13", DueTime: "11:59:00" });
+        yield* seed(first.id, "A2", { DueDate: "2026-11-13", DueTime: "12:00:00" });
+        yield* seed(first.id, "A3", { DueDate: "2026-11-13" });
+        yield* seed(first.id, "A4", {
+          DueDate: "2027-01-01",
+          ScheduledStart: "2026-11-01 08:00:00",
+        });
+        yield* seed(first.id, "A5", { DueDate: "2026-11-01", CompletedAtUtc: timestamp });
+        yield* seed(second.id, "B1", { ScheduledStart: "2026-11-13 08:00:00" });
+        yield* seed(second.id, "B2", { DueDate: "2026-11-01" });
+        yield* sql`UPDATE TodoItem SET DeletedAtUtc = ${timestamp}
+        WHERE Id = '019A0000-0000-7000-8000-0000000000B2'`;
+        yield* TestClock.setTime(Temporal.Instant.from("2026-11-13T12:00:00Z").epochMilliseconds);
+
+        const summaries = yield* projects.list();
+
+        expect(summaries).toMatchObject([
+          { project: { id: first.id }, openCount: 4, overdueCount: 1 },
+          { project: { id: second.id }, openCount: 1, overdueCount: 1 },
+          { project: { id: empty.id }, openCount: 0, overdueCount: 0 },
+        ]);
+      }),
+    ),
+);
+
+it.effect("Project summaries resolve deadlines in the server time zone", () =>
+  Effect.gen(function* () {
+    const projects = yield* ProjectService;
+    const project = yield* projects.create("Project");
+    yield* seedItem(project.id, { Id: itemId, DueDate: "2026-11-14", DueTime: "09:00:00" });
+    yield* TestClock.setTime(Temporal.Instant.from("2026-11-13T21:00:00Z").epochMilliseconds);
+
+    const summaries = yield* projects.list();
+
+    expect(summaries).toMatchObject([{ openCount: 1, overdueCount: 1 }]);
+  }).pipe(
+    Effect.provide(ProjectService.layer("Pacific/Auckland")),
+    Effect.provide(FolderService.layer),
+    withSchema,
+  ),
+);
+
 it.effect("A failed completion write rolls back the entire project restore", () =>
   withServices(
     Effect.gen(function* () {

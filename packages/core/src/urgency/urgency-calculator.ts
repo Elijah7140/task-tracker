@@ -33,6 +33,11 @@ export function effectiveDeadline(
   return fields.scheduledStart === null ? null : toUtc(fields.scheduledStart, timeZone);
 }
 
+/** Whether an open item's `deadline` has passed. No threshold setting changes this. */
+export function isOverdue(deadline: Temporal.Instant | null, now: Temporal.Instant): boolean {
+  return deadline !== null && deadline.epochNanoseconds < now.epochNanoseconds;
+}
+
 /** Classify the time left until an open item's `deadline` against `thresholds`. */
 export function urgencyForDeadline(
   deadline: Temporal.Instant | null,
@@ -42,10 +47,10 @@ export function urgencyForDeadline(
   if (deadline === null) {
     return "None";
   }
-  const remaining = deadline.epochNanoseconds - now.epochNanoseconds;
-  if (remaining < 0n) {
+  if (isOverdue(deadline, now)) {
     return "Overdue";
   }
+  const remaining = deadline.epochNanoseconds - now.epochNanoseconds;
   if (remaining <= thresholds.red * nanosecondsPerTick) {
     return "Imminent";
   }

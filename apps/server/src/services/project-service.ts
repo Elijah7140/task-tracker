@@ -2,6 +2,7 @@ import {
   createProject,
   FolderTree,
   EntityMissing,
+  overdueDateBound,
   renameProject,
   reorderProjects,
   setProjectIcon,
@@ -12,9 +13,8 @@ import { SqlClient } from "effect/sql";
 import { folderRepository } from "../db/repositories/folder-repository.js";
 import { projectItemRepository } from "../db/repositories/project-item-repository.js";
 import { projectRepository } from "../db/repositories/project-repository.js";
-import { settingsRepository } from "../db/repositories/settings-repository.js";
+import { projectSummaryRepository } from "../db/repositories/project-summary-repository.js";
 import { Guid } from "../db/storage-codecs.js";
-import { readEffectiveSettings } from "./effective-settings-service.js";
 import { checkRules } from "./check-rules.js";
 import { newId } from "./new-id.js";
 import { operationTime } from "./operation-time.js";
@@ -36,7 +36,7 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   const projects = projectRepository(sql);
   const folders = folderRepository(sql);
   const items = projectItemRepository(sql);
-  const settings = settingsRepository(sql);
+  const summaries = projectSummaryRepository(sql);
   const reconcile = projectCompletionReconciler(sql);
 
   const create = Effect.fnUntraced(function* (name: string) {
@@ -82,20 +82,25 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     yield* Effect.forEach(ordered, projects.update, { discard: true });
   }, undo.record);
 
+  /**
+   * Home and sidebar summaries. The sidebar reloads them after most item writes,
+   * so they read counts and likely-overdue deadlines without loading item rows.
+   */
   const list = Effect.fnUntraced(function* () {
     const rows = yield* projects.listActive();
     const now = yield* operationTime;
-    const global = yield* settings.global();
-    return yield* Effect.forEach(rows, (project) =>
-      Effect.gen(function* () {
-        const projectItems = yield* items.listActive(project.id);
-        const effective = yield* readEffectiveSettings(
-          settings,
-          project.id,
-          Effect.succeed(global),
-        );
-        return summarizeProject(project, projectItems, effective, now, timeZone);
-      }),
+    const counts = yield* summaries.countOpen();
+    const deadlines = yield* summaries.listOpenDeadlinesBefore(overdueDateBound(now, timeZone));
+    const openCounts = new Map(counts.map(({ projectId, openCount }) => [projectId, openCount]));
+    const openDeadlines = Map.groupBy(deadlines, ({ projectId }) => projectId);
+    return rows.map((project) =>
+      summarizeProject(
+        project,
+        openCounts.get(project.id) ?? 0,
+        openDeadlines.get(project.id) ?? [],
+        now,
+        timeZone,
+      ),
     );
   }, sql.withTransaction);
 
