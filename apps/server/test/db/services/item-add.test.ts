@@ -38,8 +38,6 @@ const fields = (overrides: Partial<ItemEdit> = {}): ItemEdit => ({
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
   ...overrides,
 });
 
@@ -51,11 +49,6 @@ const noTicketFields: TicketDetailInput = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
-  version: null,
-  estimatedHours: null,
-  percentComplete: null,
-  isUrgent: false,
-  isSystemOutage: false,
 };
 
 const setup = Effect.gen(function* () {
@@ -86,8 +79,7 @@ const readTicketRow = (id: string) =>
     const sql = yield* SqlClient.SqlClient;
     return yield* sql.withTransaction(
       sql`SELECT item.ItemKind, item.TicketNumber, item.TicketRank, item.StatusId,
-            detail.ApplicationId, detail.ModuleId, detail.InterfaceId, detail.DispatchedToId,
-            detail.EstimatedHours, detail.PercentComplete, detail.IsUrgent
+            detail.ApplicationId, detail.ModuleId, detail.InterfaceId, detail.DispatchedToId
           FROM TodoItem AS item LEFT JOIN TicketDetail AS detail ON detail.ItemId = item.Id
           WHERE item.Id = ${id}`,
     );
@@ -101,9 +93,6 @@ it.effect("Adds a ticket with its fields, levels and rank as one undo step", () 
         ...noTicketFields,
         interfaceId: iface.id,
         dispatchedToId: person.id,
-        estimatedHours: 16,
-        percentComplete: 50,
-        isUrgent: true,
       };
       const add = items.add(
         input({
@@ -128,9 +117,6 @@ it.effect("Adds a ticket with its fields, levels and rank as one undo step", () 
           ModuleId: module.id,
           InterfaceId: iface.id,
           DispatchedToId: person.id,
-          EstimatedHours: 16,
-          PercentComplete: 50,
-          IsUrgent: 1,
         },
       ]);
       expect(undone).toEqual([[], []]);
@@ -238,7 +224,7 @@ it.effect("Edits a ticket's fields as one step and keeps an archived person alre
         [],
         undefined,
         undefined,
-        { ...noTicketFields, requestorId: person.id, moduleId: module.id, version: " 1.0.0 " },
+        { ...noTicketFields, requestorId: person.id, moduleId: module.id },
       );
 
       const { label, undone, before } = yield* roundTrip(edit, ["TicketDetail"]);
@@ -252,7 +238,7 @@ it.effect("Edits a ticket's fields as one step and keeps an archived person alre
 
       expect(label).toBe("Edit 'Training data is wrong'");
       expect(undone).toEqual(before);
-      expect(loaded.detail).toMatchObject({ moduleId: module.id, version: "1.0.0" });
+      expect(loaded.detail).toMatchObject({ requestorId: person.id, moduleId: module.id });
       expect(refused.message).toBe("Dispatched to 'Elijah Harris' is archived.");
     }).pipe(Effect.provide(services)),
   ),

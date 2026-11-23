@@ -95,7 +95,6 @@ function EntryButton({
       {...calendarNavProps(occurrence.day, navIndex)}
       data-testid="calendar-entry"
       data-item-id={entry.itemId}
-      data-entry-kind={entry.kind}
       data-urgency={entry.urgency}
       data-compact={variant === "block" && isCompact ? "true" : "false"}
       style={blockStyle}

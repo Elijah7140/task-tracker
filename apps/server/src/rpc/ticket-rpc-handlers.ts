@@ -22,7 +22,6 @@ function projectRow(
     priorityLevelId: ticket.priorityLevelId,
     dueDate: ticket.dueDate?.toString() ?? null,
     dueTime: ticket.dueTime?.toString() ?? null,
-    hasSchedule: ticket.scheduledStart !== null,
   };
 }
 

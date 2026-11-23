@@ -9,7 +9,6 @@ import {
   listOf,
   nameKey,
   parseTransferDate,
-  parseTransferLocal,
   parseTransferTime,
   parseTransferUtc,
   trimText,
@@ -124,8 +123,6 @@ class ContentImport {
       priorityLevelId: this.#lookupId(document, "priority"),
       dueDate: parseTransferDate(document.dueDate),
       dueTime: parseTransferTime(document.dueTime),
-      scheduledStart: parseTransferLocal(document.scheduledStart),
-      scheduledEnd: parseTransferLocal(document.scheduledEnd),
       ...this.#completion(document),
       recurrence: document.recurrence as RecurrenceRule | null,
       recurrenceSeriesId:
@@ -230,11 +227,6 @@ class ContentImport {
         dispatchedToId: entry(ticket.dispatchedToId),
         pendingPersonId: entry(ticket.pendingPersonId),
         ticketTypeId: entry(ticket.ticketTypeId),
-        version: isBlankText(ticket.version) ? null : trimText(ticket.version!),
-        estimatedHours: ticket.estimatedHours,
-        percentComplete: ticket.percentComplete,
-        isUrgent: ticket.isUrgent === true,
-        isSystemOutage: ticket.isSystemOutage === true,
       });
     }
     for (const comment of listOf(document.comments)) {

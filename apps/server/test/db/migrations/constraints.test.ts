@@ -17,7 +17,7 @@ const insertFields = (dataType: "Text" | "Choice") =>
                     (${secondField}, 'second', 'Second', ${dataType}, 0, 1)`;
   });
 
-it.effect("Rejects due times without dates and scheduled ends without a valid start", () =>
+it.effect("Rejects due times without dates", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     yield* sql.withTransaction(insertProject.pipe(Effect.andThen(insertItem())));
@@ -25,27 +25,11 @@ it.effect("Rejects due times without dates and scheduled ends without a valid st
     const due = yield* sql
       .withTransaction(sql`UPDATE TodoItem SET DueTime = ${"15:00:00"} WHERE Id = ${itemId}`)
       .pipe(Effect.flip);
-    const noStart = yield* sql
-      .withTransaction(
-        sql`UPDATE TodoItem SET ScheduledEnd = ${"2026-12-01 10:00:00"} WHERE Id = ${itemId}`,
-      )
-      .pipe(Effect.flip);
-    const reversed = yield* sql
-      .withTransaction(
-        sql`UPDATE TodoItem SET ScheduledStart = ${"2026-12-01 11:00:00"}, ScheduledEnd = ${"2026-12-01 10:00:00"} WHERE Id = ${itemId}`,
-      )
-      .pipe(Effect.flip);
 
     expect(due.reason.cause).toMatchObject({
       errcode: 275,
       message: expect.stringContaining("CK_TodoItem_DueTime"),
     });
-    for (const error of [noStart, reversed]) {
-      expect(error.reason.cause).toMatchObject({
-        errcode: 275,
-        message: expect.stringContaining("CK_TodoItem_ScheduledEnd"),
-      });
-    }
   }).pipe(withSchema),
 );
 

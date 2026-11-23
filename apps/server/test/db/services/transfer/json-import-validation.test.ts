@@ -123,12 +123,12 @@ describe("JSON import validation", () => {
         const item = itemTitled(document, "Add index");
         item.title = "   ";
         item.dueDate = "20/11/2026";
-        item.scheduledEnd = "2026-11-21T08:00:00";
+        item.dueTime = "25:00";
       });
 
       const prefix = `$.projects[0].items[${index}]`;
       expect(issues.map((issue) => issue.path)).toEqual(
-        expect.arrayContaining([`${prefix}.title`, `${prefix}.dueDate`, `${prefix}.scheduledEnd`]),
+        expect.arrayContaining([`${prefix}.title`, `${prefix}.dueDate`, `${prefix}.dueTime`]),
       );
     }),
   );
@@ -156,18 +156,33 @@ describe("JSON import validation", () => {
     }),
   );
 
-  it.effect("Rejects a floating time with a Z or an offset", () =>
-    Effect.gen(function* () {
-      const withZ = yield* firstIssue((document) => {
-        itemTitled(document, "Add index").scheduledStart = "2026-11-21T09:00:00Z";
-      });
-      const withOffset = yield* firstIssue((document) => {
-        itemTitled(document, "Add index").scheduledStart = "2026-11-21T09:00:00+02:00";
-      });
+  it.effect("Ignores the schedule an older export wrote, even when it is invalid", () =>
+    emptyWorld((world) =>
+      Effect.gen(function* () {
+        const text = editJson(seed, (document) => {
+          const item = itemTitled(document, "Add index");
+          item.scheduledStart = "2026-11-21T09:00:00Z";
+          item.scheduledEnd = "not a time";
+        });
 
-      expect(withZ.path).toMatch(/\.scheduledStart$/);
-      expect(withOffset.path).toMatch(/\.scheduledStart$/);
-    }),
+        const result = yield* world.importJson(text);
+
+        expect(result.kind).toBe("imported");
+      }),
+    ),
+  );
+
+  it.effect("Dates a repeating item that an older export gave only a schedule", () =>
+    emptyWorld((world) =>
+      Effect.gen(function* () {
+        const result = yield* world.importJson(seed);
+
+        const [monthEnd] = yield* world.sql<{ DueDate: string | null; DueTime: string | null }>`
+          SELECT DueDate, DueTime FROM TodoItem WHERE Title = 'Month end'`;
+        expect(result.kind).toBe("imported");
+        expect(monthEnd).toEqual({ DueDate: "2026-11-30", DueTime: null });
+      }),
+    ),
   );
 
   it.effect("Rejects a completion time without Z", () =>

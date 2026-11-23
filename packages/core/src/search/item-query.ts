@@ -35,7 +35,6 @@ export interface ItemSearchResult {
   readonly dueDate: string | null;
   readonly dueTime: string | null;
   readonly isCompleted: boolean;
-  readonly hasSchedule: boolean;
 }
 
 /** A bounded page of search results. */

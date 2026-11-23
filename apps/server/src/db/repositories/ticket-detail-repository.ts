@@ -1,6 +1,6 @@
 import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
-import { Bit, Guid, Real, UtcTimestamp } from "../storage-codecs.js";
+import { Guid, UtcTimestamp } from "../storage-codecs.js";
 
 const optionalId = Schema.NullOr(Guid);
 
@@ -14,11 +14,6 @@ const TicketDetailRow = Schema.Struct({
   dispatchedToId: optionalId,
   pendingPersonId: optionalId,
   ticketTypeId: optionalId,
-  version: Schema.NullOr(Schema.String),
-  estimatedHours: Schema.NullOr(Real),
-  percentComplete: Schema.NullOr(Schema.Int),
-  isUrgent: Bit,
-  isSystemOutage: Bit,
 }).pipe(
   Schema.encodeKeys({
     itemId: "ItemId",
@@ -29,11 +24,6 @@ const TicketDetailRow = Schema.Struct({
     dispatchedToId: "DispatchedToId",
     pendingPersonId: "PendingPersonId",
     ticketTypeId: "TicketTypeId",
-    version: "Version",
-    estimatedHours: "EstimatedHours",
-    percentComplete: "PercentComplete",
-    isUrgent: "IsUrgent",
-    isSystemOutage: "IsSystemOutage",
   }),
 );
 

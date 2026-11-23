@@ -45,27 +45,30 @@ it.effect("Treats percent and underscore as literal text in Contains filters", (
   ),
 );
 
-it.effect("Matches scheduled dates at the minimum and maximum calendar dates", () =>
+it.effect("Matches due dates at the minimum and maximum calendar dates", () =>
   withSearchServices((svc) =>
     Effect.gen(function* () {
       const project = yield* svc.projects.create("Project");
       const earliest = yield* svc.items.create(project.id, null, null, "Earliest");
       const latest = yield* svc.items.create(project.id, null, null, "Latest");
-      const scheduled = (at: string) => ({ scheduledStart: Temporal.PlainDateTime.from(at) });
-      yield* svc.items.edit(earliest.id, editFields("Earliest", scheduled("0001-01-01T00:00")));
+      const dueOn = (day: string, time: string) => ({
+        dueDate: Temporal.PlainDate.from(day),
+        dueTime: Temporal.PlainTime.from(time),
+      });
+      yield* svc.items.edit(earliest.id, editFields("Earliest", dueOn("0001-01-01", "00:00")));
       yield* svc.items.edit(
         latest.id,
-        editFields("Latest", scheduled("9999-12-31T23:59:59.9999999")),
+        editFields("Latest", dueOn("9999-12-31", "23:59:59.9999999")),
       );
       const match = (operator: "equals" | "lessThan", value: string) =>
-        searchTitles(svc, [filter("scheduled", operator, date(value))]);
+        searchTitles(svc, [filter("due", operator, date(value))]);
 
       const atMax = yield* match("equals", "9999-12-31");
       const beforeMax = yield* match("lessThan", "9999-12-31");
       const atMin = yield* match("equals", "0001-01-01");
       const beforeMin = yield* match("lessThan", "0001-01-01");
       const range = yield* searchTitles(svc, [
-        filter("scheduled", "between", { kind: "dateRange", min: "0001-01-01", max: "9999-12-31" }),
+        filter("due", "between", { kind: "dateRange", min: "0001-01-01", max: "9999-12-31" }),
       ]);
 
       expect(atMax).toEqual(["Latest"]);
@@ -153,7 +156,6 @@ it.effect("Projects every result property with its location and lookup labels", 
           priorityLevelId: priority!.id,
           dueDate: Temporal.PlainDate.from("2026-11-20"),
           dueTime: Temporal.PlainTime.from("09:30:15.1234567"),
-          scheduledStart: Temporal.PlainDateTime.from("2026-11-21T08:00"),
         }),
       );
       yield* svc.items.setCompleted(project.id, folder.id, child.id, true);
@@ -177,7 +179,6 @@ it.effect("Projects every result property with its location and lookup labels", 
             dueDate: "2026-11-20",
             dueTime: "09:30:15.1234567",
             isCompleted: true,
-            hasSchedule: true,
             location: ["Billing", "Tables"],
             typeName: itemType!.name,
             priorityLabel: "Critical",
@@ -454,13 +455,12 @@ it.effect("Filters built-in text fields with every allowed operator", () =>
   ),
 );
 
-it.effect("Filters due, scheduled and custom dates with every allowed operator", () =>
+it.effect("Filters due and custom dates with every allowed operator", () =>
   withSearchServices((svc) =>
     Effect.gen(function* () {
       const { reviewed } = yield* seedFilterMatrix(svc);
       const cases = [
         { key: "due", first: "2026-11-20", second: "2026-11-30" },
-        { key: "scheduled", first: "2026-11-21", second: "2026-12-01" },
         { key: reviewed.key, first: "2026-11-22", second: "2026-12-02" },
       ];
 
@@ -487,7 +487,7 @@ it.effect("Filters due, scheduled and custom dates with every allowed operator",
         ["Gamma"],
         ["Alpha", "Beta"],
       ];
-      expect(outcomes).toEqual([expected, expected, expected]);
+      expect(outcomes).toEqual([expected, expected]);
     }),
   ),
 );
@@ -617,7 +617,7 @@ it.effect("Combines date and number comparisons with AND", () =>
 
       const results = yield* searchTitles(svc, [
         filter("due", "lessThan", date("2026-11-30")),
-        filter("scheduled", "equals", date("2026-11-21")),
+        filter("due", "equals", date("2026-11-20")),
         filter(estimate.key, "between", { kind: "numberRange", min: 3, max: 4 }),
         filter(reviewed.key, "greaterThan", date("2026-11-20")),
       ]);
@@ -787,7 +787,6 @@ it.effect("Lists built-in, global and scoped project fields in registry order", 
         "type",
         "priority",
         "due",
-        "scheduled",
         "status",
         "completed",
         "link",
@@ -801,11 +800,6 @@ it.effect("Lists built-in, global and scoped project fields in registry order", 
         "module",
         "interface",
         "tickettype",
-        "version",
-        "hours",
-        "percent",
-        "urgent",
-        "outage",
         "comment",
       ];
       expect(projectKeys).toEqual([...builtIns, "global", "local"]);

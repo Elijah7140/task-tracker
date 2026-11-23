@@ -53,8 +53,6 @@ const fields = {
   priorityLevelId: null,
   dueDate: "2026-11-27",
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 };
 
 const noTicketFields = {
@@ -65,11 +63,6 @@ const noTicketFields = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
-  version: null,
-  estimatedHours: null,
-  percentComplete: null,
-  isUrgent: false,
-  isSystemOutage: false,
 };
 
 it.effect("Adds a ticket with list entries, reads it back and logs a comment over RPC", () =>
@@ -92,7 +85,7 @@ it.effect("Adds a ticket with list entries, reads it back and logs a comment ove
         parentItemId: null,
         kind: "Ticket",
         fields,
-        ticket: { ...noTicketFields, moduleId: module.id, percentComplete: 50 },
+        ticket: { ...noTicketFields, moduleId: module.id },
       });
       const comment = yield* client.AddTicketComment({
         itemId: ticket.id,
@@ -112,7 +105,6 @@ it.effect("Adds a ticket with list entries, reads it back and logs a comment ove
           ...noTicketFields,
           applicationId: app.id,
           moduleId: module.id,
-          percentComplete: 50,
         },
         comments: [comment],
       });

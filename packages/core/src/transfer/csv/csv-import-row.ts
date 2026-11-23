@@ -13,8 +13,6 @@ export interface CsvImportRow {
   readonly statusId: string | null;
   readonly dueDate: Temporal.PlainDate | null;
   readonly dueTime: Temporal.PlainTime | null;
-  readonly scheduledStart: Temporal.PlainDateTime | null;
-  readonly scheduledEnd: Temporal.PlainDateTime | null;
   readonly completedAtUtc: Temporal.Instant | null;
   readonly fieldValues: readonly FieldValueInput[];
   readonly linkUrls: readonly string[];

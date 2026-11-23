@@ -10,7 +10,6 @@ import {
 const item = {
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
 } as const;
 
 describe("formatFloatingDate", () => {
@@ -28,8 +27,8 @@ describe("formatFloatingDateTime", () => {
     expect(text).toBe("Nov 20, 2026, 3:30 PM");
   });
 
-  it("Formats a scheduled local date-time", () => {
-    const text = formatFloatingDateTime("2026-03-08T02:30:00");
+  it("Keeps a wall-clock time that a daylight saving change skips", () => {
+    const text = formatFloatingDateTime("2026-03-08", "02:30:00");
 
     expect(text).toBe("Mar 8, 2026, 2:30 AM");
   });
@@ -48,27 +47,17 @@ describe("formatInstantDate", () => {
 });
 
 describe("deadlineLabel", () => {
-  it("Prefers the due date with its time", () => {
+  it("Shows the due date with its time", () => {
     const label = deadlineLabel({
       ...item,
       dueDate: "2026-11-20",
       dueTime: "09:00:00",
-      scheduledStart: "2026-11-19T10:00:00",
     } as Parameters<typeof deadlineLabel>[0]);
 
     expect(label).toEqual({ kind: "due", text: "Nov 20, 2026, 9:00 AM" });
   });
 
-  it("Ignores a scheduled start without a due date", () => {
-    const label = deadlineLabel({
-      ...item,
-      scheduledStart: "2026-11-19T10:00:00",
-    } as Parameters<typeof deadlineLabel>[0]);
-
-    expect(label).toBeNull();
-  });
-
-  it("Returns null without a due date or scheduled start", () => {
+  it("Returns null without a due date", () => {
     const label = deadlineLabel(item as Parameters<typeof deadlineLabel>[0]);
 
     expect(label).toBeNull();

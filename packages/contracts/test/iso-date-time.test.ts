@@ -6,13 +6,13 @@ it("Round-trips calendar dates, floating times and UTC instants as strings", () 
   const dates = Schema.Struct({
     dueDate: IsoDate,
     dueTime: IsoTime,
-    scheduledStart: IsoFloatingDateTime,
+    deletedAt: IsoFloatingDateTime,
     createdAtUtc: IsoUtcInstant,
   });
   const wire = {
     dueDate: "2028-02-29",
     dueTime: "15:30:00.1234567",
-    scheduledStart: "2026-11-01T01:30:00",
+    deletedAt: "2026-11-01T01:30:00",
     createdAtUtc: "2026-11-01T05:30:00.1234567Z",
   };
 

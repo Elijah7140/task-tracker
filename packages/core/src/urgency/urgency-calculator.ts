@@ -1,7 +1,7 @@
 import type { ItemTree } from "../items/item-tree.js";
 import type { TodoItem } from "../items/todo-item.js";
 import { nanosecondsPerTick } from "../time/duration-ticks.js";
-import { dueToUtc, toUtc } from "../time/floating-time.js";
+import { dueToUtc } from "../time/floating-time.js";
 import type { DisplayedUrgency, Urgency } from "./displayed-urgency.js";
 import type { UrgencyThresholds } from "./urgency-thresholds.js";
 
@@ -16,21 +16,17 @@ const urgencyRank: Record<Urgency, number> = {
 export interface DeadlineFields {
   readonly dueDate: Temporal.PlainDate | null;
   readonly dueTime: Temporal.PlainTime | null;
-  readonly scheduledStart: Temporal.PlainDateTime | null;
 }
 
 /**
  * Resolve the effective deadline in `timeZone`: the due date and time, else
- * the scheduled start, else none. A date-only due date ends that local day.
+ * none. A date-only due date ends that local day.
  */
 export function effectiveDeadline(
   fields: DeadlineFields,
   timeZone: string,
 ): Temporal.Instant | null {
-  if (fields.dueDate !== null) {
-    return dueToUtc(fields.dueDate, fields.dueTime, timeZone);
-  }
-  return fields.scheduledStart === null ? null : toUtc(fields.scheduledStart, timeZone);
+  return fields.dueDate === null ? null : dueToUtc(fields.dueDate, fields.dueTime, timeZone);
 }
 
 /** Whether an open item's `deadline` has passed. No threshold setting changes this. */

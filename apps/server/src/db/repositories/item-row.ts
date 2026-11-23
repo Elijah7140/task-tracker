@@ -1,7 +1,7 @@
 import type { TodoItem } from "@task-tracker/core";
 import { Effect, Schema, SchemaIssue, SchemaTransformation } from "effect";
 import { Statement } from "effect/sql";
-import { DateText, FloatingTimestamp, Guid, TimeText, UtcTimestamp } from "../storage-codecs.js";
+import { DateText, Guid, TimeText, UtcTimestamp } from "../storage-codecs.js";
 import {
   readRecurrence,
   recurrenceColumnFields,
@@ -31,8 +31,6 @@ const editFields = {
   priorityLevelId: Schema.NullOr(Guid),
   dueDate: Schema.NullOr(DateText),
   dueTime: Schema.NullOr(TimeText),
-  scheduledStart: Schema.NullOr(FloatingTimestamp),
-  scheduledEnd: Schema.NullOr(FloatingTimestamp),
 };
 const columns = {
   ...trackedColumns,
@@ -47,8 +45,6 @@ const columns = {
   priorityLevelId: "PriorityLevelId",
   dueDate: "DueDate",
   dueTime: "DueTime",
-  scheduledStart: "ScheduledStart",
-  scheduledEnd: "ScheduledEnd",
   statusId: "StatusId",
   reopenStatusId: "ReopenStatusId",
   completedAtUtc: "CompletedAtUtc",
@@ -146,14 +142,12 @@ export const ItemPriorityRow = Schema.Struct({
   priorityLevelId: editFields.priorityLevelId,
 }).pipe(Schema.encodeKeys(columns));
 
-/** Calendar rescheduling updates floating dates and the item's modification timestamp. */
+/** Calendar rescheduling updates the due date and the item's modification timestamp. */
 export const ItemDatesRow = Schema.Struct({
   id: Guid,
   updatedAtUtc: UtcTimestamp,
   dueDate: editFields.dueDate,
   dueTime: editFields.dueTime,
-  scheduledStart: editFields.scheduledStart,
-  scheduledEnd: editFields.scheduledEnd,
 }).pipe(Schema.encodeKeys(columns));
 
 /** The reminder choice an editor save writes (§7.12). */

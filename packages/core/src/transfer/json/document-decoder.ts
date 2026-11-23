@@ -297,11 +297,6 @@ const ticket = orNull(
     dispatchedToId: optionalGuid,
     pendingPersonId: optionalGuid,
     ticketTypeId: optionalGuid,
-    version: optionalText,
-    estimatedHours: optionalDouble,
-    percentComplete: optionalInt,
-    isUrgent: optionalBoolean,
-    isSystemOutage: optionalBoolean,
   }),
 );
 
@@ -310,7 +305,7 @@ const comment = documentObject("CommentDocument", {
   createdAtUtc: optionalText,
 });
 
-const item = object(
+const itemProperties = object(
   `${DOCUMENTS}.ItemDocument`,
   {
     id: optionalGuid,
@@ -328,7 +323,6 @@ const item = object(
     dueDate: optionalText,
     dueTime: optionalText,
     scheduledStart: optionalText,
-    scheduledEnd: optionalText,
     completedAtUtc: optionalText,
     sortOrder: optionalInt,
     ...timestamps,
@@ -345,6 +339,19 @@ const item = object(
   },
   { recurrenceSuccessorCreated: false },
 );
+
+/**
+ * Reads an item. Items no longer have a schedule (§7.4), so an older export's is
+ * dropped, but a repeating item with only a schedule takes its start date as the
+ * due date its rule needs, as the database migration that dropped it does.
+ */
+const item: Reader<Omit<ReturnType<typeof itemProperties>, "scheduledStart">> = (node, path) => {
+  const { scheduledStart, ...document } = itemProperties(node, path);
+  if (document.dueDate !== null || document.recurrence === null || scheduledStart === null) {
+    return document;
+  }
+  return { ...document, dueDate: trimText(scheduledStart).slice(0, 10) };
+};
 
 const folder = documentObject("FolderDocument", {
   id: optionalGuid,

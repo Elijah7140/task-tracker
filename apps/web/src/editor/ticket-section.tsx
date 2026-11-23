@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { AsyncResult } from "effect/reactivity";
 import { entryOptions, moduleOptions, NO_ENTRY, parentOf } from "../add/ticket-list-options.js";
 import { ticketAtom, ticketListsAtom } from "../rpc/ticket-field-queries.js";
-import { fieldStyles } from "../ui/field-styles.js";
 import { Select, type SelectOption } from "../ui/select.js";
 import { EditorField } from "./editor-field.js";
 import { EditorGroup } from "./editor-group.js";
@@ -21,7 +20,6 @@ type Entry = typeof TicketListEntryProjection.Type;
 export interface TicketSectionProps {
   /** The stored fields with the user's changes applied, or null while they load. */
   readonly texts: TicketTexts | null;
-  readonly error: string | null;
   readonly onChange: (change: Partial<TicketTexts>) => void;
 }
 
@@ -110,7 +108,7 @@ function LevelRows({
 }
 
 /** The ticket's fixed fields in the editor's properties column (§7.19). */
-export function TicketSection({ texts, error, onChange }: TicketSectionProps) {
+export function TicketSection({ texts, onChange }: TicketSectionProps) {
   const lists = useAtomValue(ticketListsAtom);
   const entries = AsyncResult.isSuccess(lists) ? lists.value : [];
   if (texts === null) {
@@ -146,11 +144,6 @@ export function TicketSection({ texts, error, onChange }: TicketSectionProps) {
           field="ticketTypeId"
           options={entryOptions(entries, "TicketType", texts.ticketTypeId)}
         />
-        {error === null ? null : (
-          <p role="alert" className={fieldStyles.error}>
-            {error}
-          </p>
-        )}
       </div>
     </EditorGroup>
   );
@@ -163,13 +156,11 @@ export function TicketSection({ texts, error, onChange }: TicketSectionProps) {
 export function TicketEditorSection({
   itemId,
   overrides,
-  error,
   onChange,
   onStored,
 }: {
   readonly itemId: string;
   readonly overrides: TicketOverrides;
-  readonly error: string | null;
   readonly onChange: TicketSectionProps["onChange"];
   readonly onStored: (detail: typeof TicketDetailInput.Type | null) => void;
 }) {
@@ -177,5 +168,5 @@ export function TicketEditorSection({
   const stored = AsyncResult.isSuccess(ticket) ? ticket.value.detail : null;
   useEffect(() => onStored(stored), [stored, onStored]);
   const texts = stored === null ? null : { ...storedTicketTexts(stored), ...overrides };
-  return <TicketSection texts={texts} error={error} onChange={onChange} />;
+  return <TicketSection texts={texts} onChange={onChange} />;
 }

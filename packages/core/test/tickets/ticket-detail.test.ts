@@ -55,26 +55,3 @@ it("keeps an archived entry already on the ticket but refuses to newly choose on
   expect(kept.requestorId).toBe("melissa");
   expect(attempt).toThrow("Dispatched to 'Melissa' is archived.");
 });
-
-it("trims the version and checks hours and percent complete", () => {
-  const saved = validateTicketDetail(
-    "ticket",
-    input({ version: "  1.0.0 ", estimatedHours: 16, percentComplete: 50 }),
-    lists(),
-    null,
-  );
-
-  expect(saved).toMatchObject({ version: "1.0.0", estimatedHours: 16, percentComplete: 50 });
-  expect(() =>
-    validateTicketDetail("ticket", input({ estimatedHours: -1 }), lists(), null),
-  ).toThrow("Estimated hours must be from 0 to 100000.");
-  expect(() =>
-    validateTicketDetail("ticket", input({ percentComplete: 50.5 }), lists(), null),
-  ).toThrow("Percent complete must be a whole number from 0 to 100.");
-});
-
-it("stores a blank version as no version", () => {
-  const saved = validateTicketDetail("ticket", input({ version: "   " }), lists(), null);
-
-  expect(saved.version).toBeNull();
-});

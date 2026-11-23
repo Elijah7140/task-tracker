@@ -10,12 +10,11 @@ import {
 import { earlier, item, now } from "../fixtures.js";
 
 const date = (value: string) => Temporal.PlainDate.from(value);
-const dateTime = (value: string) => Temporal.PlainDateTime.from(value);
 
 describe("push back eligibility", () => {
   it.each([
     [false, true, null],
-    [false, false, "This item has no due date or scheduled block."],
+    [false, false, "This item has no due date."],
     [true, true, "Completed items cannot be pushed back."],
     [true, false, "Completed items cannot be pushed back."],
   ])(
@@ -42,32 +41,6 @@ describe("pushing an item back one day", () => {
     expect(moved.updatedAtUtc).toEqual(now);
   });
 
-  it("Moves both ends of a scheduled block across midnight and keeps its length", () => {
-    const start = dateTime("2026-11-10T23:45");
-    const end = dateTime("2026-11-11T01:45");
-    const block = item("task", {
-      dueDate: date("2026-11-10"),
-      scheduledStart: start,
-      scheduledEnd: end,
-    });
-
-    const moved = pushBackOneDay(block, now);
-
-    expect(moved.dueDate).toEqual(date("2026-11-11"));
-    expect(moved.scheduledStart).toEqual(dateTime("2026-11-11T23:45"));
-    expect(moved.scheduledEnd).toEqual(dateTime("2026-11-12T01:45"));
-    expect(moved.scheduledStart!.until(moved.scheduledEnd!)).toEqual(start.until(end));
-  });
-
-  it("Moves a block without an end or due date", () => {
-    const block = item("task", { scheduledStart: dateTime("2026-11-10T09:00") });
-
-    const moved = pushBackOneDay(block, now);
-
-    expect(moved).toMatchObject({ dueDate: null, scheduledEnd: null });
-    expect(moved.scheduledStart).toEqual(dateTime("2026-11-11T09:00"));
-  });
-
   it.each([
     ["2026-01-31", "2026-02-01"],
     ["2026-02-28", "2026-03-01"],
@@ -84,8 +57,8 @@ describe("pushing an item back one day", () => {
   it("Keeps the floating wall-clock times when the next day starts or ends daylight saving time", () => {
     const zone = "America/New_York";
     const spring = item("spring", {
-      scheduledStart: dateTime("2026-03-07T02:30"),
-      scheduledEnd: dateTime("2026-03-07T03:30"),
+      dueDate: date("2026-03-07"),
+      dueTime: Temporal.PlainTime.from("02:30"),
     });
     const autumn = item("autumn", {
       dueDate: date("2026-10-31"),
@@ -95,11 +68,11 @@ describe("pushing an item back one day", () => {
     const springMoved = pushBackOneDay(spring, now);
     const autumnMoved = pushBackOneDay(autumn, now);
 
-    expect(springMoved.scheduledStart).toEqual(dateTime("2026-03-08T02:30"));
-    expect(springMoved.scheduledEnd).toEqual(dateTime("2026-03-08T03:30"));
-    expect(FloatingTime.toUtc(springMoved.scheduledStart!, zone)).toEqual(
-      Temporal.Instant.from("2026-03-08T07:00:00Z"),
-    );
+    expect(springMoved.dueDate).toEqual(date("2026-03-08"));
+    expect(springMoved.dueTime).toEqual(Temporal.PlainTime.from("02:30"));
+    expect(
+      FloatingTime.toUtc(springMoved.dueDate!.toPlainDateTime(springMoved.dueTime!), zone),
+    ).toEqual(Temporal.Instant.from("2026-03-08T07:00:00Z"));
     expect(autumnMoved.dueTime).toEqual(Temporal.PlainTime.from("01:30"));
     expect(
       FloatingTime.toUtc(autumnMoved.dueDate!.toPlainDateTime(autumnMoved.dueTime!), zone),
@@ -132,15 +105,12 @@ describe("pushing an item back one day", () => {
       new MetadataRuleError("Completed items cannot be pushed back."),
     );
     expect(() => pushBackOneDay(undated, now)).toThrow(
-      new MetadataRuleError("This item has no due date or scheduled block."),
+      new MetadataRuleError("This item has no due date."),
     );
   });
 
   it("Refuses a move past the last supported date", () => {
-    const last = item("last", {
-      dueDate: date("9999-12-31"),
-      scheduledStart: dateTime("2026-11-10T13:00"),
-    });
+    const last = item("last", { dueDate: date("9999-12-31") });
 
     expect(() => pushBackOneDay(last, now)).toThrow(
       new MetadataRuleError("Pushing back would move a date outside the supported calendar."),

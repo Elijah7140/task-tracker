@@ -24,7 +24,7 @@ export interface BuiltInFieldsProps {
   readonly onChange: (key: BuiltInKey, value: string) => void;
 }
 
-/** True for a ticket, whose fields are fixed: no type or scheduled block (§7.19). */
+/** True for a ticket, whose fields are fixed: no type and only one date (§7.19). */
 const isTicket = (item: typeof Item.Type) => item.kind === "Ticket";
 
 type ChangeProps = Pick<BuiltInFieldsProps, "texts" | "onChange">;
@@ -136,49 +136,29 @@ function DetailsGroup({
   );
 }
 
-interface ScheduleInput {
+interface DateInput {
   readonly key: BuiltInKey;
   readonly label: string;
-  readonly type: "date" | "time" | "datetime-local";
+  readonly type: "date" | "time";
   readonly testId: string;
 }
 
-const DUE_INPUTS: ReadonlyArray<ScheduleInput> = [
+/** A ToDo has a due date and an optional due time (§7.4). */
+const TODO_DATE_INPUTS: ReadonlyArray<DateInput> = [
   { key: "dueDate", label: "Due date", type: "date", testId: "due-date" },
   { key: "dueTime", label: "Due time", type: "time", testId: "due-time" },
 ];
 
-/**
- * Items carry only due dates since 23 Nov 2026 (§7.4). A scheduled value stored
- * earlier still shows, so it can be cleared, and its row goes once it is empty.
- */
-const LEGACY_SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
-  {
-    key: "scheduledStart",
-    label: "Scheduled start",
-    type: "datetime-local",
-    testId: "scheduled-start",
-  },
-  { key: "scheduledEnd", label: "Scheduled end", type: "datetime-local", testId: "scheduled-end" },
-];
-
 /** A ticket's only date is its estimated completion date, stored as the due date (§7.19). */
-const TICKET_SCHEDULE_INPUTS: ReadonlyArray<ScheduleInput> = [
+const TICKET_DATE_INPUTS: ReadonlyArray<DateInput> = [
   { key: "dueDate", label: "Est. comp. date", type: "date", testId: "due-date" },
 ];
-
-function scheduleInputs(texts: ChangeProps["texts"], ticket: boolean) {
-  if (ticket) {
-    return TICKET_SCHEDULE_INPUTS;
-  }
-  return [...DUE_INPUTS, ...LEGACY_SCHEDULE_INPUTS.filter((input) => texts[input.key] !== "")];
-}
 
 function ScheduleGroup({ texts, onChange, ticket }: ChangeProps & { readonly ticket: boolean }) {
   return (
     <EditorGroup title="Schedule" testId="item-editor-schedule">
       <div className="flex flex-col gap-1.5">
-        {scheduleInputs(texts, ticket).map((input) => (
+        {(ticket ? TICKET_DATE_INPUTS : TODO_DATE_INPUTS).map((input) => (
           <EditorField key={input.key} label={input.label}>
             <ClearableInput
               type={input.type}

@@ -68,17 +68,6 @@ export const TimeText = timeText.pipe(
   ),
 );
 
-/** Scheduled timestamps use EF DateTime text and stay on the wall clock. */
-export const FloatingTimestamp = timestampText.pipe(
-  Schema.decodeTo(
-    Schema.instanceOf(Temporal.PlainDateTime),
-    temporalText(
-      (text) => Temporal.PlainDateTime.from(text),
-      (timestamp) => timestamp.toString().replace("T", " "),
-    ),
-  ),
-);
-
 /** UTC columns store offset-free EF DateTime text and decode explicitly as UTC. */
 export const UtcTimestamp = timestampText.pipe(
   Schema.decodeTo(

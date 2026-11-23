@@ -8,7 +8,6 @@ import type { ExportCatalogue, ProjectExportData } from "../json/export-source.j
 import { formatStjDouble } from "../json/stj-number.js";
 import {
   formatTransferDate,
-  formatTransferLocal,
   formatTransferTime,
   formatTransferUtc,
 } from "../transfer-time-format.js";
@@ -91,8 +90,6 @@ class CsvExporter {
       lookup(this.#statuses, item.statusId),
       optional(item.dueDate, formatTransferDate),
       optional(item.dueTime, formatTransferTime),
-      optional(item.scheduledStart, formatTransferLocal),
-      optional(item.scheduledEnd, formatTransferLocal),
       item.completedAtUtc === null ? "no" : "yes",
       optional(item.completedAtUtc, formatTransferUtc),
       protectCsvCell(rows.data.project.name),
@@ -117,7 +114,7 @@ class CsvExporter {
     if (item.kind !== "Ticket") {
       return ["ToDo", ...TICKET_CSV_COLUMN_NAMES.slice(1).map(() => "")];
     }
-    const cells = writeCsvTicketCells(rows.ticketOf(item), this.#entries, formatStjDouble);
+    const cells = writeCsvTicketCells(rows.ticketOf(item), this.#entries);
     return ["Ticket", ...cells.map((cell) => protectCsvCell(cell))];
   }
 

@@ -28,8 +28,6 @@ it.effect("Lists items whose status is marked In progress over RPC", () =>
           priorityLevelId: null,
           dueDate: null,
           dueTime: null,
-          scheduledStart: null,
-          scheduledEnd: null,
           statusId: TESTING_STATUS_ID,
         },
       });

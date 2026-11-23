@@ -42,11 +42,6 @@ export const NO_TICKET_FIELDS: Detail = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
-  version: null,
-  estimatedHours: null,
-  percentComplete: null,
-  isUrgent: false,
-  isSystemOutage: false,
 };
 
 /** People, ticket types, levels, ticket fields and comments for the web tests (§7.19). */

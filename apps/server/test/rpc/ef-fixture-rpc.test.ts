@@ -51,8 +51,6 @@ const blankFields = {
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
-  scheduledStart: null,
-  scheduledEnd: null,
 };
 
 const rendererFetch: typeof fetch = (input, init) => {
@@ -196,8 +194,6 @@ function assertSharedFixtureState(
                   priorityLevelId: highPriorityId,
                   dueDate: "2026-12-10",
                   dueTime: "09:30:00.12",
-                  scheduledStart: "2026-12-09T14:00:00.1234567",
-                  scheduledEnd: "2026-12-09T15:00:00.1234567",
                   completedAtUtc: efStampUtc,
                 },
                 isFinished: true,
@@ -282,8 +278,6 @@ it.effect(
                 priorityLevelId: childItem.priorityLevelId,
                 dueDate: childItem.dueDate,
                 dueTime: childItem.dueTime,
-                scheduledStart: childItem.scheduledStart,
-                scheduledEnd: childItem.scheduledEnd,
               },
               customValues: [
                 { fieldDefinitionId: notes.id, textValue: "Adopted text" },
@@ -448,8 +442,6 @@ it.effect(
                       priorityLevelId: highPriorityId,
                       dueDate: "2026-12-10",
                       dueTime: "09:30:00.12",
-                      scheduledStart: "2026-12-09T14:00:00.1234567",
-                      scheduledEnd: "2026-12-09T15:00:00.1234567",
                       updatedAtUtc: "2026-11-14T12:00:01Z",
                     },
                   },
@@ -678,8 +670,6 @@ it.effect(
                 priorityLevelId: childItem.priorityLevelId,
                 dueDate: childItem.dueDate,
                 dueTime: childItem.dueTime,
-                scheduledStart: childItem.scheduledStart,
-                scheduledEnd: childItem.scheduledEnd,
               },
               customValues: [
                 { fieldDefinitionId: phase3FieldIds.estimate, numberValue: 21.75 },
@@ -820,8 +810,6 @@ it.effect(
                       priorityLevelId: highPriorityId,
                       dueDate: "2026-12-10",
                       dueTime: "09:30:00.12",
-                      scheduledStart: "2026-12-09T14:00:00.1234567",
-                      scheduledEnd: "2026-12-09T15:00:00.1234567",
                       completedAtUtc: efStampUtc,
                       updatedAtUtc: "2026-11-14T12:00:01Z",
                     },

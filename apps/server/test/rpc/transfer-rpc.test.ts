@@ -35,8 +35,6 @@ const fields = {
   priorityLevelId: null,
   dueDate: "2026-11-13",
   dueTime: "07:00:00",
-  scheduledStart: null,
-  scheduledEnd: null,
 };
 
 it.effect(

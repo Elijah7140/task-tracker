@@ -36,8 +36,6 @@ function makeNode(
       reopenStatusId: null,
       dueDate: null,
       dueTime: null,
-      scheduledStart: null,
-      scheduledEnd: null,
       completedAtUtc: options.isFinished ? "2026-11-18T12:00:00Z" : null,
       sortOrder,
       createdAtUtc: "2026-11-18T12:00:00Z",

@@ -27,15 +27,13 @@ const weekly = recurrenceRule("Weekly", { weekdays: RecurrenceWeekday.Friday });
 const completedStatusId = "019A0000-0000-7000-8000-000000000204";
 const testingStatusId = "019A0000-0000-7000-8000-000000000203";
 
-/** The legacy test's edit: every built-in date set, plus an optional rule. */
+/** The legacy test's edit: the due date and time set, plus an optional rule. */
 function repeatEdit(title: string, recurrence: RecurrenceRule | null): ItemEdit {
   return editFields(title, {
     description: "Details",
     ticketNumber: "AUD-1",
     dueDate: due,
     dueTime: Temporal.PlainTime.from("12:30"),
-    scheduledStart: due.toPlainDateTime("09:15"),
-    scheduledEnd: due.toPlainDateTime("10:45"),
     recurrence,
   });
 }
@@ -51,8 +49,6 @@ interface StoredItem {
   readonly ReopenStatusId: string | null;
   readonly DueDate: string | null;
   readonly DueTime: string | null;
-  readonly ScheduledStart: string | null;
-  readonly ScheduledEnd: string | null;
   readonly CompletedAtUtc: string | null;
   readonly SortOrder: number;
   readonly DeletedAtUtc: string | null;
@@ -161,8 +157,6 @@ const assertCopiedTree = Effect.fnUntraced(function* (
     RecurrenceSuccessorCreated: 0,
     DueDate: "2026-11-20",
     DueTime: "12:30:00",
-    ScheduledStart: "2026-11-20 09:15:00",
-    ScheduledEnd: "2026-11-20 10:45:00",
   });
   // A numbered next occurrence is a new ticket at the bottom of its section (§7.16).
   expect(next.TicketRank).not.toBeNull();
@@ -288,7 +282,7 @@ test("Skip moves the same row and undo restores the dates and the count", (svc, 
     expect(yield* world.read(item.id)).toMatchObject({
       CompletedAtUtc: null,
       DueDate: "2026-11-20",
-      ScheduledStart: "2026-11-20 09:15:00",
+      DueTime: "12:30:00",
       RecurrenceRemaining: 1,
     });
     expect((yield* world.undo.status()).undo).toBe("Skip repeat for 'Audit'");
@@ -299,7 +293,7 @@ test("Skip moves the same row and undo restores the dates and the count", (svc, 
 
     expect(yield* world.read(item.id)).toMatchObject({
       DueDate: "2026-11-13",
-      ScheduledStart: "2026-11-13 09:15:00",
+      DueTime: "12:30:00",
       RecurrenceRemaining: 2,
       RecurrenceSeriesId: series,
     });
@@ -390,24 +384,16 @@ for (const [name, filters, expected] of [
     }));
 }
 
-test("A scheduled-only occurrence keeps its times and repeated completion is idempotent", (svc, world) =>
+test("Repeated completion is idempotent and the successor keeps the due time", (svc, world) =>
   Effect.gen(function* () {
     const item = yield* world.create("Meeting");
-    yield* svc.items.edit(
-      item.id,
-      { ...repeatEdit("Meeting", weekly), dueDate: null, dueTime: null },
-      [],
-    );
+    yield* svc.items.edit(item.id, repeatEdit("Meeting", weekly), []);
 
     yield* world.complete(item.id);
     yield* world.complete(item.id);
 
     const next = yield* world.successorOf(item.id);
-    expect(next).toMatchObject({
-      DueDate: null,
-      ScheduledStart: "2026-11-20 09:15:00",
-      ScheduledEnd: "2026-11-20 10:45:00",
-    });
+    expect(next).toMatchObject({ DueDate: "2026-11-20", DueTime: "12:30:00" });
   }));
 
 for (const operation of ["indent", "move", "drop"] as const) {
@@ -606,7 +592,7 @@ test("Setting, changing and removing a rule are labelled undo steps", (svc, worl
     ]);
   }));
 
-test("A rule without a due date or scheduled start saves nothing", (svc, world) =>
+test("A rule without a due date saves nothing", (svc, world) =>
   Effect.gen(function* () {
     const item = yield* world.create("Audit");
 
@@ -614,9 +600,7 @@ test("A rule without a due date or scheduled start saves nothing", (svc, world) 
       svc.items.edit(item.id, editFields("Changed", { recurrence: weekly }), []),
     );
 
-    expect(failure).toEqual(
-      new MetadataRuleError("A repeating item needs a due date or a scheduled start."),
-    );
+    expect(failure).toEqual(new MetadataRuleError("A repeating item needs a due date."));
     expect((yield* world.read(item.id)).Title).toBe("Audit");
   }));
 

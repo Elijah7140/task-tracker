@@ -2,7 +2,7 @@ import type { CalendarEntry } from "@task-tracker/contracts";
 import { describe, expect, it } from "vitest";
 import {
   buildCalendarDays,
-  clipEntryToDay,
+  entryOnDay,
   type CalendarDay,
   type CalendarOccurrence,
 } from "../../src/calendar/calendar-layout.js";
@@ -25,11 +25,8 @@ function entry(overrides: Partial<Entry>): Entry {
     projectId: "0190A1B2-0000-7000-8000-000000000002",
     folderId: null,
     title: "Due item",
-    kind: "due",
     date: MONDAY,
     startTime: null,
-    scheduledStart: null,
-    scheduledEnd: null,
     isCompleted: false,
     dueDate: MONDAY,
     dueTime: null,
@@ -47,24 +44,13 @@ function due(date: string, title = "Due item", time: string | null = null, extra
   return entry({ date, dueDate: date, startTime: time, dueTime: time, title, ...extra });
 }
 
-function scheduled(start: string, end: string | null, title = "Block") {
-  return entry({
-    kind: "scheduled",
-    title,
-    date: start.slice(0, 10),
-    startTime: start.slice(11),
-    dueDate: null,
-    scheduledStart: start,
-    scheduledEnd: end,
-  });
-}
-
-function at(time: string, date = MONDAY) {
-  return `${date}T${time}:00`;
+/** A timed due marker on Monday at `time` (HH:mm). */
+function marker(time: string, title = "Marker") {
+  return due(MONDAY, title, `${time}:00`);
 }
 
 function clip(value: Entry, day = MONDAY): CalendarOccurrence {
-  const occurrence = clipEntryToDay(value, day);
+  const occurrence = entryOnDay(value, day);
   if (occurrence === null) {
     throw new Error(`${value.title} is not on ${day}`);
   }
@@ -155,19 +141,19 @@ describe("buildCalendarDays", () => {
 
   it("Puts all-day entries before timed entries, then timed entries in start order", () => {
     const entries = [
-      scheduled(at("15:00"), null, "Afternoon block"),
+      marker("15:00", "Afternoon"),
       due(MONDAY, "Timed due", "09:00:00"),
       due(MONDAY, "All day"),
-      scheduled(at("08:00"), null, "Early block"),
+      marker("08:00", "Early"),
     ];
 
     const day = buildDay(MONDAY, entries);
 
     expect(day.entries.map((occurrence) => occurrence.entry.title)).toEqual([
       "All day",
-      "Early block",
+      "Early",
       "Timed due",
-      "Afternoon block",
+      "Afternoon",
     ]);
     expect(day.allDayEntries.map((occurrence) => occurrence.entry.title)).toEqual(["All day"]);
     expect(day.timedEntries).toHaveLength(3);
@@ -196,84 +182,28 @@ describe("buildCalendarDays", () => {
     expect(forward.entries.map((occurrence) => occurrence.entry.itemId)).toEqual(ids);
     expect(backward.entries.map((occurrence) => occurrence.entry.itemId)).toEqual(ids);
   });
-
-  it("Orders the due entry of an item before its scheduled entry at the same time", () => {
-    const both = {
-      itemId: FIRST_ID,
-      title: "Both",
-      dueTime: "09:00:00",
-      scheduledStart: at("09:00"),
-    };
-    const dueEntry = entry({ ...both, startTime: "09:00:00" });
-    const block = entry({ ...both, kind: "scheduled", startTime: "09:00:00" });
-
-    const day = buildDay(MONDAY, [block, dueEntry]);
-
-    expect(day.entries.map((occurrence) => occurrence.entry.kind)).toEqual(["due", "scheduled"]);
-  });
 });
 
-describe("clipEntryToDay", () => {
-  it("Clips a schedule crossing midnight to each day", () => {
-    const value = scheduled(at("23:00"), at("01:00", "2026-11-17"));
+describe("entryOnDay", () => {
+  it("Places a due entry on its due date only", () => {
+    const value = due(MONDAY, "Report", "10:00:00");
 
-    const first = clip(value, MONDAY);
-    const second = clip(value, "2026-11-17");
+    const onDay = clip(value);
+    const nextDay = entryOnDay(value, "2026-11-17");
 
-    expect(first.startMinutes).toBe(23 * 60);
-    expect(second.startMinutes).toBe(0);
-    expect(second.endMinutes).toBe(60);
+    expect(onDay.day).toBe(MONDAY);
+    expect(onDay.startMinutes).toBe(10 * 60);
+    expect(nextDay).toBeNull();
   });
 
-  it("Keeps a block ending exactly at midnight off the next day", () => {
-    const value = scheduled(at("22:00"), at("00:00", "2026-11-17"));
+  it("Makes a timed due marker thirty minutes tall and compact", () => {
+    const timed = clip(marker("09:00"));
+    const allDay = clip(due(MONDAY, "All day"));
 
-    const first = clip(value, MONDAY);
-    const second = clipEntryToDay(value, "2026-11-17");
-
-    expect(first.endMinutes).toBe(24 * 60);
-    expect(first.heightPx).toBe(2 * HOUR_HEIGHT);
-    expect(second).toBeNull();
-  });
-
-  it("Makes a zero-length schedule at midnight a thirty-minute block", () => {
-    const value = scheduled(at("00:00"), at("00:00"));
-
-    const occurrence = clip(value);
-
-    expect(occurrence.startMinutes).toBe(0);
-    expect(occurrence.endMinutes).toBe(30);
-    expect(occurrence.durationMinutes).toBe(30);
-  });
-
-  it("Continues a zero-length schedule just before midnight on the next day", () => {
-    const value = scheduled(at("23:45"), at("23:45"));
-
-    const first = clipEntryToDay(value, MONDAY);
-    const second = clip(value, "2026-11-17");
-
-    expect(first).not.toBeNull();
-    expect(second.endMinutes).toBe(15);
-  });
-
-  it("Keeps the floating length of a block on a daylight-saving day", () => {
-    const value = scheduled("2026-03-08T01:00:00", "2026-03-08T04:00:00");
-
-    const occurrence = clip(value, "2026-03-08");
-
-    expect(occurrence.durationMinutes).toBe(180);
-    expect(occurrence.heightPx).toBe(3 * HOUR_HEIGHT);
-    expect(occurrence.topPx).toBe(HOUR_HEIGHT);
-  });
-
-  it("Makes blocks and markers as tall as their real duration", () => {
-    const tenMinutes = clip(scheduled(at("09:00"), at("09:10")));
-    const noEnd = clip(scheduled(at("09:00"), null));
-    const marker = clip(due(MONDAY, "Marker", "09:00:00"));
-
-    expect(tenMinutes.heightPx).toBeCloseTo((10 * HOUR_HEIGHT) / 60, 6);
-    expect(noEnd.heightPx).toBe(HOUR_HEIGHT / 2);
-    expect(marker.heightPx).toBe(HOUR_HEIGHT / 2);
+    expect(timed.heightPx).toBe(HOUR_HEIGHT / 2);
+    expect(timed.durationMinutes).toBe(30);
+    expect(timed.isCompact).toBe(true);
+    expect(allDay.isAllDay).toBe(true);
   });
 
   it("Moves a due marker at the end of the day up to fit inside it", () => {
@@ -282,18 +212,6 @@ describe("clipEntryToDay", () => {
 
     expect(late.topPx + late.heightPx).toBe(DAY_HEIGHT);
     expect(evening.topPx).toBe(23 * HOUR_HEIGHT);
-  });
-
-  it.each([
-    [10, true],
-    [30, true],
-    [60, false],
-  ])("Makes a %i-minute block compact: %s", (minutes, compact) => {
-    const end = `${MONDAY}T${String(9 + Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}:00`;
-
-    const occurrence = clip(scheduled(at("09:00"), end));
-
-    expect(occurrence.isCompact).toBe(compact);
   });
 
   it("Marks completed entries and leads month labels with the start time", () => {
@@ -320,12 +238,10 @@ describe("clipEntryToDay", () => {
 describe("accessible names", () => {
   it("Names an entry with its title, timing on the day and urgency", () => {
     const allDay = clip(due(MONDAY, "Report", null, { urgency: "Overdue" }));
-    const marker = clip(due(MONDAY, "Call", "09:05:00"));
-    const block = clip(scheduled(at("23:00"), at("01:00", "2026-11-17"), "Deploy"));
+    const timed = clip(due(MONDAY, "Call", "09:05:00"));
 
     expect(allDay.accessibleLabel).toBe("Report, due all day, Overdue");
-    expect(marker.accessibleLabel).toBe("Call, due 09:05");
-    expect(block.accessibleLabel).toBe("Deploy, scheduled 23:00 to 24:00");
+    expect(timed.accessibleLabel).toBe("Call, due 09:05");
   });
 
   it("Names each day with its full date and marks today", () => {
@@ -339,11 +255,8 @@ describe("accessible names", () => {
 });
 
 describe("overlap placement", () => {
-  it("Keeps adjacent half-hour blocks from overlapping or splitting the width", () => {
-    const entries = [
-      scheduled(at("09:00"), at("09:30"), "First"),
-      scheduled(at("09:30"), at("10:00"), "Second"),
-    ];
+  it("Keeps adjacent half-hour markers from overlapping or splitting the width", () => {
+    const entries = [marker("09:00", "First"), marker("09:30", "Second")];
 
     const day = buildDay(MONDAY, entries);
 
@@ -352,30 +265,8 @@ describe("overlap placement", () => {
     expect(first.topPx + first.heightPx).toBe(named(day, "Second").topPx);
   });
 
-  it("Keeps blocks closer than the old minimum height from overlapping", () => {
-    const entries = [
-      scheduled(at("09:00"), at("09:15"), "First"),
-      scheduled(at("09:30"), at("09:45"), "Second"),
-    ];
-
-    const day = buildDay(MONDAY, entries);
-
-    expect(day.entries.map((occurrence) => occurrence.widthFraction)).toEqual([1, 1]);
-  });
-
-  it("Shares width between a late marker moved up and the block it now covers", () => {
-    const entries = [
-      scheduled(at("23:30"), at("00:00", "2026-11-17"), "Block"),
-      due(MONDAY, "Marker", "23:59:00"),
-    ];
-
-    const day = buildDay(MONDAY, entries);
-
-    expect(day.entries.map((occurrence) => occurrence.widthFraction)).toEqual([0.5, 0.5]);
-  });
-
-  it("Splits the day width between overlapping blocks", () => {
-    const entries = [scheduled(at("09:00"), at("11:00")), scheduled(at("09:30"), at("10:00"))];
+  it("Splits the day width between overlapping markers", () => {
+    const entries = [marker("09:00", "First"), marker("09:15", "Second")];
 
     const day = buildDay(MONDAY, entries);
 
@@ -383,12 +274,16 @@ describe("overlap placement", () => {
     expect(day.entries.map((occurrence) => occurrence.leftFraction)).toEqual([0, 0.5]);
   });
 
-  it("Groups overlaps transitively through a middle block", () => {
-    const entries = [
-      scheduled(at("09:00"), at("10:00"), "First"),
-      scheduled(at("09:30"), at("11:00"), "Middle"),
-      scheduled(at("10:30"), at("11:30"), "Last"),
-    ];
+  it("Shares width between a late marker moved up and the marker it now covers", () => {
+    const entries = [marker("23:30", "Evening"), marker("23:59", "Late")];
+
+    const day = buildDay(MONDAY, entries);
+
+    expect(day.entries.map((occurrence) => occurrence.widthFraction)).toEqual([0.5, 0.5]);
+  });
+
+  it("Groups overlaps transitively through a middle marker", () => {
+    const entries = [marker("09:00", "First"), marker("09:20", "Middle"), marker("09:40", "Last")];
 
     const day = buildDay(MONDAY, entries);
 
@@ -398,19 +293,8 @@ describe("overlap placement", () => {
     expect(named(day, "Last").leftFraction).toBe(0);
   });
 
-  it("Keeps blocks that only touch from sharing width", () => {
-    const entries = [
-      scheduled(at("09:00"), at("10:00"), "Before"),
-      scheduled(at("10:00"), at("11:00"), "After"),
-    ];
-
-    const day = buildDay(MONDAY, entries);
-
-    expect(day.entries.map((occurrence) => occurrence.widthFraction)).toEqual([1, 1]);
-  });
-
-  it("Splits the width evenly between blocks with identical starts", () => {
-    const entries = ["A", "B", "C"].map((title) => scheduled(at("09:00"), at("10:00"), title));
+  it("Splits the width evenly between markers with identical starts", () => {
+    const entries = ["A", "B", "C"].map((title) => marker("09:00", title));
 
     const day = buildDay(MONDAY, entries);
 
@@ -420,16 +304,5 @@ describe("overlap placement", () => {
       1 / 3,
     ]);
     expect(day.entries.map((occurrence) => occurrence.leftFraction)).toEqual([0, 1 / 3, 2 / 3]);
-  });
-
-  it("Shares the column between a timed due marker and the block it overlaps", () => {
-    const entries = [
-      scheduled(at("09:00"), at("11:00"), "Block"),
-      due(MONDAY, "Marker", "09:30:00"),
-    ];
-
-    const day = buildDay(MONDAY, entries);
-
-    expect(day.entries.map((occurrence) => occurrence.widthFraction)).toEqual([0.5, 0.5]);
   });
 });

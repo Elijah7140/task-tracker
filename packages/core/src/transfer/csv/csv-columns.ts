@@ -11,8 +11,6 @@ export const CSV_COLUMNS = {
   status: "Status",
   dueDate: "Due date",
   dueTime: "Due time",
-  scheduledStart: "Scheduled start",
-  scheduledEnd: "Scheduled end",
   completed: "Completed",
   completedAt: "Completed at",
   project: "Project",
@@ -38,11 +36,6 @@ export const TICKET_CSV_COLUMNS = {
   dispatchedTo: "Dispatched to",
   pendingUser: "Pending user",
   ticketType: "Ticket type",
-  version: "Version",
-  estimatedHours: "Est. hours",
-  percentComplete: "% complete",
-  urgent: "Urgent",
-  systemOutage: "System outage",
 } as const;
 
 /** The ticket columns in the order an export writes them. */

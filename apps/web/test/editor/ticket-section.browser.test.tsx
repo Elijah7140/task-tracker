@@ -8,14 +8,6 @@ const PROJECT = {
   items: [{ title: "Employee training data", kind: "Ticket" as const, ticketNumber: "385405" }],
 };
 
-const HIDDEN_FIELDS = {
-  version: "1.0.0",
-  estimatedHours: 4,
-  percentComplete: 50,
-  isUrgent: true,
-  isSystemOutage: true,
-};
-
 const editor = () => page.getByRole("dialog", { name: "Edit ticket" });
 
 async function openTicketEditor() {
@@ -28,7 +20,7 @@ async function openTicketEditor() {
         PROJECT.items[0]!.title,
       )?.item.id;
       store.ticketFields.seed("TicketType", "Defect");
-      store.ticketFields.details.set(ticketId ?? "", { ...NO_TICKET_FIELDS, ...HIDDEN_FIELDS });
+      store.ticketFields.details.set(ticketId ?? "", { ...NO_TICKET_FIELDS });
     },
   });
   app.history.push(`/projects/${app.store.summaries[0]?.project.id}`);
@@ -53,18 +45,7 @@ describe("TicketSection in the item editor", () => {
     await expect.element(editor().getByTestId("item-editor-due-date")).toBeVisible();
   });
 
-  it("Leaves out version, hours, percent and the urgent and outage flags", async () => {
-    await openTicketEditor();
-
-    await expect.element(editor().getByTestId("item-editor-ticket-fields")).toBeVisible();
-    await expect.element(editor().getByTestId("ticket-editor-version")).not.toBeInTheDocument();
-    await expect.element(editor().getByText("Est. hours")).not.toBeInTheDocument();
-    await expect.element(editor().getByText("% complete")).not.toBeInTheDocument();
-    await expect.element(editor().getByText("Urgent")).not.toBeInTheDocument();
-    await expect.element(editor().getByText("System outage")).not.toBeInTheDocument();
-  });
-
-  it("Saves a changed ticket type and keeps the stored hidden fields", async () => {
+  it("Saves a changed ticket type as the ticket's replacement fields", async () => {
     const { store } = await openTicketEditor();
     const typeId = store.ticketFields.entries[0]?.id ?? "";
 
@@ -75,7 +56,6 @@ describe("TicketSection in the item editor", () => {
     await expect.element(editor()).not.toBeInTheDocument();
     expect(store.ticketFields.lastEditTicket).toEqual({
       ...NO_TICKET_FIELDS,
-      ...HIDDEN_FIELDS,
       ticketTypeId: typeId,
     });
   });

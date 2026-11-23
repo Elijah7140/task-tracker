@@ -8,46 +8,33 @@ const stored = {
   interfaceId: null,
   dispatchedToId: "wayne",
   pendingPersonId: null,
-  ticketTypeId: null,
-  version: "1.0.0",
-  estimatedHours: 16,
-  percentComplete: 50,
-  isUrgent: false,
-  isSystemOutage: false,
+  ticketTypeId: "defect",
 };
 
 describe("ticketDraftStatus", () => {
   it("Is not dirty until a value really changes", () => {
     const untouched = ticketDraftStatus(stored, {});
-    const sameValue = ticketDraftStatus(stored, { version: "1.0.0" });
+    const sameValue = ticketDraftStatus(stored, { ticketTypeId: "defect" });
 
-    expect(untouched).toEqual({ dirty: false, ticket: undefined, error: null });
+    expect(untouched).toEqual({ dirty: false, ticket: undefined });
     expect(sameValue.dirty).toBe(false);
   });
 
   it("Sends the whole replacement when one field changes", () => {
-    const status = ticketDraftStatus(stored, { version: " 1.1.0 ", isUrgent: true });
+    const status = ticketDraftStatus(stored, { requestorId: " anna " });
 
-    expect(status).toEqual({
-      dirty: true,
-      ticket: { ...stored, version: "1.1.0", isUrgent: true },
-      error: null,
-    });
+    expect(status).toEqual({ dirty: true, ticket: { ...stored, requestorId: "anna" } });
   });
 
-  it("Refuses a percent that is not a number and sends nothing", () => {
-    const status = ticketDraftStatus(stored, { percentComplete: "half" });
+  it("Clears a field set back to blank", () => {
+    const status = ticketDraftStatus(stored, { dispatchedToId: "" });
 
-    expect(status).toEqual({
-      dirty: true,
-      ticket: undefined,
-      error: "% complete must be a number.",
-    });
+    expect(status).toEqual({ dirty: true, ticket: { ...stored, dispatchedToId: null } });
   });
 
   it("Is not dirty while the stored fields load", () => {
-    const status = ticketDraftStatus(null, { version: "2.0" });
+    const status = ticketDraftStatus(null, { requestorId: "anna" });
 
-    expect(status).toEqual({ dirty: false, ticket: undefined, error: null });
+    expect(status).toEqual({ dirty: false, ticket: undefined });
   });
 });

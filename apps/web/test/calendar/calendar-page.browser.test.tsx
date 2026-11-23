@@ -432,17 +432,13 @@ describe("entry display", () => {
     await expect.element(entry("Quick ping")).toHaveAttribute("data-compact", "true");
   });
 
-  it("Lists a day's all-day entries in priority order and leaves out scheduled-only items", async () => {
+  it("Lists a day's all-day entries in priority order and leaves out undated items", async () => {
     const items = [
       { title: "Alpha", dueDate: "2026-11-18", priority: "Low" as const },
       { title: "Bravo", dueDate: "2026-11-18" },
       { title: "Charlie", dueDate: "2026-11-18", priority: "High" as const },
       { title: "Delta", dueDate: "2026-11-18", priority: "Critical" as const },
-      {
-        title: "Scheduled only",
-        scheduledStart: "2026-11-18T09:00:00",
-        scheduledEnd: "2026-11-18T10:00:00",
-      },
+      { title: "Undated" },
     ];
     await openWeek([{ name: "Billing", items }]);
     const allDay = page.getByRole("group", { name: "Wednesday, November 18, 2026, all day" });
@@ -458,7 +454,7 @@ describe("entry display", () => {
       "Alpha, due all day",
       "Bravo, due all day",
     ]);
-    await expect.element(entry("Scheduled only")).not.toBeInTheDocument();
+    await expect.element(entry("Undated")).not.toBeInTheDocument();
   });
 
   it("Keeps a 23:59 marker and its title inside the day column", async () => {

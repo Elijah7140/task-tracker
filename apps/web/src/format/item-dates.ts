@@ -65,8 +65,8 @@ export function formatFloatingDate(date: string): string {
   return formatter(FLOATING_FRAME, false).format(utcMillis(date));
 }
 
-/** Formats a floating date with a wall-clock time, such as a due time or a scheduled start. */
-export function formatFloatingDateTime(date: string, time?: string | null): string {
+/** Formats a floating date with a wall-clock time, such as a due date and time. */
+export function formatFloatingDateTime(date: string, time: string): string {
   return formatter(FLOATING_FRAME, true).format(utcMillis(date, time));
 }
 
@@ -75,10 +75,7 @@ export function formatInstantDate(instant: string, timeZone: string): string {
   return formatter(timeZone, false).format(utcMillis(instant));
 }
 
-/**
- * The date a row shows: the due date, with its time when set. Items carry only due
- * dates since 23 Nov 2026, so a stored scheduled start is not shown (§7.4).
- */
+/** The date a row shows: the due date, with its time when set (§7.4). */
 export function deadlineLabel(item: ItemRecord): DeadlineLabel | null {
   if (item.dueDate !== null) {
     const text =

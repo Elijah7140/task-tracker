@@ -63,7 +63,6 @@ export { TrashBatch, TrashNodeKind } from "./trash-batch.js";
 export { TrashRpcs } from "./trash-rpcs.js";
 export {
   CalendarEntry,
-  CalendarEntryKind,
   CalendarItemLocation,
   CalendarSnapshot,
   CalendarUrgency,

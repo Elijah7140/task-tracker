@@ -11,8 +11,6 @@ function edit(source: TodoItem, overrides: Partial<ItemEdit>): ItemEdit {
     priorityLevelId: source.priorityLevelId,
     dueDate: source.dueDate,
     dueTime: source.dueTime,
-    scheduledStart: source.scheduledStart,
-    scheduledEnd: source.scheduledEnd,
     ...overrides,
   };
 }

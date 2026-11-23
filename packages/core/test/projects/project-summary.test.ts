@@ -3,7 +3,7 @@ import { createProject, overdueDateBound, summarizeProject } from "../../src/ind
 import { earlier, now } from "../fixtures.js";
 
 const project = createProject("billing", "Billing DB", earlier);
-const noDates = { dueDate: null, dueTime: null, scheduledStart: null };
+const noDates = { dueDate: null, dueTime: null };
 
 it("counts only the deadlines that have passed as overdue", () => {
   const today = Temporal.PlainDate.from("2026-11-13");
@@ -12,28 +12,12 @@ it("counts only the deadlines that have passed as overdue", () => {
     { ...noDates, dueDate: today, dueTime: Temporal.PlainTime.from("11:59") },
     { ...noDates, dueDate: today, dueTime: Temporal.PlainTime.from("12:00") },
     { ...noDates, dueDate: today },
-    { ...noDates, scheduledStart: Temporal.PlainDateTime.from("2026-11-13T08:00") },
     noDates,
   ];
 
   const summary = summarizeProject(project, 9, deadlines, now, "UTC");
 
-  expect(summary).toEqual({ project, openCount: 9, overdueCount: 3 });
-});
-
-it("prefers the due date over the scheduled start", () => {
-  const scheduledStart = Temporal.PlainDateTime.from("2026-11-01T08:00");
-  const dueDate = Temporal.PlainDate.from("2026-11-20");
-
-  const summary = summarizeProject(
-    project,
-    1,
-    [{ dueDate, dueTime: null, scheduledStart }],
-    now,
-    "UTC",
-  );
-
-  expect(summary.overdueCount).toBe(0);
+  expect(summary).toEqual({ project, openCount: 9, overdueCount: 2 });
 });
 
 it("bounds overdue dates two local days after now in the given zone", () => {

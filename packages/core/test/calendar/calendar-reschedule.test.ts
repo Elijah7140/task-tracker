@@ -6,14 +6,6 @@ const next = "2026-11-14";
 const due = (time: string | null) => ({
   dueDate: Temporal.PlainDate.from(date),
   dueTime: time === null ? null : Temporal.PlainTime.from(time),
-  scheduledStart: null,
-  scheduledEnd: null,
-});
-const schedule = (start: string, end: string | null) => ({
-  dueDate: null,
-  dueTime: null,
-  scheduledStart: Temporal.PlainDateTime.from(start),
-  scheduledEnd: end === null ? null : Temporal.PlainDateTime.from(end),
 });
 type Target = CalendarMoveIntent["target"];
 
@@ -114,7 +106,7 @@ it.each<[string, string | null, Target, string, string | null]>([
     "23:45:00",
   ],
 ])("A due move %s", (_name, time, target, expectedDate, expectedTime) => {
-  const moved = planCalendarMove(due(time), { kind: "due", sourceDay: date, target });
+  const moved = planCalendarMove(due(time), { target });
 
   expect(moved?.date.toString()).toBe(expectedDate);
   expect(moved?.dates.dueTime?.toString() ?? null).toBe(expectedTime);
@@ -128,68 +120,5 @@ it.each<[string | null, Target]>([
   ["00:00", { type: "step", days: 0, quarters: -1 }],
   ["23:45", { type: "step", days: 0, quarters: 1 }],
 ])("Leaves a due entry at %s unchanged for %j", (time, target) => {
-  expect(planCalendarMove(due(time), { kind: "due", sourceDay: date, target })).toBeNull();
-});
-
-it.each<[string, string, Target, string | null]>([
-  [
-    "moves by whole days from the first day",
-    date,
-    { type: "month", date: next },
-    "2026-11-14T23:00:00",
-  ],
-  [
-    "moves by whole days from the second day",
-    next,
-    { type: "month", date: "2026-11-15" },
-    "2026-11-14T23:00:00",
-  ],
-  [
-    "places the first segment at the snapped time",
-    date,
-    { type: "time", date: next, minute: 600 },
-    "2026-11-14T10:00:00",
-  ],
-  [
-    "places the continuation at the snapped time",
-    next,
-    { type: "time", date: next, minute: 45 },
-    "2026-11-13T23:45:00",
-  ],
-  ["ignores an all-day drop", date, { type: "all-day", date: next }, null],
-  ["ignores a drop in the same time slot", date, { type: "time", date, minute: 1380 }, null],
-  [
-    "ignores a drop in the same continuation slot",
-    next,
-    { type: "time", date: next, minute: 0 },
-    null,
-  ],
-  [
-    "can move by a day and quarter together",
-    date,
-    { type: "step", days: 1, quarters: 1 },
-    "2026-11-14T23:15:00",
-  ],
-  [
-    "nudges from the clipped start",
-    next,
-    { type: "step", days: 0, quarters: 1 },
-    "2026-11-13T23:15:00",
-  ],
-  ["clamps a continuation at midnight", next, { type: "step", days: 0, quarters: -1 }, null],
-  [
-    "can step the continuation to the prior day",
-    next,
-    { type: "step", days: -1, quarters: 0 },
-    "2026-11-12T23:00:00",
-  ],
-])("An overnight block %s", (_name, sourceDay, target, expected) => {
-  const dates = schedule("2026-11-13T23:00", "2026-11-14T01:00");
-
-  const moved = planCalendarMove(dates, { kind: "scheduled", sourceDay, target });
-
-  expect(moved?.dates.scheduledStart?.toString() ?? null).toBe(expected);
-  if (moved !== null) {
-    expect(moved.dates.scheduledStart?.until(moved.dates.scheduledEnd!).toString()).toBe("PT2H");
-  }
+  expect(planCalendarMove(due(time), { target })).toBeNull();
 });

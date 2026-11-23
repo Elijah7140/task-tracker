@@ -54,8 +54,6 @@ function builtInFilter(filter: FieldFilter, bind: BindParameter): string {
       return priorityFilter(filter, bind);
     case "due":
       return scalarFilter("t.DueDate", filter, bind);
-    case "scheduled":
-      return scalarFilter("substr(t.ScheduledStart, 1, 10)", filter, bind, "t.ScheduledStart");
     case "status":
       return textFilter("(SELECT s.Name FROM StatusLevel s WHERE s.Id = t.StatusId)", filter, bind);
     case "completed":
@@ -82,9 +80,6 @@ const TICKET_ENTRY_COLUMNS: Readonly<Record<string, string>> = {
   tickettype: "TicketTypeId",
 };
 
-const ticketColumn = (column: string) =>
-  `(SELECT d.${column} FROM TicketDetail d WHERE d.ItemId = t.Id)`;
-
 const COMMENTS = "SELECT 1 FROM TicketComment c WHERE c.ItemId = t.Id";
 
 /** The item kind and the fixed ticket fields; a ToDo has none of the ticket values (§7.19). */
@@ -97,16 +92,6 @@ function ticketFilter(filter: FieldFilter, bind: BindParameter): string {
   switch (filter.fieldKey) {
     case "kind":
       return textFilter("t.ItemKind", filter, bind);
-    case "version":
-      return textFilter(ticketColumn("Version"), filter, bind);
-    case "hours":
-      return scalarFilter(ticketColumn("EstimatedHours"), filter, bind);
-    case "percent":
-      return scalarFilter(ticketColumn("PercentComplete"), filter, bind);
-    case "urgent":
-      return scalarFilter(`COALESCE(${ticketColumn("IsUrgent")}, 0)`, filter, bind);
-    case "outage":
-      return scalarFilter(`COALESCE(${ticketColumn("IsSystemOutage")}, 0)`, filter, bind);
     case "comment":
       return commentFilter(filter, bind);
     default:
@@ -163,23 +148,18 @@ function textFilter(column: string, filter: FieldFilter, bind: BindParameter): s
   return `${column} IS NOT NULL AND ${test}`;
 }
 
-function scalarFilter(
-  column: string,
-  filter: FieldFilter,
-  bind: BindParameter,
-  presenceColumn: string = column,
-): string {
-  const presence = presenceFilter(presenceColumn, filter);
+function scalarFilter(column: string, filter: FieldFilter, bind: BindParameter): string {
+  const presence = presenceFilter(column, filter);
   if (presence !== null) {
     return presence;
   }
   const value = filter.value!;
   if (filter.operator === "between") {
     const [min, max] = rangeBounds(value);
-    return `${presenceColumn} IS NOT NULL AND ${column} BETWEEN ${bind(min)} AND ${bind(max)}`;
+    return `${column} IS NOT NULL AND ${column} BETWEEN ${bind(min)} AND ${bind(max)}`;
   }
   const comparison = COMPARISONS[filter.operator as keyof typeof COMPARISONS];
-  return `${presenceColumn} IS NOT NULL AND ${column} ${comparison} ${bind(scalarValue(value))}`;
+  return `${column} IS NOT NULL AND ${column} ${comparison} ${bind(scalarValue(value))}`;
 }
 
 function rangeBounds(value: FilterValue): readonly [SQLInputValue, SQLInputValue] {

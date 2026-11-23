@@ -3,38 +3,31 @@ import type { TodoItem } from "../todo-item.js";
 import { isSupportedDate } from "./recurrence-calculator.js";
 import type { RecurrenceRule } from "./recurrence-rule.js";
 
-type ItemDates = Pick<TodoItem, "dueDate" | "scheduledStart" | "scheduledEnd">;
+type ItemDates = Pick<TodoItem, "dueDate">;
 
 /** Shown when moving to the next occurrence would leave the supported calendar. */
 export const NEXT_REPEAT_OVERFLOW =
   "The next repeat would move a date outside the supported calendar.";
 
-/** The floating date a rule advances: the due date, else the scheduled start's date (§7.11). */
+/** The floating date a rule advances: the due date (§7.11). */
 export function recurrenceDate(item: ItemDates): Temporal.PlainDate | null {
-  return item.dueDate ?? item.scheduledStart?.toPlainDate() ?? null;
+  return item.dueDate;
 }
 
 /**
- * Moves the due date and scheduled block by the same number of days, keeping
- * their times and the block's length. Fails with `overflowMessage` when a date
- * would leave the supported calendar.
+ * Moves the due date by a number of days, keeping its time. Fails with
+ * `overflowMessage` when the date would leave the supported calendar.
  */
 export function shiftItemDates<Item extends ItemDates>(
   item: Item,
   days: number,
   overflowMessage = NEXT_REPEAT_OVERFLOW,
 ): Item {
-  const shifted = {
-    ...item,
-    dueDate: item.dueDate?.add({ days }) ?? null,
-    scheduledStart: item.scheduledStart?.add({ days }) ?? null,
-    scheduledEnd: item.scheduledEnd?.add({ days }) ?? null,
-  };
-  const dates = [shifted.dueDate, shifted.scheduledStart, shifted.scheduledEnd];
-  if (dates.some((date) => date !== null && !isSupportedDate(Temporal.PlainDate.from(date)))) {
+  const dueDate = item.dueDate?.add({ days }) ?? null;
+  if (dueDate !== null && !isSupportedDate(dueDate)) {
     throw new MetadataRuleError(overflowMessage);
   }
-  return shifted;
+  return { ...item, dueDate };
 }
 
 /** Days from the item's recurrence date to `next`. */

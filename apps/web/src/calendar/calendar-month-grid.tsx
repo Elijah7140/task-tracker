@@ -80,7 +80,7 @@ export function CalendarMonthGrid({
               <div className="flex min-w-0 flex-col gap-1">
                 {day.visibleMonthEntries.map((occurrence, index) => (
                   <CalendarEntryButton
-                    key={`${occurrence.entry.itemId}-${occurrence.entry.kind}`}
+                    key={occurrence.entry.itemId}
                     occurrence={occurrence}
                     variant="inline"
                     navIndex={index}

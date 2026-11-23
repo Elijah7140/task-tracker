@@ -117,17 +117,6 @@ function checkTicketFields(
     }
   }
   checkLevelChain(ticket, path, kinds, issues);
-  const hours = ticket.estimatedHours;
-  if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > 100_000)) {
-    issues.add(`${path}.estimatedHours`, "Estimated hours must be from 0 to 100000.");
-  }
-  const percent = ticket.percentComplete;
-  if (percent !== null && (percent < 0 || percent > 100)) {
-    issues.add(`${path}.percentComplete`, "Percent complete must be from 0 to 100.");
-  }
-  if (ticket.version !== null && trimText(ticket.version).length > 100) {
-    issues.add(`${path}.version`, "The value must be 100 characters or fewer.");
-  }
 }
 
 function checkComments(comments: readonly CommentDocument[], path: string, issues: IssueList) {

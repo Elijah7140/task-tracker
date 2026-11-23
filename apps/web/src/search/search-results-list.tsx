@@ -82,7 +82,7 @@ function ResultTitle({ result }: { readonly result: Result }) {
 
 const pushBackState = (result: Result): PushBackState => ({
   isCompleted: result.isCompleted,
-  hasDates: result.dueDate !== null || result.hasSchedule,
+  hasDates: result.dueDate !== null,
 });
 
 interface ResultRowProps {
