@@ -1,7 +1,9 @@
 # Stack migration
 
-**Status:** WP1–WP24 complete. [The project plan](PLAN.md) defines the product and
-architecture. WP25 onward ports the additional features frozen at `legacy-final`.
+**Status:** Complete. WP1–WP24 replaced the .NET stack and WP25–WP53 ported the
+additional features frozen at `legacy-final`. The owner signed off on 20 Nov 2026
+([parity record](PARITY.md#open-verification)). This file is the historical record
+of that work; [the project plan](PLAN.md) defines the product and architecture.
 
 The work packages below record the migration plan and its acceptance gates.
 WP1–WP24 legacy paths and commands refer to the pre-cutover tree at `0a84e9d`.

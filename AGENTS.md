@@ -1,66 +1,108 @@
 # Agent guide
 
-Read [docs/PLAN.md](docs/PLAN.md) before changing anything. It defines product scope,
-business rules and architecture. For the stack pivot, read the assigned work package
-in [docs/MIGRATION.md](docs/MIGRATION.md).
+Task Tracker is a local desktop task manager in one pnpm workspace: pure rules in
+`packages/core`, wire contracts in `packages/contracts`, an Effect server over
+SQLite in `apps/server`, a React renderer in `apps/web` and an Electron shell in
+`apps/desktop`.
+
+## Standing authorization
+
+The owner starts agents and walks away. This file is the owner's standing approval
+to commit, push to `main`, open pull requests and merge them once CI is green, as
+Shipping changes describes. Finish the task and land it without asking first.
+
+Three things wait for the owner:
+
+- A product decision the plan does not settle (PLAN §12 lists the ones made).
+- Publishing a release, which is pushing a `v*` tag, unless the task says to
+  release. A release dry run needs no approval.
+- Anything you cannot restore: rewriting or force-pushing `main`, deleting
+  unmerged work, touching the owner's data.
+
+When one of these blocks part of the task, finish everything that does not depend
+on it and put the question first in your final report.
 
 ## Roles
 
-- **Owner** sets scope, makes product decisions and reviews the app hands-on (§11.1).
-- **Project lead** plans work, briefs delegates, reviews their changes and lands
-  them on `main` (see Shipping changes). Review and commit Linux snapshots from a
-  Linux run.
-- **Subagents and delegates** implement, test, commit and report on the assigned
-  brief. Commit each working step as you go. The project lead pushes and merges
-  unless the brief hands that to you.
+- **Owner** sets scope, makes product decisions and reviews the app hands-on
+  after changes land.
+- **Project lead** is the agent in a thread the owner started. It plans the work,
+  does or delegates it, reviews delegated changes and lands the result on `main`.
+- **Delegates** (subagents and child threads) implement, test, commit and report
+  on their brief. The project lead pushes and merges unless the brief hands that
+  over.
+
+## Reading
+
+[docs/PLAN.md](docs/PLAN.md) defines product scope, business rules and
+architecture. It is about 2,000 lines, so read the sections your task touches.
+A `§` in this guide and in code comments is a PLAN section.
+
+| Task touches                                  | Read                         |
+| --------------------------------------------- | ---------------------------- |
+| Anything                                      | §4 Architecture              |
+| Data, migrations, deletion, dates and times   | §5                           |
+| Completion, urgency, ordering, settings       | §6                           |
+| A feature (search, undo, reminders, tickets…) | Its §7 subsection            |
+| Screens, menus, keyboard                      | §8                           |
+| Tests                                         | §11.1                        |
+| A write the user can undo                     | [docs/UNDO.md](docs/UNDO.md) |
+| CI jobs, screenshot baselines                 | [docs/CI.md](docs/CI.md)     |
+
+[docs/MIGRATION.md](docs/MIGRATION.md) and [docs/PARITY.md](docs/PARITY.md) record
+the finished port from the legacy .NET app. Read them only to trace why something
+was built the way it was.
 
 ## Shipping changes
 
-Shipping beats polishing. Commit early and often, and get finished work onto
-`main` the same session.
+Shipping beats polishing. Commit each working step and land finished work on
+`main` in the same session.
 
 - **Small change** (docs, a bug fix, a contained feature or refactor): run the
   static check and the tests for what you touched, then commit and push straight
-  to `main`. CI still runs on the push; fix forward if it goes red.
-- **Big change**: open a PR and merge once CI is green. A change is big when it
-  touches database schema or migrations, packaging, release or the updater, or
-  shared dependency versions, or when it spans several packages at once.
+  to `main`.
+- **Big change**: open a pull request and merge it once CI is green. A change is
+  big when it touches database schema or migrations, packaging, release or the
+  updater, or shared dependency versions, or when it spans several packages.
 
-When unsure, treat it as small. A red CI run on `main` is cheap to fix forward.
+When unsure, treat it as small.
+
+The work is done when CI is green on `main` for your commit:
+
+- After a push to `main` or a merge, wait for that commit's CI run, about six
+  minutes: `gh run list --commit <sha> --workflow CI`, then
+  `gh run watch <run-id> --exit-status`. If it is red, fix forward with a new
+  commit and wait again.
+- A push that changes only Markdown starts no CI run, so there is nothing to
+  wait for.
+- When `git push` is rejected because `main` moved, run
+  `git pull --rebase origin main`, repeat the static check and push again.
 
 ## Starting a session
 
-Before creating a branch or worktree from `main`, bring `main` up to date with
-the remote. Run `git fetch origin` and branch from `origin/main`, or fast-forward
-the local `main` first (`git pull --ff-only`). If your session already started on
-a branch, rebase it onto the freshly fetched `origin/main` before making changes.
-Never branch from a stale local `main`.
+Run `git fetch origin` and branch from `origin/main`. If the session started on a
+branch, rebase it onto the fetched `origin/main` before changing anything.
 
 ## Commands
 
-Use the Node 26 and pnpm 12 versions pinned in `.node-version` and `package.json`.
-Run from the workspace root.
+The README lists the commands under
+[Build and test](README.md#build-and-test) and
+[Package and smoke-test](README.md#package-and-smoke-test). Run them from the
+workspace root with the Node and pnpm versions pinned in `.node-version` and
+`package.json`. What the README does not make obvious:
 
-```sh
-pnpm install --frozen-lockfile
-pnpm run build
-pnpm exec vp check --deny-warnings
-pnpm exec playwright install chromium
-pnpm exec vp test run
-pnpm exec vp test run --project core
-pnpm run check:electron
-```
-
-Run the static check before finishing. Build and checks must have zero warnings.
-Both `vp check --help` and `vp lint --help` list `--deny-warnings`. On headless
-Linux, run the Electron runtime check with `xvfb-run -a` after building.
-Once desktop packaging lands, run `pnpm run package:desktop` before
-`pnpm run test:desktop`.
-
-On Linux, source `scripts/dev-env.sh` for user-local GTK. CI runs on GitHub-hosted
-Linux and Windows runners for every pull request and push to `main`
-([docs/CI.md](docs/CI.md)).
-The local gate in that file is an optional pre-push check.
+- Build before the static check: `pnpm run build`, then
+  `pnpm exec vp check --deny-warnings`. Packages resolve each other through
+  `dist`, so the check reports hundreds of errors on an unbuilt tree.
+  `pnpm exec vp check --fix` applies the formatter.
+- Build and static check must finish with zero warnings. Run the static check
+  before finishing.
+- `pnpm run test:node` leaves out the server's SQLite and RPC suites. They run
+  under Electron, the runtime that ships: `pnpm run test:server-db:electron`.
+- On Linux, `. scripts/dev-env.sh` loads the user-local GTK that Electron needs.
+  On a headless machine, prefix Electron and packaged runs with `xvfb-run -a`.
+- The packaged smoke needs a fresh package: `pnpm run package:desktop`, then
+  `pnpm run test:desktop`.
 
 ## Code
 
@@ -87,9 +129,13 @@ resulting write. Commit once on success and roll back the entire write on failur
 or interruption. Read persisted results through a fresh operation in tests.
 Treat confirmation as a new request and revalidate before applying it.
 
-When a migration rebuilds `TodoItem` after FTS lands, recreate the search triggers
-and reconcile `TodoItemSearchRow` and `TodoItemSearch`. Verify the resulting schema
-and index behavior in SQLite tests (§7.2).
+An undoable write names the rows it can change before it writes
+([docs/UNDO.md](docs/UNDO.md)). Keep those sources as narrow as the write: a
+source that selects a whole table is read twice on every call.
+
+When a migration rebuilds `TodoItem`, recreate the search triggers and reconcile
+`TodoItemSearchRow` and `TodoItemSearch`. Verify the resulting schema and index
+behavior in SQLite tests (§7.2).
 
 ## Tests
 
@@ -102,6 +148,8 @@ and index behavior in SQLite tests (§7.2).
   input. Give interactive controls accessible names and stable `data-testid`
   identifiers. Review screenshot baselines for new or changed screens. Add a
   regression test for each bug found by hand.
+- Desktop suites that launch the packaged app go in `apps/desktop/test/packaged`.
+  Every other desktop suite is a unit suite and runs with `test:node`.
 
 Never let a test open the owner's real database. On a machine where the owner uses
 the app (such as `dev-win01`), hand-check installed builds only under a separate OS
@@ -110,13 +158,21 @@ activation, Run-key startup) drop `TASKTRACKER_DB_PATH` and other test variables
 so they fall back to the default data folder. Back that folder up before any hand
 check and confirm it is byte-identical afterwards.
 
-Screenshot baselines are Linux-only (PLAN §11.1, decision 11). Commit only
+Screenshot baselines are Linux-only (§11.1, decision 11). Commit only
 `*-linux.png` images, reviewed from a Linux test run or the
 `browser-screenshot-diffs-linux-*` CI artifacts. On Windows the browser tests run
 every assertion except the screenshot comparison, and the packaged smoke covers the
 real desktop. To see how changed screens look on Windows, run the **Windows
 screenshots** workflow on the branch and review its `windows-screenshots` artifact.
 The owner's hands-on review on Windows 11 is the final visual check.
+
+## Releases
+
+A release is a pushed `v*` tag on a commit whose CI is green
+([Cut a release](README.md#cut-a-release)). Rehearse it first:
+`gh workflow run release.yml -f version=vX.Y.Z` packages and smoke-tests Windows,
+Linux and macOS and verifies the files without publishing. CI never builds the
+macOS package, so the dry run is the only check of it before the tag.
 
 ## Subagents
 

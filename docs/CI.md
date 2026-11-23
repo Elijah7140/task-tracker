@@ -5,27 +5,37 @@ free for this public repository. There are no self-hosted runners.
 
 | Workflow | Jobs and runners | When |
 |---|---|---|
-| [CI](../.github/workflows/workspace.yml) | Checks, browser tests and packaged smoke on `ubuntu-latest` and `windows-latest` | Every pull request and push to `main`, or **Actions → CI → Run workflow** |
+| [CI](../.github/workflows/workspace.yml) | Checks, browser tests and packaged smoke on `ubuntu-latest` and `windows-latest` | Every pull request and push to `main` that changes more than Markdown, or **Actions → CI → Run workflow** |
 | [Windows screenshots](../.github/workflows/windows-screenshots.yml) | Capture every browser-test screenshot on `windows-latest` for review | **Actions → Windows screenshots → Run workflow** on any branch |
-| [Release](../.github/workflows/release.yml) | Package on `windows-latest`, `ubuntu-latest` and `macos-latest`, then publish on `ubuntu-latest` | Push of a `v*` tag |
+| [Release](../.github/workflows/release.yml) | Package on `windows-latest`, `ubuntu-latest` and `macos-latest`, then publish on `ubuntu-latest` | Push of a `v*` tag. **Actions → Release → Run workflow** runs a dry run that publishes nothing |
 | Local gate (`scripts/ci-local.*`) | Developer machine | Optional, before pushing |
 
 ## CI
 
-CI runs five parallel jobs per OS, ten in all. Each starts with the shared
+CI runs six parallel jobs per OS, twelve in all. Each starts with the shared
 [setup action](../.github/actions/setup-workspace/action.yml): pnpm, Node, the
 frozen install and only the prerequisites that job needs.
 
 | Job | Steps |
 |---|---|
-| Build, check and Node tests | Build, the static check with `--deny-warnings`, the Vite renderer probe, `test:node`, the server's SQLite and RPC suites under Electron (`test:server-db:electron`) and the Electron runtime check |
-| Browser tests, shards 1/2 and 2/2 | Playwright Chromium (cached) and half of the `web-browser` files each (`test:browser --shard`) |
-| Packaged desktop smoke, shards 1/2 and 2/2 | `package:desktop` and half of the packaged smoke files each (`test:desktop --shard`) |
+| Build, check and Node tests | Build, the static check with `--deny-warnings`, the Vite renderer probe, `test:node`, the server's SQLite and RPC suites under Electron (`test:server-db:electron`), the Electron runtime check, and the installers |
+| Browser tests, shards 1/3 to 3/3 | Playwright Chromium (cached) and a third of the `web-browser` files each (`test:browser --shard`) |
+| Packaged desktop smoke, shards 1/2 and 2/2 | `package:desktop` without the installer and half of the packaged smoke files each (`test:desktop --shard`) |
 
 The server's SQLite and RPC suites run only under Electron's embedded Node, the
 runtime that ships, and not again under Node 26. Pushes to branches other than
 `main` do not start CI on their own, so a pull request's commits run once.
-A newer push to the same pull request cancels a running build, except on `main`.
+A newer push to the same pull request cancels its running build. On `main` each
+commit has its own concurrency group, so every commit gets a result: a run
+neither waits for an earlier one nor is dropped while it is pending.
+
+A push or pull request that changes only Markdown files starts no run
+(`paths-ignore`). After such a push to `main` there is no CI result to wait for.
+
+Vitest assigns files to shards by a hash of their paths, not by how long they
+take. With two browser shards one of them held most of the slow suites and ran
+197 s against 112 s on Windows. Three shards keep the slowest one shorter than
+the packaged smoke.
 
 The packaged smoke files run one at a time within a shard (`fileParallelism:
 false`), because on Linux they share one Xvfb display without a window manager.
@@ -34,8 +44,10 @@ global setup launches the packaged app once and waits for its menu bar, because
 the first launch on a fresh runner is several seconds slower. Without it, a test
 that clicks the menu bar straight after launch failed whenever it ran first in its
 shard. Each smoke shard packages
-the app itself. electron-builder's downloads, chiefly NSIS and 7-Zip on Windows, are
-cached between runs. The Linux jobs run the Electron steps under `xvfb-run -a` and
+the app itself with `TASKTRACKER_PACKAGE_UNPACKED=1`, which builds the unpacked
+app the suites launch and skips the installer (about 46 s on Windows). The checks
+job builds the installers. electron-builder's downloads, chiefly NSIS and 7-Zip on
+Windows, are cached between runs. The Linux jobs run the Electron steps under `xvfb-run -a` and
 make every `chrome-sandbox` setuid root first, as WP22 introduced.
 
 Electron main logs how long each server stop takes. It kills a server that has
@@ -60,19 +72,26 @@ fixture RPC tests sometimes passed the 5 s timeout. The D: drive that holds
 `RUNNER_TEMP` flushes in 0.1 ms. Defender real-time scanning is off on these runners,
 so it plays no part.
 
-The first smoke shard of each OS uploads its installer as `package-linux-x64` or
+The checks job of each OS uploads its installer as `package-linux-x64` or
 `package-windows-x64` for a week. A failing browser shard uploads differing
 screenshots as `browser-screenshot-diffs-<os>-<shard>`, for example
 `browser-screenshot-diffs-linux-2`. Only Linux shards compare screenshots.
 
 ## Release
 
-See [Cut a release](../README.md#cut-a-release). Each package job builds the
-tagged version on its own OS, runs the packaged smoke and uploads the files
-listed in `release-files.ts` with their native SHA-256 checksums. The publish
+See [Cut a release](../README.md#cut-a-release). Each package job starts with
+the same setup action as CI, builds the tagged version on its own OS, runs the
+packaged smoke and uploads the files listed in `release-files.ts` with their
+native SHA-256 checksums. The publish
 job verifies those checksums, uploads everything to one draft, checks the
-uploaded digests and then publishes. See
-[release verification](../README.md#verify-a-release) for the local dry run.
+uploaded digests and then publishes.
+
+CI builds no macOS package, so a tag used to be the first time one was built, and
+`v0.1.0` needed four runs. Rehearse a release first with a dry run:
+`gh workflow run release.yml -f version=v0.2.0`, or **Actions → Release → Run
+workflow**. It runs the same package jobs for that version and verifies the
+assembly, and skips the publish step. See
+[release verification](../README.md#verify-a-release) for the local equivalent.
 
 ## Local gate
 
@@ -115,5 +134,5 @@ The repository is public, so anyone can open a pull request. Workflows use
 `pull_request`, never `pull_request_target`, so fork pull requests run without
 secrets and with a read-only token. Both workflows default to
 `contents: read` and check out without persisting credentials. Only the Release
-publish job has `contents: write`, and it runs only for a pushed tag, which
-needs write access to the repository. No workflow uses repository secrets.
+publish job has `contents: write`. Its publish step, the only step given the
+token, runs only for a pushed tag, which needs write access to the repository. No workflow uses repository secrets.
