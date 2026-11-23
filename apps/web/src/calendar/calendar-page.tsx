@@ -1,5 +1,4 @@
 import { useAtomMount, useAtomRefresh, useAtomValue } from "@effect/atom-react";
-import { Clock, Effect } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { CircleAlert } from "lucide-react";
 import { type KeyboardEvent, useMemo, useRef, useState } from "react";
@@ -14,7 +13,8 @@ import { matchesShortcut } from "../ui/keyboard-shortcut.js";
 import { LoadFailure } from "../ui/load-failure.js";
 import { PUSH_BACK_SHORTCUT, pushBackReason } from "../workspace/push-back-availability.js";
 import { usePushBackOneDay } from "../workspace/use-push-back-one-day.js";
-import { addDays, formatIsoDateInZone, weekdayHeaders } from "./calendar-dates.js";
+import { addDays, weekdayHeaders } from "./calendar-dates.js";
+import { clockDate } from "./clock-date.js";
 import { CalendarEntryMenuContext, type CalendarEntryMenuActions } from "./calendar-entry-menu.js";
 import { buildCalendarDays, type CalendarDay } from "./calendar-layout.js";
 import { calendarStep } from "./calendar-move-keys.js";
@@ -38,13 +38,7 @@ export interface CalendarPageProps {
 /** Today in the server's zone from the renderer's Effect Clock, until the server answers. */
 function useClockDate(timeZone: string): string {
   const clock = useAtomValue(rendererClockAtom);
-  return useMemo(() => {
-    const now = Clock.currentTimeMillis;
-    const millis = Effect.runSync(
-      clock === undefined ? now : now.pipe(Effect.provideService(Clock.Clock, clock)),
-    );
-    return formatIsoDateInZone(millis, timeZone);
-  }, [clock, timeZone]);
+  return useMemo(() => clockDate(clock, timeZone), [clock, timeZone]);
 }
 
 /** The scoped calendar query for the visible range, refreshed each minute. */
