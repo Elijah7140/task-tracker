@@ -19,6 +19,7 @@ const ITEM: ItemRecord = {
   parentItemId: null,
   title: "Task",
   description: null,
+  notes: null,
   ticketNumber: "OPS-1",
   itemTypeId: TYPE_ID,
   priorityLevelId: PRIORITY_ID,
@@ -37,6 +38,7 @@ const ITEM: ItemRecord = {
 const STORED_EDIT = {
   title: "Task",
   description: null,
+  notes: null,
   ticketNumber: "OPS-1",
   itemTypeId: TYPE_ID,
   priorityLevelId: PRIORITY_ID,
@@ -51,6 +53,7 @@ describe("storedTexts", () => {
     expect(texts).toEqual({
       title: "Task",
       description: "",
+      notes: "",
       ticketNumber: "OPS-1",
       itemTypeId: TYPE_ID,
       priorityLevelId: PRIORITY_ID,
@@ -84,7 +87,7 @@ describe("isBuiltInDraftChanged", () => {
   });
 
   it("Is true when a typed value differs", () => {
-    const changed = isBuiltInDraftChanged(ITEM, { description: "Notes" });
+    const changed = isBuiltInDraftChanged(ITEM, { notes: "Notes" });
 
     expect(changed).toBe(true);
   });
@@ -100,7 +103,7 @@ describe("itemEdit", () => {
   it("Sends typed values and clears blank text", () => {
     const edit = itemEdit(ITEM, {
       title: "Renamed",
-      description: "Line one\nLine two",
+      notes: "Line one\nLine two",
       ticketNumber: "  ",
       dueTime: "08:15",
     });
@@ -108,16 +111,16 @@ describe("itemEdit", () => {
     expect(edit).toEqual({
       ...STORED_EDIT,
       title: "Renamed",
-      description: "Line one\nLine two",
+      notes: "Line one\nLine two",
       ticketNumber: null,
       dueTime: "08:15",
     });
   });
 
   it("Clears text that is only .NET white space and keeps a byte-order mark", () => {
-    const edit = itemEdit(ITEM, { description: "\u0085\u2028", ticketNumber: "\ufeff" });
+    const edit = itemEdit(ITEM, { notes: "\u0085\u2028", ticketNumber: "\ufeff" });
 
-    expect(edit.description).toBeNull();
+    expect(edit.notes).toBeNull();
     expect(edit.ticketNumber).toBe("\ufeff");
   });
 

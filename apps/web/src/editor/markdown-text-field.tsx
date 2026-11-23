@@ -7,47 +7,48 @@ import { MarkdownPreview } from "./markdown-preview.js";
 const tabClass =
   "rounded-control px-2.5 py-1 text-[13px] font-medium text-fg-muted outline-none hover:bg-hover focus-visible:ring-3 focus-visible:ring-focus data-active:bg-surface data-active:text-fg data-active:shadow-card";
 
-type DescriptionView = "edit" | "preview";
+type MarkdownView = "edit" | "preview";
 
-/**
- * Edits the Markdown source or shows its read-only preview in the current
- * editor session. The label names the text box only while it is mounted.
- */
-export function DescriptionField({
-  value,
-  onChange,
-}: {
+/** Props for {@link MarkdownTextField}. */
+export interface MarkdownTextFieldProps {
+  /** The visible label, such as Notes or Detail. */
+  readonly label: string;
+  /** The `data-testid` stem of the text box, its tabs and its preview. */
+  readonly testId: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
-}) {
+}
+
+/**
+ * Edits a Markdown text field (a ticket's Detail or the notes) or shows its read-only
+ * preview in the current editor session. The label names the text box only while it
+ * is mounted.
+ */
+export function MarkdownTextField({ label, testId, value, onChange }: MarkdownTextFieldProps) {
   const inputId = useId();
-  const [view, setView] = useState<DescriptionView>("edit");
+  const [view, setView] = useState<MarkdownView>("edit");
   return (
     <Tabs.Root
       value={view}
-      onValueChange={(next: DescriptionView) => setView(next)}
+      onValueChange={(next: MarkdownView) => setView(next)}
       className="min-w-0"
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
         {view === "edit" ? (
           <label htmlFor={inputId} className={fieldStyles.label}>
-            Description
+            {label}
           </label>
         ) : (
-          <span className={fieldStyles.label}>Description</span>
+          <span className={fieldStyles.label}>{label}</span>
         )}
         <Tabs.List
-          aria-label="Description view"
+          aria-label={`${label} view`}
           className="flex gap-0.5 rounded-control bg-sidebar p-0.5"
         >
-          <Tabs.Tab value="edit" className={tabClass} data-testid="item-editor-description-edit">
+          <Tabs.Tab value="edit" className={tabClass} data-testid={`${testId}-edit`}>
             Edit
           </Tabs.Tab>
-          <Tabs.Tab
-            value="preview"
-            className={tabClass}
-            data-testid="item-editor-description-preview-tab"
-          >
+          <Tabs.Tab value="preview" className={tabClass} data-testid={`${testId}-preview-tab`}>
             Preview
           </Tabs.Tab>
         </Tabs.List>
@@ -59,7 +60,7 @@ export function DescriptionField({
             id={inputId}
             value={value}
             onValueChange={onChange}
-            data-testid="item-editor-description"
+            data-testid={testId}
             className={fieldStyles.textarea}
           />
         </Field.Root>
@@ -68,7 +69,7 @@ export function DescriptionField({
         value="preview"
         className="min-h-52 rounded-control border border-line-strong bg-canvas px-3 py-2 outline-none focus-visible:ring-3 focus-visible:ring-focus"
       >
-        <MarkdownPreview source={value} />
+        <MarkdownPreview source={value} testId={`${testId}-preview`} />
       </Tabs.Panel>
     </Tabs.Root>
   );

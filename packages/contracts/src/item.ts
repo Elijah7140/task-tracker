@@ -12,6 +12,7 @@ const tickPrecision = Schema.makeFilter((value: string) => !/\.\d{7}\d*[1-9]/.te
 
 const itemFields = {
   title: Schema.String,
+  /** A ticket's Detail; always null for a ToDo (§7.19). */
   description: Schema.NullOr(Schema.String),
   ticketNumber: Schema.NullOr(Schema.String),
   itemTypeId: Schema.NullOr(Guid),
@@ -23,12 +24,16 @@ const itemFields = {
 /** Replacement values for an item's built-in fields. */
 export const ItemEdit = Schema.Struct({
   ...itemFields,
+  /** The replacement Markdown notes (§7.10); omitted keeps the stored notes. */
+  notes: Schema.optionalKey(Schema.NullOr(Schema.String)),
   statusId: Schema.optionalKey(Schema.NullOr(Guid)),
 });
 
 /** An item record with floating user dates and UTC system timestamps. */
 export const Item = Schema.Struct({
   ...itemFields,
+  /** The item's Markdown notes (§7.10). */
+  notes: Schema.NullOr(Schema.String),
   id: Guid,
   projectId: Guid,
   folderId: Schema.NullOr(Guid),

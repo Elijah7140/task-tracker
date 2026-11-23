@@ -85,9 +85,29 @@ function PanelActions({ node, actions }: Pick<ItemDetailsPanelProps, "node" | "a
   );
 }
 
+/** A titled block of the item's longer text, shown only when the text is not blank. */
+function TextSection({
+  title,
+  text,
+  testId,
+}: {
+  readonly title: string;
+  readonly text: string | null;
+  readonly testId: string;
+}) {
+  if (text === null || text.trim() === "") {
+    return null;
+  }
+  return (
+    <DetailSection title={title} testId={testId}>
+      <p className="text-[13px] leading-relaxed whitespace-pre-line text-fg-muted">{text}</p>
+    </DetailSection>
+  );
+}
+
 /**
  * The drilled-in item's own data beside its children (§7.19): kind, title, details,
- * description and, for a ticket, its fixed fields and comment log.
+ * a ticket's Detail, the notes and, for a ticket, its fixed fields and comment log.
  */
 export function ItemDetailsPanel({ node, lookups, actions }: ItemDetailsPanelProps) {
   const { item } = node;
@@ -103,16 +123,8 @@ export function ItemDetailsPanel({ node, lookups, actions }: ItemDetailsPanelPro
         <PanelActions node={node} actions={actions} />
       </div>
       <Properties node={node} lookups={lookups} />
-      {item.description === null || item.description.trim() === "" ? null : (
-        <DetailSection
-          title={item.kind === "Ticket" ? "Detail" : "Notes"}
-          testId="details-description"
-        >
-          <p className="text-[13px] leading-relaxed whitespace-pre-line text-fg-muted">
-            {item.description}
-          </p>
-        </DetailSection>
-      )}
+      <TextSection title="Detail" text={item.description} testId="details-description" />
+      <TextSection title="Notes" text={item.notes} testId="details-notes" />
       {item.kind === "Ticket" ? (
         <TicketDetails itemId={item.id} timeZone={lookups.timeZone} />
       ) : null}

@@ -216,7 +216,9 @@ function filterContext(store: SearchStore): FakeFilterContext {
 
 function matchesQuery(store: SearchStore, item: Item, query: Query, fields: ReadonlyArray<Field>) {
   const terms = (query.text ?? "").split(/\s+/).filter((term) => /[\p{L}\p{N}]/u.test(term));
-  const corpus = foldText(`${item.title} ${item.description ?? ""} ${item.ticketNumber ?? ""}`);
+  const corpus = foldText(
+    `${item.title} ${item.description ?? ""} ${item.notes ?? ""} ${item.ticketNumber ?? ""}`,
+  );
   const context = filterContext(store);
   return (
     inScope(store, item, query.scope) &&

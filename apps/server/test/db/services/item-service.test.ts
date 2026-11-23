@@ -320,7 +320,8 @@ it.effect("Editing built-in fields round-trips floating values and UTC timestamp
       const priority = yield* lookups.priorityLevels.add("Later");
       const fields = {
         title: "Edited",
-        description: "Description",
+        description: null,
+        notes: "Notes",
         ticketNumber: "T-7",
         itemTypeId: type.id,
         priorityLevelId: priority.id,
@@ -986,7 +987,7 @@ it.effect(
         const undo = yield* UndoService;
         const sql = yield* SqlClient.SqlClient;
         const item = yield* root("Task");
-        yield* items.edit(item.id, { ...edit("Task"), description: "Notes", ticketNumber: "T-1" });
+        yield* items.edit(item.id, { ...edit("Task"), notes: "Notes", ticketNumber: "T-1" });
         yield* sql.withTransaction(sql`UPDATE TodoItem SET TicketRank = 3 WHERE Id = ${item.id}`);
         const level = yield* lookups.priorityLevels.add("", 7);
         const [before] = yield* readItems();

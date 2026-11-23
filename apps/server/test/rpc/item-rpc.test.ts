@@ -58,7 +58,8 @@ it.effect("Edits and reads floating times and UTC timestamps through the rendere
       const priorityLevelId = priorityLevels[0]?.id ?? "";
       const fields = {
         title: "Edited",
-        description: "Description",
+        description: null,
+        notes: "Notes",
         ticketNumber: "T-7",
         itemTypeId: itemTypeId.toLowerCase(),
         priorityLevelId: priorityLevelId.toLowerCase(),

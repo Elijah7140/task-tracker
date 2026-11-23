@@ -52,6 +52,7 @@ const completedLedger = [
   { migration_id: 13, name: "AddInProgressStatuses" },
   { migration_id: 14, name: "DropItemSchedule" },
   { migration_id: 15, name: "DropTicketExtraFields" },
+  { migration_id: 16, name: "AddItemNotes" },
 ];
 const childId = "019A0000-0000-7000-8000-000000000CCB";
 const parentId = "019A0000-0000-7000-8000-000000000CCA";
@@ -132,12 +133,14 @@ function schema(path: string) {
   }));
 }
 
-/** Leaves out what the Effect-only tickets (§7.19) and in-progress (§7.18) stages add or alter. */
+/** Leaves out what the Effect-only tickets and notes (§7.19) and in-progress (§7.18) stages add or alter. */
 function withoutLaterStages(objects: ReadonlyArray<Readonly<Record<string, unknown>>>) {
   return objects.filter(
     (object) =>
       !["Project", "TodoItem", "StatusLevel"].includes(String(object["name"])) &&
-      !String(object["tbl_name"]).startsWith("Ticket"),
+      !String(object["tbl_name"]).startsWith("Ticket") &&
+      // Stage 16 rebuilds the full-text table and its triggers with a Notes column.
+      !String(object["name"]).startsWith("TodoItemSearch"),
   );
 }
 
@@ -163,9 +166,28 @@ function withoutDropped(table: string, row: Readonly<Record<string, unknown>>) {
   return Object.fromEntries(Object.entries(row).filter(([name]) => !dropped.includes(name)));
 }
 
+/** Tables whose ToDo rows move Description into Notes at stage 16 (§7.19). */
+const notesTables = new Set(["TodoItem", "TodoItemSearch"]);
+
+/** The full-text shadow tables, which stage 16 rebuilds with a Notes column (§7.2). */
+const isSearchShadow = (table: string) => table.startsWith("TodoItemSearch_");
+
+/** An adopted row as stage 16 leaves it: a ToDo's Description is its Notes (§7.19). */
+function withNotes(table: string, row: Readonly<Record<string, unknown>>) {
+  if (!notesTables.has(table) || row["ItemKind"] === "Ticket") {
+    return row;
+  }
+  return { ...row, Description: null, Notes: row["Description"] };
+}
+
 function expectOriginalRows(path: string, before: ReturnType<typeof snapshot>) {
   for (const [table, original] of before) {
-    const rows = original.map((row) => withoutDropped(String(table), row));
+    if (isSearchShadow(String(table))) {
+      continue;
+    }
+    const rows = original.map((row) =>
+      withNotes(String(table), withoutDropped(String(table), row)),
+    );
     const [first] = rows;
     if (!first) {
       continue;

@@ -67,7 +67,7 @@ export function TodoAddFields(props: TodoAddFieldsProps) {
           testId="add-title"
           inputRef={firstFieldRef}
         />
-        <DraftArea {...draft} field="description" label="Notes" testId="add-description" />
+        <DraftArea {...draft} field="notes" label="Notes" testId="add-notes" />
         <DraftSelect
           {...draft}
           field="parentItemId"

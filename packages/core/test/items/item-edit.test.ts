@@ -6,6 +6,7 @@ function edit(source: TodoItem, overrides: Partial<ItemEdit>): ItemEdit {
   return {
     title: source.title,
     description: source.description,
+    notes: source.notes,
     ticketNumber: source.ticketNumber,
     itemTypeId: source.itemTypeId,
     priorityLevelId: source.priorityLevelId,
@@ -53,4 +54,20 @@ it("refuses to clear a ticket's number", () => {
   const attempt = () => editItem(ticket, edit(ticket, { ticketNumber: "  " }), now);
 
   expect(attempt).toThrow("A ticket needs a ticket number.");
+});
+
+it("refuses a detail on a ToDo, whose longer text is its notes", () => {
+  const task = item("A");
+
+  const attempt = () => editItem(task, edit(task, { description: "Detail" }), now);
+
+  expect(attempt).toThrow("Only a ticket has a detail. Put a ToDo's text in its notes.");
+});
+
+it("keeps a ticket's detail and notes apart", () => {
+  const ticket = item("ticket", { kind: "Ticket", ticketNumber: "385405" });
+
+  const edited = editItem(ticket, edit(ticket, { description: "Detail", notes: "Notes" }), now);
+
+  expect(edited).toMatchObject({ description: "Detail", notes: "Notes" });
 });

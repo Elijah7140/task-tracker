@@ -16,8 +16,10 @@ export type AddKind = "Todo" | "Ticket";
 export interface AddItemDraft {
   /** The ToDo's Description or the ticket's Summary: the item's main line. */
   readonly title: string;
-  /** The ToDo's Notes or the ticket's Detail. */
+  /** The ticket's Detail; a ToDo has none (§7.19). */
   readonly description: string;
+  /** The item's Markdown notes. */
+  readonly notes: string;
   readonly ticketNumber: string;
   readonly parentItemId: string;
   readonly priorityLevelId: string;
@@ -46,6 +48,7 @@ export function emptyAddDraft(parentItemId: string | null): AddItemDraft {
   return {
     title: "",
     description: "",
+    notes: "",
     ticketNumber: "",
     parentItemId: parentItemId ?? "",
     priorityLevelId: "",
@@ -93,7 +96,8 @@ function itemFields(kind: AddKind, draft: AddItemDraft): typeof ItemEdit.Type {
   const todo = kind === "Todo";
   return {
     title: draft.title,
-    description: orNull(draft.description),
+    description: todo ? null : orNull(draft.description),
+    notes: orNull(draft.notes),
     ticketNumber: orNull(draft.ticketNumber),
     itemTypeId: todo ? orNull(draft.itemTypeId) : null,
     priorityLevelId: orNull(draft.priorityLevelId),

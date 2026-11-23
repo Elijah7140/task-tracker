@@ -188,6 +188,7 @@ export {
 } from "./projects/project-summary.js";
 export { createItem } from "./items/todo-item.js";
 export * from "./items/item-kind.js";
+export * from "./items/imported-item-text.js";
 export * from "./tickets/ticket-list-entry.js";
 export * from "./tickets/ticket-detail.js";
 export * from "./tickets/ticket-comment.js";

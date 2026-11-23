@@ -8,6 +8,7 @@ import {
   type ItemFieldValue,
   type ItemLink,
   type TodoItem,
+  importedItemText,
 } from "@task-tracker/core";
 import { Effect, Option } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -74,7 +75,7 @@ function itemOf(
   return {
     ...created,
     sortOrder,
-    description: row.description,
+    ...importedItemText(row.kind, row.description, row.notes),
     ticketNumber: row.ticketNumber,
     itemTypeId: row.itemTypeId,
     priorityLevelId: row.priorityLevelId,

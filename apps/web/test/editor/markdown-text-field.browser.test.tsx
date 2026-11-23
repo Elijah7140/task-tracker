@@ -13,28 +13,28 @@ const docs = "# Plan\n\nRead the [docs](https://example.com/docs) first.";
 const tasks = "- [x] done\n- [ ] todo";
 const longCode =
   "CREATE INDEX IX_Invoice_CustomerId_With_A_Very_Long_Name_That_Must_Wrap_In_The_Preview";
-const descriptionInput = () => editor().getByRole("textbox", { name: "Description" });
+const notesInput = () => editor().getByRole("textbox", { name: "Notes" });
 const editTab = () => editor().getByRole("tab", { name: "Edit" });
 const previewTab = () => editor().getByRole("tab", { name: "Preview" });
-const preview = () => editor().getByTestId("item-editor-description-preview");
+const preview = () => editor().getByTestId("item-editor-notes-preview");
 
-async function openWithDescription(description: string) {
+async function openWithNotes(notes: string) {
   const app = await openEditorWorkspace({
     configure: (store, projectId) => {
       const item = store.findItemByTitle(projectId, null, EDITOR_ITEM);
       if (item === undefined) {
         throw new Error("The editor fixture is missing");
       }
-      store.patchItem(item.item.id, { description });
+      store.patchItem(item.item.id, { notes });
     },
   });
   await openEditor();
   return app;
 }
 
-describe("Description tabs", () => {
+describe("Notes tabs", () => {
   it("Starts in Edit and switches between the preview and unchanged text with the keyboard", async () => {
-    await openWithDescription(docs);
+    await openWithNotes(docs);
     await expect.element(editTab()).toHaveAttribute("aria-selected", "true");
 
     await editTab().click();
@@ -42,46 +42,44 @@ describe("Description tabs", () => {
     await expect.element(previewTab()).toHaveFocus();
     await userEvent.keyboard("{Enter}");
 
-    await expect.element(descriptionInput()).not.toBeInTheDocument();
+    await expect.element(notesInput()).not.toBeInTheDocument();
     await expect.element(preview().getByRole("heading", { name: "Plan" })).toBeVisible();
     await editTab().click();
     await expect.element(preview()).not.toBeInTheDocument();
-    await expect.element(descriptionInput()).toHaveValue(docs);
+    await expect.element(notesInput()).toHaveValue(docs);
   });
 
   it("Switching modes keeps a clean draft and a newly selected item starts in Edit", async () => {
-    const app = await openWithDescription(docs);
+    const app = await openWithNotes(docs);
 
     await previewTab().click();
     await expect.element(editor().getByTestId("item-editor-save")).toBeDisabled();
     await editor().getByRole("button", { name: "Check query plan before/after" }).click();
 
     await expect.element(editTab()).toHaveAttribute("aria-selected", "true");
-    await expect.element(descriptionInput()).toHaveValue("");
+    await expect.element(notesInput()).toHaveValue("");
     await expect.element(draftDialog()).not.toBeInTheDocument();
     expect(app.store.calls).not.toContain("EditItem");
   });
 
   it("Previews the current draft and saves its Markdown source unchanged", async () => {
-    const app = await openWithDescription(docs);
+    const app = await openWithNotes(docs);
     const draft = "# A draft\n\n**Details**";
-    await descriptionInput().fill(draft);
+    await notesInput().fill(draft);
 
     await previewTab().click();
     await expect.element(preview().getByRole("heading", { name: "A draft" })).toBeVisible();
     await editor().getByTestId("item-editor-save").click();
 
     await expect.element(editor()).not.toBeInTheDocument();
-    expect(app.store.findItemByTitle(app.projectId, null, EDITOR_ITEM)?.item.description).toBe(
-      draft,
-    );
+    expect(app.store.findItemByTitle(app.projectId, null, EDITOR_ITEM)?.item.notes).toBe(draft);
   });
 
   it("Opens allowed links with pointer and keyboard and shows blocked links as text", async () => {
     const openExternalLink = vi.fn(async () => true);
     vi.stubGlobal("taskTrackerDesktop", { openExternalLink });
     try {
-      await openWithDescription(
+      await openWithNotes(
         docs + "\n\n[Team](mailto:team@example.com) [secrets](file:///C:/secrets.txt)",
       );
       await previewTab().click();
@@ -109,7 +107,7 @@ describe("Description tabs", () => {
   it("Shows a message when the system cannot open a link", async () => {
     vi.stubGlobal("taskTrackerDesktop", { openExternalLink: async () => false });
     try {
-      await openWithDescription(docs);
+      await openWithNotes(docs);
       await previewTab().click();
 
       await preview().getByRole("button", { name: "docs" }).click();
@@ -123,7 +121,7 @@ describe("Description tabs", () => {
   });
 
   it("Keeps task markers read-only and aligned with the first line", async () => {
-    await openWithDescription(tasks);
+    await openWithNotes(tasks);
     await previewTab().click();
     const boxes = preview().getByRole("checkbox");
     const done = boxes.nth(0);
@@ -140,11 +138,11 @@ describe("Description tabs", () => {
     const text = firstLine.getBoundingClientRect();
     expect(Math.abs(box.y + box.height / 2 - (text.y + text.height / 2))).toBeLessThanOrEqual(2);
     await editTab().click();
-    await expect.element(descriptionInput()).toHaveValue(tasks);
+    await expect.element(notesInput()).toHaveValue(tasks);
   });
 
   it("Wraps long code lines while preserving indentation without horizontal scrolling", async () => {
-    await openWithDescription(`\`\`\`sql\n${longCode}\n  ON Invoice (CustomerId);\n\`\`\``);
+    await openWithNotes(`\`\`\`sql\n${longCode}\n  ON Invoice (CustomerId);\n\`\`\``);
 
     await previewTab().click();
 
@@ -166,7 +164,7 @@ describe("Description tabs", () => {
   });
 
   it.each(THEMES)("Matches the Markdown preview baseline in the %s theme", async (theme) => {
-    await openWithDescription(
+    await openWithNotes(
       [
         "### Invoice lookup",
         "Check **index usage** with the [query plan](https://example.com/docs).",
@@ -187,18 +185,18 @@ describe("Description tabs", () => {
   });
 });
 
-describe("Description label", () => {
+describe("Notes label", () => {
   it("Points only at a mounted text box while Preview is shown", async () => {
-    await openWithDescription(docs);
+    await openWithNotes(docs);
 
     await previewTab().click();
 
-    await expect.element(descriptionInput()).not.toBeInTheDocument();
+    await expect.element(notesInput()).not.toBeInTheDocument();
     const dangling = [...editor().element().querySelectorAll("label[for]")].filter(
       (label) => document.getElementById((label as HTMLLabelElement).htmlFor) === null,
     );
     expect(dangling).toEqual([]);
     await editTab().click();
-    await expect.element(descriptionInput()).toBeVisible();
+    await expect.element(notesInput()).toBeVisible();
   });
 });

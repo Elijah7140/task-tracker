@@ -71,7 +71,7 @@ desktopTest(
 );
 
 desktopTest(
-  "A Markdown description previews and a saved link is there after reopening and after relaunch",
+  "Markdown notes preview and a saved link is there after reopening and after relaunch",
   async ({ desktop }) => {
     const title = "Markdown item";
     const expectSavedLinkAndPreview = async (page: Page) => {
@@ -79,7 +79,7 @@ desktopTest(
       const link = editor.getByTestId("item-editor-link-open");
       expect(await link.getAttribute("aria-label")).toBe("Spec page");
       expect(await link.getAttribute("title")).toBe("https://example.com/spec");
-      await editor.getByTestId("item-editor-description-preview-tab").click();
+      await editor.getByTestId("item-editor-notes-preview-tab").click();
       expect(await editor.getByTestId("markdown-link").innerText()).toBe("docs");
       await closeEditor(page, editor);
     };
@@ -90,11 +90,11 @@ desktopTest(
       const editor = await openItemEditor(page, itemRow(page, SMOKE_PROJECT, title));
 
       await editor
-        .getByTestId("item-editor-description")
+        .getByTestId("item-editor-notes")
         .fill("Read the [docs](https://example.com/docs) now");
-      await editor.getByTestId("item-editor-description-preview-tab").click();
+      await editor.getByTestId("item-editor-notes-preview-tab").click();
       expect(await editor.getByTestId("markdown-link").innerText()).toBe("docs");
-      await editor.getByTestId("item-editor-description-edit").click();
+      await editor.getByTestId("item-editor-notes-edit").click();
       await editor.getByTestId("item-editor-link-url").fill("https://example.com/spec");
       await editor.getByTestId("item-editor-link-title").fill("Spec page");
       await editor.getByTestId("item-editor-link-submit").click();

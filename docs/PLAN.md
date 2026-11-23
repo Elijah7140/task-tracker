@@ -145,7 +145,8 @@ FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1
 | `FolderId` | UUID string or null | null = project root |
 | `ParentItemId` | UUID string or null | null = top-level item |
 | `Title` | string (required, ≤ 300) | |
-| `Description` | string? | Plain text at cutover. Markdown preview in §7.10 |
+| `Description` | string? | A ticket's **Detail**; always null for a ToDo (§7.19). Markdown preview in §7.10 |
+| `Notes` | string? | Markdown notes on every item (§7.10, §8). A ToDo's text moved here from `Description` in `16_AddItemNotes` |
 | `ItemKind` | `Todo` or `Ticket` | Default `Todo` (§7.19) |
 | `TicketNumber` | string? (≤ 100) | Free text, e.g. `JIRA-1234`. Indexed, not unique. Required for a Ticket |
 | `TicketRank` | number or null | Position within the Tickets priority section (§7.16) |
@@ -507,8 +508,9 @@ Operator semantics are fixed up front, including missing values:
 SQLite query. Built-in fields map to columns; custom fields use `EXISTS` subqueries on
 `ItemFieldValue`. SQLite's `tt_fold` function provides Unicode-aware case-insensitive
 text comparisons, and `instr` implements literal Contains without LIKE wildcards.
-Free text uses a regular SQLite **FTS5** table that stores title, description and
-ticket number. `TodoItemSearchRow` maps each item GUID to a stable integer primary key;
+Free text uses a regular SQLite **FTS5** table that stores title, description, ticket
+number and notes (the notes column since `16_AddItemNotes`, which rebuilds the table and
+reindexes every item under its existing mapping row). `TodoItemSearchRow` maps each item GUID to a stable integer primary key;
 the same integer is the FTS rowid. This avoids relying on `TodoItem`'s implicit rowid,
 which SQLite may renumber during `VACUUM` or a table rebuild:
 
@@ -884,7 +886,7 @@ camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\
 `fields` (global and project definitions with `key`, `displayName`, `dataType`, `projectId`, archived flag, sort order and their
 `choices` with ids, labels, order and archived flag), `globalSettings` (reference only), `projects`, `savedSearches`.
 A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
-`dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, description, and
+`dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, `description` (a ToDo's notes or a ticket's Detail, so a ToDo keeps its earlier form; a ticket adds `notes`, §7.19), and
 `links` (optional, §7.10), `recurrence`, `recurrenceSeriesId` and `recurrenceSuccessorCreated` (optional, §7.11), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
 Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
 culture throughout.
@@ -931,7 +933,7 @@ can also assign missing ranks to existing tickets in those sections (§7.16).
 current search results (all matches, not just the first 200, in result order) as a flat table, UTF-8 **with BOM** (for Excel),
 RFC 4180: comma separated, CRLF line ends, cells with a comma, quote, line break or leading/trailing space or tab are quoted,
 quotes doubled. Columns: `Title, Description, Ticket, Type, Priority, Priority reference, Status, Due date, Due time,
-Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), `Repeats` (read-only, §7.11), then one column per custom field by
+Completed (yes/no), Completed at, Project, Folder path` (names joined by `/`), `Parent title`, `Links` (addresses separated by spaces, §7.10), `Repeats` (read-only, §7.11), the ticket columns when the export holds a ticket (§7.19), then one column per custom field by
 display name (active fields, and archived ones that have a value; fields sharing a name share a column). Dates and numbers are ISO
 and invariant (`2026-11-20`, `15:00:00`, `2.5`), whatever the culture.
 
@@ -976,8 +978,8 @@ The Search page's "Export results (CSV)" re-runs the last search without the 200
 
 ### 7.10 Markdown and links
 
-**Markdown descriptions.** `TodoItem.Description` is the same column as before and holds Markdown. Markdown is a superset of the
-plain text already stored, so there is no data migration. The item editor shows **Edit | Preview** tabs above the description: Edit is
+**Markdown text.** An item's **Notes** (`TodoItem.Notes`) and a ticket's **Detail** (`TodoItem.Description`) hold Markdown.
+Markdown is a superset of the plain text already stored. The item editor shows **Edit | Preview** tabs above each: Edit is
 the multi-line text box; Preview renders the text read-only. Previewing is a view mode only (it never makes the editor dirty, and a
 newly selected item opens in Edit).
 
@@ -1557,7 +1559,7 @@ below were made while building it and are listed for review.
   the repeat marker. Urgency tints the header (§6.3). Sub-items never get cards of their own.
 - **Card body.** The owner's request from 2026-11-23: the body reads like a simple dotted list.
   In order:
-  - **Notes.** The item's Description (§7.10, labelled Notes), rendered in full as Markdown, so
+  - **Notes.** The item's Notes (§7.10), never a ticket's Detail, rendered in full as Markdown, so
     bullet lists show as lists. Clicking the notes swaps in a textarea with the raw Markdown;
     blur or Ctrl+Enter saves it as one undoable edit and Escape cancels. A card without notes
     shows **Add notes** only on hover or selection. Links inside the notes open as usual.
@@ -1695,8 +1697,12 @@ the tree, completion, urgency, status, priority, reminders, trash and undo. Eith
 be the parent of either kind. A kind is chosen when the item is added and does not change.
 
 - **ToDo fields** are today's built-in fields plus the custom fields from the field manager
-  (§7.1). The ToDo's main text is `Title`; the UI labels it **Description** and the longer
-  text **Notes**.
+  (§7.1). The ToDo's main text is `Title`; the UI labels it **Description**. Its longer
+  text is its **Notes** (`TodoItem.Notes`). A ToDo has no Detail: its `Description` column
+  stays null, and the server refuses one.
+- **Every item has Notes**, a ticket too. A ticket keeps its **Detail** and its Notes apart
+  (owner decision, 23 Nov 2026): the card's inline notes, the editor's Notes field and the
+  drill-in panel's Notes section never touch the Detail.
 - **Ticket fields are fixed**, not customizable. Custom fields, item type and repeat do not
   apply to tickets. The mapping onto shared columns:
 
@@ -1704,6 +1710,7 @@ be the parent of either kind. A kind is chosen when the item is added and does n
   |---|---|
   | Ticket # (required, first field) | `TodoItem.TicketNumber` |
   | Summary / Detail | `Title` / `Description` |
+  | Notes | `Notes`, as on a ToDo |
   | Priority / Status | `PriorityLevelId` / `StatusId` |
   | Est. completion date | `DueDate`, so urgency applies (§6.3) |
   | Parent ticket | `ParentItemId` |
@@ -1739,7 +1746,7 @@ workspace header has the same two buttons, which add to the area, or to the dril
   ticket, Priority. Enter in a single-line box saves.
 - An **expand** button at its top right switches to the **detailed add view**, keeping what
   was typed. The ToDo view adds Notes, Type, Status and custom fields.
-  The Ticket view has every ticket field above, except comments, which are added after.
+  The Ticket view has every ticket field above and Notes, except comments, which are added after.
 - App Settings has **Open the detailed view when adding a ToDo** and **…a Ticket**
   (`todoAddOpensDetails`, `ticketAddOpensDetails`, global booleans, default off).
 - Parent ticket lists the area's tickets, plus the card's item when that is a ToDo. Saving
@@ -1783,6 +1790,12 @@ and files from older versions import every item as a ToDo. On import, list entri
 existing ones by list, parent and name ignoring case, and the rest are added. CSV adds Kind and
 the ticket columns after the fixed columns, but only when an export holds a ticket; an import
 matches people, ticket types and levels by name, narrowing a level by the one above it.
+
+Notes travel without changing a ToDo's form. A ToDo writes its notes as `description` (JSON)
+and in the Description column (CSV), as before. A ticket writes its Detail there and its notes
+as `notes` (JSON) and in the last ticket column, **Ticket notes** (CSV), named so it cannot
+take the header of a custom field called Notes. On import a ToDo's description becomes its
+notes, joined ahead of any `notes` or Ticket notes text the file also gives it.
 
 **Tests.** Core: ticket-list names, nesting and archive rules, ticket detail validation.
 SQLite: the migration on a populated database, adding each kind with undo, ticket edits,
@@ -2018,6 +2031,9 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
 12. **Due dates only (23 Nov 2026).** Items have a due date and an optional due time
     and nothing else. The scheduled start and end are removed end to end, including
     their columns, without preserving stored values (§7.4).
+13. **Notes apart from Detail (23 Nov 2026).** Both kinds have Notes; only a ticket has
+    a Detail. A ToDo's existing text moves to its Notes, and a ticket's stays its Detail
+    (§7.19).
 
 ## Appendix A. Historical review log
 

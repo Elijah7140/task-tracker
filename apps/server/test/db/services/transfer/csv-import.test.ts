@@ -223,7 +223,8 @@ describe("CSV import", () => {
           TicketRank: fix.TicketRank! + 1,
           DueDate: "2026-12-01",
           DueTime: "09:30:00",
-          Description: "Line one\r\nline two, with comma",
+          Description: null,
+          Notes: "Line one\r\nline two, with comma",
           SortOrder: 2,
         });
         // An older file's schedule columns are unknown now and ignored (§7.4).

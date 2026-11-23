@@ -64,8 +64,8 @@ it.effect("Applies pending schema stages once without rewriting existing lookups
     const upgrade = yield* migrate;
     const replay = yield* migrate;
 
-    expect(upgrade).toHaveLength(14);
-    expect(upgrade.at(-1)).toEqual([15, "DropTicketExtraFields"]);
+    expect(upgrade).toHaveLength(15);
+    expect(upgrade.at(-1)).toEqual([16, "AddItemNotes"]);
     expect(replay).toEqual([]);
     expect(yield* tables).toContainEqual(["TodoItemSearch"]);
     expect(yield* tables).toContainEqual(["FieldDefinition"]);

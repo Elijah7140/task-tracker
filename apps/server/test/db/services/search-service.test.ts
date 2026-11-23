@@ -197,7 +197,7 @@ it.effect("Searches text by FTS5 prefix terms without passing query syntax to MA
       const item = yield* svc.items.create(project.id, null, null, "Résumé JIRA-1234");
       yield* svc.items.edit(
         item.id,
-        editFields("Résumé JIRA-1234", { description: "Confirm invoice totals" }),
+        editFields("Résumé JIRA-1234", { notes: "Confirm invoice totals" }),
       );
 
       const byDiacritic = yield* searchTitles(svc, [], { text: "resume inv" });
@@ -364,7 +364,7 @@ it.effect("Orders by text rank before project order", () =>
       const descriptionHit = yield* svc.items.create(first.id, null, null, "Unrelated");
       yield* svc.items.edit(
         descriptionHit.id,
-        editFields("Unrelated", { description: "needle plus many extra unrelated words" }),
+        editFields("Unrelated", { notes: "needle plus many extra unrelated words" }),
       );
       const titleHit = yield* svc.items.create(second.id, null, null, "Needle");
 

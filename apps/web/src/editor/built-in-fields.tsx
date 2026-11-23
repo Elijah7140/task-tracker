@@ -5,7 +5,7 @@ import type { Ref } from "react";
 import { fieldStyles } from "../ui/field-styles.js";
 import { Select } from "../ui/select.js";
 import { ClearableInput } from "./clearable-input.js";
-import { DescriptionField } from "./description-field.js";
+import { MarkdownTextField } from "./markdown-text-field.js";
 import { EditorField } from "./editor-field.js";
 import { EditorGroup } from "./editor-group.js";
 import { lookupOptions, NONE_VALUE } from "./editor-options.js";
@@ -29,14 +29,18 @@ const isTicket = (item: typeof Item.Type) => item.kind === "Ticket";
 
 type ChangeProps = Pick<BuiltInFieldsProps, "texts" | "onChange">;
 
-/** The item's title, edited in place as the panel's heading, and its description. */
+/**
+ * The item's title, edited in place as the panel's heading, then a ticket's Detail
+ * and the notes every item has (§7.19).
+ */
 export function TitleFields({
+  item,
   texts,
   onChange,
   titleRef,
   placeholder = "Untitled",
 }: ChangeProps &
-  Pick<BuiltInFieldsProps, "titleRef"> & { readonly placeholder?: string | undefined }) {
+  Pick<BuiltInFieldsProps, "item" | "titleRef"> & { readonly placeholder?: string | undefined }) {
   return (
     <div className="flex flex-col gap-3">
       <Field.Root className="flex flex-col">
@@ -51,9 +55,19 @@ export function TitleFields({
           className="h-10 rounded-control border border-transparent bg-transparent px-2 -mx-2 text-xl font-semibold tracking-tight text-fg outline-none placeholder:text-fg-subtle hover:bg-hover focus-visible:border-accent focus-visible:bg-canvas focus-visible:ring-3 focus-visible:ring-focus"
         />
       </Field.Root>
-      <DescriptionField
-        value={texts.description}
-        onChange={(value) => onChange("description", value)}
+      {isTicket(item) ? (
+        <MarkdownTextField
+          label="Detail"
+          testId="item-editor-description"
+          value={texts.description}
+          onChange={(value) => onChange("description", value)}
+        />
+      ) : null}
+      <MarkdownTextField
+        label="Notes"
+        testId="item-editor-notes"
+        value={texts.notes}
+        onChange={(value) => onChange("notes", value)}
       />
     </div>
   );

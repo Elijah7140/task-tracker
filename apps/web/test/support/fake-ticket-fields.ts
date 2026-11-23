@@ -108,6 +108,7 @@ function applyAddedFields(area: FakeAreaState, id: string, payload: AddItemPaylo
             ...node.item,
             kind,
             description: fields.description,
+            notes: fields.notes === undefined ? node.item.notes : fields.notes,
             ticketNumber: fields.ticketNumber?.trim() || null,
             priorityLevelId: fields.priorityLevelId,
             itemTypeId: fields.itemTypeId,

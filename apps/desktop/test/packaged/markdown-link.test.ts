@@ -11,7 +11,7 @@ import {
 } from "../support/workflows.js";
 
 const title = "Launch test";
-const description = "[Spec](https://example.com/spec)";
+const notes = "[Spec](https://example.com/spec)";
 
 type LauncherGlobal = typeof globalThis & { openedMarkdownLinks: string[] };
 
@@ -30,7 +30,7 @@ desktopTest(
       await openProject(page);
       await addItem(page, SMOKE_PROJECT, title);
       const editor = await openItemEditor(page, itemRow(page, SMOKE_PROJECT, title));
-      await editor.getByRole("textbox", { name: "Description" }).fill(description);
+      await editor.getByRole("textbox", { name: "Notes" }).fill(notes);
       await editor.getByRole("tab", { name: "Preview" }).click();
       const rendererUrl = page.url();
 
@@ -68,9 +68,7 @@ desktopTest(
     await withDesktop(desktop, async (page) => {
       await openProject(page);
       const editor = await openItemEditor(page, itemRow(page, SMOKE_PROJECT, title));
-      expect(await editor.getByRole("textbox", { name: "Description" }).inputValue()).toBe(
-        description,
-      );
+      expect(await editor.getByRole("textbox", { name: "Notes" }).inputValue()).toBe(notes);
 
       await editor.getByRole("tab", { name: "Preview" }).click();
 

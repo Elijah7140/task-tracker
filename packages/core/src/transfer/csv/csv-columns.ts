@@ -3,6 +3,7 @@ import { nameKey } from "../../metadata/names.js";
 /** The fixed column headers of the CSV format (§7.9); custom fields add columns by display name. */
 export const CSV_COLUMNS = {
   title: "Title",
+  /** A ToDo's notes or a ticket's Detail, so exports of ToDos keep their earlier form. */
   description: "Description",
   ticket: "Ticket",
   type: "Type",
@@ -36,6 +37,11 @@ export const TICKET_CSV_COLUMNS = {
   dispatchedTo: "Dispatched to",
   pendingUser: "Pending user",
   ticketType: "Ticket type",
+  /**
+   * A ticket's notes, kept apart from its Detail in Description. The name keeps clear of
+   * a custom field called Notes.
+   */
+  notes: "Ticket notes",
 } as const;
 
 /** The ticket columns in the order an export writes them. */

@@ -49,6 +49,8 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
           {
             id: "019A0000-0000-7000-8000-0000000AC101",
             title: "Training data",
+            description: "Qualifications are missing.",
+            notes: "Asked HR for the sheet.",
             ticketNumber: "385405",
             kind: "Ticket",
             ticket: {
@@ -69,7 +71,11 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
               },
             ],
           },
-          { id: "019A0000-0000-7000-8000-0000000AC102", title: "Plain ToDo" },
+          {
+            id: "019A0000-0000-7000-8000-0000000AC102",
+            title: "Plain ToDo",
+            description: "Older files keep a ToDo's notes here.",
+          },
         ],
         ...overrides,
       },
@@ -78,6 +84,8 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
 
 interface TicketRow {
   readonly ItemKind: string;
+  readonly Description: string | null;
+  readonly Notes: string | null;
   readonly TicketNumber: string | null;
   readonly Module: string | null;
   readonly Application: string | null;
@@ -87,7 +95,7 @@ interface TicketRow {
 const readTickets = (world: TransferWorld, project: string) =>
   readRows<TicketRow & { readonly Title: string }>(
     world,
-    `SELECT item.Title, item.ItemKind, item.TicketNumber,
+    `SELECT item.Title, item.ItemKind, item.Description, item.Notes, item.TicketNumber,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.ModuleId) AS Module,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.ApplicationId) AS Application,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.DispatchedToId) AS DispatchedTo
@@ -108,6 +116,8 @@ const expectedTickets = [
   {
     Title: "Plain ToDo",
     ItemKind: "Todo",
+    Description: null,
+    Notes: "Older files keep a ToDo's notes here.",
     TicketNumber: null,
     Module: null,
     Application: null,
@@ -116,6 +126,8 @@ const expectedTickets = [
   {
     Title: "Training data",
     ItemKind: "Ticket",
+    Description: "Qualifications are missing.",
+    Notes: "Asked HR for the sheet.",
     TicketNumber: "385405",
     Module: "Train",
     Application: "ClockTower",
@@ -179,9 +191,13 @@ describe("Ticket transfer", () => {
         expect(document.projects[0]!.iconKey).toBe("database");
         expect(document.ticketLists).toHaveLength(3);
         expect(ticket).toMatchObject({
+          description: "Qualifications are missing.",
+          notes: "Asked HR for the sheet.",
           kind: "Ticket",
           ticket: { dispatchedToId: expect.any(String) },
         });
+        expect(todo).toMatchObject({ description: "Older files keep a ToDo's notes here." });
+        expect(Object.keys(todo!)).not.toContain("notes");
         expect(Object.keys(ticket!["ticket"] as object)).not.toContain("version");
         expect(Object.keys(todo!)).not.toContain("kind");
         expect(Object.keys(todo!)).not.toContain("ticket");
@@ -230,6 +246,7 @@ describe("Ticket transfer", () => {
 
         const header = csv.split("\r\n")[0]!;
         expect(header).toContain("Kind,Requestor,Application,Module,Interface,Dispatched to");
+        expect(header).toContain("Ticket type,Ticket notes");
         expect(result.kind).toBe("imported");
         expect(yield* readTickets(world, target)).toEqual(expectedTickets);
       }),

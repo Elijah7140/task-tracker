@@ -272,7 +272,8 @@ it.effect(
               itemId: childId,
               fields: {
                 title: childItem.title,
-                description: "Adopted description",
+                description: null,
+                notes: "Adopted description",
                 ticketNumber: "EF-1",
                 itemTypeId: childItem.itemTypeId,
                 priorityLevelId: childItem.priorityLevelId,
@@ -436,7 +437,8 @@ it.effect(
                   {
                     item: {
                       id: childId,
-                      description: "Adopted description",
+                      description: null,
+                      notes: "Adopted description",
                       ticketNumber: "EF-1",
                       itemTypeId: archivedTypeId,
                       priorityLevelId: highPriorityId,

@@ -42,6 +42,7 @@ function itemNode(
       parentItemId: null,
       title,
       description: null,
+      notes: null,
       ticketNumber: null,
       itemTypeId: null,
       priorityLevelId: options.priorityLevelId ?? null,

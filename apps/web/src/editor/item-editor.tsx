@@ -181,6 +181,7 @@ function EditorContent({
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem]">
         <div className="flex min-h-0 flex-col gap-6 overflow-y-auto px-6 pt-5 pb-6">
           <TitleFields
+            item={node.item}
             texts={texts}
             onChange={store.setBuiltIn}
             titleRef={titleRef}

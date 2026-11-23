@@ -78,7 +78,7 @@ const moves = (store: FakeProjectStore) =>
 const GRID_PROJECT: SeedProject = {
   name: "Card Grid",
   items: [
-    { title: "High first", priority: "High", description: "Investigate the query plan." },
+    { title: "High first", priority: "High", notes: "Investigate the query plan." },
     { title: "Plain card", children: [{ title: "Nested task" }] },
     { title: "High second", priority: "High" },
     { title: "Done card", completedAtUtc: "2026-11-12T10:00:00Z" },
@@ -97,7 +97,7 @@ const SNAPSHOT_PROJECT: SeedProject = {
   items: [
     {
       title: "Draft the Q1 roadmap",
-      description: "Collect the requests from the owner review.",
+      notes: "Collect the requests from the owner review.",
       dueDate: "2026-11-25",
     },
     { title: "Tidy the test fixtures", dueDate: "2026-11-25", children: steps(2) },
@@ -107,7 +107,7 @@ const SNAPSHOT_PROJECT: SeedProject = {
       priority: "High",
       ticketNumber: "DB-161",
       dueDate: "2026-11-25",
-      description: "Slow invoice lookups on the customer page. Check the plan before and after.",
+      notes: "Slow invoice lookups on the customer page. Check the plan before and after.",
       children: steps(3),
     },
     { title: "Review migration", priority: "High", ticketNumber: "DB-146", dueDate: "2026-11-25" },
@@ -119,7 +119,7 @@ const SNAPSHOT_PROJECT: SeedProject = {
       dueDate: "2026-11-14",
       urgency: "Overdue",
       status: "In progress",
-      description: "Totals are off by a cent when a discount applies.",
+      notes: "Totals are off by a cent when a discount applies.",
       children: steps(1),
     },
     {
@@ -258,7 +258,7 @@ describe("Workspace priority card grid", () => {
         { title: "Short card" },
         {
           title: "Tall card",
-          description: "Line one\nLine two\nLine three\nLine four",
+          notes: "Line one\nLine two\nLine three\nLine four",
           children: [{ title: "Sub 1" }, { title: "Sub 2" }, { title: "Sub 3" }],
         },
         { title: "Done card", completedAtUtc: "2026-11-12T10:00:00Z" },

@@ -6,8 +6,14 @@ import { renderApp } from "../support/render-app.js";
 const PROJECT: SeedProject = {
   name: "Notes",
   items: [
-    { title: "Plan rollout", description: "Steps:\n\n- Draft email\n- Book room" },
+    { title: "Plan rollout", notes: "Steps:\n\n- Draft email\n- Book room" },
     { title: "Empty card" },
+    {
+      title: "Payroll export fails",
+      kind: "Ticket",
+      ticketNumber: "385405",
+      description: "The export stops at the first contractor.",
+    },
   ],
 };
 
@@ -19,9 +25,9 @@ async function openProject() {
   const projectId = app.store.summaries[0]!.project.id;
   app.history.push(`/projects/${projectId}`);
   await expect.element(page.getByTestId("quick-add-input")).toBeVisible();
-  const description = (title: string) =>
-    app.store.findItemByTitle(projectId, null, title)?.item.description;
-  return { ...app, projectId, description };
+  const stored = (title: string) => app.store.findItemByTitle(projectId, null, title)?.item;
+  const storedNotes = (title: string) => stored(title)?.notes;
+  return { ...app, projectId, stored, storedNotes };
 }
 
 describe("CardNotes", () => {
@@ -41,7 +47,7 @@ describe("CardNotes", () => {
   });
 
   it("Edits the raw Markdown inline and saves it once with Ctrl+Enter", async () => {
-    const { store, history, description } = await openProject();
+    const { store, history, storedNotes } = await openProject();
     const path = history.location.pathname;
     await card("Plan rollout").getByTestId("item-card-notes").click();
     await expect.element(editor()).toHaveFocus();
@@ -54,7 +60,7 @@ describe("CardNotes", () => {
     await expect
       .element(card("Plan rollout").getByRole("listitem").nth(2))
       .toHaveTextContent("Order snacks");
-    expect(description("Plan rollout")).toBe(
+    expect(storedNotes("Plan rollout")).toBe(
       "Steps:\n\n- Draft email\n- Book room\n- Order snacks",
     );
     expect(store.calls.filter((call) => call === "EditItem")).toHaveLength(1);
@@ -63,7 +69,7 @@ describe("CardNotes", () => {
   });
 
   it("Saves the notes when the editor loses focus", async () => {
-    const { description } = await openProject();
+    const { storedNotes } = await openProject();
     await card("Empty card").getByTestId("item-card-header").click();
     await card("Empty card").getByRole("button", { name: "Add notes to Empty card" }).click();
     await expect.element(editor()).toHaveFocus();
@@ -72,11 +78,11 @@ describe("CardNotes", () => {
     await page.getByRole("heading", { level: 1 }).click();
 
     await expect.element(card("Empty card").getByRole("listitem")).toHaveTextContent("First point");
-    expect(description("Empty card")).toBe("- First point");
+    expect(storedNotes("Empty card")).toBe("- First point");
   });
 
   it("Cancels an inline edit with Escape and keeps the stored notes", async () => {
-    const { store, description } = await openProject();
+    const { store, storedNotes } = await openProject();
     await card("Plan rollout").getByTestId("item-card-notes").click();
     await expect.element(editor()).toHaveFocus();
 
@@ -85,7 +91,7 @@ describe("CardNotes", () => {
 
     await expect.element(editor()).not.toBeInTheDocument();
     await expect.element(card("Plan rollout").getByText("Draft email")).toBeVisible();
-    expect(description("Plan rollout")).toBe("Steps:\n\n- Draft email\n- Book room");
+    expect(storedNotes("Plan rollout")).toBe("Steps:\n\n- Draft email\n- Book room");
     expect(store.calls).not.toContain("EditItem");
     await expect.element(card("Plan rollout")).toHaveFocus();
   });
@@ -99,5 +105,22 @@ describe("CardNotes", () => {
 
     await expect.element(add).toHaveClass(/opacity-100/);
     await expect.element(add).not.toHaveClass(/opacity-0/);
+  });
+
+  it("Saves a ticket's notes apart from its Detail", async () => {
+    const { stored } = await openProject();
+    const ticket = card("Payroll export fails");
+    await ticket.getByTestId("item-card-header").click();
+    await ticket.getByRole("button", { name: "Add notes to Payroll export fails" }).click();
+    await expect.element(editor()).toHaveValue("");
+
+    await userEvent.keyboard("Called the vendor.");
+    await userEvent.keyboard("{Control>}{Enter}{/Control}");
+
+    await expect.element(ticket.getByText("Called the vendor.")).toBeVisible();
+    expect(stored("Payroll export fails")).toMatchObject({
+      description: "The export stops at the first contractor.",
+      notes: "Called the vendor.",
+    });
   });
 });

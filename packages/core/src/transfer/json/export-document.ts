@@ -123,7 +123,10 @@ export interface ItemDocument {
   readonly folderId: string | null;
   readonly parentItemId: string | null;
   readonly title: string | null;
+  /** A ticket's Detail, or a ToDo's notes, so exports of ToDos keep their earlier form. */
   readonly description: string | null;
+  /** A ticket's notes; a ToDo writes none, and older files have none. */
+  readonly notes: string | null;
   readonly ticketNumber: string | null;
   readonly itemTypeId: string | null;
   readonly itemType: string | null;

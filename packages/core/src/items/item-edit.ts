@@ -1,7 +1,7 @@
 import { isBlankText, trimText } from "../text/dotnet-white-space.js";
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import { validateReminderChoice, type ReminderChoice } from "../reminders/reminder-choice.js";
-import { requireTicketNumber } from "./item-kind.js";
+import { requireTicketDetail, requireTicketNumber } from "./item-kind.js";
 import { itemRecurrence } from "./recurrence/item-recurrence.js";
 import type { RecurrenceRule } from "./recurrence/recurrence-rule.js";
 import { itemTitle, type TodoItem } from "./todo-item.js";
@@ -17,6 +17,8 @@ export type ItemEdit = Pick<
   | "dueDate"
   | "dueTime"
 > & {
+  /** The replacement Markdown notes; omitted keeps the stored notes (§7.10). */
+  readonly notes?: string | null;
   readonly statusId?: string | null;
   /** The replacement repeat rule; omitted keeps the stored rule, null stops repeating. */
   readonly recurrence?: RecurrenceRule | null;
@@ -52,11 +54,13 @@ export function editItem(
     edit.reminder === undefined ? item.reminder : validateReminderChoice(edit.reminder);
   const number = isBlankText(ticketNumber) ? null : trimText(ticketNumber!);
   requireTicketNumber(item.kind, number);
+  requireTicketDetail(item.kind, edit.description);
 
   return {
     ...item,
     title,
     description: edit.description,
+    notes: edit.notes === undefined ? item.notes : edit.notes,
     ticketNumber: number,
     itemTypeId: edit.itemTypeId,
     priorityLevelId: edit.priorityLevelId,
