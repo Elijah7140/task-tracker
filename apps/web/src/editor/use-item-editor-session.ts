@@ -56,10 +56,6 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       setError(status.repeatError);
       return false;
     }
-    if (status.ticketError !== null) {
-      setError(status.ticketError);
-      return false;
-    }
     const payload = {
       itemId: node.item.id,
       fields: status.fields,

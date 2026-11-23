@@ -3,7 +3,6 @@ import {
   type ItemEdit,
   type ReminderChoice,
   type TicketDetailInput,
-  trimText,
 } from "@task-tracker/contracts";
 
 /** The kinds of item the add buttons create (§7.19). */
@@ -37,11 +36,6 @@ export interface AddItemDraft {
   readonly dispatchedToId: string;
   readonly pendingPersonId: string;
   readonly ticketTypeId: string;
-  readonly version: string;
-  readonly estimatedHours: string;
-  readonly percentComplete: string;
-  readonly isUrgent: boolean;
-  readonly isSystemOutage: boolean;
 }
 
 /** The text fields of a draft, which every text input edits. */
@@ -71,11 +65,6 @@ export function emptyAddDraft(parentItemId: string | null): AddItemDraft {
     dispatchedToId: "",
     pendingPersonId: "",
     ticketTypeId: "",
-    version: "",
-    estimatedHours: "",
-    percentComplete: "",
-    isUrgent: false,
-    isSystemOutage: false,
   };
 }
 
@@ -104,17 +93,6 @@ function reminderChoice(value: string): typeof ReminderChoice.Type {
   return { kind: "offset", minutes: Number(value) };
 }
 
-/** A typed number, or null for a blank box. `error` explains text that is not a number. */
-function parseOptionalNumber(text: string, label: string) {
-  if (isBlankText(text)) {
-    return { value: null, error: null };
-  }
-  const value = Number(trimText(text));
-  return Number.isFinite(value)
-    ? { value, error: null }
-    : { value: null, error: `${label} must be a number.` };
-}
-
 function itemFields(kind: AddKind, draft: AddItemDraft): typeof ItemEdit.Type {
   const todo = kind === "Todo";
   return {
@@ -131,30 +109,15 @@ function itemFields(kind: AddKind, draft: AddItemDraft): typeof ItemEdit.Type {
   };
 }
 
-function ticketFields(
-  draft: AddItemDraft,
-): { readonly ticket: typeof TicketDetailInput.Type } | { readonly error: string } {
-  const hours = parseOptionalNumber(draft.estimatedHours, "Est. hours");
-  const percent = parseOptionalNumber(draft.percentComplete, "% complete");
-  const error = hours.error ?? percent.error;
-  if (error !== null) {
-    return { error };
-  }
+function ticketFields(draft: AddItemDraft): typeof TicketDetailInput.Type {
   return {
-    ticket: {
-      requestorId: orNull(draft.requestorId),
-      applicationId: orNull(draft.applicationId),
-      moduleId: orNull(draft.moduleId),
-      interfaceId: orNull(draft.interfaceId),
-      dispatchedToId: orNull(draft.dispatchedToId),
-      pendingPersonId: orNull(draft.pendingPersonId),
-      ticketTypeId: orNull(draft.ticketTypeId),
-      version: orNull(draft.version),
-      estimatedHours: hours.value,
-      percentComplete: percent.value,
-      isUrgent: draft.isUrgent,
-      isSystemOutage: draft.isSystemOutage,
-    },
+    requestorId: orNull(draft.requestorId),
+    applicationId: orNull(draft.applicationId),
+    moduleId: orNull(draft.moduleId),
+    interfaceId: orNull(draft.interfaceId),
+    dispatchedToId: orNull(draft.dispatchedToId),
+    pendingPersonId: orNull(draft.pendingPersonId),
+    ticketTypeId: orNull(draft.ticketTypeId),
   };
 }
 
@@ -176,14 +139,11 @@ export function buildAddPayload(kind: AddKind, draft: AddItemDraft): AddPayload 
     return { ok: false, message: missing };
   }
   const ticket = kind === "Ticket" ? ticketFields(draft) : undefined;
-  if (ticket !== undefined && "error" in ticket) {
-    return { ok: false, message: ticket.error };
-  }
   return {
     ok: true,
     parentItemId: orNull(draft.parentItemId),
     fields: itemFields(kind, draft),
     reminder: reminderChoice(draft.reminder),
-    ticket: ticket?.ticket,
+    ticket,
   };
 }

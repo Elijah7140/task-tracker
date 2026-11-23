@@ -55,6 +55,7 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
               applicationId: APP,
               moduleId: MODULE,
               dispatchedToId: PERSON,
+              // Fields removed on 23 Nov 2026, which older files still carry and import ignores.
               version: "1.0.0",
               estimatedHours: 16,
               percentComplete: 50,
@@ -78,10 +79,6 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
 interface TicketRow {
   readonly ItemKind: string;
   readonly TicketNumber: string | null;
-  readonly Version: string | null;
-  readonly EstimatedHours: number | null;
-  readonly PercentComplete: number | null;
-  readonly IsUrgent: number | null;
   readonly Module: string | null;
   readonly Application: string | null;
   readonly DispatchedTo: string | null;
@@ -90,8 +87,7 @@ interface TicketRow {
 const readTickets = (world: TransferWorld, project: string) =>
   readRows<TicketRow & { readonly Title: string }>(
     world,
-    `SELECT item.Title, item.ItemKind, item.TicketNumber, detail.Version, detail.EstimatedHours,
-        detail.PercentComplete, detail.IsUrgent,
+    `SELECT item.Title, item.ItemKind, item.TicketNumber,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.ModuleId) AS Module,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.ApplicationId) AS Application,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.DispatchedToId) AS DispatchedTo
@@ -113,10 +109,6 @@ const expectedTickets = [
     Title: "Plain ToDo",
     ItemKind: "Todo",
     TicketNumber: null,
-    Version: null,
-    EstimatedHours: null,
-    PercentComplete: null,
-    IsUrgent: null,
     Module: null,
     Application: null,
     DispatchedTo: null,
@@ -125,10 +117,6 @@ const expectedTickets = [
     Title: "Training data",
     ItemKind: "Ticket",
     TicketNumber: "385405",
-    Version: "1.0.0",
-    EstimatedHours: 16,
-    PercentComplete: 50,
-    IsUrgent: 1,
     Module: "Train",
     Application: "ClockTower",
     DispatchedTo: "Harris, Elijah",
@@ -190,7 +178,8 @@ describe("Ticket transfer", () => {
 
         expect(document.projects[0]!.iconKey).toBe("database");
         expect(document.ticketLists).toHaveLength(3);
-        expect(ticket).toMatchObject({ kind: "Ticket", ticket: { version: "1.0.0" } });
+        expect(ticket).toMatchObject({ kind: "Ticket", ticket: { dispatchedToId: PERSON } });
+        expect(Object.keys(ticket!["ticket"] as object)).not.toContain("version");
         expect(Object.keys(todo!)).not.toContain("kind");
         expect(Object.keys(todo!)).not.toContain("ticket");
       }),

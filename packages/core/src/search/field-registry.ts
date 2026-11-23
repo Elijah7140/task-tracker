@@ -33,8 +33,7 @@ function customField(definition: FieldDefinition): SearchableField {
 
 /**
  * The item kind and the fixed ticket fields (§7.19). People, levels and ticket types match by
- * entry name; a ToDo has no ticket fields, so it matches only IsEmpty, and Urgent and System
- * outage read as No.
+ * entry name; a ToDo has no ticket fields, so it matches only IsEmpty.
  */
 export const TICKET_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("kind", "Kind", "Text"),
@@ -45,11 +44,6 @@ export const TICKET_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("module", "Module", "Text"),
   builtInField("interface", "Interface", "Text"),
   builtInField("tickettype", "Ticket Type", "Text"),
-  builtInField("version", "Version", "Text"),
-  builtInField("hours", "Est. Hours", "Number"),
-  builtInField("percent", "Percent Complete", "Number"),
-  builtInField("urgent", "Urgent", "Boolean"),
-  builtInField("outage", "System Outage", "Boolean"),
   builtInField("comment", "Comments", "Text"),
 ];
 

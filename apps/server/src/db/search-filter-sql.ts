@@ -82,9 +82,6 @@ const TICKET_ENTRY_COLUMNS: Readonly<Record<string, string>> = {
   tickettype: "TicketTypeId",
 };
 
-const ticketColumn = (column: string) =>
-  `(SELECT d.${column} FROM TicketDetail d WHERE d.ItemId = t.Id)`;
-
 const COMMENTS = "SELECT 1 FROM TicketComment c WHERE c.ItemId = t.Id";
 
 /** The item kind and the fixed ticket fields; a ToDo has none of the ticket values (§7.19). */
@@ -97,16 +94,6 @@ function ticketFilter(filter: FieldFilter, bind: BindParameter): string {
   switch (filter.fieldKey) {
     case "kind":
       return textFilter("t.ItemKind", filter, bind);
-    case "version":
-      return textFilter(ticketColumn("Version"), filter, bind);
-    case "hours":
-      return scalarFilter(ticketColumn("EstimatedHours"), filter, bind);
-    case "percent":
-      return scalarFilter(ticketColumn("PercentComplete"), filter, bind);
-    case "urgent":
-      return scalarFilter(`COALESCE(${ticketColumn("IsUrgent")}, 0)`, filter, bind);
-    case "outage":
-      return scalarFilter(`COALESCE(${ticketColumn("IsSystemOutage")}, 0)`, filter, bind);
     case "comment":
       return commentFilter(filter, bind);
     default:

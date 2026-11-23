@@ -117,7 +117,7 @@ class CsvExporter {
     if (item.kind !== "Ticket") {
       return ["ToDo", ...TICKET_CSV_COLUMN_NAMES.slice(1).map(() => "")];
     }
-    const cells = writeCsvTicketCells(rows.ticketOf(item), this.#entries, formatStjDouble);
+    const cells = writeCsvTicketCells(rows.ticketOf(item), this.#entries);
     return ["Ticket", ...cells.map((cell) => protectCsvCell(cell))];
   }
 

@@ -297,11 +297,6 @@ const ticket = orNull(
     dispatchedToId: optionalGuid,
     pendingPersonId: optionalGuid,
     ticketTypeId: optionalGuid,
-    version: optionalText,
-    estimatedHours: optionalDouble,
-    percentComplete: optionalInt,
-    isUrgent: optionalBoolean,
-    isSystemOutage: optionalBoolean,
   }),
 );
 

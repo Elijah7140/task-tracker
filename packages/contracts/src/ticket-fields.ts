@@ -35,11 +35,6 @@ export const TicketDetailInput = Schema.Struct({
   dispatchedToId: optionalEntry,
   pendingPersonId: optionalEntry,
   ticketTypeId: optionalEntry,
-  version: Schema.NullOr(Schema.String),
-  estimatedHours: Schema.NullOr(Schema.Finite),
-  percentComplete: Schema.NullOr(Schema.Int),
-  isUrgent: Schema.Boolean,
-  isSystemOutage: Schema.Boolean,
 });
 
 /** One entry of a ticket's comment log. */

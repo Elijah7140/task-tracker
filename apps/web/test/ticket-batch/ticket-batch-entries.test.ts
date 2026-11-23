@@ -39,7 +39,10 @@ describe("addEntry", () => {
     expect(next.entries[1]?.ticket).toMatchObject({
       fields: { ticketNumber: " 2 ", title: "Second" },
     });
-    expect(next.entries[1]?.ticket.ticket).toMatchObject({ dispatchedToId: null, isUrgent: false });
+    expect(next.entries[1]?.ticket.ticket).toMatchObject({
+      dispatchedToId: null,
+      ticketTypeId: null,
+    });
     expect(hasTyping(next.draft)).toBe(false);
   });
 

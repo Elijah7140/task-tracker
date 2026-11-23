@@ -1717,12 +1717,13 @@ be the parent of either kind. A kind is chosen when the item is added and does n
   | Requestor, Dispatched to, Pending user | `TicketDetail` → **People** list |
   | Application › Module › Interface | `TicketDetail` → **Ticket levels** tree |
   | Ticket type | `TicketDetail` → **Ticket types** list |
-  | Version (text), Est. hours (≥ 0), % complete (0–100), Urgent, System outage | `TicketDetail` columns, no longer shown (below) |
   | Comments | `TicketComment` rows, newest first |
 
   On 23 Nov 2026 the owner removed Version, Est. hours, % complete, Urgent and System outage
-  from the add views, the editor and the details panel. The columns, search keys and
-  transfer fields stay, so stored values survive and an edit keeps them unchanged.
+  entirely, saying stored data need not be kept. Migration `15_DropTicketExtraFields`
+  rebuilds `TicketDetail` without those columns and their values, and their search keys,
+  CSV columns and JSON properties are gone. An older JSON file that still carries them
+  imports with them ignored.
   Site-specific fields from the reference screen (plant, office and cell numbers, Helix and
   work-order numbers, mill impacted, tested/documented by, testing date) are left out.
 - **Lists in App Settings.** People, Ticket types and Ticket levels are one
@@ -1776,11 +1777,11 @@ repeat, the scheduled block and custom fields.
   and in the sidebar. The change is one undo step, "Change icon of ⟨name⟩".
 
 **Search.** Built-in keys cover the kind and the ticket fields: `kind`, `requestor`,
-`dispatched`, `pending`, `application`, `module`, `interface`, `tickettype` and `version`
-(text, matching entry names), `hours` and `percent` (numbers), `urgent` and `outage` (yes/no)
-and `comment` (comment text). A ToDo has no ticket values, so it matches only IsEmpty, and its
-flags read as No. Migration `12_ReserveTicketSearchKeys` renames custom fields that used one of
-these keys and rewrites saved searches, as earlier reserved keys did.
+`dispatched`, `pending`, `application`, `module`, `interface` and `tickettype` (text,
+matching entry names) and `comment` (comment text). A ToDo has no ticket values, so it matches
+only IsEmpty. Migration `12_ReserveTicketSearchKeys` renamed custom fields that used one of
+these keys, and also `version`, `hours`, `percent`, `urgent` and `outage`, which were removed
+with their fields on 23 Nov 2026, and rewrote saved searches, as earlier reserved keys did.
 
 **Transfer.** JSON stays at version 1. A project carries `iconKey`; a ticket carries
 `kind: "Ticket"`, a `ticket` object of its fixed fields and `comments`; and the document carries

@@ -151,14 +151,6 @@ function ticketDocument(detail: TicketDetail): JsonOut {
     ["dispatchedToId", optionalId(detail.dispatchedToId)],
     ["pendingPersonId", optionalId(detail.pendingPersonId)],
     ["ticketTypeId", optionalId(detail.ticketTypeId)],
-    ["version", optionalString(detail.version)],
-    ["estimatedHours", detail.estimatedHours === null ? null : jsonDouble(detail.estimatedHours)],
-    [
-      "percentComplete",
-      detail.percentComplete === null ? null : jsonInteger(detail.percentComplete),
-    ],
-    ["isUrgent", jsonBoolean(detail.isUrgent)],
-    ["isSystemOutage", jsonBoolean(detail.isSystemOutage)],
   ]);
 }
 

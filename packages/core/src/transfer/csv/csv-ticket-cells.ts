@@ -4,7 +4,6 @@ import { trimText as trim } from "../../text/dotnet-white-space.js";
 import type { TicketDetailInput } from "../../tickets/ticket-detail.js";
 import type { TicketListEntry, TicketListKind } from "../../tickets/ticket-list-entry.js";
 import { TICKET_CSV_COLUMNS as T } from "./csv-columns.js";
-import { parseCsvYesNo } from "./csv-yes-no.js";
 
 /** Reads a fixed column's unprotected cell text. */
 type CellText = (column: string) => string;
@@ -76,32 +75,6 @@ class EntryReader {
   }
 }
 
-function readNumber(text: CellText, fail: Fail, column: string, whole: boolean): number | null {
-  const cell = trim(text(column));
-  if (cell.length === 0) {
-    return null;
-  }
-  const value = Number(cell);
-  const valid = Number.isFinite(value) && value >= 0 && (!whole || Number.isInteger(value));
-  if (!valid || (whole && value > 100)) {
-    fail(
-      column,
-      whole ? "Expected a whole number from 0 to 100." : "Expected a number of 0 or more.",
-    );
-    return null;
-  }
-  return value;
-}
-
-function readFlag(text: CellText, fail: Fail, column: string): boolean {
-  const cell = trim(text(column));
-  const value = cell.length === 0 ? false : parseCsvYesNo(cell);
-  if (value === null) {
-    fail(column, "Expected yes or no.");
-  }
-  return value === true;
-}
-
 /** Reads a ticket row's fixed fields, matching people, types and levels by name (§7.19). */
 export function readCsvTicket(
   entries: readonly TicketListEntry[],
@@ -111,7 +84,6 @@ export function readCsvTicket(
   const names = new EntryReader(entries, text, fail);
   const applicationId = names.read(T.application, "Application");
   const moduleId = names.read(T.module, "Module", applicationId);
-  const version = trim(text(T.version));
   return {
     requestorId: names.read(T.requestor, "Person"),
     applicationId,
@@ -120,11 +92,6 @@ export function readCsvTicket(
     dispatchedToId: names.read(T.dispatchedTo, "Person"),
     pendingPersonId: names.read(T.pendingUser, "Person"),
     ticketTypeId: names.read(T.ticketType, "TicketType"),
-    version: version.length === 0 ? null : version,
-    estimatedHours: readNumber(text, fail, T.estimatedHours, false),
-    percentComplete: readNumber(text, fail, T.percentComplete, true),
-    isUrgent: readFlag(text, fail, T.urgent),
-    isSystemOutage: readFlag(text, fail, T.systemOutage),
   };
 }
 
@@ -132,11 +99,8 @@ export function readCsvTicket(
 export function writeCsvTicketCells(
   ticket: TicketDetailInput | undefined,
   entryNames: ReadonlyMap<string, string>,
-  formatNumber: (value: number) => string,
 ): string[] {
   const name = (id: string | null | undefined) => (id ? (entryNames.get(id) ?? "") : "");
-  const number = (value: number | null | undefined) =>
-    value === null || value === undefined ? "" : formatNumber(value);
   return [
     name(ticket?.requestorId),
     name(ticket?.applicationId),
@@ -145,10 +109,5 @@ export function writeCsvTicketCells(
     name(ticket?.dispatchedToId),
     name(ticket?.pendingPersonId),
     name(ticket?.ticketTypeId),
-    ticket?.version ?? "",
-    number(ticket?.estimatedHours),
-    number(ticket?.percentComplete),
-    ticket?.isUrgent === true ? "yes" : "no",
-    ticket?.isSystemOutage === true ? "yes" : "no",
   ];
 }

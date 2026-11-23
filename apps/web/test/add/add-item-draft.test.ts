@@ -45,20 +45,6 @@ describe("buildAddPayload", () => {
     ]);
   });
 
-  it("Parses ticket hours and percent and refuses text that is not a number", () => {
-    const parsed = buildAddPayload(
-      "Ticket",
-      draft({ ticketNumber: "1", title: "T", estimatedHours: " 16 ", percentComplete: "50" }),
-    );
-    const bad = buildAddPayload(
-      "Ticket",
-      draft({ ticketNumber: "1", title: "T", estimatedHours: "lots" }),
-    );
-
-    expect(parsed.ok && parsed.ticket).toMatchObject({ estimatedHours: 16, percentComplete: 50 });
-    expect(bad).toEqual({ ok: false, message: "Est. hours must be a number." });
-  });
-
   it("Sends no ticket fields for a ToDo and keeps its type and scheduled block", () => {
     const result = buildAddPayload(
       "Todo",

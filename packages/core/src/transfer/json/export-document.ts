@@ -109,11 +109,6 @@ export interface TicketDocument {
   readonly dispatchedToId: string | null;
   readonly pendingPersonId: string | null;
   readonly ticketTypeId: string | null;
-  readonly version: string | null;
-  readonly estimatedHours: number | null;
-  readonly percentComplete: number | null;
-  readonly isUrgent: boolean | null;
-  readonly isSystemOutage: boolean | null;
 }
 
 /** One entry of a ticket's comment log. */

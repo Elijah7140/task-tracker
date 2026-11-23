@@ -13,6 +13,7 @@ import {
 } from "./add-statuses-and-priority-numbers.js";
 import { ticketRankColumns } from "./add-ticket-rank.js";
 import { itemKindColumns, projectIconColumns, ticketSchema } from "./add-tickets.js";
+import { ticketSchemaWithoutExtras } from "./drop-ticket-extra-fields.js";
 import { todayCompletionsSchema } from "./index-today-completions.js";
 import { initialSchema } from "./initial-create.js";
 
@@ -75,6 +76,6 @@ export function stageSchema(stage: number) {
     ...(stage >= 5 ? itemLinkSchema : []),
     ...(stage >= 8 ? todayCompletionsSchema : []),
     ...(stage >= 9 ? [...statusSchema(stage), ...itemStatusSchema] : []),
-    ...(stage >= 11 ? ticketSchema : []),
+    ...(stage >= 11 ? (stage >= 15 ? ticketSchemaWithoutExtras : ticketSchema) : []),
   ];
 }

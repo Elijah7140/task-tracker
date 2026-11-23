@@ -209,7 +209,6 @@ function EditorContent({
             <TicketEditorSection
               itemId={node.item.id}
               overrides={store.ticket}
-              error={status.ticketError}
               onChange={store.setTicket}
               onStored={onStoredTicket}
             />

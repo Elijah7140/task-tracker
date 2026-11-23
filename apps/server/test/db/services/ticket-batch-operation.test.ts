@@ -49,11 +49,6 @@ const noTicketFields: TicketDetailInput = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
-  version: null,
-  estimatedHours: null,
-  percentComplete: null,
-  isUrgent: false,
-  isSystemOutage: false,
 };
 
 const setup = Effect.gen(function* () {

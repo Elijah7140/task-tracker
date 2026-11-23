@@ -269,3 +269,46 @@ it.effect("Refuses the In progress mark on a Done status in storage", () =>
     expect(String(refused.cause)).toContain("CK_StatusLevel_IsInProgress");
   }).pipe(withSchema),
 );
+
+it.effect("Drops the removed ticket fields and keeps each ticket's people, levels and type", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* Migrator.make({})({
+      loader: Effect.map(databaseMigrations, (migrations) => migrations.filter(([id]) => id < 15)),
+    });
+    yield* sql.withTransaction(
+      insertProject.pipe(
+        Effect.andThen(insertItem()),
+        Effect.andThen(
+          sql`INSERT INTO TicketListEntry (Id, ListKind, ParentId, Name, IsArchived, SortOrder)
+            VALUES ('person', 'Person', NULL, 'Wayne', 0, 0)`,
+        ),
+        Effect.andThen(
+          sql`INSERT INTO TicketDetail (ItemId, DispatchedToId, Version, EstimatedHours,
+              PercentComplete, IsUrgent, IsSystemOutage)
+            VALUES (${itemId}, 'person', '1.0.0', 16, 50, 1, 0)`,
+        ),
+      ),
+    );
+
+    yield* migrate;
+
+    const columns = yield* sql`SELECT name FROM pragma_table_info('TicketDetail')`.values;
+    const rows = yield* sql`SELECT ItemId, DispatchedToId FROM TicketDetail`.values;
+    const indexes = yield* sql`SELECT name FROM pragma_index_list('TicketDetail')
+      WHERE origin = 'c'`.values;
+    expect(columns.flat()).toEqual([
+      "ItemId",
+      "RequestorId",
+      "ApplicationId",
+      "ModuleId",
+      "InterfaceId",
+      "DispatchedToId",
+      "PendingPersonId",
+      "TicketTypeId",
+    ]);
+    expect(rows).toEqual([[itemId, "person"]]);
+    expect(indexes).toEqual([["IX_TicketDetail_DispatchedToId"]]);
+    expect(yield* sql`PRAGMA foreign_key_check`.values).toEqual([]);
+  }).pipe(withDatabase),
+);

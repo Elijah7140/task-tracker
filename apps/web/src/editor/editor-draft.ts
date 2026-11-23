@@ -75,8 +75,6 @@ export interface EditorDraftStatus {
   readonly reminder: typeof ReminderChoice.Type | undefined;
   /** A ticket's replacement fixed fields; undefined keeps the stored ones (§7.19). */
   readonly ticket: typeof TicketDetailInput.Type | undefined;
-  /** Why the ticket fields cannot be saved, which refuses the save. */
-  readonly ticketError: string | null;
 }
 
 /** Shown when a save is attempted while a custom value cannot be parsed. */
@@ -125,6 +123,5 @@ export function editorDraftStatus(input: EditorDraftInput): EditorDraftStatus {
     repeatSummary: repeat.summary,
     reminder: reminderChanged && reminderDraft !== null ? reminderDraft : undefined,
     ticket: ticket.ticket,
-    ticketError: ticket.error,
   };
 }

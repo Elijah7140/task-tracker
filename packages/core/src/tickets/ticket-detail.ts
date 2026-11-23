@@ -1,5 +1,4 @@
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
-import { isBlankText, trimText } from "../text/dotnet-white-space.js";
 import {
   parentKindOf,
   ticketListNoun,
@@ -21,11 +20,6 @@ export interface TicketDetail {
   readonly dispatchedToId: string | null;
   readonly pendingPersonId: string | null;
   readonly ticketTypeId: string | null;
-  readonly version: string | null;
-  readonly estimatedHours: number | null;
-  readonly percentComplete: number | null;
-  readonly isUrgent: boolean;
-  readonly isSystemOutage: boolean;
 }
 
 /** The ticket fields a save supplies. The item ID comes from the item being saved. */
@@ -42,11 +36,6 @@ export function emptyTicketDetail(itemId: string): TicketDetail {
     dispatchedToId: null,
     pendingPersonId: null,
     ticketTypeId: null,
-    version: null,
-    estimatedHours: null,
-    percentComplete: null,
-    isUrgent: false,
-    isSystemOutage: false,
   };
 }
 
@@ -68,9 +57,6 @@ const entryFields: ReadonlyArray<readonly [EntryField, TicketListKind, string]> 
   ["moduleId", "Module", "Module"],
   ["interfaceId", "Interface", "Interface"],
 ];
-
-/** The largest estimate accepted, which keeps typos such as 1e9 out. */
-const maxEstimatedHours = 100_000;
 
 function checkEntry(
   detail: TicketDetailInput,
@@ -119,32 +105,6 @@ function checkLevelChain(detail: TicketDetailInput, byId: ReadonlyMap<string, Ti
   }
 }
 
-function normalizeVersion(version: string | null): string | null {
-  if (isBlankText(version)) {
-    return null;
-  }
-  const trimmed = trimText(version!);
-  if (trimmed.length > 100) {
-    throw new MetadataRuleError("Version must be at most 100 characters.");
-  }
-  return trimmed;
-}
-
-function checkNumbers({ estimatedHours, percentComplete }: TicketDetailInput) {
-  if (
-    estimatedHours !== null &&
-    (!Number.isFinite(estimatedHours) || estimatedHours < 0 || estimatedHours > maxEstimatedHours)
-  ) {
-    throw new MetadataRuleError(`Estimated hours must be from 0 to ${maxEstimatedHours}.`);
-  }
-  if (
-    percentComplete !== null &&
-    (!Number.isInteger(percentComplete) || percentComplete < 0 || percentComplete > 100)
-  ) {
-    throw new MetadataRuleError("Percent complete must be a whole number from 0 to 100.");
-  }
-}
-
 /**
  * Validates a ticket save against the ticket lists. A level implies its parents, each level
  * must sit under the one above it, and an archived entry may stay but not be newly chosen.
@@ -161,6 +121,5 @@ export function validateTicketDetail(
     checkEntry(detail, previous, byId, field);
   }
   checkLevelChain(detail, byId);
-  checkNumbers(detail);
-  return { ...detail, itemId, version: normalizeVersion(detail.version) };
+  return { ...detail, itemId };
 }

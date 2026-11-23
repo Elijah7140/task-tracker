@@ -3,10 +3,8 @@ import type { TicketDetailInput } from "@task-tracker/core";
 import { Effect } from "effect";
 import { TicketListService } from "../../../src/services/ticket-list-service.js";
 import {
-  bool,
   editFields,
   filter,
-  number,
   query,
   sortedTitles,
   text,
@@ -24,11 +22,6 @@ const noTicketFields: TicketDetailInput = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
-  version: null,
-  estimatedHours: null,
-  percentComplete: null,
-  isUrgent: false,
-  isSystemOutage: false,
 };
 
 const seed = (svc: SearchServices) =>
@@ -51,12 +44,8 @@ const seed = (svc: SearchServices) =>
     const training = yield* add("Training data", "385405", {
       moduleId: train.id,
       dispatchedToId: elijah.id,
-      version: "1.0.0",
-      estimatedHours: 16,
-      percentComplete: 50,
-      isUrgent: true,
     });
-    yield* add("Payroll export", "385500", { estimatedHours: 4 });
+    yield* add("Payroll export", "385500", {});
     yield* svc.items.create(project.id, null, null, "Plain ToDo");
     yield* svc.items.addComment(training.id, "Waiting on Wayne's discussion");
   }).pipe(Effect.provide(TicketListService.layer));
@@ -98,23 +87,13 @@ it.effect("Matches people and levels by name, and an implied application", () =>
   ),
 );
 
-it.effect("Compares hours, percent, version, flags and comments", () =>
+it.effect("Matches ticket comments", () =>
   withSearchServices((svc) =>
     Effect.gen(function* () {
       yield* seed(svc);
 
-      const longJobs = yield* titlesFor(svc, [filter("hours", "greaterThan", number(8))]);
-      const halfDone = yield* titlesFor(svc, [filter("percent", "equals", number(50))]);
-      const version = yield* titlesFor(svc, [filter("version", "equals", text("1.0.0"))]);
-      const urgent = yield* titlesFor(svc, [filter("urgent", "equals", bool(true))]);
-      const notUrgent = yield* titlesFor(svc, [filter("urgent", "equals", bool(false))]);
       const commented = yield* titlesFor(svc, [filter("comment", "contains", text("wayne"))]);
 
-      expect(longJobs).toEqual(["Training data"]);
-      expect(halfDone).toEqual(["Training data"]);
-      expect(version).toEqual(["Training data"]);
-      expect(urgent).toEqual(["Training data"]);
-      expect(notUrgent).toEqual(["Payroll export", "Plain ToDo"]);
       expect(commented).toEqual(["Training data"]);
     }),
   ),
