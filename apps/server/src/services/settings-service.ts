@@ -33,12 +33,23 @@ const {
   startWithSystem,
   todoAddOpensDetails,
   ticketAddOpensDetails,
+  urgencyApproachingColor,
+  urgencyOverdueColor,
 } = SettingsCatalogue;
 
 /** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
 export interface AddViewDefaults {
   readonly todo: boolean;
   readonly ticket: boolean;
+}
+
+/**
+ * The chosen `#rrggbb` urgency colors (§6.3). Null keeps the theme's color. Imminent
+ * and Overdue share the overdue color.
+ */
+export interface UrgencyColorsInput {
+  readonly approaching: string | null;
+  readonly overdue: string | null;
 }
 
 /** Reminder defaults saved with the global settings form (§7.12). */
@@ -179,6 +190,13 @@ const make = Effect.gen(function* () {
         todo: parseOrDefault(todoAddOpensDetails, global.get(todoAddOpensDetails.key)),
         ticket: parseOrDefault(ticketAddOpensDetails, global.get(ticketAddOpensDetails.key)),
       } satisfies AddViewDefaults,
+      urgencyColors: {
+        approaching: parseOrDefault(
+          urgencyApproachingColor,
+          global.get(urgencyApproachingColor.key),
+        ),
+        overdue: parseOrDefault(urgencyOverdueColor, global.get(urgencyOverdueColor.key)),
+      } satisfies UrgencyColorsInput,
     };
   }, sql.withTransaction);
 
@@ -350,6 +368,7 @@ const make = Effect.gen(function* () {
       keepRunning?: boolean,
       startup?: boolean,
       addViews?: AddViewDefaults,
+      urgencyColors?: UrgencyColorsInput,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -373,6 +392,10 @@ const make = Effect.gen(function* () {
         if (addViews !== undefined) {
           proposeGlobal(proposed, current, todoAddOpensDetails, addViews.todo);
           proposeGlobal(proposed, current, ticketAddOpensDetails, addViews.ticket);
+        }
+        if (urgencyColors !== undefined) {
+          proposeGlobal(proposed, current, urgencyApproachingColor, urgencyColors.approaching);
+          proposeGlobal(proposed, current, urgencyOverdueColor, urgencyColors.overdue);
         }
         return proposed;
       }, approval),

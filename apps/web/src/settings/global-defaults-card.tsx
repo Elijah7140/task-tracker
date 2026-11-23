@@ -33,7 +33,9 @@ import {
   type ReminderDefaultsDraft,
   sameReminderDefaults,
 } from "./reminder-settings-draft.js";
+import { THEME_URGENCY_COLORS } from "../state/urgency-color-style.js";
 import { ThresholdInput } from "./threshold-input.js";
+import { UrgencyColorFields } from "./urgency-color-fields.js";
 import { useExternalReset } from "./use-external-reset.js";
 
 type Global = typeof GlobalSettings.Type;
@@ -72,6 +74,8 @@ interface GlobalDraft {
   readonly startWithSystem: boolean;
   /** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
   readonly addOpensDetails: AddViewDefaults;
+  /** The chosen urgency colors; null keeps the theme's (§6.3). */
+  readonly urgencyColors: UrgencyColors;
 }
 
 type AddViewDefaults = NonNullable<Global["addOpensDetails"]>;
@@ -82,6 +86,15 @@ const addOpensDetailsOf = (settings: Global): AddViewDefaults =>
 
 const sameAddViews = (left: AddViewDefaults, right: AddViewDefaults) =>
   left.todo === right.todo && left.ticket === right.ticket;
+
+type UrgencyColors = NonNullable<Global["urgencyColors"]>;
+
+/** The saved urgency colors, the theme's for a server that sent none (§6.3). */
+const urgencyColorsOf = (settings: Global): UrgencyColors =>
+  settings.urgencyColors ?? THEME_URGENCY_COLORS;
+
+const sameUrgencyColors = (left: UrgencyColors, right: UrgencyColors) =>
+  left.approaching === right.approaching && left.overdue === right.overdue;
 
 /** The saved tray choice, off for a server that sent none (§7.12). */
 const keepRunningInTrayOf = (settings: Global) => settings.keepRunningInTray ?? false;
@@ -98,7 +111,8 @@ function sameGlobal(left: Global, right: Global) {
     sameReminderDefaults(reminderDefaultsOf(left), reminderDefaultsOf(right)) &&
     keepRunningInTrayOf(left) === keepRunningInTrayOf(right) &&
     startWithSystemOf(left) === startWithSystemOf(right) &&
-    sameAddViews(addOpensDetailsOf(left), addOpensDetailsOf(right))
+    sameAddViews(addOpensDetailsOf(left), addOpensDetailsOf(right)) &&
+    sameUrgencyColors(urgencyColorsOf(left), urgencyColorsOf(right))
   );
 }
 
@@ -112,6 +126,7 @@ function draftFrom(settings: Global): GlobalDraft {
     keepRunningInTray: keepRunningInTrayOf(settings),
     startWithSystem: startWithSystemOf(settings),
     addOpensDetails: addOpensDetailsOf(settings),
+    urgencyColors: urgencyColorsOf(settings),
   };
 }
 
@@ -142,6 +157,7 @@ function useGlobalDraft(initial: Global) {
     draft.keepRunningInTray !== keepRunningInTrayOf(saved) ||
     draft.startWithSystem !== startWithSystemOf(saved) ||
     !sameAddViews(draft.addOpensDetails, addOpensDetailsOf(saved)) ||
+    !sameUrgencyColors(draft.urgencyColors, urgencyColorsOf(saved)) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
   const validationError =
@@ -202,6 +218,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     keepRunningInTray: form.draft.keepRunningInTray,
     startWithSystem: form.draft.startWithSystem,
     addOpensDetails: form.draft.addOpensDetails,
+    urgencyColors: form.draft.urgencyColors,
   };
 }
 
@@ -372,6 +389,10 @@ export function GlobalDefaultsCard({
           Automatically complete parents when all sub-items are complete
         </Checkbox>
         <GlobalThresholdRows form={form} />
+        <UrgencyColorFields
+          colors={form.draft.urgencyColors}
+          onChange={(urgencyColors) => form.edit({ urgencyColors })}
+        />
         <ReminderDefaultsFields
           draft={form.draft.reminders}
           onChange={(change) => form.edit({ reminders: { ...form.draft.reminders, ...change } })}

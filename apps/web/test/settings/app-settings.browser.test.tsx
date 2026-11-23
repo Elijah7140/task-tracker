@@ -200,6 +200,7 @@ describe("AppSettingsPage", () => {
       keepRunningInTray: false,
       startWithSystem: false,
       addOpensDetails: { todo: false, ticket: false },
+      urgencyColors: { approaching: null, overdue: null },
     });
   });
 
@@ -377,6 +378,7 @@ describe("AppSettingsPage", () => {
       keepRunningInTray: false,
       startWithSystem: false,
       addOpensDetails: { todo: false, ticket: false },
+      urgencyColors: { approaching: null, overdue: null },
     });
   });
 
@@ -422,6 +424,7 @@ describe("AppSettingsPage", () => {
       keepRunningInTray: false,
       startWithSystem: false,
       addOpensDetails: { todo: false, ticket: false },
+      urgencyColors: { approaching: null, overdue: null },
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });

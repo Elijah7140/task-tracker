@@ -27,12 +27,14 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
               keepRunningInTray,
               startWithSystem,
               addOpensDetails,
+              urgencyColors,
             }) => ({
               ...projectGlobalSettings(values),
               reminders: projectReminderDefaults(reminders),
               keepRunningInTray,
               startWithSystem,
               addOpensDetails,
+              urgencyColors,
             }),
           ),
           mapOperationError,
@@ -59,6 +61,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
             values.keepRunningInTray,
             values.startWithSystem,
             values.addOpensDetails,
+            values.urgencyColors,
           ),
         ).pipe(mapOperationError),
       SaveProjectSettings: ({ projectId, overrides, approval }) =>

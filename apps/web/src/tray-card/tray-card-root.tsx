@@ -9,6 +9,7 @@ import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { inProgressItemsAtom } from "../rpc/in-progress-queries.js";
 import { rpcProtocolAtom, type RpcProtocolLayer } from "../rpc/task-tracker-client.js";
 import { useAppliedTheme } from "../state/use-applied-theme.js";
+import { useAppliedUrgencyColors } from "../state/use-applied-urgency-colors.js";
 import {
   InProgressList,
   InProgressRow,
@@ -118,6 +119,7 @@ function WindowScreen() {
 
 function TrayCardScreen({ layout }: { readonly layout: TrayCardLayout }) {
   useAppliedTheme();
+  useAppliedUrgencyColors();
   useDataChangeListener();
   useReloadWhenShown();
   return layout === "card" ? <CardScreen /> : <WindowScreen />;

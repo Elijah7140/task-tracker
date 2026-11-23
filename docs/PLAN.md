@@ -374,6 +374,16 @@ tooltip naming it, so the user knows the parent's own deadline isn't the cause.
   a manual refresh.
 - The indicator uses theme tokens with readable contrast and a label or icon so its
   meaning is available without color.
+- **Urgency colors are settings** (§6.5): `UrgencyApproachingColor` for Approaching and
+  `UrgencyOverdueColor` shared by Imminent and Overdue, as the theme's red is. Each is a
+  `#rrggbb` color or empty for the theme color, so nothing changes until the user picks
+  one. App Settings shows a color box, a badge preview and "Reset to default" per color;
+  the choice applies when the defaults are saved and is undoable with them. The renderer
+  sets the chosen colors as CSS custom properties on `<html>` (and in the tray card), and
+  styles.css derives the rest so badges stay readable in both themes: text and dots keep
+  the hue at no more than 0.5 OKLCH lightness in the light theme and at least 0.75 in
+  the dark one, and tints mix the chosen color with transparent. A malformed stored color
+  reads as the theme color.
 
 ### 6.4 Moving and ordering
 
@@ -399,6 +409,7 @@ otherwise the global value.
 | `UrgencyRedThreshold` | duration | 24 hours | yes |
 | `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
 | `TodoAddOpensDetails` / `TicketAddOpensDetails` | boolean | off | no (§7.19) |
+| `UrgencyApproachingColor` / `UrgencyOverdueColor` | `#rrggbb` color or empty | empty (theme color) | no (§6.3) |
 
 Design:
 

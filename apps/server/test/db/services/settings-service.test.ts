@@ -730,3 +730,56 @@ it.effect("Loads the add view choices off by default and saves only the changed 
     expect(yield* globalRows).toEqual([{ Key: "ticketAddOpensDetails", Value: "true" }]);
   }).pipe(withServices, withSchema),
 );
+
+it.effect("Loads no urgency colors by default and undoes a saved color", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const undo = yield* UndoService;
+    const defaults = yield* settings.loadGlobal();
+
+    yield* settings.saveGlobal(
+      true,
+      3n * day,
+      day,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { approaching: null, overdue: "#7B2FBE" },
+    );
+    const saved = yield* settings.loadGlobal();
+    const rows = yield* globalRows;
+    yield* undo.apply("undo");
+
+    expect(defaults.urgencyColors).toEqual({ approaching: null, overdue: null });
+    expect(saved.urgencyColors).toEqual({ approaching: null, overdue: "#7b2fbe" });
+    expect(rows).toEqual([{ Key: "urgencyOverdueColor", Value: "#7b2fbe" }]);
+    expect(yield* globalRows).toEqual([]);
+    expect((yield* settings.loadGlobal()).urgencyColors.overdue).toBeNull();
+  }).pipe(withServices, withSchema),
+);
+
+it.effect("Resetting an urgency color to the theme color stores empty text", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    yield* settings.setGlobal(SettingsCatalogue.urgencyApproachingColor, "#00aa88");
+
+    yield* settings.saveGlobal(
+      true,
+      3n * day,
+      day,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { approaching: null, overdue: null },
+    );
+
+    expect((yield* settings.loadGlobal()).urgencyColors.approaching).toBeNull();
+    expect(yield* globalRows).toEqual([{ Key: "urgencyApproachingColor", Value: "" }]);
+  }).pipe(withServices, withSchema),
+);

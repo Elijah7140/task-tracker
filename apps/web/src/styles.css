@@ -93,6 +93,39 @@
     0 0 0 1px rgb(255 255 255 / 0.06), 0 3px 6px rgb(0 0 0 / 0.3), 0 9px 24px rgb(0 0 0 / 0.45);
 }
 
+/*
+ * Urgency colors the user chose in App Settings (§6.3). The renderer sets
+ * --tt-user-urgency-approaching and --tt-user-urgency-overdue to `#rrggbb` on <html>, or on
+ * an element marked data-urgency-colors such as the settings preview. Text and dots keep
+ * the chosen hue at a lightness that stays readable on its tint: at most 0.5 OKLCH
+ * lightness in the light theme and at least 0.75 in the dark one. Tints are the chosen
+ * color over transparent. While a choice is unset (or `initial`) these tokens are invalid,
+ * so the urgency colors below fall back to the theme tokens.
+ */
+:root,
+[data-urgency-colors] {
+  --tt-custom-approaching: oklch(from var(--tt-user-urgency-approaching) min(l, 0.5) c h);
+  --tt-custom-approaching-soft: color-mix(
+    in srgb,
+    var(--tt-user-urgency-approaching) 14%,
+    transparent
+  );
+  --tt-custom-overdue: oklch(from var(--tt-user-urgency-overdue) min(l, 0.5) c h);
+  --tt-custom-overdue-soft: color-mix(in srgb, var(--tt-user-urgency-overdue) 12%, transparent);
+}
+
+:root[data-theme="dark"],
+:root[data-theme="dark"] [data-urgency-colors] {
+  --tt-custom-approaching: oklch(from var(--tt-user-urgency-approaching) max(l, 0.75) c h);
+  --tt-custom-approaching-soft: color-mix(
+    in srgb,
+    var(--tt-user-urgency-approaching) 18%,
+    transparent
+  );
+  --tt-custom-overdue: oklch(from var(--tt-user-urgency-overdue) max(l, 0.75) c h);
+  --tt-custom-overdue-soft: color-mix(in srgb, var(--tt-user-urgency-overdue) 18%, transparent);
+}
+
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
@@ -121,10 +154,10 @@
   --color-danger-solid-hover: var(--tt-danger-solid-hover);
   --color-on-danger: var(--tt-on-danger);
   --color-danger-soft: var(--tt-danger-soft);
-  --color-urgency-approaching: var(--tt-approaching);
-  --color-urgency-approaching-soft: var(--tt-approaching-soft);
-  --color-urgency-overdue: var(--tt-danger);
-  --color-urgency-overdue-soft: var(--tt-danger-soft);
+  --color-urgency-approaching: var(--tt-custom-approaching, var(--tt-approaching));
+  --color-urgency-approaching-soft: var(--tt-custom-approaching-soft, var(--tt-approaching-soft));
+  --color-urgency-overdue: var(--tt-custom-overdue, var(--tt-danger));
+  --color-urgency-overdue-soft: var(--tt-custom-overdue-soft, var(--tt-danger-soft));
   --color-focus: var(--tt-focus);
   --color-backdrop: var(--tt-backdrop);
 
