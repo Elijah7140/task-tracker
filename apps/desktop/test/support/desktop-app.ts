@@ -61,8 +61,11 @@ export function launch(desktop: DesktopFixture, environment: NodeJS.ProcessEnv =
   });
 }
 
-/** Playwright's wait for one action or locator, well inside the test timeout so failures name the step. */
-const ACTION_TIMEOUT = 5_000;
+/**
+ * Playwright's wait for one action or locator, well inside the test timeout so failures
+ * name the step. Actions that take milliseconds have passed 5 seconds on a busy macOS runner.
+ */
+const ACTION_TIMEOUT = 10_000;
 
 /** The app window once the renderer has loaded. */
 export async function firstWindow(application: ElectronApplication) {

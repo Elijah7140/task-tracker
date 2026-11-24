@@ -10,7 +10,7 @@ const WARM_UP_TIMEOUT = 60_000;
 /**
  * Vitest global setup for the packaged smoke. The first launch on a fresh machine
  * is several seconds slower than later ones, and until it settles the menu bar is
- * not stable enough to click within a test's 5-second action timeout. Launching
+ * not stable enough to click within a test's action timeout. Launching
  * the app once here, against a throwaway database and profile, means no test
  * depends on which file happens to run first in its shard.
  */

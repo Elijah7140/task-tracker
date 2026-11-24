@@ -105,6 +105,19 @@ workflow**. It runs the same package jobs for that version and verifies the
 assembly, and skips the publish step. See
 [release verification](../README.md#verify-a-release) for the local equivalent.
 
+The macOS runner has three cores and 7 GB, and a freshly booted one is busy with its
+own daemons. Sampled during the smoke, the CPU was 6 to 11 % idle, and Spotlight's
+indexers used about half a core on average and up to 1.4 cores, more than the app
+under test. Stretches of the smoke then ran three to four times slower: the whole
+smoke took 346 s on a quiet runner and up to 776 s on a busy one, and three of five
+macOS jobs for `v0.4.0` failed on timeouts in different tests. The setup action
+therefore turns Spotlight indexing off on macOS, which left 21 to 29 % idle in five
+of six runs. Other daemons (`simdiskimaged` mounting simulator images, `trustd`,
+`softwareupdated`) still slow some runs, so the smoke also allows 10 s for an action
+or a poll and 60 s for a test
+([vitest.config.ts](../apps/desktop/vitest.config.ts)). Vitest's default poll
+timeout of 1 s caused about half of those failures.
+
 ## Local gate
 
 Install the Node and pnpm versions from the repository pins. On Linux use a machine
