@@ -14,6 +14,13 @@ inputs:
 runs:
   using: composite
   steps:
+    # Spotlight indexes every file the job writes: the install, the build and each
+    # smoke test's profile. Its workers took more CPU on the three-core macOS runner
+    # than the app under test, and the packaged smoke timed out. See docs/CI.md.
+    - name: Turn Spotlight indexing off on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: sudo mdutil -a -i off
     - uses: pnpm/action-setup@v6
     - uses: actions/setup-node@v7
       with:

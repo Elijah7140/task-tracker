@@ -15,7 +15,12 @@ export default defineConfig({
       "apps/desktop/test/support/warm-up-launch.ts",
       "apps/desktop/test/support/windows-test-registration.ts",
     ],
-    testTimeout: 30_000,
+    // The three-core macOS release runner runs stretches of the smoke three to four
+    // times slower than usual, so a test gets several times its normal 5 to 17 seconds.
+    testTimeout: 60_000,
     hookTimeout: 30_000,
+    // Vitest's default poll gives up after 1 second. Polls here wait on the real app,
+    // so they get as long as a Playwright action (ACTION_TIMEOUT in desktop-app.ts).
+    expect: { poll: { timeout: 10_000 } },
   },
 });
