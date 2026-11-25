@@ -78,6 +78,8 @@ function NotesEditor({
       onKeyDown={onKeyDown}
       onBlur={() => void save()}
       aria-label={`Notes for ${title}`}
+      // What is saved, so the tray card can tell unsaved typing apart (§7.18).
+      data-saved-value={initial}
       placeholder="Markdown notes. Ctrl+Enter saves, Escape cancels."
       data-testid="item-card-notes-editor"
       autoFocus

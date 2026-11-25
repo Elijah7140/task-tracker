@@ -121,6 +121,7 @@ function assertSharedFixtureState(
     addOpensDetails: { todo: false, ticket: false },
     autoHideCompleted: true,
     urgencyColors: { approaching: null, overdue: null },
+    trayCard: { size: "Full", showItems: true },
     startWithSystem: false,
   });
   expect(projectSettings).toEqual({
@@ -405,6 +406,7 @@ it.effect(
               addOpensDetails: { todo: false, ticket: false },
               autoHideCompleted: true,
               urgencyColors: { approaching: null, overdue: null },
+              trayCard: { size: "Full", showItems: true },
             });
             expect(projectSettings).toEqual({
               projectId,
@@ -775,6 +777,7 @@ it.effect(
               addOpensDetails: { todo: false, ticket: false },
               autoHideCompleted: true,
               urgencyColors: { approaching: null, overdue: null },
+              trayCard: { size: "Full", showItems: true },
             });
             expect(projectSettings).toEqual({
               projectId,

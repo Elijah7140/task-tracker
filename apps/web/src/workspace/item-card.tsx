@@ -22,6 +22,7 @@ import {
   urgencySourceTitle,
 } from "./item-parts.js";
 import { ItemStatusChip } from "./item-status-chip.js";
+import { useItemSurface } from "./item-surface.js";
 import { ItemTypeIcon } from "./item-type-icon.js";
 import { type Urgency, UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
@@ -43,6 +44,8 @@ export interface ItemCardProps {
   readonly onSelect: () => void;
   readonly onMenuOpenChange: (open: boolean) => void;
   readonly onStartDrag: (event: PointerEvent<HTMLElement>) => void;
+  /** Ends an open card with the "Add a ToDo…" line; tray cards can hide it (§7.18). */
+  readonly addLine?: boolean | undefined;
   /** The card's sub-item outline: every descendant, nested, with "n completed" expanders. */
   readonly children?: ReactNode | undefined;
 }
@@ -152,6 +155,7 @@ function CardTitle({ node }: { readonly node: ItemNode }) {
 
 function CardHeader(props: ItemCardProps & { readonly date: ItemDate; readonly hasBody: boolean }) {
   const { node, lookups, actions, date, hasBody } = props;
+  const surface = useItemSurface();
   return (
     <div
       data-testid="item-card-header"
@@ -163,6 +167,7 @@ function CardHeader(props: ItemCardProps & { readonly date: ItemDate; readonly h
             title={node.item.title}
             completed={node.item.completedAtUtc !== null}
             onToggle={() => void actions.toggleComplete(node)}
+            tabbable={surface === "tray"}
           />
         </span>
         <CardTitle node={node} />
@@ -177,9 +182,14 @@ function CardHeader(props: ItemCardProps & { readonly date: ItemDate; readonly h
 /**
  * The card's 2×2 action group (§7.19): ⋯ at the top right, Add ToDo and Add Ticket below,
  * which add a child of this card's item. The empty top-left cell keeps the group's shape.
+ * Tray cards have none (§7.18).
  */
 function CardActions(props: ItemCardProps) {
   const { node, actions } = props;
+  const surface = useItemSurface();
+  if (surface === "tray") {
+    return null;
+  }
   const add = (kind: "Todo" | "Ticket") => actions.addItem(kind, node.item.id);
   return (
     <div
@@ -238,9 +248,11 @@ export function ItemCard(props: ItemCardProps) {
   const date = dateCell(node, lookups.timeZone);
   const hasNotes = !isBlankText(node.item.notes ?? "");
   const open = !node.isFinished;
+  const addLine = open && props.addLine !== false;
   const hasBody = hasNotes || open || props.children !== undefined;
+  const surface = useItemSurface();
   return (
-    <ContextMenu.Root>
+    <ContextMenu.Root disabled={surface === "tray"}>
       <ContextMenu.Trigger
         data-tree-row=""
         data-testid="item-row"
@@ -280,12 +292,12 @@ export function ItemCard(props: ItemCardProps) {
               <CardNotes
                 title={node.item.title}
                 notes={node.item.notes}
-                revealAdd={selected}
+                revealAdd={selected || surface === "tray"}
                 onSave={(notes) => actions.saveNotes(node, notes)}
               />
             ) : null}
             {props.children}
-            {open ? <CardAddLine node={node} actions={actions} /> : null}
+            {addLine ? <CardAddLine node={node} actions={actions} /> : null}
           </div>
         ) : null}
         <ItemDescription node={node} lookups={lookups} date={date} />

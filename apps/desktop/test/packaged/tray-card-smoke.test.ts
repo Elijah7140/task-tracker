@@ -16,6 +16,7 @@ import {
 
 const PROJECT = "Release";
 const ITEM = "Ship the release";
+const ADDED = "Write the announcement";
 
 interface TrayCardTestState {
   tray?: Electron.Tray;
@@ -109,6 +110,11 @@ function pageGlobals(page: Page) {
   }));
 }
 
+/** The item's workspace card on the tray card or in its popped-out window. */
+function trayItemCard(card: Page) {
+  return card.getByRole("tree", { name: ITEM, exact: true });
+}
+
 /** Presses Escape in the card window through Electron's native input path. */
 function pressEscapeOnCard(application: ElectronApplication) {
   return application.evaluate(({ BrowserWindow }) => {
@@ -149,7 +155,7 @@ async function openCard(application: ElectronApplication) {
   await clickTrayIcon(application);
   const card = await opened;
   card.setDefaultTimeout(5_000);
-  await card.getByTestId("tray-card-title").filter({ hasText: ITEM }).waitFor();
+  await trayItemCard(card).waitFor();
   await expect.poll(() => cardShown(application)).toBe(true);
   return card;
 }
@@ -209,11 +215,11 @@ desktopTest(
         .evaluate((element) => Math.ceil(element.getBoundingClientRect().height));
       await expect.poll(async () => (await cardGeometry(application)).height).toBe(drawn);
       if (process.platform === "linux") {
-        // Without a cursor position the card sits in the top-right corner (§7.18).
+        // Without a cursor position the one-card-wide card sits in the top-right corner (§7.18).
         const { width, x, y, workArea } = await cardGeometry(application);
-        expect(width).toBe(320);
+        expect(width).toBe(400);
         expect({ x, y }).toEqual({
-          x: workArea.x + workArea.width - 320 - 12,
+          x: workArea.x + workArea.width - 400 - 12,
           y: workArea.y + 12,
         });
       }
@@ -229,7 +235,9 @@ desktopTest(
       expect(fromMainWindow).toBe(false);
       expect(await cardShown(application)).toBe(true);
 
-      await card.getByRole("button", { name: `Complete ${ITEM}`, exact: true }).click();
+      await trayItemCard(card)
+        .getByRole("button", { name: `Complete ${ITEM}`, exact: true })
+        .click();
 
       await card.getByTestId("tray-card-empty").waitFor();
       await expandCompleted(itemTree(page, PROJECT), "Completed (1)");
@@ -244,7 +252,44 @@ desktopTest(
 );
 
 desktopTest(
-  "Clicking a row hides the card and opens the item in the main window",
+  "An item added on the tray card shows in the main window, and typing holds the card open",
+  async ({ desktop }) => {
+    const bus = await sessionBus();
+    const application = await launch(
+      desktop,
+      bus === undefined ? {} : { DBUS_SESSION_BUS_ADDRESS: bus.address },
+    );
+    try {
+      const page = await firstWindow(application);
+      await observeTrayIcon(application);
+      await startItem(page);
+      const card = await openCard(application);
+      const addLine = trayItemCard(card).getByTestId("card-add-input");
+
+      await addLine.click();
+      await addLine.pressSequentially(ADDED);
+      await addLine.press("Enter");
+
+      await trayItemCard(card).getByRole("treeitem", { name: ADDED, exact: true }).waitFor();
+      await itemRow(page, PROJECT, ADDED).waitFor();
+      await addLine.pressSequentially("Unsaved");
+      await pressEscapeOnCard(application);
+      await expect.poll(() => addLine.inputValue()).toBe("");
+      expect(await cardShown(application)).toBe(true);
+      // The page tells main the hold ended once it has handled the first Escape; leave a
+      // person's pause before the next press.
+      await card.waitForTimeout(300);
+      await pressEscapeOnCard(application);
+      await expect.poll(() => cardShown(application)).toBe(false);
+    } finally {
+      await application.close();
+      await bus?.close();
+    }
+  },
+);
+
+desktopTest(
+  "Open on a card hides the card and opens the item in the main window",
   async ({ desktop }) => {
     const bus = await sessionBus();
     const application = await launch(
@@ -308,7 +353,7 @@ desktopTest(
 
       const popOut = await opened;
       popOut.setDefaultTimeout(5_000);
-      await popOut.getByTestId("tray-card-title").filter({ hasText: ITEM }).waitFor();
+      await trayItemCard(popOut).waitFor();
       await expect.poll(() => cardShown(application)).toBe(false);
       await expect.poll(() => popOutState(application)).toEqual({ visible: true, onTop: false });
       await page.bringToFront();

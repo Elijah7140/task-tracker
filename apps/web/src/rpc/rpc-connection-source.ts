@@ -19,8 +19,16 @@ export interface DesktopBridge {
    * Resolves false when main refuses.
    */
   readonly openItemFromTrayCard?: (itemId: string) => Promise<boolean>;
-  /** From the tray card window only: reports the card's drawn height so main fits the window. */
-  readonly reportTrayCardHeight?: (height: number) => void;
+  /**
+   * From the tray card window only: reports the card's width and the height its content
+   * needs, so main fits the window up to the working area's height (§7.18).
+   */
+  readonly reportTrayCardSize?: (width: number, height: number) => void;
+  /**
+   * From the tray card window only: while true, a focused field holds unsaved typing, so
+   * main keeps the card showing on Escape and when it loses focus (§7.18).
+   */
+  readonly holdTrayCardOpen?: (hold: boolean) => void;
   /**
    * From the tray card window only: hides the card and shows the in-progress
    * stack in its own window, which stays open when it loses focus (§7.18).

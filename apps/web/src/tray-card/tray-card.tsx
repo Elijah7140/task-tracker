@@ -1,86 +1,41 @@
-import type { InProgressItem } from "@task-tracker/contracts";
-import { Circle, PictureInPicture2, Pin } from "lucide-react";
+import type { TrayCardSize } from "@task-tracker/contracts";
+import { ExternalLink, PictureInPicture2, Pin } from "lucide-react";
 import type { ReactNode, RefObject } from "react";
-import { formatFloatingDate, formatFloatingDateTime } from "../format/item-dates.js";
 import { Button } from "../ui/button.js";
 import { cx } from "../ui/class-names.js";
 import { Tooltip } from "../ui/tooltip.js";
-import { UrgencyBadge } from "../workspace/urgency-badge.js";
-import type { TrayCardCompletion } from "./use-tray-card-completion.js";
+import type { TrayCardFeedback } from "./use-tray-card-actions.js";
 
-type Item = typeof InProgressItem.Type;
+type Size = typeof TrayCardSize.Type;
 
-/** "Due Nov 20, 2026, 2:30 PM", or null for an item without a due date. */
-export function describeDue(item: Pick<Item, "dueDate" | "dueTime">): string | null {
-  if (item.dueDate === null) {
-    return null;
-  }
-  const when =
-    item.dueTime === null
-      ? formatFloatingDate(item.dueDate)
-      : formatFloatingDateTime(item.dueDate, item.dueTime);
-  return `Due ${when}`;
-}
+/** Where the stack is drawn: the tray card by the icon, or its popped-out window. */
+export type TrayCardLayout = "card" | "window";
 
-function Chip({ children, testId }: { readonly children: ReactNode; readonly testId: string }) {
-  return (
-    <span
-      data-testid={testId}
-      className="max-w-full truncate rounded-full bg-hover px-2 py-0.5 text-xs text-fg-muted"
-    >
-      {children}
-    </span>
-  );
-}
-
-/** Urgency, priority, due date and, when the stack mixes statuses, the status. */
-function RowFacts({ item, showStatus }: { readonly item: Item; readonly showStatus: boolean }) {
-  const due = describeDue(item);
-  const hasFacts =
-    item.urgency !== "None" || item.priorityName !== null || due !== null || showStatus;
-  if (!hasFacts) {
-    return null;
-  }
-  return (
-    <span className="flex flex-wrap items-center gap-1.5 pt-0.5">
-      <UrgencyBadge urgency={item.urgency} />
-      {showStatus ? <Chip testId="tray-card-status">{item.statusName}</Chip> : null}
-      {item.priorityName === null ? null : (
-        <Chip testId="tray-card-priority">{item.priorityName}</Chip>
-      )}
-      {due === null ? null : (
-        <span data-testid="tray-card-due" className="text-xs text-fg-muted">
-          {due}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/** Asks whether to complete the open sub-items too, under the row. */
-function SubItemsQuestion({ completion }: { readonly completion: TrayCardCompletion }) {
-  const { pending } = completion;
+/** Asks whether to complete the open sub-items too, under the card. */
+function SubItemsQuestion({ feedback }: { readonly feedback: TrayCardFeedback }) {
+  const { pending } = feedback;
   if (pending === null) {
     return null;
   }
   const noun = pending.count === 1 ? "sub-item" : "sub-items";
-  const question = `Also complete ${pending.count} open ${noun}?`;
+  const question = `Also complete ${pending.count} open ${noun} of ${pending.node.item.title}?`;
   return (
     <div
       role="group"
       aria-label="Complete sub-items"
       data-testid="tray-card-confirmation"
-      className="ml-7 flex flex-col gap-2 rounded-control border border-line bg-canvas p-2.5 text-[13px]"
+      className="flex flex-col gap-2 rounded-control border border-line bg-canvas p-2.5 text-[13px]"
     >
       <p>{pending.changed ? `Open sub-items changed. ${question}` : question}</p>
       <div className="flex justify-end gap-1.5">
-        <Button size="sm" onClick={completion.cancel} data-testid="tray-card-confirm-cancel">
+        <Button size="sm" onClick={feedback.cancel} data-testid="tray-card-confirm-cancel">
           Cancel
         </Button>
         <Button
           size="sm"
           variant="primary"
-          onClick={() => void completion.confirm()}
+          disabled={feedback.busy}
+          onClick={() => void feedback.confirm()}
           data-testid="tray-card-confirm"
         >
           Complete
@@ -90,105 +45,84 @@ function SubItemsQuestion({ completion }: { readonly completion: TrayCardComplet
   );
 }
 
-/** The circle that completes a row's item. Unlike workspace circles it takes a Tab stop. */
-function CompleteButton({
-  label,
-  completion,
-}: {
-  readonly label: string;
-  readonly completion: TrayCardCompletion;
-}) {
+/** The sub-items question or the reason a write of the card failed, under the card. */
+export function TrayCardFeedbackPanel({ feedback }: { readonly feedback: TrayCardFeedback }) {
   return (
-    <Tooltip content="Mark complete">
-      <button
-        type="button"
-        aria-label={`Complete ${label}`}
-        disabled={completion.busy}
-        onClick={() => void completion.complete()}
-        data-testid="tray-card-complete"
-        className="mt-px grid size-5 shrink-0 cursor-default place-items-center rounded-full text-control-outline transition-colors outline-none hover:bg-pressed hover:text-fg-muted focus-visible:ring-3 focus-visible:ring-focus disabled:opacity-50"
-      >
-        <Circle size={16} strokeWidth={1.75} aria-hidden="true" />
-      </button>
-    </Tooltip>
+    <>
+      <SubItemsQuestion feedback={feedback} />
+      {feedback.message === null ? null : (
+        <p role="alert" data-testid="tray-card-message" className="text-[13px] text-danger">
+          {feedback.message}
+        </p>
+      )}
+    </>
   );
 }
 
-/** "INC-42 Fix invoice view", the name screen readers use for a row. */
-function rowLabel(item: Item): string {
-  return item.ticketNumber === null ? item.title : `${item.ticketNumber} ${item.title}`;
-}
-
-/** Props for {@link InProgressRow}. */
-export interface InProgressRowProps {
-  readonly item: Item;
-  /** Shows the status chip, for a stack that mixes statuses. */
-  readonly showStatus: boolean;
-  readonly completion: TrayCardCompletion;
+/** Props for {@link TrayItemCaption}. */
+export interface TrayItemCaptionProps {
+  /** "Project › Folder", where the item lives. */
+  readonly areaPath: string;
+  /** "INC-42 Fix invoice view", the item's spoken name. */
+  readonly label: string;
   readonly onOpen: () => void;
 }
 
-/**
- * One item of the in-progress stack (§7.18): a circle that completes it, then
- * the ticket number and title over the area path, urgency, priority and due
- * date. Clicking the text opens the item in the main window.
- */
-export function InProgressRow({ item, showStatus, completion, onOpen }: InProgressRowProps) {
-  const label = rowLabel(item);
+/** The line above a tray card: where the item lives, and Open in the main window. */
+export function TrayItemCaption({ areaPath, label, onOpen }: TrayItemCaptionProps) {
   return (
-    <li
-      data-testid="tray-card-row"
-      data-item-id={item.itemId}
-      className="flex flex-col gap-1.5 border-b border-line py-2 last:border-b-0"
-    >
-      <div className="flex items-start gap-2">
-        <CompleteButton label={label} completion={completion} />
+    <div className="flex items-center gap-1.5 pl-1">
+      <span data-testid="tray-card-area" className="min-w-0 flex-1 truncate text-xs text-fg-muted">
+        {areaPath}
+      </span>
+      <Tooltip content="Open in Task Tracker">
         <button
           type="button"
           onClick={onOpen}
           aria-label={`Open ${label} in Task Tracker`}
           data-testid="tray-card-open"
-          className="-my-0.5 flex min-w-0 flex-1 cursor-default flex-col gap-0.5 rounded-control px-1 py-0.5 text-left outline-none hover:bg-hover focus-visible:ring-3 focus-visible:ring-focus"
+          className="flex h-6 shrink-0 cursor-default items-center gap-1 rounded-control px-1.5 text-xs text-fg-muted outline-none hover:bg-hover hover:text-fg focus-visible:ring-3 focus-visible:ring-focus"
         >
-          <span data-testid="tray-card-title" className="line-clamp-2 leading-snug break-words">
-            {item.ticketNumber === null ? null : (
-              <span data-testid="tray-card-ticket" className="mr-1.5 font-medium text-fg-muted">
-                {item.ticketNumber}
-              </span>
-            )}
-            {item.title}
-          </span>
-          <span data-testid="tray-card-area" className="truncate text-xs text-fg-muted">
-            {item.areaPath}
-          </span>
-          <RowFacts item={item} showStatus={showStatus} />
+          Open
+          <ExternalLink size={12} aria-hidden="true" />
         </button>
-      </div>
-      <SubItemsQuestion completion={completion} />
-      {completion.message === null ? null : (
-        <p role="alert" data-testid="tray-card-message" className="ml-7 text-[13px] text-danger">
-          {completion.message}
-        </p>
-      )}
-    </li>
+      </Tooltip>
+    </div>
   );
 }
 
-/** The stack's list. In the tray card it scrolls past a fixed height. */
-export function InProgressList({
+/** A tray card whose area is still loading, holding about a card's height. */
+export function TrayItemPlaceholder() {
+  return (
+    <div
+      aria-busy="true"
+      aria-label="Loading item"
+      data-testid="tray-card-loading"
+      className="h-24 animate-pulse rounded-card bg-hover"
+    />
+  );
+}
+
+/**
+ * The stack's list of cards. The tray card stacks them one card wide; the popped-out
+ * window lays them out in as many columns as its width fits.
+ */
+export function InProgressCards({
   children,
-  scroll,
+  layout,
 }: {
   readonly children: ReactNode;
-  readonly scroll: "card" | "window";
+  readonly layout: TrayCardLayout;
 }) {
   return (
     <ul
       aria-label="In progress items"
       data-testid="tray-card-list"
       className={cx(
-        "-mx-1 flex flex-col overflow-y-auto px-1",
-        scroll === "card" ? "max-h-[30rem]" : "min-h-0 flex-1",
+        "m-0 list-none p-0",
+        layout === "card"
+          ? "flex flex-col gap-3"
+          : "grid grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] items-start gap-3",
       )}
     >
       {children}
@@ -251,32 +185,52 @@ export function KeepOnTopButton({
   );
 }
 
+/** The frame's elements that size the tray card window (§7.18). */
+export interface TrayCardFrameRefs {
+  readonly frame: RefObject<HTMLElement | null>;
+  readonly body: RefObject<HTMLDivElement | null>;
+  readonly content: RefObject<HTMLDivElement | null>;
+}
+
 /** Props for {@link TrayCardFrame}. */
 export interface TrayCardFrameProps {
   readonly children: ReactNode;
-  /** The tray card is a fixed-width card; the popped-out window fills its window. */
-  readonly layout: "card" | "window";
+  /** The tray card is one card wide; the popped-out window fills its window. */
+  readonly layout: TrayCardLayout;
+  /** Full or Compact cards (§7.18). */
+  readonly size: Size;
   /** How many items are in progress, shown beside the caption once loaded. */
   readonly count: number | null;
   /** Pop out on the card, Keep on top in the window. */
   readonly action: ReactNode;
-  readonly frameRef?: RefObject<HTMLElement | null> | undefined;
+  readonly refs?: TrayCardFrameRefs | undefined;
 }
 
-/** The stack's frame: the "In progress" caption, the count and the header action. */
-export function TrayCardFrame({ children, layout, count, action, frameRef }: TrayCardFrameProps) {
+/** The card window's width for each size, in CSS pixels. */
+const CARD_WIDTHS: Readonly<Record<Size, string>> = {
+  Full: "w-[400px]",
+  Compact: "w-[300px]",
+};
+
+/**
+ * The stack's frame: the "In progress" caption, the count and the header action over a
+ * body that scrolls once the window can grow no taller. Compact cards draw everything
+ * smaller, type and padding alike.
+ */
+export function TrayCardFrame({ children, layout, size, count, action, refs }: TrayCardFrameProps) {
   return (
     <section
-      ref={frameRef}
+      ref={refs?.frame}
       aria-labelledby="tray-card-caption"
       data-testid="tray-card"
       data-layout={layout}
+      data-size={size}
       className={cx(
-        "flex flex-col gap-1.5 bg-raised px-4 pt-2.5 pb-3 text-sm text-fg",
-        layout === "card" ? "w-80 border border-line" : "h-dvh",
+        "flex flex-col bg-raised text-sm text-fg",
+        layout === "card" ? `max-h-dvh border border-line ${CARD_WIDTHS[size]}` : "h-dvh",
       )}
     >
-      <header className="-mr-2 flex items-center gap-1.5">
+      <header className="flex shrink-0 items-center gap-1.5 pt-2.5 pr-2 pb-1.5 pl-4">
         <p
           id="tray-card-caption"
           className="text-[11px] font-semibold tracking-wide text-fg-subtle uppercase"
@@ -290,7 +244,11 @@ export function TrayCardFrame({ children, layout, count, action, frameRef }: Tra
         )}
         <span className="ml-auto">{action}</span>
       </header>
-      {children}
+      <div ref={refs?.body} data-testid="tray-card-body" className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={refs?.content} className={cx("px-3 pb-3", size === "Compact" && "[zoom:0.86]")}>
+          {children}
+        </div>
+      </div>
     </section>
   );
 }

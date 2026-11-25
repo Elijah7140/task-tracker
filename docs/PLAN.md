@@ -439,6 +439,8 @@ otherwise the global value.
 | `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
 | `TodoAddOpensDetails` / `TicketAddOpensDetails` | boolean | off | no (§7.19) |
 | `AutoHideCompleted` | boolean | on | no (§6.2) |
+| `TrayCardSize` | `Full` or `Compact` | Full | no (§7.18) |
+| `TrayCardShowsItems` | boolean | on | no (§7.18) |
 | `UrgencyApproachingColor` / `UrgencyOverdueColor` | `#rrggbb` color or empty | empty (theme color) | no (§6.3) |
 
 Design:
@@ -1664,7 +1666,8 @@ below were made while building it and are listed for review.
 Requested by the owner on 18 Nov 2026: a checklist tray icon whose left click shows what the
 owner is working on. Revised on 21 Nov 2026: instead of one chosen current item, the card shows
 the stack of every ticket and ToDo in an In progress status, and it can pop out into a window
-that stays open.
+that stays open. Revised on 25 Nov 2026 (decision 16): each item in the stack is a full
+workspace card, so in-progress work can be viewed, checked off and added to from the tray.
 
 - **In progress statuses.** `StatusLevel.IsInProgress` marks the statuses whose items the tray
   card lists. Any number of statuses can be marked; only Open statuses can be (Core rule and a
@@ -1684,26 +1687,50 @@ that stays open.
   `assets/icon.png` from `assets/icon.svg` with `node apps/desktop/scripts/icons.mjs`. The tray icon
   shows under the same `KeepRunningInTray` rules as before (§7.12). The menu keeps **Open** and
   **Quit**, and gains **Add tickets…** (§7.20).
-- **Tray card.** A single left click on the icon shows a small borderless card next to it.
+- **Tray card.** A single left click on the icon shows a borderless card next to it.
   - **Header:** "In progress", the number of items, and **Pop out**.
-  - **Rows:** a circle that completes the item, then the ticket number and title, the project
-    and folder path, and the urgency, priority and due date. A status chip shows only when the
-    stack mixes statuses. The list scrolls past a fixed height.
-  - **Clicking a row** brings the main window forward with the item opened.
-  - **Completing** uses the normal rules. The open sub-items question and any blocked reason
-    appear under the row, and the main window reloads the change.
+  - **Cards:** every item of the stack, in its order, as the workspace grid's card (§7.17):
+    the header with the circle, title, status chip, ticket number, due date and urgency tint,
+    the inline-editable Notes, the full outline of descendants with their circles and
+    "n completed" expanders, each row's **+**, and the "Add a ToDo…" line. Above each card a
+    caption names its project and folder and offers **Open**. Each card reads its area's
+    snapshot (`LoadArea`), so it shows exactly what the workspace shows.
+  - **Working in a card:** checking items, adding with Enter and Shift+Enter and editing notes
+    behave as in the workspace and make the same requests, so each is the same undo step.
+    The open sub-items question and any refusal appear under the card instead of a dialog.
+    Every applied change is announced on the windows' shared channel, so the main window
+    reloads it. Tray cards have no item menus, drags, Add ToDo/Add Ticket buttons or row
+    keys beyond Space (complete or reopen) and Enter (open); the editor in the main window
+    covers the rest.
+  - **Opening:** **Open**, double-clicking a card's header, double-clicking an outline row
+    or Enter on a focused card or row brings the main window forward with that item opened.
+  - **Keyboard:** each card is its own tree and one Tab stop, followed by its header circle
+    and its add line, which take Tab stops of their own in the tray.
+  - **Settings** (App Settings › Tray card, global only, §6.5): **Tray card size**, Full
+    (default) or Compact, and **Show items on tray cards**, on by default. Compact draws a
+    narrower card with everything about 14% smaller. Without items a card keeps its header
+    and notes and hides the outline and add line.
+  - **Size:** the card window is one card wide, 400 px Full or 300 px Compact. It grows with
+    its content up to the height of the screen's working area, less the margins, and then
+    its body scrolls under the fixed header.
   - **Empty state:** with nothing in progress, the card explains how items get there.
-  - **Closing:** clicking elsewhere, Escape, or clicking the icon again hides the card.
+  - **Closing:** clicking elsewhere, Escape, or clicking the icon again hides the card. While
+    a focused field holds unsaved typing (an add line with text, or changed notes), Escape
+    and clicking elsewhere leave the card showing; Escape then clears or cancels the field
+    as usual. Once that typing is added, saved or cleared after focus has left, the card
+    hides. Clicking the icon always hides it, and a hidden card keeps what was typed.
   - **Placement:** on Windows the card sits centred above the cursor, kept inside the working
     area of that screen. Elsewhere, where the cursor position isn't read, it goes in the top-right
     corner of the primary screen.
   - When the desktop exposes only the tray menu, Open and Quit remain available.
-- **Pop-out window.** **Pop out** hides the card and shows the same stack in an ordinary,
-  resizable window that stays open when it loses focus. Its header has **Keep on top** in place
+- **Pop-out window.** **Pop out** hides the card and shows the same cards in an ordinary,
+  resizable window (840 × 640 at first) that stays open when it loses focus. The cards fill
+  as many columns, at least 19 rem wide, as its width fits. Its header has **Keep on top** in place
   of Pop out, which keeps the window above other windows. The choice is remembered across
-  launches in the renderer's local storage. Clicking a row opens the item and leaves the window
+  launches in the renderer's local storage. **Open** opens the item and leaves the window
   open. Closing the main window for good, or a server crash, closes it.
-- **Staying current.** Each window reloads the stack when it is shown or focused. The main
+- **Staying current.** Each window reloads the stack, the cards' areas and the settings when
+  it is shown or focused. The main
   window announces every new history revision on the windows' shared channel, so a pop-out that
   stays open reloads after edits, completions, status changes and undo in the main window.
 - **Removed:** the single current item (`currentItemId`, the ☆/★ card button and row marker,
@@ -1712,8 +1739,12 @@ that stays open.
 - **Tests.**
   - The service and migration against SQLite, and the RPC.
   - The ordering rule in Core.
-  - The card, pop-out header and keep-on-top toggle as React components, with keyboard access.
-  - Placement rules, and the card, pop-out and keep-on-top in the packaged app.
+  - The card, pop-out header and keep-on-top toggle as React components, with keyboard access:
+    checking off rows and cards, the sub-items question, adding with Enter and Shift+Enter
+    from the add line and a row's **+**, editing notes, the hold while typing, both settings
+    and the empty state.
+  - Placement, width and height rules, and in the packaged app the card, checking off and
+    adding from it, the hold on Escape, pop-out and keep-on-top.
   - Card snapshots, filled and empty.
 
 ### 7.19 Tickets and ToDos, add views and drill-in
@@ -2073,6 +2104,10 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
 15. **Auto-hide completed, ToDos only (25 Nov 2026).** A global setting, default on. Off,
     a ToDo completed in the current view stays in the open list, checked, until the user
     leaves the view or reloads. Tickets always move once completed (§6.2).
+16. **Work from the tray card (25 Nov 2026).** The tray card's compact rows were too
+    little to work from, so each in-progress item shows as a full workspace card with its
+    notes and outline, and items are checked off, added and noted there. Two global
+    settings choose Full or Compact cards and whether cards show their items (§7.18).
 
 ## Appendix A. Historical review log
 

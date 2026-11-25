@@ -78,9 +78,14 @@ export function registerRendererIpc(host: RendererIpcHost) {
   ipcMain.handle("task-tracker:set-in-progress-window-on-top", (event, value: unknown) =>
     isInProgressFrame(event) ? windows.inProgress.setAlwaysOnTop(value) : false,
   );
-  ipcMain.on("task-tracker:tray-card-height", (event, value: unknown) => {
+  ipcMain.on("task-tracker:tray-card-size", (event, width: unknown, height: unknown) => {
     if (isTrayCardFrame(event)) {
-      windows.trayCard.resize(value);
+      windows.trayCard.resize(width, height);
+    }
+  });
+  ipcMain.on("task-tracker:tray-card-hold", (event, hold: unknown) => {
+    if (isTrayCardFrame(event)) {
+      windows.trayCard.hold(hold);
     }
   });
   ipcMain.handle("task-tracker:open-external-link", (event, value: unknown) =>

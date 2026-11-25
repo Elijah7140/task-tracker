@@ -12,6 +12,7 @@ export interface InProgressWindowOptions {
 /**
  * The tray card's stack popped out into an ordinary window (§7.18). Unlike the
  * card it stays open when it loses focus, and it can keep above other windows.
+ * Its cards fill as many columns as its width fits.
  */
 export interface InProgressWindow {
   /** Opens the window, or brings it forward when it is already open. */
@@ -36,9 +37,9 @@ export interface InProgressWindow {
 function openWindow({ url, preload, devTools }: InProgressWindowOptions) {
   const window = new BrowserWindow({
     title: "In progress",
-    width: 360,
-    height: 520,
-    minWidth: 280,
+    width: 840,
+    height: 640,
+    minWidth: 340,
     minHeight: 160,
     show: false,
     minimizable: true,

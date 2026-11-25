@@ -139,7 +139,7 @@ function useCreateItemActions(scope: ItemActionScope) {
 }
 
 /** The built-in fields EditItem takes, copied from the item with `changes` applied. */
-function editedFields(item: ItemNode["item"], changes: Partial<typeof ItemEdit.Type>) {
+export function editedFields(item: ItemNode["item"], changes: Partial<typeof ItemEdit.Type>) {
   const { title, description, notes, ticketNumber, itemTypeId, priorityLevelId, dueDate, dueTime } =
     item;
   const fields = {

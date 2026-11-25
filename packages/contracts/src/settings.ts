@@ -3,6 +3,7 @@ import { CardColumns } from "./card-columns.js";
 import { DurationTicks } from "./duration-ticks.js";
 import { Guid } from "./guid.js";
 import { EffectiveReminderSettings, ReminderDefaults, ReminderOverrides } from "./reminder.js";
+import { TrayCardSettings } from "./tray-card-settings.js";
 import { UrgencyColors } from "./urgency-colors.js";
 
 const effectiveValue = <Value extends Schema.Constraint>(value: Value) =>
@@ -43,6 +44,11 @@ export const GlobalSettings = Schema.Struct({
    * them keeps them.
    */
   urgencyColors: Schema.optionalKey(UrgencyColors),
+  /**
+   * The tray card's size and whether its cards show their items (§7.18). The server
+   * always sends it; a save without it keeps it.
+   */
+  trayCard: Schema.optionalKey(TrayCardSettings),
 });
 
 /** Project overrides to save together. Null removes an override so the global value applies. */

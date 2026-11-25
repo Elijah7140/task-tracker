@@ -202,6 +202,7 @@ describe("AppSettingsPage", () => {
       addOpensDetails: { todo: false, ticket: false },
       autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
+      trayCard: { size: "Full", showItems: true },
     });
   });
 
@@ -233,6 +234,23 @@ describe("AppSettingsPage", () => {
     await expect.element(saveButton()).toBeDisabled();
     expect(store.settingsAndLookups.globalSettings.workspaceCardColumns).toBe(6);
     expect(store.settingsAndLookups.globalSettings.urgencyYellowThreshold).toBe(daysTicks(3));
+  });
+
+  it("Saves the tray card size and whether tray cards show their items", async () => {
+    const { store } = await openAppSettings();
+    const size = page.getByRole("combobox", { name: "Tray card size" });
+    await expect.element(size).toHaveTextContent("Full");
+
+    await size.click();
+    await page.getByRole("option", { name: "Compact", exact: true }).click();
+    await page.getByRole("checkbox", { name: "Show items on tray cards" }).click();
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.trayCard).toEqual({
+      size: "Compact",
+      showItems: false,
+    });
   });
 
   it("Updates validation and persisted ticks when changing a threshold unit", async () => {
@@ -395,6 +413,7 @@ describe("AppSettingsPage", () => {
       addOpensDetails: { todo: false, ticket: false },
       autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
+      trayCard: { size: "Full", showItems: true },
     });
   });
 
@@ -442,6 +461,7 @@ describe("AppSettingsPage", () => {
       addOpensDetails: { todo: false, ticket: false },
       autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
+      trayCard: { size: "Full", showItems: true },
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });

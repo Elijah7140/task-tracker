@@ -1,67 +1,81 @@
 import { RegistryProvider, useAtomValue } from "@effect/atom-react";
 import type { InProgressItem } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
-import { type ReactNode, type RefObject, useRef } from "react";
+import { type ReactNode, useMemo, useRef } from "react";
 import { useDataChangeListener } from "../native/data-change-broadcast.js";
-import { openItemFromTrayCard } from "../native/open-item-from-tray-card.js";
 import { popOutTrayCard } from "../native/tray-card-window.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { inProgressItemsAtom } from "../rpc/in-progress-queries.js";
+import { serverInfoAtom } from "../rpc/server-info-query.js";
 import { rpcProtocolAtom, type RpcProtocolLayer } from "../rpc/task-tracker-client.js";
 import { useAppliedTheme } from "../state/use-applied-theme.js";
 import { useAppliedUrgencyColors } from "../state/use-applied-urgency-colors.js";
+import { ItemSurfaceContext } from "../workspace/item-surface.js";
 import {
-  InProgressList,
-  InProgressRow,
+  InProgressCards,
   KeepOnTopButton,
   PopOutButton,
   TrayCardEmpty,
   TrayCardFrame,
+  type TrayCardFrameRefs,
+  type TrayCardLayout,
 } from "./tray-card.js";
+import { TrayItemCard } from "./tray-item-card.js";
+import { useHoldWhileTyping } from "./use-hold-while-typing.js";
 import { useKeepOnTop } from "./use-keep-on-top.js";
 import { useReloadWhenShown } from "./use-reload-when-shown.js";
-import { useReportCardHeight } from "./use-report-card-height.js";
-import { useTrayCardCompletion } from "./use-tray-card-completion.js";
+import { useReportCardSize } from "./use-report-card-size.js";
+import { useTrayCardSettings } from "./use-tray-card-settings.js";
+
+export type { TrayCardLayout } from "./tray-card.js";
 
 type Item = typeof InProgressItem.Type;
 
-/** Where the stack is drawn: the tray card by the icon, or its popped-out window. */
-export type TrayCardLayout = "card" | "window";
-
-function Row({ item, showStatus }: { readonly item: Item; readonly showStatus: boolean }) {
-  const completion = useTrayCardCompletion(item);
+function LoadFailure({ message }: { readonly message: string }) {
   return (
-    <InProgressRow
-      item={item}
-      showStatus={showStatus}
-      completion={completion}
-      onOpen={() => void openItemFromTrayCard(item.itemId)}
-    />
+    <p role="alert" data-testid="tray-card-load-failure" className="text-[13px] text-danger">
+      {message}
+    </p>
   );
 }
 
-/** True when the stack holds items of more than one status, so rows name theirs. */
-function mixesStatuses(items: ReadonlyArray<Item>): boolean {
-  return new Set(items.map((item) => item.statusName)).size > 1;
-}
-
+/** Every in-progress item as a workspace card, in the stack's order (§7.18). */
 function Stack({
   items,
   layout,
+  showItems,
+  autoHideCompleted,
 }: {
   readonly items: ReadonlyArray<Item>;
   readonly layout: TrayCardLayout;
+  readonly showItems: boolean;
+  readonly autoHideCompleted: boolean;
 }) {
+  const info = useAtomValue(serverInfoAtom);
   if (items.length === 0) {
     return <TrayCardEmpty />;
   }
-  const showStatus = mixesStatuses(items);
+  if (AsyncResult.isFailure(info)) {
+    return <LoadFailure message={describeRpcFailure(info.cause)} />;
+  }
+  if (!AsyncResult.isSuccess(info)) {
+    return null;
+  }
   return (
-    <InProgressList scroll={layout}>
-      {items.map((item) => (
-        <Row key={item.itemId} item={item} showStatus={showStatus} />
-      ))}
-    </InProgressList>
+    <ItemSurfaceContext value="tray">
+      <InProgressCards layout={layout}>
+        {items.map((item) => (
+          <li key={item.itemId} data-testid="tray-card-item" data-item-id={item.itemId}>
+            <TrayItemCard
+              item={item}
+              timeZone={info.value.timeZone}
+              showItems={showItems}
+              autoHideCompleted={autoHideCompleted}
+            />
+          </li>
+        ))}
+      </InProgressCards>
+    </ItemSurfaceContext>
   );
 }
 
@@ -69,38 +83,49 @@ function Stack({
 function StackFrame({
   layout,
   action,
-  frameRef,
+  refs,
 }: {
   readonly layout: TrayCardLayout;
   readonly action: ReactNode;
-  readonly frameRef?: RefObject<HTMLElement | null> | undefined;
+  readonly refs?: TrayCardFrameRefs | undefined;
 }) {
   const result = useAtomValue(inProgressItemsAtom);
+  const settings = useTrayCardSettings();
   const count = AsyncResult.isSuccess(result) ? result.value.length : null;
   const content = AsyncResult.match(result, {
     onInitial: () => null,
-    onFailure: ({ cause }) => (
-      <p role="alert" data-testid="tray-card-load-failure" className="text-[13px] text-danger">
-        {describeRpcFailure(cause)}
-      </p>
+    onFailure: ({ cause }) => <LoadFailure message={describeRpcFailure(cause)} />,
+    onSuccess: ({ value }) => (
+      <Stack
+        items={value}
+        layout={layout}
+        showItems={settings.showItems}
+        autoHideCompleted={settings.autoHideCompleted}
+      />
     ),
-    onSuccess: ({ value }) => <Stack items={value} layout={layout} />,
   });
   return (
-    <TrayCardFrame layout={layout} count={count} action={action} frameRef={frameRef}>
+    <TrayCardFrame layout={layout} size={settings.size} count={count} action={action} refs={refs}>
       {content}
     </TrayCardFrame>
   );
 }
 
-/** The tray card by the icon. It reports its height so main can fit the window. */
+/**
+ * The tray card by the icon. It reports its size so main can fit the window, and holds
+ * the card open while a field has unsaved typing.
+ */
 function CardScreen() {
   const frame = useRef<HTMLElement>(null);
-  useReportCardHeight(frame);
+  const body = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const refs = useMemo(() => ({ frame, body, content }), []);
+  useReportCardSize(refs);
+  useHoldWhileTyping();
   return (
     <StackFrame
       layout="card"
-      frameRef={frame}
+      refs={refs}
       action={<PopOutButton onPopOut={() => void popOutTrayCard()} />}
     />
   );
@@ -127,9 +152,9 @@ function TrayCardScreen({ layout }: { readonly layout: TrayCardLayout }) {
 
 /**
  * The renderer of the tray card window and of its popped-out window (§7.18):
- * the in-progress stack, read with the launch's RPC transport, in the app's
- * theme. Electron main hides the card on Escape or when it loses focus; the
- * popped-out window stays until it is closed.
+ * every in-progress item as a workspace card, read with the launch's RPC
+ * transport, in the app's theme. Electron main hides the card on Escape or when
+ * it loses focus; the popped-out window stays until it is closed.
  */
 export function TrayCardRoot({
   protocol,

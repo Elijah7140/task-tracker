@@ -61,6 +61,8 @@ interface TreeContext {
   readonly onExpandedChange: (nodeId: string, expanded: boolean) => void;
   readonly onMenuFor: (id: string | null) => void;
   readonly onStartDrag: (node: ItemNode, event: PointerEvent<HTMLElement>) => void;
+  /** Cards show their sub-item outline and add line; tray cards can hide both (§7.18). */
+  readonly showOutline: boolean;
 }
 
 /** Calls `onFocus` only for the tree item itself, not for nested items. */
@@ -221,8 +223,11 @@ function CardBranch({ node, context }: { readonly node: ItemNode; readonly conte
         onSelect={() => context.onSelect(id)}
         onMenuOpenChange={(open) => context.onMenuFor(open ? id : null)}
         onStartDrag={(event) => context.onStartDrag(node, event)}
+        addLine={context.showOutline}
       >
-        {hasChildren ? <SubItems node={node} depth={1} context={context} /> : undefined}
+        {hasChildren && context.showOutline ? (
+          <SubItems node={node} depth={1} context={context} />
+        ) : undefined}
       </ItemCard>
     </li>
   );
@@ -284,7 +289,7 @@ function ItemBranch({
 }
 
 function visibleNodeIds(
-  groups: ReadonlyArray<PriorityGroup>,
+  cards: ReadonlyArray<ItemNode>,
   finishedTopLevel: ReadonlyArray<ItemNode>,
   areaSectionKey: string,
   state: Pick<TreeContext, "expandedCompleted">,
@@ -315,9 +320,7 @@ function visibleNodeIds(
     visitNestedChildren(node);
   }
 
-  for (const group of groups) {
-    group.cards.forEach(visitCard);
-  }
+  cards.forEach(visitCard);
   if (finishedTopLevel.length > 0) {
     visitSection(areaSectionKey, finishedTopLevel, true);
   }
@@ -545,7 +548,8 @@ function useTreeRovingFocus(
   sectionKey: string,
   store: ReturnType<typeof useTreeState>["store"],
 ) {
-  const visible = visibleNodeIds(groups, finished, sectionKey, store);
+  const cards = groups.flatMap((group) => group.cards);
+  const visible = visibleNodeIds(cards, finished, sectionKey, store);
   const firstId =
     groups[0]?.cards[0]?.item.id ?? (finished.length > 0 ? completedNodeId(sectionKey) : null);
   const selected = store.selectedItemId;
@@ -593,6 +597,7 @@ function useTreeContext(
     onExpandedChange,
     onMenuFor: menu.setMenuFor,
     onStartDrag: drag.startDrag,
+    showOutline: true,
   };
   return {
     context,
@@ -664,6 +669,114 @@ export function ItemTree(props: ItemTreeProps) {
           context={context}
         />
       )}
+    </ul>
+  );
+}
+
+/**
+ * Space completes or reopens the focused item and Enter opens it, as Enter edits in the
+ * workspace. A card tree has no other row keys: it cannot indent, move or delete (§7.18).
+ */
+function cardTreeKeyHandler(
+  context: Pick<TreeContext, "allNodes" | "actions" | "expandedCompleted" | "onExpandedChange">,
+) {
+  return (id: string, event: KeyboardEvent<HTMLElement>) => {
+    if (isCompletedNode(id)) {
+      return handleSectionKey(id, event, context.expandedCompleted, context.onExpandedChange);
+    }
+    const node = findItemNode(context.allNodes, id);
+    if (node === undefined || hasAnyModifier(event)) {
+      return false;
+    }
+    if (event.key === " ") {
+      void context.actions.toggleComplete(node);
+      return true;
+    }
+    if (event.key === "Enter") {
+      context.actions.editItem(node);
+      return true;
+    }
+    return false;
+  };
+}
+
+/** Props for {@link ItemCardTree}. */
+export interface ItemCardTreeProps {
+  readonly label: string;
+  /** The item drawn as the card, at any depth of its area. */
+  readonly node: ItemNode;
+  /** The card's whole area, for the inline add line's lookups. */
+  readonly allNodes: ItemSiblings;
+  readonly lookups: ItemRowLookups;
+  readonly actions: ItemActions;
+  /** Shows the card's sub-item outline and add line. */
+  readonly showOutline: boolean;
+}
+
+/** The shared context of a card tree: no drags or menus, one card and its outline. */
+function useCardTreeContext(props: ItemCardTreeProps, treeRef: RefObject<HTMLUListElement | null>) {
+  const { node, allNodes, actions, showOutline } = props;
+  const { store, onExpandedChange } = useTreeState();
+  const visible = showOutline
+    ? visibleNodeIds([node], [], node.item.id, store)
+    : new Set([node.item.id]);
+  const selected = store.selectedItemId;
+  const roving = useRovingFocus(
+    selected !== null && visible.has(selected) ? selected : node.item.id,
+    visible,
+  );
+  const context: TreeContext = {
+    allNodes,
+    cardColumns: 1,
+    lookups: props.lookups,
+    actions,
+    hasFolders: false,
+    expandedCompleted: store.expandedCompleted,
+    inlineAdd: useInlineAdd(allNodes, actions, treeRef),
+    selectedItemId: selected,
+    menuFor: null,
+    dragState: null,
+    tabIndexFor: roving.tabIndexFor,
+    onItemFocus: (id) => {
+      roving.onItemFocus(id);
+      if (!isCompletedNode(id)) {
+        store.selectItem(id);
+      }
+    },
+    onSelect: store.selectItem,
+    onExpandedChange,
+    onMenuFor: () => undefined,
+    onStartDrag: () => undefined,
+    showOutline,
+  };
+  return context;
+}
+
+/**
+ * One item as a workspace card inside its own ARIA tree, as the tray card lists the items in
+ * progress (§7.18). The card and its outline look and complete as in the workspace grid,
+ * with inline add, the add line and notes, but no drags, menus or add dialogs.
+ */
+export function ItemCardTree(props: ItemCardTreeProps) {
+  const treeRef = useRef<HTMLUListElement>(null);
+  const context = useCardTreeContext(props, treeRef);
+  const onItemKey = cardTreeKeyHandler(context);
+  return (
+    <ul
+      ref={treeRef}
+      role="tree"
+      aria-label={props.label}
+      data-testid="item-card-tree"
+      onKeyDown={(event) =>
+        handleTreeKeyDown(event, {
+          onExpandedChange: context.onExpandedChange,
+          onItemKey,
+          canCollapse: isCompletedNode,
+        })
+      }
+      className="flex list-none flex-col p-0"
+    >
+      <CardBranch node={props.node} context={context} />
     </ul>
   );
 }

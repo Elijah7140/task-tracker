@@ -35,6 +35,7 @@ import {
 } from "./reminder-settings-draft.js";
 import { THEME_URGENCY_COLORS } from "../state/urgency-color-style.js";
 import { ThresholdInput } from "./threshold-input.js";
+import { DEFAULT_TRAY_CARD, sameTrayCard, TrayCardChoices } from "./tray-card-choices.js";
 import { UrgencyColorFields } from "./urgency-color-fields.js";
 import { useExternalReset } from "./use-external-reset.js";
 
@@ -78,6 +79,8 @@ interface GlobalDraft {
   readonly autoHideCompleted: boolean;
   /** The chosen urgency colors; null keeps the theme's (§6.3). */
   readonly urgencyColors: UrgencyColors;
+  /** The tray card's size and whether its cards show their items (§7.18). */
+  readonly trayCard: TrayCard;
 }
 
 type AddViewDefaults = NonNullable<Global["addOpensDetails"]>;
@@ -90,6 +93,11 @@ const sameAddViews = (left: AddViewDefaults, right: AddViewDefaults) =>
   left.todo === right.todo && left.ticket === right.ticket;
 
 type UrgencyColors = NonNullable<Global["urgencyColors"]>;
+
+type TrayCard = NonNullable<Global["trayCard"]>;
+
+/** The saved tray card choices, the defaults for a server that sent none (§7.18). */
+const trayCardOf = (settings: Global): TrayCard => settings.trayCard ?? DEFAULT_TRAY_CARD;
 
 /** The saved urgency colors, the theme's for a server that sent none (§6.3). */
 const urgencyColorsOf = (settings: Global): UrgencyColors =>
@@ -118,7 +126,8 @@ function sameGlobal(left: Global, right: Global) {
     startWithSystemOf(left) === startWithSystemOf(right) &&
     sameAddViews(addOpensDetailsOf(left), addOpensDetailsOf(right)) &&
     autoHideCompletedOf(left) === autoHideCompletedOf(right) &&
-    sameUrgencyColors(urgencyColorsOf(left), urgencyColorsOf(right))
+    sameUrgencyColors(urgencyColorsOf(left), urgencyColorsOf(right)) &&
+    sameTrayCard(trayCardOf(left), trayCardOf(right))
   );
 }
 
@@ -134,6 +143,7 @@ function draftFrom(settings: Global): GlobalDraft {
     addOpensDetails: addOpensDetailsOf(settings),
     autoHideCompleted: autoHideCompletedOf(settings),
     urgencyColors: urgencyColorsOf(settings),
+    trayCard: trayCardOf(settings),
   };
 }
 
@@ -166,6 +176,7 @@ function useGlobalDraft(initial: Global) {
     !sameAddViews(draft.addOpensDetails, addOpensDetailsOf(saved)) ||
     draft.autoHideCompleted !== autoHideCompletedOf(saved) ||
     !sameUrgencyColors(draft.urgencyColors, urgencyColorsOf(saved)) ||
+    !sameTrayCard(draft.trayCard, trayCardOf(saved)) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
   const validationError =
@@ -228,6 +239,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     addOpensDetails: form.draft.addOpensDetails,
     autoHideCompleted: form.draft.autoHideCompleted,
     urgencyColors: form.draft.urgencyColors,
+    trayCard: form.draft.trayCard,
   };
 }
 
@@ -421,6 +433,10 @@ export function GlobalDefaultsCard({
           Keep running in the tray when the window closes
         </Checkbox>
         <AddViewChoices form={form} />
+        <TrayCardChoices
+          value={form.draft.trayCard}
+          onChange={(trayCard) => form.edit({ trayCard })}
+        />
         {startWithSystemAvailable ? (
           <Checkbox
             checked={form.draft.startWithSystem}

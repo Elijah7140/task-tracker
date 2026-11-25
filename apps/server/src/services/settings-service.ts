@@ -9,6 +9,7 @@ import {
   type DurationTicks,
   type ReconciliationApproval,
   type SettingDefinition,
+  type TrayCardSize,
 } from "@task-tracker/core";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
@@ -36,12 +37,20 @@ const {
   autoHideCompleted,
   urgencyApproachingColor,
   urgencyOverdueColor,
+  trayCardSize,
+  trayCardShowsItems,
 } = SettingsCatalogue;
 
 /** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
 export interface AddViewDefaults {
   readonly todo: boolean;
   readonly ticket: boolean;
+}
+
+/** The tray card's size and whether its cards show their items (§7.18). */
+export interface TrayCardSettingsInput {
+  readonly size: TrayCardSize;
+  readonly showItems: boolean;
 }
 
 /**
@@ -199,6 +208,10 @@ const make = Effect.gen(function* () {
         ),
         overdue: parseOrDefault(urgencyOverdueColor, global.get(urgencyOverdueColor.key)),
       } satisfies UrgencyColorsInput,
+      trayCard: {
+        size: parseOrDefault(trayCardSize, global.get(trayCardSize.key)),
+        showItems: parseOrDefault(trayCardShowsItems, global.get(trayCardShowsItems.key)),
+      } satisfies TrayCardSettingsInput,
     };
   }, sql.withTransaction);
 
@@ -372,6 +385,7 @@ const make = Effect.gen(function* () {
       addViews?: AddViewDefaults,
       urgencyColors?: UrgencyColorsInput,
       autoHide?: boolean,
+      trayCard?: TrayCardSettingsInput,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -402,6 +416,10 @@ const make = Effect.gen(function* () {
         }
         if (autoHide !== undefined) {
           proposeGlobal(proposed, current, autoHideCompleted, autoHide);
+        }
+        if (trayCard !== undefined) {
+          proposeGlobal(proposed, current, trayCardSize, trayCard.size);
+          proposeGlobal(proposed, current, trayCardShowsItems, trayCard.showItems);
         }
         return proposed;
       }, approval),
