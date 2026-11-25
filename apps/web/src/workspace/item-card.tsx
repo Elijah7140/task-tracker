@@ -292,7 +292,7 @@ export function ItemCard(props: ItemCardProps) {
               <CardNotes
                 title={node.item.title}
                 notes={node.item.notes}
-                revealAdd={selected}
+                revealAdd={selected || surface === "tray"}
                 onSave={(notes) => actions.saveNotes(node, notes)}
               />
             ) : null}
