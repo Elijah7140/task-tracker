@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_SIBLINGS, type ItemNode, type ItemSiblings } from "../../src/workspace/item-outline.js";
+import {
+  EMPTY_SIBLINGS,
+  type ItemNode,
+  type ItemSiblings,
+} from "../../src/workspace/item-outline.js";
 import { keepCompletedInPlace } from "../../src/workspace/keep-completed-in-place.js";
 
 const DONE_AT = "2026-11-12T09:00:00Z";
@@ -70,7 +74,10 @@ describe("keepCompletedInPlace", () => {
   });
 
   it("Never holds a completed ticket", () => {
-    const siblings = level([node("Open", 0)], [node("Ticket", 1, { finished: true, kind: "Ticket" })]);
+    const siblings = level(
+      [node("Open", 0)],
+      [node("Ticket", 1, { finished: true, kind: "Ticket" })],
+    );
 
     const kept = keepCompletedInPlace(siblings, new Set(["Ticket"]));
 

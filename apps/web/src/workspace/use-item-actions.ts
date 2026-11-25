@@ -235,7 +235,10 @@ function useToggleComplete(scope: ItemActionScope) {
         reactivityKeys: keys,
       }),
     );
-    rememberCompletion(node.item.id, exit !== undefined && Exit.isSuccess(exit) ? exit.value : undefined);
+    rememberCompletion(
+      node.item.id,
+      exit !== undefined && Exit.isSuccess(exit) ? exit.value : undefined,
+    );
     if (exit === undefined || !(await reportItemFailure(exit)) || !Exit.isSuccess(exit)) {
       return;
     }

@@ -377,7 +377,9 @@ it.effect("A ToDo above a ticket completes when the ticket's status is set to Do
     Effect.gen(function* () {
       yield* setAutoComplete(true);
       const context = yield* setup;
-      const parent = yield* context.items.add(context.input({ fields: fields({ title: "Parent" }) }));
+      const parent = yield* context.items.add(
+        context.input({ fields: fields({ title: "Parent" }) }),
+      );
       const { ticket, saveStatus } = yield* ticketWithChildren(context, ["open"], parent.id);
 
       yield* saveStatus(completedStatusId);

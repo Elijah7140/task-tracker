@@ -45,7 +45,10 @@ export function useSetItemStatus() {
         reactivityKeys,
       }),
     );
-    rememberCompletion(item.id, exit !== undefined && Exit.isSuccess(exit) ? exit.value : undefined);
+    rememberCompletion(
+      item.id,
+      exit !== undefined && Exit.isSuccess(exit) ? exit.value : undefined,
+    );
     if (exit === undefined) {
       return false;
     }
