@@ -193,6 +193,8 @@ export interface SavedSearchDocument {
 
 /** The root of a JSON export. */
 export interface ExportDocument {
+  /** The file predates independent parent ticket numbers. */
+  readonly usesLegacyTicketParents: boolean;
   readonly format: string | null;
   readonly version: number | null;
   readonly exportedAtUtc: string | null;

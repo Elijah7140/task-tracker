@@ -15,7 +15,9 @@ export function keepCompletedInPlace(
   }
   const isHeld = (node: ItemNode) =>
     (node.item.kind ?? "Todo") === "Todo" && heldIds.has(node.item.id);
-  const held = siblings.finished.filter(isHeld).map((node) => ({ ...node, isFinished: false }));
+  const held = siblings.finished
+    .filter(isHeld)
+    .map((node): ItemNode => ({ ...node, isFinished: false, heldCompleted: true }));
   const open = held
     .reduce(insertBySortOrder, [...siblings.open])
     .map((node) => withChildren(node, heldIds));

@@ -7,7 +7,9 @@ import type { AreaSnapshot } from "@task-tracker/contracts";
 export type ItemSiblings = (typeof AreaSnapshot.Type)["items"];
 
 /** One item with its server-computed urgency, finished flag and sub-items. */
-export type ItemNode = ItemSiblings["open"][number];
+export type ItemNode = ItemSiblings["open"][number] & {
+  readonly heldCompleted?: true;
+};
 
 /** A level with no items, used before the area loads. */
 export const EMPTY_SIBLINGS: ItemSiblings = { open: [], finished: [] };

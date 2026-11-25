@@ -1,4 +1,10 @@
 import type { StatusProjection } from "@task-tracker/contracts";
+import type { ItemNode } from "./item-outline.js";
+
+/** A held card keeps its open-status rank while displaying its completed status. */
+export function cardStatusId(node: ItemNode): string | null {
+  return node.heldCompleted ? node.item.reopenStatusId : node.item.statusId;
+}
 
 /**
  * A status's position in the Statuses list (App Settings), where a smaller rank sorts first.

@@ -1,6 +1,6 @@
 import { allSiblings, findItemNode, type ItemNode, type ItemSiblings } from "./item-outline.js";
 import type { PriorityGroup } from "./priority-groups.js";
-import type { StatusRank } from "./status-rank.js";
+import { cardStatusId, type StatusRank } from "./status-rank.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
 
 /**
@@ -39,7 +39,7 @@ function otherTopLevel(nodes: ItemSiblings, sourceId: string): ReadonlyArray<Ite
 
 /** The range of slots among a section's cards that keeps a card of `rank` in status order. */
 function statusRun(cards: ReadonlyArray<ItemNode>, statusRank: StatusRank, rank: number) {
-  const rankAt = (index: number) => statusRank(cards[index]!.item.statusId);
+  const rankAt = (index: number) => statusRank(cardStatusId(cards[index]!));
   let lower = 0;
   while (lower < cards.length && rankAt(lower) < rank) {
     lower += 1;
@@ -96,7 +96,7 @@ function placeInGroup(
   requested?: CardAnchor,
 ): CardPlacement | null {
   const cards = group.cards.filter((card) => card.item.id !== source.item.id);
-  const run = statusRun(cards, group.statusRank, group.statusRank(source.item.statusId));
+  const run = statusRun(cards, group.statusRank, group.statusRank(cardStatusId(source)));
   const slot = Math.min(run.upper, Math.max(run.lower, desiredIndex));
   const anchor =
     slot === desiredIndex && requested !== undefined ? requested : anchorAt(cards, run, slot);
@@ -199,7 +199,7 @@ export function stepCard(
   const neighbour = group.cards[cardIndex + offset];
   const sameStatus =
     neighbour !== undefined &&
-    group.statusRank(neighbour.item.statusId) === group.statusRank(source.item.statusId);
+    group.statusRank(cardStatusId(neighbour)) === group.statusRank(cardStatusId(source));
   if (sameStatus) {
     return mapCardDrop(nodes, groups, cardId, neighbour.item.id, offset > 0 ? "after" : "before");
   }
