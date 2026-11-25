@@ -1744,7 +1744,8 @@ workspace card, so in-progress work can be viewed, checked off and added to from
   - **Opening:** **Open**, double-clicking a card's header, double-clicking an outline row
     or Enter on a focused card or row brings the main window forward with that item opened.
   - **Keyboard:** each card is its own tree and one Tab stop, followed by its header circle
-    and its add line, which take Tab stops of their own in the tray.
+    and its add line, which take Tab stops of their own in the tray. The add line sits where
+    **Add-item line position** puts it (§7.17).
   - **Settings** (App Settings › Tray card, global only, §6.5): **Tray card size**, Full
     (default) or Compact, and **Show items on tray cards**, on by default. Compact draws a
     narrower card with everything about 14% smaller. Without items a card keeps its header

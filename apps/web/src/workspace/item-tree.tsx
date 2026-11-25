@@ -30,6 +30,7 @@ import { ItemRow } from "./item-row.js";
 import { buildPriorityGroups, type PriorityGroup } from "./priority-groups.js";
 import { PrioritySection } from "./priority-section.js";
 import { statusRankOf } from "./status-rank.js";
+import { useWorkspaceLayout } from "./use-workspace-layout.js";
 import type { ItemActions } from "./use-item-actions.js";
 import { type ActiveItemDrag, type ItemDropPosition, useItemDrag } from "./use-item-drag.js";
 
@@ -714,9 +715,12 @@ function useCardTreeContext(props: ItemCardTreeProps, treeRef: RefObject<HTMLULi
     selected !== null && visible.has(selected) ? selected : node.item.id,
     visible,
   );
+  const { addLinePosition } = useWorkspaceLayout();
   const context: TreeContext = {
     allNodes,
     cardColumns: 1,
+    scaleCardColumns: false,
+    addLinePosition,
     lookups: props.lookups,
     actions,
     hasFolders: false,
