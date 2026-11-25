@@ -48,11 +48,15 @@ export function useHoldWhileTyping() {
         setTimeout(check, 0);
       }
     };
+    // A key such as Escape can clear the field; look once the page has handled it.
+    const checkAfterKey = () => setTimeout(check, 0);
     const events = ["input", "focusin", "keyup"] as const;
     events.forEach((name) => document.addEventListener(name, check));
+    document.addEventListener("keydown", checkAfterKey);
     document.addEventListener("focusout", checkUnlessWindowBlurs);
     return () => {
       events.forEach((name) => document.removeEventListener(name, check));
+      document.removeEventListener("keydown", checkAfterKey);
       document.removeEventListener("focusout", checkUnlessWindowBlurs);
       clearInterval(timer);
     };

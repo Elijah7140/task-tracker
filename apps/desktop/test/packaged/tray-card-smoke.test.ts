@@ -235,7 +235,9 @@ desktopTest(
       expect(fromMainWindow).toBe(false);
       expect(await cardShown(application)).toBe(true);
 
-      await trayItemCard(card).getByRole("button", { name: `Complete ${ITEM}`, exact: true }).click();
+      await trayItemCard(card)
+        .getByRole("button", { name: `Complete ${ITEM}`, exact: true })
+        .click();
 
       await card.getByTestId("tray-card-empty").waitFor();
       await expandCompleted(itemTree(page, PROJECT), "Completed (1)");
@@ -274,6 +276,9 @@ desktopTest(
       await pressEscapeOnCard(application);
       await expect.poll(() => addLine.inputValue()).toBe("");
       expect(await cardShown(application)).toBe(true);
+      // The page tells main the hold ended once it has handled the first Escape; leave a
+      // person's pause before the next press.
+      await card.waitForTimeout(300);
       await pressEscapeOnCard(application);
       await expect.poll(() => cardShown(application)).toBe(false);
     } finally {
