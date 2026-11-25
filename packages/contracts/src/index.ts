@@ -27,6 +27,7 @@ export { ItemLink, ItemLinkInput } from "./item-link.js";
 export { CompletionResult } from "./completion-result.js";
 export { CardColumns } from "./card-columns.js";
 export { HexColor, UrgencyColors } from "./urgency-colors.js";
+export { AddLinePosition, DetailsPanelPosition, WorkspaceLayout } from "./workspace-layout.js";
 export { DurationTicks } from "./duration-ticks.js";
 export { PriorityLevelProjection } from "./lookup-projection.js";
 export { LookupRpcs } from "./lookup-rpcs.js";

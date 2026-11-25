@@ -1,4 +1,4 @@
-import { isBlankText } from "@task-tracker/contracts";
+import { type AddLinePosition, isBlankText } from "@task-tracker/contracts";
 import { ContextMenu } from "@base-ui/react/context-menu";
 import { Ticket } from "lucide-react";
 import { type MouseEvent, type PointerEvent, type ReactNode, useState } from "react";
@@ -39,6 +39,8 @@ export interface ItemCardProps {
   readonly dragging: boolean;
   /** Drop feedback while this card is the target of an item drag. */
   readonly dropIndicator: ItemDropPosition | null;
+  /** Where the "Add a ToDo…" line sits in the card body (§7.17); the top by default. */
+  readonly addLinePosition?: typeof AddLinePosition.Type | undefined;
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
   readonly onSelect: () => void;
@@ -139,9 +141,8 @@ function CardTitle({ node }: { readonly node: ItemNode }) {
     <span
       id={`item-title-${node.item.id}`}
       data-testid="item-title"
-      title={node.item.title}
       className={cx(
-        "line-clamp-3 min-w-0 flex-1 text-[14px] leading-snug font-medium break-words",
+        "min-w-0 flex-1 text-[14px] leading-snug font-medium [overflow-wrap:anywhere]",
         node.displayedUrgency.value === "Overdue" && !completed && "font-semibold",
         completed && "text-fg-subtle line-through",
       )}
@@ -169,7 +170,7 @@ function CardHeader(props: ItemCardProps & { readonly date: ItemDate; readonly h
           />
         </span>
         <CardTitle node={node} />
-        <ItemStatusChip name={statusName(node, lookups)} />
+        <ItemStatusChip name={statusName(node, lookups)} wrap />
         <CardActions {...props} />
       </div>
       <CardMetadata node={node} lookups={lookups} date={date} />
@@ -229,8 +230,9 @@ function isOwnEvent(event: MouseEvent<HTMLElement>) {
 }
 
 /**
- * The always-present add line at the bottom of an open card (§7.17). Enter adds a ToDo as the
- * card's last direct child; Shift+Enter adds it under the card's last open child instead.
+ * The always-present add line of an open card, at the top or the bottom of its body (§7.17).
+ * Enter adds a ToDo as the card's last direct child; Shift+Enter adds it under the card's last
+ * open child instead. The line stays in place and keeps focus, so typing continues.
  */
 function CardAddLine({ node, actions }: Pick<ItemCardProps, "node" | "actions">) {
   const [value, setValue] = useState("");
@@ -257,9 +259,10 @@ function CardAddLine({ node, actions }: Pick<ItemCardProps, "node" | "actions">)
 
 /**
  * A top-level item as a workspace card (§7.17): an urgency-tinted header with the completion
- * button, a title of up to three lines, the status chip and a line with the ticket, date and
- * urgency. The body reads like a dotted list: a ticket's Detail when the card shows it, the
- * Markdown notes, every descendant nested under its parent, and an add line at the bottom.
+ * button, the full title, the status chip and a line with the ticket, date and urgency. The
+ * body reads like a dotted list: a ticket's Detail when the card shows it, the Markdown notes
+ * and every descendant nested under its parent, with an add line above or below the outline.
+ * No text is cut off; the card grows to fit.
  */
 export function ItemCard(props: ItemCardProps) {
   const { node, selected, canIndent, hasFolders, dragging, dropIndicator, lookups, actions } =
@@ -267,10 +270,12 @@ export function ItemCard(props: ItemCardProps) {
   const date = dateCell(node, lookups.timeZone);
   const hasNotes = !isBlankText(node.item.notes ?? "");
   const open = !node.isFinished;
-  const addLine = open && props.addLine !== false;
   const detail = showsDetail(node);
   const hasBody = detail || hasNotes || open || props.children !== undefined;
   const surface = useItemSurface();
+  const addLine =
+    open && props.addLine !== false ? <CardAddLine node={node} actions={actions} /> : null;
+  const addLineAtTop = (props.addLinePosition ?? "Top") === "Top";
   return (
     <ContextMenu.Root disabled={surface === "tray"}>
       <ContextMenu.Trigger
@@ -318,7 +323,7 @@ export function ItemCard(props: ItemCardProps) {
               />
             ) : null}
             {props.children}
-            {addLine ? <CardAddLine node={node} actions={actions} /> : null}
+            {addLineAtTop ? null : addLine}
           </div>
         ) : null}
         <ItemDescription node={node} lookups={lookups} date={date} />

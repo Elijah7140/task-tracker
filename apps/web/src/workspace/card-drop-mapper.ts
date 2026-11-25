@@ -1,5 +1,6 @@
 import { allSiblings, findItemNode, type ItemNode, type ItemSiblings } from "./item-outline.js";
 import type { PriorityGroup } from "./priority-groups.js";
+import type { StatusRank } from "./status-rank.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
 
 /**
@@ -36,10 +37,94 @@ function otherTopLevel(nodes: ItemSiblings, sourceId: string): ReadonlyArray<Ite
     .toSorted((left, right) => left.item.sortOrder - right.item.sortOrder);
 }
 
+/** The range of slots among a section's cards that keeps a card of `rank` in status order. */
+function statusRun(cards: ReadonlyArray<ItemNode>, statusRank: StatusRank, rank: number) {
+  const rankAt = (index: number) => statusRank(cards[index]!.item.statusId);
+  let lower = 0;
+  while (lower < cards.length && rankAt(lower) < rank) {
+    lower += 1;
+  }
+  let upper = lower;
+  while (upper < cards.length && rankAt(upper) === rank) {
+    upper += 1;
+  }
+  return { lower, upper };
+}
+
 /**
- * Places a dragged item before or after an open card, in that card's priority section.
- * Returns `null` for drops onto self, outside the open card grid, from a finished item,
- * or for `"into"` drops (which make a sub-item and are handled by `DropItem`).
+ * The card a move lands beside for a slot among a section's other cards. It prefers a card with
+ * the moved card's status, so the saved sibling order puts the card exactly in that slot of its
+ * status run; with no such card, any neighbour keeps the status order.
+ */
+function anchorAt(
+  cards: ReadonlyArray<ItemNode>,
+  run: { readonly lower: number; readonly upper: number },
+  slot: number,
+): { readonly target: ItemNode; readonly position: "before" | "after" } | null {
+  const before = cards[slot];
+  const after = cards[slot - 1];
+  if (slot < run.upper && before !== undefined) {
+    return { target: before, position: "before" };
+  }
+  if (slot > run.lower && after !== undefined) {
+    return { target: after, position: "after" };
+  }
+  if (before !== undefined) {
+    return { target: before, position: "before" };
+  }
+  return after === undefined ? null : { target: after, position: "after" };
+}
+
+/**
+ * Places `source` at the slot of `group` nearest `desiredIndex` among the section's other cards
+ * that keeps it among the cards with its status: after every card with an earlier status and
+ * before every card with a later one (§7.17). Returns `null` when the section has no other card
+ * to land beside.
+ */
+function placeInGroup(
+  nodes: ItemSiblings,
+  group: PriorityGroup,
+  source: ItemNode,
+  desiredIndex: number,
+): CardPlacement | null {
+  const cards = group.cards.filter((card) => card.item.id !== source.item.id);
+  const run = statusRun(cards, group.statusRank, group.statusRank(source.item.statusId));
+  const anchor = anchorAt(cards, run, Math.min(run.upper, Math.max(run.lower, desiredIndex)));
+  if (anchor === null) {
+    return null;
+  }
+  const { target, position } = anchor;
+  const index = otherTopLevel(nodes, source.item.id).findIndex(
+    (row) => row.item.id === target.item.id,
+  );
+  if (index === -1) {
+    return null;
+  }
+  return {
+    priorityLevelId: group.priorityLevelId,
+    index: index + (position === "after" ? 1 : 0),
+    targetId: target.item.id,
+    position,
+  };
+}
+
+/** The section holding the open card `cardId`. */
+function groupOf(groups: ReadonlyArray<PriorityGroup>, cardId: string) {
+  return groups.find((candidate) => candidate.cards.some((card) => card.item.id === cardId));
+}
+
+/** The open item a card move can carry: not finished and in this level's tree. */
+function movableSource(nodes: ItemSiblings, sourceId: string) {
+  const source = findItemNode(nodes, sourceId);
+  return source === undefined || source.isFinished ? undefined : source;
+}
+
+/**
+ * Places a dragged item before or after an open card, in that card's priority section. Cards
+ * sort by status inside a section, so a drop beside a card with another status lands at the
+ * nearest slot among the cards with the item's own status; the status never changes. Returns
+ * `null` for drops onto self, outside the open card grid, from a finished item, or for
+ * `"into"` drops (which make a sub-item and are handled by `DropItem`).
  */
 export function mapCardDrop(
   nodes: ItemSiblings,
@@ -48,42 +133,27 @@ export function mapCardDrop(
   targetId: string,
   position: ItemDropPosition,
 ): CardPlacement | null {
-  const group = groups.find((candidate) =>
-    candidate.cards.some((card) => card.item.id === targetId),
-  );
-  const source = findItemNode(nodes, sourceId);
-  if (
-    group === undefined ||
-    source === undefined ||
-    source.isFinished ||
-    sourceId === targetId ||
-    position === "into"
-  ) {
+  const group = groupOf(groups, targetId);
+  const source = movableSource(nodes, sourceId);
+  if (group === undefined || source === undefined || sourceId === targetId || position === "into") {
     return null;
   }
-
-  const others = otherTopLevel(nodes, sourceId);
-  const index = others.findIndex((row) => row.item.id === targetId);
-  if (index === -1) {
-    return null;
-  }
-  return {
-    priorityLevelId: group.priorityLevelId,
-    index: index + (position === "after" ? 1 : 0),
-    targetId,
-    position,
-  };
+  const cards = group.cards.filter((card) => card.item.id !== sourceId);
+  const targetIndex = cards.findIndex((card) => card.item.id === targetId);
+  return placeInGroup(nodes, group, source, targetIndex + (position === "after" ? 1 : 0));
 }
 
-/** Places a dragged item after the last other card of a section (a drop on its header). */
+/**
+ * Places a dragged item at the end of a section (a drop on its header): after the section's last
+ * card with the item's status, or where that status sorts when the section has none.
+ */
 export function mapCardDropToGroupEnd(
   nodes: ItemSiblings,
-  groups: ReadonlyArray<PriorityGroup>,
   sourceId: string,
   group: PriorityGroup,
 ): CardPlacement | null {
-  const last = [...group.cards].reverse().find((card) => card.item.id !== sourceId);
-  return last === undefined ? null : mapCardDrop(nodes, groups, sourceId, last.item.id, "after");
+  const source = movableSource(nodes, sourceId);
+  return source === undefined ? null : placeInGroup(nodes, group, source, group.cards.length);
 }
 
 /** The sections a card can step into: every active section and its own archived one. */
@@ -94,10 +164,12 @@ function assignableGroups(groups: ReadonlyArray<PriorityGroup>, cardId: string) 
 }
 
 /**
- * Moves an open card one place in reading order. Inside a section it swaps with its neighbour.
- * At a section edge it enters the neighbouring section: at the end of the section above, or
- * at the start of the section below. Archived sections other than the card's own are skipped,
- * since an archived level cannot be assigned. Returns `null` at either end of the grid (§7.17).
+ * Moves an open card one place in reading order among the cards with its status (§7.17).
+ * Inside a section it swaps with its neighbour when that card has the same status. Otherwise
+ * it enters the neighbouring section: at the end of the section above, or at the start of the
+ * section below, within that section's cards of its status. Archived sections other than the
+ * card's own are skipped, since an archived level cannot be assigned. Returns `null` at either
+ * end of the grid.
  */
 export function stepCard(
   nodes: ItemSiblings,
@@ -105,19 +177,26 @@ export function stepCard(
   cardId: string,
   offset: -1 | 1,
 ): CardPlacement | null {
-  const order = assignableGroups(groups, cardId).flatMap((group) =>
-    group.cards.map((card) => ({ card, group })),
+  const order = assignableGroups(groups, cardId);
+  const groupIndex = order.findIndex((group) =>
+    group.cards.some((card) => card.item.id === cardId),
   );
-  const index = order.findIndex((entry) => entry.card.item.id === cardId);
-  const neighbourIndex = index + offset;
-  if (index < 0 || neighbourIndex < 0 || neighbourIndex >= order.length) {
+  const group = order[groupIndex];
+  const source = movableSource(nodes, cardId);
+  if (group === undefined || source === undefined) {
     return null;
   }
-
-  const current = order[index]!;
-  const neighbour = order[neighbourIndex]!;
-  const sameGroup = neighbour.group === current.group;
-  const movesDown = offset > 0;
-  const position: "before" | "after" = movesDown === sameGroup ? "after" : "before";
-  return mapCardDrop(nodes, groups, cardId, neighbour.card.item.id, position);
+  const cardIndex = group.cards.findIndex((card) => card.item.id === cardId);
+  const neighbour = group.cards[cardIndex + offset];
+  const sameStatus =
+    neighbour !== undefined &&
+    group.statusRank(neighbour.item.statusId) === group.statusRank(source.item.statusId);
+  if (sameStatus) {
+    return mapCardDrop(nodes, groups, cardId, neighbour.item.id, offset > 0 ? "after" : "before");
+  }
+  const next = order[groupIndex + offset];
+  if (next === undefined) {
+    return null;
+  }
+  return placeInGroup(nodes, next, source, offset > 0 ? 0 : next.cards.length);
 }

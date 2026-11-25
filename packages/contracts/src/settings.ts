@@ -5,6 +5,7 @@ import { Guid } from "./guid.js";
 import { EffectiveReminderSettings, ReminderDefaults, ReminderOverrides } from "./reminder.js";
 import { TrayCardSettings } from "./tray-card-settings.js";
 import { UrgencyColors } from "./urgency-colors.js";
+import { WorkspaceLayout } from "./workspace-layout.js";
 
 const effectiveValue = <Value extends Schema.Constraint>(value: Value) =>
   Schema.Struct({ value, source: Schema.Literals(["Global", "Project"]) });
@@ -54,6 +55,11 @@ export const GlobalSettings = Schema.Struct({
    * always sends it; a save without it keeps it.
    */
   trayCard: Schema.optionalKey(TrayCardSettings),
+  /**
+   * How cards scale with the window, where add lines sit and where a drilled-in item's
+   * details sit (§7.17, §7.19). The server always sends it; a save without it keeps it.
+   */
+  workspaceLayout: Schema.optionalKey(WorkspaceLayout),
 });
 
 /** Project overrides to save together. Null removes an override so the global value applies. */

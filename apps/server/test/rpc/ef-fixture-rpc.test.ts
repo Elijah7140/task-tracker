@@ -88,6 +88,11 @@ function openFixtureRpc<Value, Error>(
 }
 
 /** The fixtures store no reminder settings, so the defaults apply (§7.12). */
+const DEFAULT_WORKSPACE_LAYOUT = {
+  scaleCardColumnsToWindow: true,
+  addLinePosition: "Top",
+  detailsPanelPosition: "Side",
+};
 const DEFAULT_REMINDERS = {
   remindersEnabled: true,
   defaultReminderOffset: "36000000000",
@@ -119,6 +124,7 @@ function assertSharedFixtureState(
     urgencyColors: { approaching: null, overdue: null },
     trayCard: { size: "Full", showItems: true },
     showTicketDetailOnCards: true,
+    workspaceLayout: DEFAULT_WORKSPACE_LAYOUT,
     startWithSystem: false,
   });
   expect(projectSettings).toEqual({
@@ -379,6 +385,7 @@ it.effect(
               urgencyColors: { approaching: null, overdue: null },
               trayCard: { size: "Full", showItems: true },
               showTicketDetailOnCards: true,
+              workspaceLayout: DEFAULT_WORKSPACE_LAYOUT,
             });
             expect(projectSettings).toEqual({
               projectId,
@@ -733,6 +740,7 @@ it.effect(
               urgencyColors: { approaching: null, overdue: null },
               trayCard: { size: "Full", showItems: true },
               showTicketDetailOnCards: true,
+              workspaceLayout: DEFAULT_WORKSPACE_LAYOUT,
             });
             expect(projectSettings).toEqual({
               projectId,

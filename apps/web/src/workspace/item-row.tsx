@@ -142,9 +142,8 @@ function ItemTitle({ node }: { readonly node: ItemNode }) {
     <span
       id={`item-title-${node.item.id}`}
       data-testid="item-title"
-      title={node.item.title}
       className={cx(
-        "min-w-0 truncate pl-0.5",
+        "min-w-0 flex-1 pl-0.5 leading-5 [overflow-wrap:anywhere]",
         node.displayedUrgency.value === "Overdue" && !completed && "font-semibold",
         completed && "text-fg-subtle line-through",
       )}
@@ -215,7 +214,7 @@ function RowContent(props: ItemRowProps) {
   const repeat = repeatSummary(node);
   return (
     <>
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="flex min-w-0 items-start gap-1">
         <DragHandle />
         <CompletionMark
           title={node.item.title}
@@ -223,7 +222,7 @@ function RowContent(props: ItemRowProps) {
           onToggle={() => void actions.toggleComplete(node)}
         />
         <ItemTitle node={node} />
-        <ItemStatusChip name={statusName(node, lookups)} />
+        <ItemStatusChip name={statusName(node, lookups)} wrap />
         <span className="ml-auto flex shrink-0 items-center gap-1">
           <UrgencyBadge urgency={node.displayedUrgency.value} />
           {source === undefined ? null : <UrgencySource title={source} />}

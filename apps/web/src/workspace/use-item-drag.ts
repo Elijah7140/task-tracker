@@ -154,7 +154,7 @@ function groupHeaderTarget(
   const key = header.dataset["priorityGroupId"] ?? "";
   const group = groups.find((candidate) => (candidate.priorityLevelId ?? "") === key);
   const placement =
-    group === undefined ? null : mapCardDropToGroupEnd(nodes, groups, source.item.id, group);
+    group === undefined ? null : mapCardDropToGroupEnd(nodes, source.item.id, group);
   return placement !== null && isUsefulPlacement(groups, source, placement, levelParent(options))
     ? { kind: "group", placement }
     : null;

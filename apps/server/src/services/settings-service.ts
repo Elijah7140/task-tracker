@@ -6,6 +6,8 @@ import {
   SettingsCatalogue,
   SettingsResolver,
   validateThresholds,
+  type AddLinePosition,
+  type DetailsPanelPosition,
   type DurationTicks,
   type ReconciliationApproval,
   type SettingDefinition,
@@ -40,7 +42,17 @@ const {
   trayCardSize,
   trayCardShowsItems,
   showTicketDetailOnCards,
+  scaleCardColumnsToWindow,
+  addLinePosition,
+  detailsPanelPosition,
 } = SettingsCatalogue;
+
+/** How cards scale with the window and where add lines and item details sit (§7.17, §7.19). */
+export interface WorkspaceLayoutInput {
+  readonly scaleCardColumnsToWindow: boolean;
+  readonly addLinePosition: AddLinePosition;
+  readonly detailsPanelPosition: DetailsPanelPosition;
+}
 
 /** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
 export interface AddViewDefaults {
@@ -125,6 +137,32 @@ function proposeGlobal<T>(
   if (stored === undefined || definition.format(stored) !== text) {
     proposed.set(definition.key, text);
   }
+}
+
+/** Reads the workspace layout choices, using each default for missing or malformed text. */
+function readWorkspaceLayout(global: ReadonlyMap<string, string>): WorkspaceLayoutInput {
+  return {
+    scaleCardColumnsToWindow: parseOrDefault(
+      scaleCardColumnsToWindow,
+      global.get(scaleCardColumnsToWindow.key),
+    ),
+    addLinePosition: parseOrDefault(addLinePosition, global.get(addLinePosition.key)),
+    detailsPanelPosition: parseOrDefault(
+      detailsPanelPosition,
+      global.get(detailsPanelPosition.key),
+    ),
+  };
+}
+
+/** Proposes the workspace layout choices that change (§6.5). */
+function proposeWorkspaceLayout(
+  proposed: Map<string, string>,
+  current: ReadonlyMap<string, string>,
+  layout: WorkspaceLayoutInput,
+) {
+  proposeGlobal(proposed, current, scaleCardColumnsToWindow, layout.scaleCardColumnsToWindow);
+  proposeGlobal(proposed, current, addLinePosition, layout.addLinePosition);
+  proposeGlobal(proposed, current, detailsPanelPosition, layout.detailsPanelPosition);
 }
 
 function reminderOverrideEntries(reminders: ReminderOverridesInput): [string, string | null][] {
@@ -217,6 +255,7 @@ const make = Effect.gen(function* () {
         showTicketDetailOnCards,
         global.get(showTicketDetailOnCards.key),
       ),
+      workspaceLayout: readWorkspaceLayout(global),
     };
   }, sql.withTransaction);
 
@@ -392,6 +431,7 @@ const make = Effect.gen(function* () {
       autoHide?: boolean,
       trayCard?: TrayCardSettingsInput,
       ticketDetailOnCards?: boolean,
+      workspaceLayout?: WorkspaceLayoutInput,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -429,6 +469,9 @@ const make = Effect.gen(function* () {
         }
         if (ticketDetailOnCards !== undefined) {
           proposeGlobal(proposed, current, showTicketDetailOnCards, ticketDetailOnCards);
+        }
+        if (workspaceLayout !== undefined) {
+          proposeWorkspaceLayout(proposed, current, workspaceLayout);
         }
         return proposed;
       }, approval),

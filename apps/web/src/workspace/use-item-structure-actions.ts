@@ -1,5 +1,5 @@
 import { useAtomSet } from "@effect/atom-react";
-import type { PriorityLevelProjection } from "@task-tracker/contracts";
+import type { PriorityLevelProjection, StatusProjection } from "@task-tracker/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import type { Exit } from "effect";
 import { reportFailure } from "../dialogs/report-failure.js";
@@ -36,6 +36,7 @@ import {
 } from "./item-outline.js";
 import { buildPriorityGroups } from "./priority-groups.js";
 import { swapWithVisibleNeighbor } from "./reorder-plan.js";
+import { statusRankOf } from "./status-rank.js";
 import { useSaveCardMove } from "./use-card-move.js";
 import { type MoveResult, useItemMoveRunner } from "./use-item-move-runner.js";
 
@@ -50,6 +51,8 @@ export interface ItemStructureScope {
   readonly folders: ReadonlyArray<Folder>;
   readonly items: ItemSiblings;
   readonly priorityLevels: ReadonlyArray<typeof PriorityLevelProjection.Type>;
+  /** The Statuses list, which orders cards inside a priority section (§7.17). */
+  readonly statuses?: ReadonlyArray<typeof StatusProjection.Type> | undefined;
   readonly onFocusItem: (request: ItemFocusRequest) => void;
   /** Shows or clears the inline failure of a pointer drop in this area. */
   readonly onMoveError: (message: string | null) => void;
@@ -321,7 +324,8 @@ function useReorderItems(scope: ItemStructureScope) {
   /** Alt+↑/↓ on an open card moves it one place in reading order, across sections (§7.17). */
   const stepOpenCard = async (nodes: ItemSiblings, node: ItemNode, offset: -1 | 1) => {
     const level = siblingNodesOf(nodes, levelParentId);
-    const groups = buildPriorityGroups(level.open, scope.priorityLevels);
+    const statusRank = statusRankOf(scope.statuses ?? []);
+    const groups = buildPriorityGroups(level.open, scope.priorityLevels, statusRank);
     const placement = stepCard(level, groups, node.item.id, offset);
     if (placement === null) {
       return false;
