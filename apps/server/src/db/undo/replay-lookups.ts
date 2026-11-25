@@ -2,7 +2,6 @@ import {
   MetadataRuleError,
   renameLookup,
   setPriorityNumber,
-  type ItemType,
   type PriorityLevel,
 } from "@task-tracker/core";
 import { Effect } from "effect";
@@ -21,13 +20,6 @@ function lookupFromSnapshot(row: UndoRow) {
   };
 }
 
-function itemTypeFromSnapshot(row: UndoRow): ItemType {
-  return {
-    ...lookupFromSnapshot(row),
-    iconKey: row.IconKey === null ? null : String(row.IconKey),
-  };
-}
-
 function priorityFromSnapshot(row: UndoRow): PriorityLevel {
   return {
     ...lookupFromSnapshot(row),
@@ -36,20 +28,13 @@ function priorityFromSnapshot(row: UndoRow): PriorityLevel {
 }
 
 /** How one lookup table's final list is read and checked. */
-interface LookupList<Row extends ItemType | PriorityLevel> {
-  readonly table: "ItemType" | "PriorityLevel";
+interface LookupList<Row extends PriorityLevel> {
+  readonly table: "PriorityLevel";
   readonly kind: string;
   readonly fromSnapshot: (row: UndoRow) => Row;
   /** Throws the Core rule a row breaks in the final list, apart from rank. */
   readonly validate: (row: Row, rows: readonly Row[]) => void;
 }
-
-const itemTypes: LookupList<ItemType> = {
-  table: "ItemType",
-  kind: "item type",
-  fromSnapshot: itemTypeFromSnapshot,
-  validate: (row, rows) => renameLookup(row, row.name, rows),
-};
 
 const priorityLevels: LookupList<PriorityLevel> = {
   table: "PriorityLevel",
@@ -62,10 +47,7 @@ const priorityLevels: LookupList<PriorityLevel> = {
 };
 
 /** Applies the Core name (and number) rules and unique ranks to the list replay would produce. */
-function validateFinalList<Row extends ItemType | PriorityLevel>(
-  list: LookupList<Row>,
-  rows: readonly Row[],
-) {
+function validateFinalList<Row extends PriorityLevel>(list: LookupList<Row>, rows: readonly Row[]) {
   const orders = new Set<number>();
   for (const row of rows) {
     list.validate(row, rows);
@@ -77,7 +59,7 @@ function validateFinalList<Row extends ItemType | PriorityLevel>(
 }
 
 /** Builds the list replay would leave behind, in current row order. */
-const proposedList = Effect.fnUntraced(function* <Row extends ItemType | PriorityLevel>(
+const proposedList = Effect.fnUntraced(function* <Row extends PriorityLevel>(
   sql: SqlClient.SqlClient,
   list: LookupList<Row>,
   changes: readonly ReplayRow[],
@@ -94,7 +76,7 @@ const proposedList = Effect.fnUntraced(function* <Row extends ItemType | Priorit
   return [...proposed.values()];
 });
 
-const verifyList = Effect.fnUntraced(function* <Row extends ItemType | PriorityLevel>(
+const verifyList = Effect.fnUntraced(function* <Row extends PriorityLevel>(
   sql: SqlClient.SqlClient,
   list: LookupList<Row>,
   rows: readonly ReplayRow[],
@@ -116,13 +98,12 @@ const verifyList = Effect.fnUntraced(function* <Row extends ItemType | PriorityL
 });
 
 /**
- * Checks the final item type and priority lists before replay writes encounter SQLite's
+ * Checks the final priority list before replay writes encounter SQLite's
  * unique indexes: Unicode-aware names including archived ones, active numbers and ranks.
  */
 export const verifyReplayLookups = Effect.fnUntraced(function* (
   sql: SqlClient.SqlClient,
   rows: readonly ReplayRow[],
 ) {
-  yield* verifyList(sql, itemTypes, rows);
   yield* verifyList(sql, priorityLevels, rows);
 });

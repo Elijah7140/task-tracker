@@ -134,11 +134,10 @@ export function itemAddSteps(sql: SqlClient.SqlClient) {
     yield* checkRules(() => checkKindFields(input));
     const parentId = yield* decodeNullableId(input.parentItemId);
     const priorityLevelId = yield* decodeNullableId(input.fields.priorityLevelId);
-    const itemTypeId = yield* decodeNullableId(input.fields.itemTypeId);
     const statusId = yield* decodeNullableId(input.fields.statusId ?? null);
     yield* requireActivePriority(priorityLevelId);
     const available = yield* statuses.list();
-    const fields = { ...input.fields, priorityLevelId, itemTypeId, statusId };
+    const fields = { ...input.fields, priorityLevelId, statusId };
     const row = yield* checkRules(() =>
       addRow(tree, { ...input, fields }, parentId, openStatusId(statusId, available), now),
     );

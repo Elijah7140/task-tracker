@@ -54,7 +54,6 @@ function test<A, E>(
 interface DateFields {
   readonly dueDate?: string;
   readonly dueTime?: string;
-  readonly itemTypeId?: string;
   readonly priorityLevelId?: string;
 }
 
@@ -64,7 +63,6 @@ function editFields(title: string, fields: DateFields) {
     title,
     description: null,
     ticketNumber: null,
-    itemTypeId: date(fields.itemTypeId),
     priorityLevelId: date(fields.priorityLevelId),
     dueDate: fields.dueDate === undefined ? null : Temporal.PlainDate.from(fields.dueDate),
     dueTime: fields.dueTime === undefined ? null : Temporal.PlainTime.from(fields.dueTime),
@@ -193,14 +191,12 @@ test("Project thresholds override global thresholds", (world) =>
     expect(entries[0]!.thresholds.red).toBe(24n * ticksPerHour);
   }));
 
-test("Entries carry type, numbered priority and status names", (world) =>
+test("Entries carry numbered priority and status names", (world) =>
   Effect.gen(function* () {
-    const types = yield* world.lookups.itemTypes.list();
     const priority = yield* world.lookups.priorityLevels.add("Urgent", 1);
     const status = yield* world.lookups.statuses.add("Reviewing", "Open");
     const item = yield* seed(world, "Due", {
       dueDate: "2026-11-16",
-      itemTypeId: types[0]!.id,
       priorityLevelId: priority.id,
     });
     yield* world.items.setStatus(item.id, status.id);
@@ -208,7 +204,6 @@ test("Entries carry type, numbered priority and status names", (world) =>
     const entries = yield* world.calendar.load(range("2026-11-16", "2026-11-17"));
 
     expect(entries[0]).toMatchObject({
-      itemType: types[0]!.name,
       priority: "1 · Urgent",
       priorityLevelId: priority.id,
       statusId: status.id,

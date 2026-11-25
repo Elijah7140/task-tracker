@@ -5,7 +5,6 @@ import { Checkbox } from "../ui/checkbox.js";
 import { cx } from "../ui/class-names.js";
 import { Tooltip } from "../ui/tooltip.js";
 import type { DropEdge } from "../ui/use-pointer-reorder.js";
-import { ItemTypeIcon } from "../workspace/item-type-icon.js";
 import { PriorityNumberForm } from "./priority-number-form.js";
 import type { LookupItem, LookupKind } from "./use-lookup-actions.js";
 
@@ -76,9 +75,6 @@ export function LookupRow({
   inProgress,
 }: LookupRowProps) {
   const label = row.label ?? row.name;
-  const isItemType = kind === "itemTypes";
-  const canArchive = !(isItemType && row.isBuiltIn);
-  const archiveTooltip = canArchive ? "Archive" : "Built-in types can't be archived";
 
   const handleKeyDown = (event: KeyboardEvent<HTMLLIElement>) => {
     if (!event.altKey) {
@@ -118,7 +114,6 @@ export function LookupRow({
         >
           <GripVertical size={14} aria-hidden="true" />
         </button>
-        {isItemType ? <ItemTypeIcon name={row.name} /> : null}
         <span className="truncate text-sm text-fg">{label}</span>
         {detail === undefined ? null : (
           <span data-testid="lookup-row-detail" className="shrink-0 text-xs text-fg-subtle">
@@ -176,19 +171,13 @@ export function LookupRow({
             <Pencil size={14} aria-hidden="true" />
           </Button>
         </Tooltip>
-        <Tooltip content={archiveTooltip} testId="lookup-archive-tooltip">
+        <Tooltip content="Archive" testId="lookup-archive-tooltip">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            disabled={!canArchive}
-            focusableWhenDisabled
             aria-label={`Archive ${label}`}
-            onClick={() => {
-              if (canArchive) {
-                onArchive(row);
-              }
-            }}
+            onClick={() => onArchive(row)}
             data-testid="lookup-archive"
           >
             <Archive size={14} aria-hidden="true" />

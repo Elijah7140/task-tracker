@@ -31,7 +31,6 @@ function makeNode(
       description: null,
       notes: null,
       ticketNumber: null,
-      itemTypeId: null,
       priorityLevelId: options.priorityLevelId ?? null,
       statusId: null,
       reopenStatusId: null,
@@ -47,6 +46,7 @@ function makeNode(
     ownUrgency: "None",
     displayedUrgency: { value: "None", sourceDescendantId: null },
     isFinished: options.isFinished ?? false,
+    showsDetailOnCard: false,
     children: { open: options.children ?? [], finished: [] },
   };
 }

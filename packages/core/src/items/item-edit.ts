@@ -9,13 +9,7 @@ import { itemTitle, type TodoItem } from "./todo-item.js";
 /** The built-in fields an item edit replaces as a unit. */
 export type ItemEdit = Pick<
   TodoItem,
-  | "title"
-  | "description"
-  | "ticketNumber"
-  | "itemTypeId"
-  | "priorityLevelId"
-  | "dueDate"
-  | "dueTime"
+  "title" | "description" | "ticketNumber" | "priorityLevelId" | "dueDate" | "dueTime"
 > & {
   /** The replacement Markdown notes; omitted keeps the stored notes (§7.10). */
   readonly notes?: string | null;
@@ -62,7 +56,6 @@ export function editItem(
     description: edit.description,
     notes: edit.notes === undefined ? item.notes : edit.notes,
     ticketNumber: number,
-    itemTypeId: edit.itemTypeId,
     priorityLevelId: edit.priorityLevelId,
     dueDate,
     dueTime,

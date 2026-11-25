@@ -11,24 +11,17 @@ import {
   withSchema,
 } from "../store.js";
 
-it.effect("Seeds the built-in lookups with EF's stored IDs, order and flags", () =>
+it.effect("Seeds the built-in priorities with EF's stored IDs, order and flags", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
 
-    const types = yield* sql.withTransaction(
-      sql`SELECT Id, Name, SortOrder, IsBuiltIn, IsArchived, ColorKey, IconKey FROM ItemType ORDER BY SortOrder`
-        .values,
-    );
+    const itemTypeTable = yield* sql`SELECT name FROM sqlite_schema WHERE name = 'ItemType'`;
     const priorities = yield* sql.withTransaction(
       sql`SELECT Id, Name, SortOrder, IsBuiltIn, IsArchived, ColorKey FROM PriorityLevel ORDER BY SortOrder`
         .values,
     );
 
-    expect(types).toEqual([
-      ["019A0000-0000-7000-8000-000000000001", "Change", 0, 1, 0, null, null],
-      ["019A0000-0000-7000-8000-000000000002", "Error", 1, 1, 0, null, null],
-      ["019A0000-0000-7000-8000-000000000003", "Discussion", 2, 1, 0, null, null],
-    ]);
+    expect(itemTypeTable).toEqual([]);
     expect(priorities).toEqual([
       ["019A0000-0000-7000-8000-000000000101", "Critical", 0, 1, 0, null],
       ["019A0000-0000-7000-8000-000000000102", "High", 1, 1, 0, null],
@@ -38,7 +31,7 @@ it.effect("Seeds the built-in lookups with EF's stored IDs, order and flags", ()
   }).pipe(withSchema),
 );
 
-it.effect("Applies pending schema stages once without rewriting existing lookups", () =>
+it.effect("Applies pending schema stages once and drops the item types", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     yield* Migrator.make({})({
@@ -64,17 +57,13 @@ it.effect("Applies pending schema stages once without rewriting existing lookups
     const upgrade = yield* migrate;
     const replay = yield* migrate;
 
-    expect(upgrade).toHaveLength(15);
-    expect(upgrade.at(-1)).toEqual([16, "AddItemNotes"]);
+    expect(upgrade).toHaveLength(16);
+    expect(upgrade.at(-1)).toEqual([17, "ReshapeTicketFields"]);
     expect(replay).toEqual([]);
     expect(yield* tables).toContainEqual(["TodoItemSearch"]);
     expect(yield* tables).toContainEqual(["FieldDefinition"]);
     expect(yield* sql`SELECT Name FROM Project`.values).toEqual([["Project"]]);
-    expect(yield* sql`SELECT Name FROM ItemType ORDER BY SortOrder`.values).toEqual([
-      ["Renamed"],
-      ["Error"],
-      ["Discussion"],
-    ]);
+    expect(yield* tables).not.toContainEqual(["ItemType"]);
   }).pipe(withDatabase),
 );
 
@@ -306,6 +295,8 @@ it.effect("Drops the removed ticket fields and keeps each ticket's people, level
       "DispatchedToId",
       "PendingPersonId",
       "TicketTypeId",
+      "ParentTicketNumber",
+      "ShowDetailOnCard",
     ]);
     expect(rows).toEqual([[itemId, "person"]]);
     expect(indexes).toEqual([["IX_TicketDetail_DispatchedToId"]]);

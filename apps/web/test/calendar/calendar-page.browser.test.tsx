@@ -18,7 +18,6 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
           {
             title: "Audit ledger",
             dueDate: "2026-11-16",
-            type: "Change",
             priority: "High",
             status: "In progress",
             urgency: "Overdue",
@@ -27,7 +26,6 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
             title: "Client standup",
             dueDate: "2026-11-16",
             dueTime: "09:00:00",
-            type: "Discussion",
             priority: "Medium",
             status: "In progress",
             urgency: "Approaching",
@@ -36,7 +34,6 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
             title: "Overlapping triage",
             dueDate: "2026-11-16",
             dueTime: "09:15:00",
-            type: "Error",
             priority: "Critical",
             urgency: "Imminent",
           },
@@ -44,7 +41,6 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
             title: "Touching handoff",
             dueDate: "2026-11-16",
             dueTime: "09:45:00",
-            type: "Change",
             priority: "Low",
           },
           {
@@ -57,7 +53,6 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
             title: "Overnight deploy",
             dueDate: "2026-11-17",
             dueTime: "22:30:00",
-            type: "Change",
             priority: "High",
           },
           { title: "Late cutoff", dueDate: "2026-11-17", dueTime: "23:59:00", urgency: "Imminent" },
@@ -82,7 +77,6 @@ const LAYOUT_PROJECTS: ReadonlyArray<SeedProject> = [
       {
         title: "Rotate keys",
         dueDate: "2026-11-18",
-        type: "Change",
         priority: "Critical",
         urgency: "Approaching",
       },
@@ -393,7 +387,7 @@ describe("entry display", () => {
 
     await expect.element(ledger.getByTestId("calendar-entry-urgency")).toHaveTextContent("Overdue");
     await expect.element(ledger.getByText("Audit ledger")).toHaveStyle({ fontWeight: "600" });
-    await expect.element(ledger).toHaveAttribute("title", "Change · High · In progress");
+    await expect.element(ledger).toHaveAttribute("title", "High · In progress");
   });
 
   it("Shows every all-day entry of the week inside its column above the time grid", async () => {

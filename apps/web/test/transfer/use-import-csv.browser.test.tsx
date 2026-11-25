@@ -18,30 +18,27 @@ const website = { name: "Website", openCount: 5 };
 const invalidPreview = {
   fileName: "broken.csv",
   rowCount: 3,
-  recognizedColumns: ["Title", "Type", "Priority", "Due date"],
+  recognizedColumns: ["Title", "Priority", "Due date"],
   unknownColumns: ["Mystery"],
   ignoredColumns: ["Project", "Folder path"],
   sampleRows: [
     {
       rowNumber: 2,
       title: "Good",
-      type: "Change",
       priority: "High",
       dueDate: "2026-12-01",
       hasError: false,
     },
     {
       rowNumber: 3,
-      title: "Bad type",
-      type: "Bug",
-      priority: "High",
+      title: "Bad priority",
+      priority: "Whenever",
       dueDate: "2026-12-01",
       hasError: true,
     },
     {
       rowNumber: 4,
       title: "",
-      type: "Change",
       priority: "Urgent",
       dueDate: "13/01/2026",
       hasError: true,
@@ -49,8 +46,8 @@ const invalidPreview = {
   ],
   issues: [
     {
-      path: "Row 3, Type",
-      message: "There is no type named 'Bug'. Use one of: Change, Error, Discussion, Spike.",
+      path: "Row 3, Priority",
+      message: "There is no priority named 'Whenever'. Use one of: Critical, High, Medium, Low.",
     },
     { path: "Row 4, Title", message: "A title of 1 to 300 characters is required." },
     { path: "Row 4, Due date", message: "Expected a date such as 2026-11-13." },
@@ -214,7 +211,7 @@ describe("useImportCsv", () => {
     expect(page.getByTestId("csv-preview-row-error").elements()).toHaveLength(2);
     await expect
       .element(page.getByRole("list", { name: "Problems" }))
-      .toMatchTextContent(/Row 3, Type: There is no type named 'Bug'/);
+      .toMatchTextContent(/Row 3, Priority: There is no priority named 'Whenever'/);
     await expect
       .element(page.getByTestId("csv-preview-unknown-columns"))
       .toHaveTextContent("Not recognised and ignored: Mystery");

@@ -86,7 +86,7 @@ function geometry(startMinutes: number | null) {
 /** Visible, tooltip and screen reader text for one occurrence. */
 function labels(entry: Entry, startMinutes: number | null) {
   const label = entry.isCompleted ? `✓ ${entry.title}` : entry.title;
-  const summary = `${entry.itemType ?? "No type"} · ${entry.priority ?? "No priority"}`;
+  const summary = entry.priority ?? "No priority";
   const urgency = entry.urgency === "None" ? [] : [entry.urgency];
   const timing = describeTiming(startMinutes);
   return {

@@ -5,16 +5,21 @@ import {
 } from "../../tickets/ticket-list-entry.js";
 import type { IssueList } from "../transfer-issue.js";
 import type {
-  CommentDocument,
   DocumentList,
   ItemDocument,
   TicketDocument,
   TicketListEntryDocument,
 } from "./export-document.js";
 import { listOf } from "./export-document.js";
-import { checkId, checkName, guidText, NAME_MAX_LENGTH, trimText } from "./import-checks.js";
+import {
+  checkId,
+  checkName,
+  guidText,
+  NAME_MAX_LENGTH,
+  TICKET_NUMBER_MAX_LENGTH,
+  trimText,
+} from "./import-checks.js";
 import { elementPath } from "./json-path.js";
-import { checkTimestamp } from "./timestamp-checks.js";
 
 /** A document's ticket list entries by id: their kind and parent, for reference checks. */
 export type TicketEntryKinds = ReadonlyMap<
@@ -23,9 +28,6 @@ export type TicketEntryKinds = ReadonlyMap<
 >;
 
 const ITEM_KINDS = ["Todo", "Ticket"];
-
-/** The longest comment the app accepts (§7.19). */
-const COMMENT_MAX_LENGTH = 20_000;
 
 function checkEntryParent(
   entry: TicketListEntryDocument,
@@ -117,19 +119,17 @@ function checkTicketFields(
     }
   }
   checkLevelChain(ticket, path, kinds, issues);
-}
-
-function checkComments(comments: readonly CommentDocument[], path: string, issues: IssueList) {
-  comments.forEach((comment, position) => {
-    const commentPath = elementPath(path, position);
-    checkName(comment.body, COMMENT_MAX_LENGTH, `${commentPath}.body`, issues);
-    checkTimestamp(comment.createdAtUtc, `${commentPath}.createdAtUtc`, issues);
-  });
+  const parent = ticket.parentTicketNumber;
+  if (parent !== null && trimText(parent).length > TICKET_NUMBER_MAX_LENGTH) {
+    const message = `The parent ticket must be ${TICKET_NUMBER_MAX_LENGTH} characters or fewer.`;
+    issues.add(`${path}.parentTicketNumber`, message);
+  }
 }
 
 /**
- * Checks an item's kind and, for a ticket, its number, fixed fields and comments (§7.19).
- * A ToDo may carry neither ticket fields nor comments.
+ * Checks an item's kind and, for a ticket, its number and fixed fields (§7.19). A ToDo
+ * carries no ticket fields. Comments were removed on 25 Nov 2026, so an older file's are
+ * ignored.
  */
 export function validateItemTicket(
   item: ItemDocument,
@@ -141,10 +141,9 @@ export function validateItemTicket(
     issues.add(`${path}.kind`, "Use Todo or Ticket.");
     return;
   }
-  const comments = listOf(item.comments);
   if (item.kind !== "Ticket") {
-    if (item.ticket !== null || comments.length > 0) {
-      issues.add(`${path}.kind`, "Only a ticket has ticket fields and comments.");
+    if (item.ticket !== null) {
+      issues.add(`${path}.kind`, "Only a ticket has ticket fields.");
     }
     return;
   }
@@ -154,5 +153,4 @@ export function validateItemTicket(
   if (item.ticket !== null) {
     checkTicketFields(item.ticket, `${path}.ticket`, kinds, issues);
   }
-  checkComments(comments, `${path}.comments`, issues);
 }

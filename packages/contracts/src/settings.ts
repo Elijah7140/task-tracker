@@ -40,6 +40,11 @@ export const GlobalSettings = Schema.Struct({
    */
   autoHideCompleted: Schema.optionalKey(Schema.Boolean),
   /**
+   * Whether a ticket's card shows its Detail (§7.17). The server always sends it; a save
+   * without it keeps it.
+   */
+  showTicketDetailOnCards: Schema.optionalKey(Schema.Boolean),
+  /**
    * The chosen urgency colors (§6.3). The server always sends them; a save without
    * them keeps them.
    */

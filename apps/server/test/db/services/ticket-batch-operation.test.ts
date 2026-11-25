@@ -32,7 +32,6 @@ const fields = (ticketNumber: string, title: string, overrides: Partial<ItemEdit
   title,
   description: null,
   ticketNumber,
-  itemTypeId: null,
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
@@ -47,6 +46,7 @@ const noTicketFields: TicketDetailInput = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
+  parentTicketNumber: null,
 };
 
 const setup = Effect.gen(function* () {

@@ -17,7 +17,6 @@ const ITEM: typeof Item.Type = {
   description: null,
   notes: null,
   ticketNumber: null,
-  itemTypeId: null,
   priorityLevelId: null,
   dueDate: "2026-11-19",
   dueTime: null,

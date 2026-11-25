@@ -1,8 +1,7 @@
 import type { AreaSnapshot, TicketListEntryProjection } from "@task-tracker/contracts";
 import { lookupOptions } from "../editor/editor-options.js";
-import { flattenItemNodes, type ItemSiblings } from "../workspace/item-outline.js";
+import { findItemNode, flattenItemNodes, type ItemSiblings } from "../workspace/item-outline.js";
 import type { SelectOption } from "../ui/select.js";
-import type { AddKind } from "./add-item-draft.js";
 import { NO_ENTRY } from "./ticket-list-options.js";
 
 type Snapshot = typeof AreaSnapshot.Type;
@@ -11,7 +10,6 @@ type Snapshot = typeof AreaSnapshot.Type;
 export interface AddLookups {
   readonly priorityOptions: ReadonlyArray<SelectOption<string>>;
   readonly statusOptions: ReadonlyArray<SelectOption<string>>;
-  readonly typeOptions: ReadonlyArray<SelectOption<string>>;
   readonly parentOptions: ReadonlyArray<SelectOption<string>>;
   readonly ticketLists: ReadonlyArray<typeof TicketListEntryProjection.Type>;
 }
@@ -23,20 +21,13 @@ function parentLabel(node: ItemSiblings["open"][number]) {
 }
 
 /**
- * Parent choices: the area's open tickets for a new ticket ("Parent ticket"), or every open
- * item for a ToDo. The preset parent, such as the card whose button was used, always stays.
+ * The ToDo's Parent choices: every open item. A ticket's parent ticket is typed as a number
+ * instead (§7.19), so this list places only ToDos.
  */
-function parentOptions(
-  items: ItemSiblings,
-  kind: AddKind,
-  presetParentId: string | null,
-): ReadonlyArray<SelectOption<string>> {
+function parentOptions(items: ItemSiblings): ReadonlyArray<SelectOption<string>> {
   const candidates = flattenItemNodes(items)
     .map(({ node }) => node)
-    .filter((node) => !node.isFinished)
-    .filter(
-      (node) => kind === "Todo" || node.item.kind === "Ticket" || node.item.id === presetParentId,
-    );
+    .filter((node) => !node.isFinished);
   return [
     { value: NO_ENTRY, label: "None" },
     ...candidates.map((node) => ({ value: node.item.id, label: parentLabel(node) })),
@@ -44,18 +35,24 @@ function parentOptions(
 }
 
 /** Builds the dialog's dropdown lists from the area snapshot and the ticket lists. */
-export function addLookups(
-  snapshot: Snapshot,
-  ticketLists: AddLookups["ticketLists"],
-  kind: AddKind,
-  presetParentId: string | null,
-): AddLookups {
+export function addLookups(snapshot: Snapshot, ticketLists: AddLookups["ticketLists"]): AddLookups {
   const openStatuses = snapshot.statuses.filter((status) => status.kind === "Open");
   return {
     priorityOptions: lookupOptions(snapshot.priorityLevels, null),
     statusOptions: lookupOptions(openStatuses, null),
-    typeOptions: lookupOptions(snapshot.itemTypes, null),
-    parentOptions: parentOptions(snapshot.items, kind, presetParentId),
+    parentOptions: parentOptions(snapshot.items),
     ticketLists,
   };
+}
+
+/**
+ * The parent ticket number a new ticket starts with: the number of the ticket it is added
+ * under, or null under a ToDo or at the top of the level.
+ */
+export function presetParentTicketNumber(
+  snapshot: Snapshot,
+  parentItemId: string | null,
+): string | null {
+  const parent = parentItemId === null ? undefined : findItemNode(snapshot.items, parentItemId);
+  return parent?.item.kind === "Ticket" ? parent.item.ticketNumber : null;
 }

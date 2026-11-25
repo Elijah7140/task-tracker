@@ -3,6 +3,7 @@ import {
   archiveTicketListEntry,
   createTicketListEntry,
   emptyTicketDetail,
+  showsDetailOnCard,
   type TicketDetailInput,
   type TicketListEntry,
   validateTicketDetail,
@@ -54,4 +55,44 @@ it("keeps an archived entry already on the ticket but refuses to newly choose on
 
   expect(kept.requestorId).toBe("melissa");
   expect(attempt).toThrow("Dispatched to 'Melissa' is archived.");
+});
+
+it("trims a parent ticket number and stores a blank one as none", () => {
+  const typed = validateTicketDetail("ticket", input({ parentTicketNumber: " 385405 " }), [], null);
+  const blank = validateTicketDetail("ticket", input({ parentTicketNumber: "\u00a0" }), [], null);
+
+  expect(typed.parentTicketNumber).toBe("385405");
+  expect(blank.parentTicketNumber).toBeNull();
+});
+
+it("refuses a parent ticket number longer than a ticket number", () => {
+  const detail = input({ parentTicketNumber: "1".repeat(101) });
+
+  const attempt = () => validateTicketDetail("ticket", detail, [], null);
+
+  expect(attempt).toThrow("Parent ticket must be at most 100 characters.");
+});
+
+it("keeps the card's Detail choice through a save of the other fields", () => {
+  const previous = { ...emptyTicketDetail("ticket"), showDetailOnCard: false };
+
+  const saved = validateTicketDetail(
+    "ticket",
+    input({ requestorId: "melissa" }),
+    lists(),
+    previous,
+  );
+
+  expect(saved.showDetailOnCard).toBe(false);
+});
+
+it("shows the Detail by the ticket's own choice, else by the global setting", () => {
+  const hidden = { showDetailOnCard: false };
+  const shown = { showDetailOnCard: true };
+  const following = { showDetailOnCard: null };
+
+  expect(showsDetailOnCard(hidden, true)).toBe(false);
+  expect(showsDetailOnCard(shown, false)).toBe(true);
+  expect(showsDetailOnCard(following, true)).toBe(true);
+  expect(showsDetailOnCard(null, false)).toBe(false);
 });

@@ -1,11 +1,13 @@
 import {
-  createTicketComment,
   editItem,
   emptyTicketDetail,
   MetadataRuleError,
+  parseOrDefault,
   planItemLinkEdits,
   planStatusChange,
   sameRecurrence,
+  SettingsCatalogue,
+  showsDetailOnCard,
   validateTicketDetail,
   type AppliedCompletion,
   type FieldValueInput,
@@ -247,10 +249,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
   ) {
     const item = yield* items.requireActive(id);
     const now = yield* operationTime;
-    const itemTypeId = yield* decodeNullableId(values.itemTypeId);
     const priorityLevelId = yield* decodeNullableId(values.priorityLevelId);
     const edited = yield* checkRules(() =>
-      editItem(item, { ...values, itemTypeId, priorityLevelId }, now, () => newId(now)),
+      editItem(item, { ...values, priorityLevelId }, now, () => newId(now)),
     );
     // The connection lease serializes this snapshot and write with definition mutations.
     const ticketPlan = yield* planTicketEdit(item, ticket, customValues);
@@ -358,25 +359,51 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     return item;
   });
 
-  /** A ticket's fixed fields, empty when none were saved, and its comments newest first. */
+  /** A ticket's fixed fields, empty when none were saved. */
   const loadTicket = Effect.fnUntraced(function* (id: string) {
     const item = yield* requireTicket(id);
-    const detail = (yield* ticketDetails.find(item.id)) ?? emptyTicketDetail(item.id);
-    const comments = yield* ticketDetails.listComments(item.id);
-    return { detail, comments };
+    return (yield* ticketDetails.find(item.id)) ?? emptyTicketDetail(item.id);
   }, sql.withTransaction);
 
-  /** Appends a comment to a ticket's log as one undo step (§7.19). */
-  const addComment = Effect.fnUntraced(function* (id: string, body: string) {
+  /**
+   * The active item with this ticket number, for the parent ticket's paperclip (§7.19): a
+   * ticket before a ToDo, then the most recently updated. Null when there is none.
+   */
+  const findTicketByNumber = Effect.fnUntraced(function* (ticketNumber: string) {
+    const number = ticketNumber.trim();
+    return number.length === 0 ? null : yield* ticketDetails.findByTicketNumber(number);
+  }, sql.withTransaction);
+
+  /**
+   * Shows or hides a ticket's Detail on its card as one undo step (§7.17). The choice is
+   * stored on the ticket, so it no longer follows the global setting.
+   */
+  const setDetailOnCard = Effect.fnUntraced(function* (id: string, show: boolean) {
     const item = yield* requireTicket(id);
-    const now = yield* operationTime;
-    const comment = yield* checkRules(() => createTicketComment(newId(now), item.id, body, now));
-    yield* undo.capture(undoLabel("Add comment to", item.title), [
-      { table: "TicketComment", where: sql`ItemId = ${item.id}` },
+    const stored = (yield* ticketDetails.find(item.id)) ?? emptyTicketDetail(item.id);
+    if (stored.showDetailOnCard === show) {
+      return;
+    }
+    const verb = show ? "Show description of" : "Hide description of";
+    yield* undo.capture(undoLabel(verb, item.title), [
+      { table: "TicketDetail", where: sql`ItemId = ${item.id}` },
     ]);
-    yield* ticketDetails.insertComment(comment);
-    return comment;
+    yield* ticketDetails.upsert({ ...stored, showDetailOnCard: show });
   }, undo.record);
+
+  /** Whether each card of the area shows its Detail: the ticket's choice, else the setting. */
+  const readDetailOnCard = Effect.fnUntraced(function* (
+    projectId: string,
+    folderId: string | null,
+  ) {
+    const global = yield* settings.global();
+    const setting = SettingsCatalogue.showTicketDetailOnCards;
+    const globalDefault = parseOrDefault(setting, global.get(setting.key));
+    const overrides = yield* ticketDetails.listCardOverrides({ projectId, folderId });
+    const byItem = new Map(overrides.map((row) => [row.itemId, row]));
+    return (item: TodoItem) =>
+      item.kind === "Ticket" && showsDetailOnCard(byItem.get(item.id) ?? null, globalDefault);
+  });
 
   const loadFieldValues = Effect.fnUntraced(function* (id: string) {
     const item = yield* items.requireActive(id);
@@ -416,13 +443,12 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     const tree = yield* loadAreaTree(projectId, folderId);
     const effective = yield* readEffectiveSettings(settings, tree.projectId);
     const now = yield* operationTime;
-    const itemTypes = yield* lookups.itemTypes.list();
     const priorityLevels = yield* lookups.priorityLevels.list();
+    const showsDetail = yield* readDetailOnCard(tree.projectId, tree.folderId);
     return {
       projectId: tree.projectId,
       folderId: tree.folderId,
-      items: projectAreaItems(tree, effective, now, timeZone),
-      itemTypes,
+      items: projectAreaItems(tree, effective, now, timeZone, showsDetail),
       priorityLevels,
       statuses: yield* statuses.list(),
       settings: effective,
@@ -435,8 +461,9 @@ const make = Effect.fnUntraced(function* (timeZone: string) {
     ...pushBack,
     add,
     addTickets,
-    addComment,
     loadTicket,
+    findTicketByNumber,
+    setDetailOnCard,
     edit,
     setCompleted,
     setPriority,

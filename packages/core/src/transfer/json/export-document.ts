@@ -109,12 +109,10 @@ export interface TicketDocument {
   readonly dispatchedToId: string | null;
   readonly pendingPersonId: string | null;
   readonly ticketTypeId: string | null;
-}
-
-/** One entry of a ticket's comment log. */
-export interface CommentDocument {
-  readonly body: string | null;
-  readonly createdAtUtc: string | null;
+  /** The parent ticket's number as typed; missing in older files. */
+  readonly parentTicketNumber: string | null;
+  /** The card's Detail override; missing or null follows the global setting. */
+  readonly showDetailOnCard: boolean | null;
 }
 
 /** An item or sub-item. */
@@ -128,8 +126,6 @@ export interface ItemDocument {
   /** A ticket's notes; a ToDo writes none, and older files have none. */
   readonly notes: string | null;
   readonly ticketNumber: string | null;
-  readonly itemTypeId: string | null;
-  readonly itemType: string | null;
   readonly priorityLevelId: string | null;
   readonly priority: string | null;
   readonly statusId: string | null;
@@ -150,7 +146,6 @@ export interface ItemDocument {
   /** "Ticket" for a ticket; missing or null reads as a ToDo (§7.19). */
   readonly kind: string | null;
   readonly ticket: TicketDocument | null;
-  readonly comments: DocumentList<CommentDocument>;
 }
 
 /** A folder; `parentFolderId` is null for a top-level folder. */
@@ -202,7 +197,6 @@ export interface ExportDocument {
   readonly version: number | null;
   readonly exportedAtUtc: string | null;
   readonly scope: string | null;
-  readonly itemTypes: DocumentList<LookupDocument>;
   readonly priorityLevels: DocumentList<LookupDocument>;
   readonly statuses: DocumentList<LookupDocument>;
   readonly fields: DocumentList<FieldDocument>;

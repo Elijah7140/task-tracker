@@ -53,7 +53,6 @@ export const loadCsvImportContext = Effect.fnUntraced(function* (
   const lookups = lookupRepository(sql);
   const fields = fieldRepository(sql);
   const context: CsvImportContext = {
-    itemTypes: yield* lookups.itemTypes.list(),
     priorityLevels: yield* lookups.priorityLevels.list(),
     statuses: yield* statusRepository(sql).list(),
     fields: csvImportFields(yield* fields.definitions.list(), target.projectId),
@@ -77,7 +76,6 @@ function itemOf(
     sortOrder,
     ...importedItemText(row.kind, row.description, row.notes),
     ticketNumber: row.ticketNumber,
-    itemTypeId: row.itemTypeId,
     priorityLevelId: row.priorityLevelId,
     dueDate: row.dueDate,
     dueTime: row.dueTime,
@@ -146,7 +144,9 @@ export const writeCsvRows = Effect.fnUntraced(function* (
   yield* Effect.forEach(values, itemFieldValueRepository(sql).upsert, { discard: true });
   yield* Effect.forEach(links, itemLinkRepository(sql).insert, { discard: true });
   const tickets = rows.flatMap((row, index) =>
-    row.ticket === null ? [] : [{ ...row.ticket, itemId: items[index]!.id }],
+    row.ticket === null
+      ? []
+      : [{ ...row.ticket, itemId: items[index]!.id, showDetailOnCard: null }],
   );
   yield* Effect.forEach(tickets, ticketDetailRepository(sql).upsert, { discard: true });
   yield* appendNewTickets(

@@ -70,7 +70,7 @@ it.effect("Moves a ToDo's description into its notes and keeps a ticket's detail
       mappingsBefore,
     );
     expect(yield* sql`PRAGMA integrity_check`).toEqual([{ integrity_check: "ok" }]);
-    expect(yield* sql.withTransaction(inspectSchema)).toEqual({ efStage: 0, effectStage: 16 });
+    expect(yield* sql.withTransaction(inspectSchema)).toEqual({ efStage: 0, effectStage: 17 });
   }).pipe(withDatabase),
 );
 

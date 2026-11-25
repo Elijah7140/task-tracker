@@ -86,11 +86,7 @@ export class ItemValidator {
   }
 
   #validateLookups(item: ItemDocument, path: string): void {
-    const hasType = item.itemTypeId !== null || !isBlank(item.itemType);
     const hasPriority = item.priorityLevelId !== null || !isBlank(item.priority);
-    if (hasType && this.index.findItemType(item) === undefined) {
-      this.issues.add(`${path}.itemType`, "The item type is not in this file's item types.");
-    }
     if (hasPriority && this.index.findPriority(item) === undefined) {
       this.issues.add(`${path}.priority`, "The priority is not in this file's priority levels.");
     }

@@ -21,7 +21,6 @@ import { importTicketLists } from "./ticket-list-import.js";
 
 function emptyPlan(): ImportPlan {
   return {
-    itemTypes: [],
     priorityLevels: [],
     statuses: [],
     projects: [],
@@ -35,7 +34,6 @@ function emptyPlan(): ImportPlan {
     savedSearches: [],
     ticketLists: [],
     ticketDetails: [],
-    comments: [],
   };
 }
 

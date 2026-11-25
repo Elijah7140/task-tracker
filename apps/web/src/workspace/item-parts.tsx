@@ -13,7 +13,6 @@ import type { ItemActions } from "./use-item-actions.js";
 
 /** Names and zone that item cards and rows resolve their references with. */
 export interface ItemRowLookups {
-  readonly typeName: (typeId: string | null) => string | null;
   readonly statuses: readonly (typeof StatusProjection.Type)[];
   readonly priorityName: (priorityId: string | null) => string | null;
   /** All priority levels, including archived ones, for the Set priority submenu. */
@@ -146,7 +145,6 @@ function describeItemNode(node: ItemNode, lookups: ItemRowLookups, date: ItemDat
   const state = node.item.completedAtUtc === null ? "Open" : "Completed";
   return [
     state,
-    lookups.typeName(node.item.itemTypeId),
     spokenStatus(state, statusName(node, lookups)),
     node.item.ticketNumber,
     lookups.priorityName(node.item.priorityLevelId),
@@ -161,7 +159,7 @@ function describeItemNode(node: ItemNode, lookups: ItemRowLookups, date: ItemDat
 
 /**
  * The hidden description a card's or row's tree item points to with `aria-describedby`:
- * state, type, status, ticket, priority, date, urgency with its source, and the repeat rule.
+ * state, status, ticket, priority, date, urgency with its source, and the repeat rule.
  */
 export function ItemDescription({
   node,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { formatStjDouble, type ItemQuery } from "@task-tracker/core";
 import { Effect } from "effect";
 import { createProject, folderNamed, seed, seedDocument } from "./csv-setup.js";
+import { csvHeader, withoutTypeColumn, withoutTypePreview } from "./dropped-item-types.js";
 import { withoutScheduleColumns, withoutSchedulePreview } from "./dropped-schedule.js";
 import { projectId } from "./transfer-rows.js";
 import { fixturePath, seededWorld, type TransferWorld } from "./transfer-world.js";
@@ -10,14 +11,17 @@ import { fixturePath, seededWorld, type TransferWorld } from "./transfer-world.j
 /** A CSV fixture's bytes, as legacy-final wrote or read them. */
 const csvFixture = (name: string) => readFileSync(fixturePath(`csv/${name}`));
 
-/** What legacy-final wrote, without the item schedule that §7.4 removed. */
-const legacyCsv = (name: string) => withoutScheduleColumns(csvFixture(name).toString("utf8"));
+/** What legacy-final wrote, without the item schedule (§7.4) and item types (§12) since removed. */
+const legacyCsv = (name: string) =>
+  withoutTypeColumn(withoutScheduleColumns(csvFixture(name).toString("utf8")));
 
 const jsonFixture = <T>(name: string) => JSON.parse(csvFixture(name).toString("utf8")) as T;
 
 /** What legacy-final previewed and imported for one input file. */
 interface LegacyOutcome {
-  readonly preview: Parameters<typeof withoutSchedulePreview>[0] & Record<string, unknown>;
+  readonly preview: Parameters<typeof withoutSchedulePreview>[0] &
+    Parameters<typeof withoutTypePreview>[0] &
+    Record<string, unknown>;
   readonly imported: number | null;
 }
 
@@ -135,7 +139,11 @@ describe("Legacy CSV compatibility", () => {
       seededWorld((world) =>
         Effect.gen(function* () {
           const outcome = jsonFixture<LegacyOutcome>(`legacy-${name}.json`);
-          const legacy = { ...outcome, preview: withoutSchedulePreview(outcome.preview) };
+          const header = csvHeader(csvFixture(input).toString("utf8"));
+          const legacy = {
+            ...outcome,
+            preview: withoutTypePreview(withoutSchedulePreview(outcome.preview), header),
+          };
           const billing = yield* projectId(world, "Billing");
           const folder =
             name === "import-folder" ? yield* folderNamed(world, billing, "Tables") : null;

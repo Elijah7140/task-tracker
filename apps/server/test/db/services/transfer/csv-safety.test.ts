@@ -42,7 +42,7 @@ const onlyItem = (world: TransferWorld, project: string) =>
   });
 
 describe("CSV header collisions", () => {
-  it.effect("Suffixes a custom field named like a fixed column and re-imports the export", () =>
+  it.effect("Suffixes a custom field named like a fixed or retired column and re-imports it", () =>
     emptyWorld((world) =>
       Effect.gen(function* () {
         const fields = [
@@ -52,7 +52,6 @@ describe("CSV header collisions", () => {
         const item = {
           title: "Colliding",
           ticketNumber: "T-1",
-          itemTypeId: BUILT_IN.change,
           priorityLevelId: BUILT_IN.high,
           fieldValues: [
             { fieldKey: "type", text: "custom kind" },
@@ -60,7 +59,6 @@ describe("CSV header collisions", () => {
           ],
         };
         const lookups = {
-          itemTypes: [{ id: BUILT_IN.change, name: "Change", isArchived: false, sortOrder: 0 }],
           priorityLevels: [{ id: BUILT_IN.high, name: "High", isArchived: false, sortOrder: 1 }],
         };
         const document = seedDocument([{ name: "Source", items: [item] }], fields, lookups);
@@ -74,7 +72,7 @@ describe("CSV header collisions", () => {
         const target = yield* createProject(world, "Target");
         expect(issuesOf(yield* world.importCsv(csv, target))).toEqual([]);
         const copy = yield* onlyItem(world, target);
-        expect(copy.item.ItemTypeId).toBe(BUILT_IN.change);
+        expect(copy.item.PriorityLevelId).toBe(BUILT_IN.high);
         expect(copy.item.TicketNumber).toBe("T-1");
         expect(copy.values).toEqual({ Type: "custom kind", TICKET: "custom ticket" });
       }),

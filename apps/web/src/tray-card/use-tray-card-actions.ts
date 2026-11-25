@@ -161,6 +161,7 @@ const UNOFFERED = {
   moveItemToArea: nothing,
   reorderByOffset: nothing,
   dropItem: nothing,
+  setDetailOnCard: nothing,
 } satisfies Partial<ItemActions>;
 
 /**

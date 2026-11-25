@@ -4,10 +4,10 @@ import { LookupService } from "../services/lookup-service.js";
 import { projectPriorityLevel } from "./priority-level-projection.js";
 import { mapOperationError } from "./map-operation-error.js";
 
-/** Bind workflow status, item type and priority level management to the lookup service. */
+/** Bind workflow status and priority level management to the lookup service. */
 export const lookupRpcHandlers = LookupRpcs.toLayer(
   Effect.gen(function* () {
-    const { itemTypes, priorityLevels, statuses } = yield* LookupService;
+    const { priorityLevels, statuses } = yield* LookupService;
     return LookupRpcs.of({
       ListStatuses: () => statuses.list().pipe(mapOperationError),
       AddStatus: ({ name, kind }) => statuses.add(name, kind).pipe(mapOperationError),
@@ -17,12 +17,6 @@ export const lookupRpcHandlers = LookupRpcs.toLayer(
       SetStatusInProgress: ({ id, isInProgress }) =>
         statuses.setInProgress(id, isInProgress).pipe(mapOperationError),
       ReorderStatuses: ({ ids }) => statuses.reorder(ids).pipe(mapOperationError),
-      ListItemTypes: () => itemTypes.list().pipe(mapOperationError),
-      AddItemType: ({ name }) => itemTypes.add(name).pipe(mapOperationError),
-      RenameItemType: ({ id, name }) => itemTypes.rename(id, name).pipe(mapOperationError),
-      ArchiveItemType: ({ id }) => itemTypes.archive(id).pipe(mapOperationError),
-      RestoreItemType: ({ id }) => itemTypes.restore(id).pipe(mapOperationError),
-      ReorderItemTypes: ({ ids }) => itemTypes.reorder(ids).pipe(mapOperationError),
       ListPriorityLevels: () =>
         priorityLevels.list().pipe(
           Effect.map((rows) => rows.map(projectPriorityLevel)),

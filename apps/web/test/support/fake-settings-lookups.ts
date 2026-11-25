@@ -1,6 +1,5 @@
 import {
   type GlobalSettings,
-  type ItemTypeProjection,
   NotFound,
   type PriorityLevelProjection,
   type ProjectSettingOverrides,
@@ -19,7 +18,6 @@ type Project = typeof ProjectSettings.Type;
 type Preview = typeof SettingsReconciliationPreview.Type;
 type Approval = typeof ReconciliationApproval.Type;
 type SaveResult = typeof SettingsSaveResult.Type;
-type ItemType = typeof ItemTypeProjection.Type;
 type PriorityLevel = typeof PriorityLevelProjection.Type;
 
 interface Disagreement {
@@ -52,36 +50,6 @@ const TICKS_PER_DAY = 24n * TICKS_PER_HOUR;
 const DEFAULT_YELLOW = String(3n * TICKS_PER_DAY);
 const DEFAULT_RED = String(TICKS_PER_DAY);
 const INVALID_THRESHOLDS = "Red threshold must be nonnegative and no greater than yellow.";
-
-const BUILT_IN_TYPES: ReadonlyArray<ItemType> = [
-  {
-    id: "019A0000-0000-7000-8000-000000000001",
-    name: "Change",
-    colorKey: null,
-    iconKey: null,
-    isBuiltIn: true,
-    isArchived: false,
-    sortOrder: 0,
-  },
-  {
-    id: "019A0000-0000-7000-8000-000000000002",
-    name: "Error",
-    colorKey: null,
-    iconKey: null,
-    isBuiltIn: true,
-    isArchived: false,
-    sortOrder: 1,
-  },
-  {
-    id: "019A0000-0000-7000-8000-000000000003",
-    name: "Discussion",
-    colorKey: null,
-    iconKey: null,
-    isBuiltIn: true,
-    isArchived: false,
-    sortOrder: 2,
-  },
-];
 
 /** The seeded levels, with the IDs that seeded items use (`FAKE_LOOKUPS`), as on the real server. */
 const BUILT_IN_PRIORITIES: ReadonlyArray<PriorityLevel> = [
@@ -272,8 +240,8 @@ export class FakeSettingsAndLookups {
     autoHideCompleted: true,
     urgencyColors: { approaching: null, overdue: null },
     trayCard: { size: "Full", showItems: true },
+    showTicketDetailOnCards: true,
   };
-  itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
   readonly reconciledProjects: Array<ReconciledProject> = [];
   private readonly projectOverrides = new Map<string, Overrides>();
@@ -355,21 +323,6 @@ export class FakeSettingsAndLookups {
     };
   }
 
-  /** Seeds a custom item type before or during a test. */
-  addItemTypeSeed(name: string, options?: { readonly isArchived?: boolean }): ItemType {
-    const row: ItemType = {
-      id: this.nextId(),
-      name,
-      colorKey: null,
-      iconKey: null,
-      isBuiltIn: false,
-      isArchived: options?.isArchived ?? false,
-      sortOrder: this.itemTypes.length,
-    };
-    this.itemTypes.push(row);
-    return row;
-  }
-
   /** Seeds a custom priority level before or during a test. */
   addPriorityLevelSeed(
     name: string,
@@ -388,14 +341,6 @@ export class FakeSettingsAndLookups {
     };
     this.priorityLevels.push(row);
     return row;
-  }
-
-  /** Returns item type names in current sort order. */
-  itemTypeNames(includeArchived = false): ReadonlyArray<string> {
-    return this.itemTypes
-      .filter((row) => includeArchived || !row.isArchived)
-      .toSorted((a, b) => a.sortOrder - b.sortOrder)
-      .map((row) => row.name);
   }
 
   /** Returns priority level names in current sort order. */
@@ -484,10 +429,13 @@ export class FakeSettingsAndLookups {
     const urgencyColors = next.urgencyColors ?? this.globalSettings.urgencyColors;
     const autoHideCompleted = next.autoHideCompleted ?? this.globalSettings.autoHideCompleted;
     const trayCard = next.trayCard ?? this.globalSettings.trayCard;
+    const showTicketDetailOnCards =
+      next.showTicketDetailOnCards ?? this.globalSettings.showTicketDetailOnCards;
     this.globalSettings = {
       ...next,
       ...(trayCard === undefined ? {} : { trayCard }),
       ...(autoHideCompleted === undefined ? {} : { autoHideCompleted }),
+      ...(showTicketDetailOnCards === undefined ? {} : { showTicketDetailOnCards }),
       ...(urgencyColors === undefined ? {} : { urgencyColors }),
       ...(addOpensDetails === undefined ? {} : { addOpensDetails }),
       ...(reminders === undefined ? {} : { reminders }),
@@ -700,25 +648,6 @@ export function settingsAndLookupHandlers(
   record: (tag: string) => Effect.Effect<unknown>,
 ) {
   const data = store.settingsAndLookups;
-  const types = createLookupOps<ItemType>(
-    "ItemType",
-    "item type",
-    () => data.itemTypes,
-    (next) => {
-      data.itemTypes = next;
-    },
-    (name, sortOrder) => ({
-      id: store.nextId(),
-      name,
-      colorKey: null,
-      iconKey: null,
-      isBuiltIn: false,
-      isArchived: false,
-      sortOrder,
-    }),
-    true,
-    record,
-  );
   const levels = createLookupOps<PriorityLevel>(
     "PriorityLevel",
     "priority level",
@@ -753,12 +682,6 @@ export function settingsAndLookupHandlers(
   );
   return {
     ...settingsHandlers(store, record),
-    ListItemTypes: types.list,
-    AddItemType: types.add,
-    RenameItemType: types.rename,
-    ArchiveItemType: types.archive,
-    RestoreItemType: types.restore,
-    ReorderItemTypes: types.reorder,
     ListPriorityLevels: levels.list,
     ArchivePriorityLevel: levels.archive,
     ReorderPriorityLevels: levels.reorder,

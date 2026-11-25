@@ -57,40 +57,52 @@ describe("buildAddPayload", () => {
     ]);
   });
 
-  it("Sends no ticket fields for a ToDo and keeps its type and due time", () => {
+  it("Sends no ticket fields for a ToDo, not even a ticket number, and keeps its due time", () => {
     const result = buildAddPayload(
       "Todo",
       draft({
         title: "Meet",
-        itemTypeId: "type",
         dueDate: "2026-11-27",
         dueTime: "10:00",
         moduleId: "module",
         parentItemId: "parent",
+        ticketNumber: "JIRA-1",
+        parentTicketNumber: "385400",
       }),
     );
 
     expect(result.ok && result.ticket).toBeUndefined();
+    expect(result.ok && result.fields.ticketNumber).toBeNull();
     expect(result.ok && result.parentItemId).toBe("parent");
     expect(result.ok && result.fields).toMatchObject({
-      itemTypeId: "type",
       dueDate: "2026-11-27",
       dueTime: "10:00:00",
     });
     expect(result.ok && result.fields).not.toHaveProperty("scheduledStart");
   });
 
-  it("Drops the type from a ticket", () => {
+  it("Sends a ticket's typed parent ticket number apart from its place in the tree", () => {
     const result = buildAddPayload(
       "Ticket",
       draft({
         ticketNumber: "1",
         title: "T",
-        itemTypeId: "type",
+        parentTicketNumber: " 385400 ",
       }),
     );
+    const blank = buildAddPayload("Ticket", draft({ ticketNumber: "2", title: "U" }));
 
-    expect(result.ok && result.fields).toMatchObject({ itemTypeId: null });
+    expect(result.ok && result.ticket?.parentTicketNumber).toBe("385400");
     expect(result.ok && result.parentItemId).toBeNull();
+    expect(result.ok && result.fields).not.toHaveProperty("itemTypeId");
+    expect(blank.ok && blank.ticket?.parentTicketNumber).toBeNull();
+  });
+
+  it("Starts a ticket added under a ticket with that ticket's number as its parent", () => {
+    const under = emptyAddDraft("PARENT-ID", "385400");
+    const top = emptyAddDraft(null);
+
+    expect(under).toMatchObject({ parentItemId: "PARENT-ID", parentTicketNumber: "385400" });
+    expect(top).toMatchObject({ parentItemId: "", parentTicketNumber: "" });
   });
 });

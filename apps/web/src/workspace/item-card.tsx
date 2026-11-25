@@ -4,6 +4,7 @@ import { Ticket } from "lucide-react";
 import { type MouseEvent, type PointerEvent, type ReactNode, useState } from "react";
 import { CardAddButton } from "./card-add-buttons.js";
 import { CardNotes } from "./card-notes.js";
+import { MarkdownPreview } from "../editor/markdown-preview.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { ItemMenuItems } from "./item-menu-items.js";
@@ -23,7 +24,6 @@ import {
 } from "./item-parts.js";
 import { ItemStatusChip } from "./item-status-chip.js";
 import { useItemSurface } from "./item-surface.js";
-import { ItemTypeIcon } from "./item-type-icon.js";
 import { type Urgency, UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
@@ -100,18 +100,16 @@ function CardMetadata({
   readonly lookups: ItemRowLookups;
   readonly date: ItemDate;
 }) {
-  const typeName = lookups.typeName(node.item.itemTypeId);
   const source = urgencySourceTitle(node, lookups);
   const urgency = node.displayedUrgency.value;
   const DateIcon = date?.icon;
   const repeat = repeatSummary(node);
-  const empty = typeName === null && node.item.ticketNumber === null && date === null;
+  const empty = node.item.ticketNumber === null && date === null;
   if (empty && urgency === "None" && repeat === null) {
     return null;
   }
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-6.5 text-xs text-fg-muted">
-      {typeName === null ? null : <ItemTypeIcon name={typeName} />}
       {node.item.ticketNumber === null ? null : (
         <span data-testid="item-ticket" className="inline-flex items-center gap-1 tabular-nums">
           {node.item.kind === "Ticket" ? (
@@ -204,6 +202,27 @@ function CardActions(props: ItemCardProps) {
   );
 }
 
+/**
+ * The ticket's Detail as rendered Markdown above its notes, when the card shows it (§7.17).
+ * The whole text shows; the card grows to fit it.
+ */
+function CardDetail({ node }: { readonly node: ItemNode }) {
+  return (
+    <div data-testid="item-card-detail" className="px-1 py-0.5">
+      <MarkdownPreview
+        source={node.item.description ?? ""}
+        testId="item-card-detail-preview"
+        className="text-xs text-fg"
+      />
+    </div>
+  );
+}
+
+/** Whether the card shows its ticket's Detail: the ticket's choice or the setting, and text. */
+function showsDetail(node: ItemNode) {
+  return node.showsDetailOnCard && !isBlankText(node.item.description ?? "");
+}
+
 /** True when a pointer or click event started on the card itself rather than a nested row. */
 function isOwnEvent(event: MouseEvent<HTMLElement>) {
   return (event.target as Element).closest("[data-item-row-id]") === event.currentTarget;
@@ -238,9 +257,9 @@ function CardAddLine({ node, actions }: Pick<ItemCardProps, "node" | "actions">)
 
 /**
  * A top-level item as a workspace card (§7.17): an urgency-tinted header with the completion
- * button, a title of up to three lines, the status chip and a line with the type, ticket, date
- * and urgency. The body reads like a dotted list: the Markdown notes, every descendant nested
- * under its parent, and an add line at the bottom.
+ * button, a title of up to three lines, the status chip and a line with the ticket, date and
+ * urgency. The body reads like a dotted list: a ticket's Detail when the card shows it, the
+ * Markdown notes, every descendant nested under its parent, and an add line at the bottom.
  */
 export function ItemCard(props: ItemCardProps) {
   const { node, selected, canIndent, hasFolders, dragging, dropIndicator, lookups, actions } =
@@ -249,7 +268,8 @@ export function ItemCard(props: ItemCardProps) {
   const hasNotes = !isBlankText(node.item.notes ?? "");
   const open = !node.isFinished;
   const addLine = open && props.addLine !== false;
-  const hasBody = hasNotes || open || props.children !== undefined;
+  const detail = showsDetail(node);
+  const hasBody = detail || hasNotes || open || props.children !== undefined;
   const surface = useItemSurface();
   return (
     <ContextMenu.Root disabled={surface === "tray"}>
@@ -288,6 +308,7 @@ export function ItemCard(props: ItemCardProps) {
         </div>
         {hasBody ? (
           <div className="flex flex-1 flex-col gap-1 px-2 py-2">
+            {detail ? <CardDetail node={node} /> : null}
             {hasNotes || open ? (
               <CardNotes
                 title={node.item.title}

@@ -14,6 +14,7 @@ import {
   editItemAtom,
   restoreItemsAtom,
   setItemCompletedAtom,
+  setTicketDetailOnCardAtom,
 } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
@@ -140,14 +141,12 @@ function useCreateItemActions(scope: ItemActionScope) {
 
 /** The built-in fields EditItem takes, copied from the item with `changes` applied. */
 export function editedFields(item: ItemNode["item"], changes: Partial<typeof ItemEdit.Type>) {
-  const { title, description, notes, ticketNumber, itemTypeId, priorityLevelId, dueDate, dueTime } =
-    item;
+  const { title, description, notes, ticketNumber, priorityLevelId, dueDate, dueTime } = item;
   const fields = {
     title,
     description,
     notes,
     ticketNumber,
-    itemTypeId,
     priorityLevelId,
     dueDate,
     dueTime,
@@ -198,6 +197,24 @@ function useSaveNotes(scope: ItemActionScope) {
       return true;
     }
     return editFields(node, { notes: saved });
+  };
+}
+
+/**
+ * Shows or hides a ticket's Detail on its card from the card menu (§7.17), as one undoable
+ * step, then returns focus to the card.
+ */
+function useSetDetailOnCard(scope: ItemActionScope) {
+  const setDetail = useAtomSet(setTicketDetailOnCardAtom, { mode: "promiseExit" });
+  const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId)];
+  return async (node: ItemNode, show: boolean) => {
+    const exit = await setDetail({
+      payload: { itemId: node.item.id, show },
+      reactivityKeys: keys,
+    });
+    if (await reportItemFailure(exit)) {
+      scope.onFocusItem({ id: node.item.id, afterNodes: scope.items });
+    }
   };
 }
 
@@ -356,6 +373,7 @@ export function useItemActions(scope: ItemActionScope) {
     addSubItem: once("addSubItem", addSubItem),
     addOutlineItem,
     saveNotes: useSaveNotes(scope),
+    setDetailOnCard: once("setDetailOnCard", useSetDetailOnCard(scope)),
     renameItem: once("renameItem", useRenameItem(scope)),
     setPriority: once("setPriority", useSetPriority(scope)),
     toggleComplete: once("toggleComplete", useToggleComplete(scope)),

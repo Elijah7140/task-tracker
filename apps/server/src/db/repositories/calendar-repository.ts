@@ -14,7 +14,6 @@ const CalendarCandidateRow = Schema.Struct({
   projectId: Guid,
   folderId: Schema.NullOr(Guid),
   title: Schema.String,
-  itemTypeId: Schema.NullOr(Guid),
   priorityLevelId: Schema.NullOr(Guid),
   statusId: Schema.NullOr(Guid),
   dueDate: DateText,
@@ -37,7 +36,6 @@ const LocationRow = Schema.Struct({
 type Candidate = typeof CalendarCandidateRow.Type;
 
 interface LookupNames {
-  readonly types: ReadonlyMap<string, string>;
   readonly priorities: ReadonlyMap<string, string>;
   readonly statuses: ReadonlyMap<string, string>;
 }
@@ -54,7 +52,6 @@ function createEntry(item: Candidate, lookups: LookupNames): CalendarEntry {
     isCompleted: item.completedAtUtc !== null,
     dueDate: item.dueDate,
     dueTime: item.dueTime,
-    itemType: item.itemTypeId === null ? null : (lookups.types.get(item.itemTypeId) ?? null),
     priority:
       item.priorityLevelId === null ? null : (lookups.priorities.get(item.priorityLevelId) ?? null),
     statusId: item.statusId,
@@ -88,7 +85,6 @@ const candidateColumns = (sql: SqlClient.SqlClient) => sql`
   i.ProjectId AS projectId,
   i.FolderId AS folderId,
   i.Title AS title,
-  i.ItemTypeId AS itemTypeId,
   i.PriorityLevelId AS priorityLevelId,
   i.StatusId AS statusId,
   i.DueDate AS dueDate,
@@ -119,12 +115,6 @@ const candidateQuery = (sql: SqlClient.SqlClient, bounds: CandidateBounds) => sq
 
 /** Queries active items due in a calendar range and resolves active item locations. */
 export function calendarRepository(sql: SqlClient.SqlClient) {
-  const selectTypes = SqlSchema.findAll({
-    Request: Schema.Void,
-    Result: NamedRow,
-    execute: () => sql`SELECT Id AS id, Name AS name FROM ItemType`,
-  });
-
   const selectPriorities = SqlSchema.findAll({
     Request: Schema.Void,
     Result: PriorityRow,
@@ -154,14 +144,12 @@ export function calendarRepository(sql: SqlClient.SqlClient) {
   });
 
   const load = Effect.fnUntraced(function* (query: CalendarQuery) {
-    const [candidates, typeRows, priorityRows, statusRows] = yield* Effect.all([
+    const [candidates, priorityRows, statusRows] = yield* Effect.all([
       selectCandidates(candidateBounds(query)),
-      selectTypes(),
       selectPriorities(),
       selectStatuses(),
     ]);
     const lookups: LookupNames = {
-      types: new Map(typeRows.map((row) => [row.id, row.name])),
       priorities: new Map(
         priorityRows.map((row) => [row.id, priorityLabel({ name: row.name, number: row.number })]),
       ),

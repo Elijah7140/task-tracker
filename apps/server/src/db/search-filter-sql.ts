@@ -48,8 +48,6 @@ function builtInFilter(filter: FieldFilter, bind: BindParameter): string {
       return textFilter("t.Title", filter, bind);
     case "ticket":
       return textFilter("t.TicketNumber", filter, bind);
-    case "type":
-      return scalarFilter("t.ItemTypeId", filter, bind);
     case "priority":
       return priorityFilter(filter, bind);
     case "due":
@@ -80,7 +78,9 @@ const TICKET_ENTRY_COLUMNS: Readonly<Record<string, string>> = {
   tickettype: "TicketTypeId",
 };
 
-const COMMENTS = "SELECT 1 FROM TicketComment c WHERE c.ItemId = t.Id";
+/** The parent ticket number typed on a ticket (§7.19). */
+const PARENT_TICKET_NUMBER =
+  "(SELECT d.ParentTicketNumber FROM TicketDetail d WHERE d.ItemId = t.Id)";
 
 /** The item kind and the fixed ticket fields; a ToDo has none of the ticket values (§7.19). */
 function ticketFilter(filter: FieldFilter, bind: BindParameter): string {
@@ -92,8 +92,8 @@ function ticketFilter(filter: FieldFilter, bind: BindParameter): string {
   switch (filter.fieldKey) {
     case "kind":
       return textFilter("t.ItemKind", filter, bind);
-    case "comment":
-      return commentFilter(filter, bind);
+    case "parentticket":
+      return textFilter(PARENT_TICKET_NUMBER, filter, bind);
     default:
       throw new Error(`Unknown built-in search field '${filter.fieldKey}'.`);
   }
@@ -219,17 +219,6 @@ function reminderFilter(filter: FieldFilter): string {
     return `NOT (${REMINDER_ELIGIBLE_SQL})`;
   }
   throw new Error("The reminder field only supports presence tests.");
-}
-
-/** Matches tickets with a comment containing or equal to the text, case-insensitively. */
-function commentFilter(filter: FieldFilter, bind: BindParameter): string {
-  if (filter.operator === "isEmpty") {
-    return `NOT EXISTS (${COMMENTS})`;
-  }
-  if (filter.operator === "isNotEmpty") {
-    return `EXISTS (${COMMENTS})`;
-  }
-  return `EXISTS (${COMMENTS} AND ${textFilter("c.Body", filter, bind)})`;
 }
 
 /** Matches items with a link whose address or title contains the text, case-insensitively. */

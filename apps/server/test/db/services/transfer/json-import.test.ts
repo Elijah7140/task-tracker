@@ -49,7 +49,6 @@ describe("JSON import", () => {
         expect(result).toMatchObject({ kind: "imported", backupPath: "backup-1.db.bak" });
         expect(after.Project).toBe(before.Project! + 3);
         expect(after.TodoItem).toBe(before.TodoItem! + exportedItemCount(json));
-        expect(after.ItemType).toBe(before.ItemType);
         expect(after.FieldDefinition).toBe(before.FieldDefinition! + 1);
         expect((yield* readItems(world, billing)).map((item) => item.UpdatedAtUtc)).toEqual(
           original.map((item) => item.UpdatedAtUtc),
@@ -117,8 +116,6 @@ describe("JSON import", () => {
       const json = yield* exportSeed;
       yield* emptyWorld((world) =>
         Effect.gen(function* () {
-          yield* world.sql`INSERT INTO ItemType (Id, Name, IsBuiltIn, IsArchived, SortOrder)
-            VALUES ('019A0000-0000-7000-8000-0000000AA001', 'SPIKE', 0, 0, 3)`;
           yield* world.sql`INSERT INTO FieldDefinition (Id, Key, DisplayName, DataType, IsArchived, SortOrder)
             VALUES ('019A0000-0000-7000-8000-0000000AA002', 'severity', 'Severity', 'Choice', 0, 0)`;
           yield* world.sql`INSERT INTO FieldChoice (Id, FieldDefinitionId, Label, IsArchived, SortOrder)
@@ -127,12 +124,7 @@ describe("JSON import", () => {
           const result = yield* world.importJson(json);
 
           expect(result.kind).toBe("imported");
-          const types = yield* readLookups(world, "ItemType");
-          expect(types.filter((type) => type.Name.toLowerCase() === "spike")).toHaveLength(1);
           const billing = yield* projectId(world, "Billing");
-          expect((yield* itemNamed(world, billing, "Add index")).ItemTypeId).toBe(
-            "019A0000-0000-7000-8000-0000000AA001",
-          );
           expect(
             (yield* readFields(world)).filter((field) => field.Key === "severity"),
           ).toHaveLength(1);
@@ -286,15 +278,13 @@ describe("JSON import", () => {
           const major = (yield* readChoices(world, severity.Id)).find(
             (choice) => choice.Label === "Major",
           )!;
-          const spike = (yield* readLookups(world, "ItemType")).find(
-            (type) => type.Name === "Spike",
-          )!;
           const searches = yield* readSavedSearches(world);
           const openMajor = searches.find((search) => search.Name === "Open major")!;
           expect(openMajor.QueryText).toBe(`severity:#${major.Id.toLowerCase()}`);
           expect(openMajor.ProjectId).toBe(billing);
-          expect(searches.find((search) => search.Name === "Spikes")?.QueryText).toBe(
-            `type:#${spike.Id.toLowerCase()}`,
+          // Item types were removed (§12): a search naming one keeps the file's text unmapped.
+          expect(searches.find((search) => search.Name === "Spikes")?.QueryText).toMatch(
+            /^type:#[0-9a-f-]{36}$/,
           );
           const tables = searches.find((search) => search.Name === "Tables only")!;
           const folders = yield* readRows<{ Id: string; Name: string }>(
@@ -411,7 +401,8 @@ describe("JSON import", () => {
 
           const billing = yield* projectId(world, "Billing");
           const fix = yield* itemNamed(world, billing, "Fix invoice totals");
-          expect([fix.ItemTypeId, fix.PriorityLevelId]).toEqual([BUILT_IN.change, BUILT_IN.high]);
+          expect(fix.PriorityLevelId).toBe(BUILT_IN.high);
+          expect(fix).not.toHaveProperty("ItemTypeId");
         }),
       );
     }),

@@ -39,7 +39,6 @@ const node = (
     description: null,
     notes: null,
     ticketNumber: null,
-    itemTypeId: null,
     priorityLevelId: null,
     dueDate: null,
     dueTime: null,
@@ -55,6 +54,7 @@ const node = (
   ownUrgency: "None",
   displayedUrgency: { value: "None", sourceDescendantId: null },
   isFinished: options.isFinished ?? false,
+  showsDetailOnCard: false,
   children: options.children ?? EMPTY_SIBLINGS,
 });
 

@@ -29,8 +29,6 @@ function builtInValue(item: Item, key: string, context: FakeFilterContext): Valu
       return item.title;
     case "ticket":
       return item.ticketNumber;
-    case "type":
-      return item.itemTypeId;
     case "priority":
       return item.priorityLevelId;
     case "due":

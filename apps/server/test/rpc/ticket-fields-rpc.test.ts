@@ -49,7 +49,6 @@ const fields = {
   title: "Employee training conversion data is not correct",
   description: "Going to use a manual sheet import.",
   ticketNumber: "385405",
-  itemTypeId: null,
   priorityLevelId: null,
   dueDate: "2026-11-27",
   dueTime: null,
@@ -63,12 +62,13 @@ const noTicketFields = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
+  parentTicketNumber: null,
 };
 
 it.effect("Adds a ticket with list entries, reads it back and logs a comment over RPC", () =>
   withItemRpc(
     Effect.gen(function* () {
-      const { client, area } = yield* setup;
+      const { client, area, projectId } = yield* setup;
       const app = yield* client.AddTicketListEntry({
         listKind: "Application",
         parentId: null,
@@ -85,12 +85,18 @@ it.effect("Adds a ticket with list entries, reads it back and logs a comment ove
         parentItemId: null,
         kind: "Ticket",
         fields,
-        ticket: { ...noTicketFields, moduleId: module.id },
+        ticket: { ...noTicketFields, moduleId: module.id, parentTicketNumber: "385400" },
       });
-      const comment = yield* client.AddTicketComment({
-        itemId: ticket.id,
-        body: "Expecting next week.",
+      const parent = yield* client.AddItem({
+        ...area,
+        parentItemId: null,
+        kind: "Ticket",
+        fields: { ...fields, ticketNumber: "385400", title: "Parent" },
       });
+      const found = yield* client.FindTicketByNumber({ ticketNumber: "385400" });
+      const missing = yield* client.FindTicketByNumber({ ticketNumber: "999999" });
+      yield* client.SetTicketDetailOnCard({ itemId: ticket.id, show: false });
+      const snapshot = yield* client.LoadArea(area);
       const loaded = yield* client.LoadTicket({ itemId: ticket.id });
       const lists = yield* client.ListTicketListEntries();
 
@@ -105,10 +111,22 @@ it.effect("Adds a ticket with list entries, reads it back and logs a comment ove
           ...noTicketFields,
           applicationId: app.id,
           moduleId: module.id,
+          parentTicketNumber: "385400",
         },
-        comments: [comment],
       });
-      expect(comment.createdAtUtc).toBe("2026-11-13T12:00:00Z");
+      expect(found).toEqual({
+        itemId: parent.id,
+        projectId,
+        folderId: null,
+        title: "Parent",
+      });
+      expect(missing).toBeNull();
+      expect(
+        snapshot.items.open.map((node) => [node.item.ticketNumber, node.showsDetailOnCard]),
+      ).toEqual([
+        ["385405", false],
+        ["385400", true],
+      ]);
       expect(lists.map((entry) => entry.name)).toEqual(["ClockTower", "Train"]);
     }),
   ),

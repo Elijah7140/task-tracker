@@ -31,7 +31,6 @@ export interface ReplayRow {
 const subjects: Partial<Record<UndoTable, string>> = {
   Project: "project",
   Folder: "folder",
-  ItemType: "item type",
   PriorityLevel: "priority level",
   StatusLevel: "status",
   FieldDefinition: "field",
@@ -41,7 +40,6 @@ const subjects: Partial<Record<UndoTable, string>> = {
   SavedSearch: "saved search",
   TicketListEntry: "list entry",
   TicketDetail: "ticket",
-  TicketComment: "comment",
 };
 
 const subject = (table: UndoTable) => subjects[table] ?? "item";

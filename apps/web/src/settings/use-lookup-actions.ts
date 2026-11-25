@@ -6,28 +6,22 @@ import { reportFailure } from "../dialogs/report-failure.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
 import type { RpcFailure } from "../rpc/describe-rpc-failure.js";
 import {
-  addItemTypeAtom,
   addPriorityLevelAtom,
-  archiveItemTypeAtom,
   archivePriorityLevelAtom,
-  ITEM_TYPES_KEY,
   LOOKUPS_KEY,
   PRIORITY_LEVELS_KEY,
-  reorderItemTypesAtom,
   reorderPriorityLevelsAtom,
-  renameItemTypeAtom,
   renamePriorityLevelAtom,
-  restoreItemTypeAtom,
   restorePriorityLevelAtom,
   setPriorityNumberAtom,
 } from "../rpc/lookup-queries.js";
 import { notify, prompt } from "../state/dialog-store.js";
 import { moveActiveLookup, type OrderedLookup, swapActiveLookup } from "./lookup-order.js";
 
-/** Which lookup list is being edited. */
-export type LookupKind = "itemTypes" | "priorityLevels";
+/** Which lookup list is being edited. Item types were removed on 25 Nov 2026. */
+export type LookupKind = "priorityLevels";
 
-/** Shared shape of item types and priority levels rendered in lookup settings. */
+/** The shape of a priority level rendered in lookup settings. */
 export interface LookupItem extends OrderedLookup {
   readonly name: string;
   readonly isBuiltIn: boolean;
@@ -62,43 +56,35 @@ async function withPriorityNumber(text: string, save: (number: number | null) =>
   return false;
 }
 
-/** The add, rename, archive and restore RPC mutations for one lookup list. */
-function useLookupMutations(isItemType: boolean) {
+/** The add, rename, archive and restore RPC mutations for the priority list. */
+function useLookupMutations() {
   const options = { mode: "promiseExit" } as const;
   return {
-    addItemType: useAtomSet(addItemTypeAtom, options),
     addPriority: useAtomSet(addPriorityLevelAtom, options),
     setNumber: useAtomSet(setPriorityNumberAtom, options),
-    rename: useAtomSet(isItemType ? renameItemTypeAtom : renamePriorityLevelAtom, options),
-    archive: useAtomSet(isItemType ? archiveItemTypeAtom : archivePriorityLevelAtom, options),
-    restore: useAtomSet(isItemType ? restoreItemTypeAtom : restorePriorityLevelAtom, options),
+    rename: useAtomSet(renamePriorityLevelAtom, options),
+    archive: useAtomSet(archivePriorityLevelAtom, options),
+    restore: useAtomSet(restorePriorityLevelAtom, options),
   };
 }
 
 /** Saves `ids` as the new order, or resolves false without a request when nothing moved. */
-function useSaveOrder(isItemType: boolean, reactivityKeys: Array<string>) {
-  const reorder = useAtomSet(isItemType ? reorderItemTypesAtom : reorderPriorityLevelsAtom, {
-    mode: "promiseExit",
-  });
+function useSaveOrder(reactivityKeys: Array<string>) {
+  const reorder = useAtomSet(reorderPriorityLevelsAtom, { mode: "promiseExit" });
   return async (ids: ReadonlyArray<string> | null) =>
     ids === null ? false : runLookupMutation(() => reorder({ payload: { ids }, reactivityKeys }));
 }
 
 /**
- * Provides immediate add, rename, reorder, archive and restore mutations for
- * either item types or priority levels, showing server validation errors.
+ * Provides immediate add, rename, reorder, archive and restore mutations for the priority
+ * levels, showing server validation errors.
  */
-export function useLookupActions(kind: LookupKind) {
-  const isItemType = kind === "itemTypes";
-  const singular = isItemType ? "item type" : "priority level";
+export function useLookupActions(_kind: LookupKind) {
+  const singular = "priority level";
   // Every list change records an undo step, so the Edit menu label refreshes too.
-  const reactivityKeys = [
-    isItemType ? ITEM_TYPES_KEY : PRIORITY_LEVELS_KEY,
-    LOOKUPS_KEY,
-    HISTORY_KEY,
-  ];
-  const mutations = useLookupMutations(isItemType);
-  const saveOrder = useSaveOrder(isItemType, reactivityKeys);
+  const reactivityKeys = [PRIORITY_LEVELS_KEY, LOOKUPS_KEY, HISTORY_KEY];
+  const mutations = useLookupMutations();
+  const saveOrder = useSaveOrder(reactivityKeys);
 
   const rename = async (row: LookupItem) => {
     const name = await prompt({
@@ -117,13 +103,11 @@ export function useLookupActions(kind: LookupKind) {
 
   return {
     add: (name: string, numberText: string) =>
-      isItemType
-        ? runLookupMutation(() => mutations.addItemType({ payload: { name }, reactivityKeys }))
-        : withPriorityNumber(numberText, (number) =>
-            runLookupMutation(() =>
-              mutations.addPriority({ payload: { name, number }, reactivityKeys }),
-            ),
-          ),
+      withPriorityNumber(numberText, (number) =>
+        runLookupMutation(() =>
+          mutations.addPriority({ payload: { name, number }, reactivityKeys }),
+        ),
+      ),
     setNumber: (id: string, numberText: string) =>
       withPriorityNumber(numberText, (number) =>
         runLookupMutation(() => mutations.setNumber({ payload: { id, number }, reactivityKeys })),

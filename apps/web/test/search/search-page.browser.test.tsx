@@ -492,24 +492,26 @@ it("Lists every query error under the box, naming each token, and runs nothing",
   await expect.element(result("Audit Q4")).toBeVisible();
   const searches = () => store.calls.filter((call) => call === "SearchItems");
 
-  await enterQuery("ok tpye:error estimate:x");
+  await enterQuery("ok prioity:high estimate:x");
 
   await expect.element(queryErrors()).toHaveLength(2);
   await expect
     .element(queryErrors().first())
-    .toHaveTextContent(`Unknown field 'tpye'. Did you mean 'type'? (at "tpye:error", character 4)`);
+    .toHaveTextContent(
+      `Unknown field 'prioity'. Did you mean 'priority'? (at "prioity:high", character 4)`,
+    );
   await expect
     .element(queryErrors().nth(1))
     .toHaveTextContent(
-      `'x' is not a number. Write decimals with a dot, like 2.5. (at "estimate:x", character 15)`,
+      `'x' is not a number. Write decimals with a dot, like 2.5. (at "estimate:x", character 17)`,
     );
   await expect.element(searchInput()).toHaveAttribute("aria-invalid", "true");
-  await expect.element(searchInput()).toHaveValue("ok tpye:error estimate:x");
+  await expect.element(searchInput()).toHaveValue("ok prioity:high estimate:x");
   await expect.element(result("Audit Q4")).toBeVisible();
   expect(searches()).toHaveLength(1);
   await searchButton().click();
   expect(searches()).toHaveLength(1);
-  await enterQuery("ok type:error");
+  await enterQuery("ok priority:high");
   await expect.element(page.getByTestId("search-query-errors")).not.toBeInTheDocument();
   await expect.element(page.getByText("No items match")).toBeVisible();
   expect(store.search.queries.at(-1)?.text).toBe("ok");

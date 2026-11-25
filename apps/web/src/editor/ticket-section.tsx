@@ -1,10 +1,13 @@
 import { useAtomValue } from "@effect/atom-react";
+import { Input } from "@base-ui/react/input";
 import type { TicketDetailInput, TicketListEntryProjection } from "@task-tracker/contracts";
 import { useEffect } from "react";
 import { AsyncResult } from "effect/reactivity";
 import { entryOptions, moduleOptions, NO_ENTRY, parentOf } from "../add/ticket-list-options.js";
 import { ticketAtom, ticketListsAtom } from "../rpc/ticket-field-queries.js";
+import { fieldStyles } from "../ui/field-styles.js";
 import { Select, type SelectOption } from "../ui/select.js";
+import { type OpenGuard, ParentTicketButton } from "../workspace/parent-ticket-link.js";
 import { EditorField } from "./editor-field.js";
 import { EditorGroup } from "./editor-group.js";
 import {
@@ -21,6 +24,8 @@ export interface TicketSectionProps {
   /** The stored fields with the user's changes applied, or null while they load. */
   readonly texts: TicketTexts | null;
   readonly onChange: (change: Partial<TicketTexts>) => void;
+  /** Resolves unsaved edits before the paperclip opens the parent ticket. */
+  readonly openGuard?: OpenGuard | undefined;
 }
 
 function EntrySelect({
@@ -107,8 +112,37 @@ function LevelRows({
   );
 }
 
+/**
+ * The parent ticket's number as free text, with the paperclip that opens the ticket Task
+ * Tracker holds with that number (§7.19).
+ */
+function ParentTicketRow({
+  texts,
+  onChange,
+  openGuard,
+}: Pick<TicketSectionProps, "onChange" | "openGuard"> & { readonly texts: TicketTexts }) {
+  return (
+    <EditorField label="Parent ticket">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1">
+          <Input
+            aria-label="Parent ticket"
+            value={texts.parentTicketNumber}
+            onValueChange={(value: string) => onChange({ parentTicketNumber: value })}
+            data-testid="ticket-editor-parentTicketNumber"
+            autoComplete="off"
+            spellCheck={false}
+            className={fieldStyles.compactControl}
+          />
+          <ParentTicketButton ticketNumber={texts.parentTicketNumber} guard={openGuard} />
+        </div>
+      </div>
+    </EditorField>
+  );
+}
+
 /** The ticket's fixed fields in the editor's properties column (§7.19). */
-export function TicketSection({ texts, onChange }: TicketSectionProps) {
+export function TicketSection({ texts, onChange, openGuard }: TicketSectionProps) {
   const lists = useAtomValue(ticketListsAtom);
   const entries = AsyncResult.isSuccess(lists) ? lists.value : [];
   if (texts === null) {
@@ -119,6 +153,7 @@ export function TicketSection({ texts, onChange }: TicketSectionProps) {
   return (
     <EditorGroup title="Ticket" testId="item-editor-ticket-fields">
       <div className="flex flex-col gap-1.5">
+        <ParentTicketRow texts={texts} onChange={onChange} openGuard={openGuard} />
         <EntrySelect
           {...shared}
           label="Requestor"
@@ -158,15 +193,17 @@ export function TicketEditorSection({
   overrides,
   onChange,
   onStored,
+  openGuard,
 }: {
   readonly itemId: string;
   readonly overrides: TicketOverrides;
   readonly onChange: TicketSectionProps["onChange"];
   readonly onStored: (detail: typeof TicketDetailInput.Type | null) => void;
+  readonly openGuard?: OpenGuard | undefined;
 }) {
   const ticket = useAtomValue(ticketAtom(itemId));
   const stored = AsyncResult.isSuccess(ticket) ? ticket.value.detail : null;
   useEffect(() => onStored(stored), [stored, onStored]);
   const texts = stored === null ? null : { ...storedTicketTexts(stored), ...overrides };
-  return <TicketSection texts={texts} onChange={onChange} />;
+  return <TicketSection texts={texts} onChange={onChange} openGuard={openGuard} />;
 }

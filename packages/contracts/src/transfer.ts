@@ -86,7 +86,6 @@ export const CsvImportTarget = Schema.Struct({ projectId: Guid, folderId: Schema
 export const CsvPreviewRow = Schema.Struct({
   rowNumber: Schema.Int,
   title: Schema.String,
-  type: Schema.String,
   priority: Schema.String,
   dueDate: Schema.String,
   hasError: Schema.Boolean,

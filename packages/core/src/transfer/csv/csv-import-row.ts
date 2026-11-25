@@ -11,7 +11,6 @@ export interface CsvImportRow {
   /** The Notes cell: a ticket's notes. */
   readonly notes: string | null;
   readonly ticketNumber: string | null;
-  readonly itemTypeId: string | null;
   readonly priorityLevelId: string | null;
   readonly statusId: string | null;
   readonly dueDate: Temporal.PlainDate | null;

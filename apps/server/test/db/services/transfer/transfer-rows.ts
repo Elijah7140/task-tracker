@@ -8,7 +8,6 @@ export const countRows = (world: TransferWorld) =>
       "Project",
       "Folder",
       "TodoItem",
-      "ItemType",
       "PriorityLevel",
       "StatusLevel",
       "FieldDefinition",
@@ -60,7 +59,6 @@ export interface ItemRowValues {
   readonly Description: string | null;
   readonly TicketNumber: string | null;
   readonly TicketRank: number | null;
-  readonly ItemTypeId: string | null;
   readonly PriorityLevelId: string | null;
   readonly StatusId: string | null;
   readonly ReopenStatusId: string | null;
@@ -137,10 +135,7 @@ export const readSavedSearches = (world: TransferWorld) =>
   }>(world, "SELECT * FROM SavedSearch ORDER BY SortOrder, rowid");
 
 /** A lookup table's rows in sort order. */
-export const readLookups = (
-  world: TransferWorld,
-  table: "ItemType" | "PriorityLevel" | "StatusLevel",
-) =>
+export const readLookups = (world: TransferWorld, table: "PriorityLevel" | "StatusLevel") =>
   readRows<{
     Id: string;
     Name: string;

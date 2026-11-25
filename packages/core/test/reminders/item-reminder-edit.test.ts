@@ -13,7 +13,6 @@ function edit(source: TodoItem, overrides: Partial<ItemEdit> = {}): ItemEdit {
     title: source.title,
     description: source.description,
     ticketNumber: source.ticketNumber,
-    itemTypeId: source.itemTypeId,
     priorityLevelId: source.priorityLevelId,
     dueDate: source.dueDate,
     dueTime: source.dueTime,

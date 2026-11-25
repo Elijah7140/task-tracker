@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 import { Guid } from "./guid.js";
-import { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
+import { PriorityLevelProjection } from "./lookup-projection.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
 
 import { StatusKind, StatusProjection } from "./status-projection.js";
@@ -35,7 +35,7 @@ const lookupRpcs = <
     }),
   ] as const;
 
-/** Manage item types, priority levels and workflow statuses. Lists include archived rows in their order. */
+/** Manage priority levels and workflow statuses. Lists include archived rows in their order. */
 export const LookupRpcs = RpcGroup.make(
   Rpc.make("ListStatuses", { success: Schema.Array(StatusProjection), error: RpcOperationError }),
   Rpc.make("AddStatus", {
@@ -58,7 +58,6 @@ export const LookupRpcs = RpcGroup.make(
     payload: { ids: Schema.Array(Guid) },
     error: RpcOperationError,
   }),
-  ...lookupRpcs("ItemType", "ItemTypes", ItemTypeProjection, {}),
   ...lookupRpcs("PriorityLevel", "PriorityLevels", PriorityLevelProjection, {
     number: Schema.optionalKey(Schema.NullOr(Schema.Number)),
   }),

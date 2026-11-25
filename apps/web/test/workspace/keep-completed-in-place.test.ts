@@ -28,7 +28,6 @@ const node = (
     description: null,
     notes: null,
     ticketNumber: options.kind === "Ticket" ? "T-1" : null,
-    itemTypeId: null,
     priorityLevelId: null,
     dueDate: null,
     dueTime: null,
@@ -44,6 +43,7 @@ const node = (
   ownUrgency: "None",
   displayedUrgency: { value: "None", sourceDescendantId: null },
   isFinished: options.finished ?? false,
+  showsDetailOnCard: false,
   children: options.children ?? EMPTY_SIBLINGS,
 });
 

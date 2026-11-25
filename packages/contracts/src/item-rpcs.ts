@@ -10,12 +10,7 @@ import { RecurrenceRule } from "./recurrence-rule.js";
 import { ReminderChoice } from "./reminder.js";
 import { RpcOperationError } from "./rpc-operation-error.js";
 import { AddTicketsError, NewTicketInput } from "./ticket-batch.js";
-import {
-  ItemKind,
-  TicketCommentProjection,
-  TicketDetailInput,
-  TicketSnapshot,
-} from "./ticket-fields.js";
+import { ItemKind, TicketDetailInput, TicketLocation, TicketSnapshot } from "./ticket-fields.js";
 
 const area = { projectId: Guid, folderId: Schema.NullOr(Guid) };
 const areaItem = { ...area, itemId: Guid };
@@ -63,15 +58,24 @@ export const ItemRpcs = RpcGroup.make(
     success: Schema.Array(Item),
     error: AddTicketsError,
   }),
-  /** A ticket's fixed fields and comment log (§7.19). */
+  /** A ticket's fixed fields (§7.19). */
   Rpc.make("LoadTicket", {
     payload: { itemId: Guid },
     success: TicketSnapshot,
     error: RpcOperationError,
   }),
-  Rpc.make("AddTicketComment", {
-    payload: { itemId: Guid, body: Schema.String },
-    success: TicketCommentProjection,
+  /**
+   * The active item whose ticket number matches, a ticket before a ToDo and then the most
+   * recently updated, or null when Task Tracker holds none (§7.19).
+   */
+  Rpc.make("FindTicketByNumber", {
+    payload: { ticketNumber: Schema.String },
+    success: Schema.NullOr(TicketLocation),
+    error: RpcOperationError,
+  }),
+  /** Shows or hides a ticket's Detail on its card, as one undo step (§7.17). */
+  Rpc.make("SetTicketDetailOnCard", {
+    payload: { itemId: Guid, show: Schema.Boolean },
     error: RpcOperationError,
   }),
   Rpc.make("EditItem", {

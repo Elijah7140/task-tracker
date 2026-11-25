@@ -56,7 +56,6 @@ function fieldColumns(fields: readonly FieldDefinition[]): FieldColumn[] {
 
 /** Writes items as the flat CSV table of §7.9, using the catalogue to name what they reference. */
 class CsvExporter {
-  readonly #types: ReadonlyMap<string, string>;
   readonly #priorities: ReadonlyMap<string, ExportCatalogue["priorityLevels"][number]>;
   readonly #statuses: ReadonlyMap<string, string>;
   readonly #fields: ReadonlyMap<string, FieldDefinition>;
@@ -68,7 +67,6 @@ class CsvExporter {
     private readonly withTickets: boolean,
   ) {
     this.#entries = new Map(catalogue.ticketLists.map((entry) => [entry.id, entry.name]));
-    this.#types = new Map(catalogue.itemTypes.map((type) => [type.id, type.name]));
     this.#priorities = new Map(catalogue.priorityLevels.map((level) => [level.id, level]));
     this.#statuses = new Map(catalogue.statuses.map((status) => [status.id, status.name]));
     this.#fields = new Map(catalogue.fields.map((field) => [field.id, field]));
@@ -84,7 +82,6 @@ class CsvExporter {
       protectCsvCell(item.title),
       protectCsvCell((item.kind === "Ticket" ? item.description : item.notes) ?? ""),
       protectCsvCell(item.ticketNumber ?? ""),
-      lookup(this.#types, item.itemTypeId),
       protectCsvCell(priority === null ? "" : priorityLabel(priority)),
       protectCsvCell(writeCsvPriorityReference(priority)),
       lookup(this.#statuses, item.statusId),

@@ -18,7 +18,6 @@ import { settleTheme, THEMES } from "../support/screenshots.js";
 import { createTestClock } from "../support/test-clock.js";
 
 const SUB_ITEM = "Check query plan before/after";
-const LEGACY_TYPE_ID = "019A0000-0000-7000-8000-000000001900";
 const OLD_RANK_ID = "019A0000-0000-7000-8000-000000002900";
 
 const field = (label: string) => editor().getByLabelText(label, { exact: true });
@@ -36,13 +35,24 @@ describe("Item editor", () => {
 
       await openEditor();
 
-      await expect.element(field("Ticket number")).toHaveValue("JIRA-1234");
-      await expect.element(field("Type")).toHaveTextContent("Change");
       await expect.element(field("Priority")).toHaveTextContent("High");
       await expect.element(field("Due date")).toHaveValue("11/20/2026");
       await expect.element(field("Due time")).toHaveValue("");
       await expect.element(field("Notes")).toHaveValue("");
       await expect.element(editor().getByTestId("item-editor-description")).not.toBeInTheDocument();
+    });
+
+    it("Shows a ToDo no ticket fields, even a ticket number it already has (§7.19)", async () => {
+      await openEditorWorkspace();
+
+      await openEditor();
+
+      await expect.element(editor().getByTestId("item-editor-ticket")).not.toBeInTheDocument();
+      await expect.element(editor().getByTestId("item-editor-type")).not.toBeInTheDocument();
+      await expect
+        .element(editor().getByTestId("item-editor-ticket-fields"))
+        .not.toBeInTheDocument();
+      await expect.element(field("Parent ticket")).not.toBeInTheDocument();
     });
 
     it("Opens from the row overflow menu", async () => {
@@ -84,8 +94,6 @@ describe("Item editor", () => {
       for (const testId of [
         "item-editor-title",
         "item-editor-notes",
-        "item-editor-ticket",
-        "item-editor-type",
         "item-editor-priority",
         "item-editor-due-date",
         "item-editor-due-time",
@@ -117,8 +125,6 @@ describe("Item editor", () => {
 
       await editorTitle().fill("Fix nightly export");
       await field("Notes").fill("Line one\nLine two");
-      await field("Ticket number").fill("OPS-89");
-      await pick("Type", "Discussion");
       await pick("Priority", "Low");
       await field("Due date").fill("2026-11-21");
       await field("Due time").fill("08:15");
@@ -129,25 +135,23 @@ describe("Item editor", () => {
       expect(storedItem(app, "Fix nightly export")).toMatchObject({
         description: null,
         notes: "Line one\nLine two",
-        ticketNumber: "OPS-89",
-        itemTypeId: "019A0000-0000-7000-8000-000000001002",
+        ticketNumber: null,
         priorityLevelId: "019A0000-0000-7000-8000-000000002003",
         dueDate: "2026-11-21",
         dueTime: "08:15",
       });
     });
 
-    it("Clears the type and priority with the None entries", async () => {
+    it("Clears the priority with the None entry and keeps a ToDo's stored ticket number", async () => {
       const app = await openEditorWorkspace();
       await openEditor();
 
-      await pick("Type", "None");
       await pick("Priority", "None");
       await saveButton().click();
 
       await expect.element(editor()).not.toBeInTheDocument();
       expect(storedItem(app, EDITOR_ITEM)).toMatchObject({
-        itemTypeId: null,
+        ticketNumber: "JIRA-1234",
         priorityLevelId: null,
       });
     });
@@ -182,7 +186,7 @@ describe("Item editor", () => {
       await openEditor();
       await expect.element(field("Due time")).toHaveValue("17:00");
 
-      await field("Ticket number").fill("JIRA-1235");
+      await field("Notes").fill("Edited");
       await saveButton().click();
 
       await expect.element(editor()).not.toBeInTheDocument();
@@ -203,16 +207,10 @@ describe("Item editor", () => {
       expect(storedItem(app, EDITOR_ITEM)?.title).toBe(EDITOR_ITEM);
     });
 
-    it("Keeps an archived type and priority labelled and unchanged when saving", async () => {
+    it("Keeps an archived priority labelled and unchanged when saving", async () => {
       const app = await openEditorWorkspace({
         configure: (store, projectId) => {
           const archived = { colorKey: null, isBuiltIn: false, isArchived: true, sortOrder: 9 };
-          store.extraLookups.itemTypes.push({
-            ...archived,
-            id: LEGACY_TYPE_ID,
-            name: "Legacy",
-            iconKey: null,
-          });
           store.extraLookups.priorityLevels.push({
             ...archived,
             id: OLD_RANK_ID,
@@ -221,20 +219,18 @@ describe("Item editor", () => {
             label: "Old rank",
           });
           const id = store.findItemByTitle(projectId, null, EDITOR_ITEM)?.item.id ?? "";
-          store.patchItem(id, { itemTypeId: LEGACY_TYPE_ID, priorityLevelId: OLD_RANK_ID });
+          store.patchItem(id, { priorityLevelId: OLD_RANK_ID });
         },
       });
       await openEditor();
-      await expect.element(field("Type")).toHaveTextContent("Legacy (archived)");
       await expect.element(field("Priority")).toHaveTextContent("Old rank (archived)");
 
-      await field("Ticket number").fill("JIRA-9");
+      await field("Notes").fill("Edited");
       await saveButton().click();
 
       await expect.element(editor()).not.toBeInTheDocument();
       expect(storedItem(app, EDITOR_ITEM)).toMatchObject({
-        ticketNumber: "JIRA-9",
-        itemTypeId: LEGACY_TYPE_ID,
+        notes: "Edited",
         priorityLevelId: OLD_RANK_ID,
       });
     });
@@ -242,11 +238,12 @@ describe("Item editor", () => {
     it("Offers archived lookups only as the item's current value", async () => {
       await openEditorWorkspace({
         configure: (store) => {
-          store.extraLookups.itemTypes.push({
-            id: LEGACY_TYPE_ID,
-            name: "Legacy",
+          store.extraLookups.priorityLevels.push({
+            id: OLD_RANK_ID,
+            name: "Old rank",
+            number: null,
+            label: "Old rank",
             colorKey: null,
-            iconKey: null,
             isBuiltIn: false,
             isArchived: true,
             sortOrder: 9,
@@ -255,10 +252,10 @@ describe("Item editor", () => {
       });
       await openEditor();
 
-      await editor().getByRole("combobox", { name: "Type" }).click();
+      await editor().getByRole("combobox", { name: "Priority" }).click();
 
-      await expect.element(page.getByRole("option", { name: "Change" })).toBeVisible();
-      await expect.element(page.getByRole("option", { name: /Legacy/ })).not.toBeInTheDocument();
+      await expect.element(page.getByRole("option", { name: "Low" })).toBeVisible();
+      await expect.element(page.getByRole("option", { name: /Old rank/ })).not.toBeInTheDocument();
     });
   });
 
@@ -391,7 +388,7 @@ describe("Item editor", () => {
       await openEditor();
       await expect.element(saveButton()).toBeDisabled();
 
-      await field("Ticket number").fill("JIRA-1");
+      await field("Notes").fill("Changed");
 
       await expect.element(saveButton()).toBeEnabled();
     });

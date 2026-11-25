@@ -22,6 +22,7 @@ const noTicketFields: TicketDetailInput = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
+  parentTicketNumber: null,
 };
 
 const seed = (svc: SearchServices) =>
@@ -41,13 +42,13 @@ const seed = (svc: SearchServices) =>
         customValues: [],
         ticket: { ...noTicketFields, ...ticket },
       });
-    const training = yield* add("Training data", "385405", {
+    yield* add("Training data", "385405", {
       moduleId: train.id,
       dispatchedToId: elijah.id,
+      parentTicketNumber: "PARENT-100",
     });
     yield* add("Payroll export", "385500", {});
     yield* svc.items.create(project.id, null, null, "Plain ToDo");
-    yield* svc.items.addComment(training.id, "Waiting on Wayne's discussion");
   }).pipe(Effect.provide(TicketListService.layer));
 
 const titlesFor = (svc: SearchServices, filters: Parameters<typeof query>[0]) =>
@@ -87,14 +88,20 @@ it.effect("Matches people and levels by name, and an implied application", () =>
   ),
 );
 
-it.effect("Matches ticket comments", () =>
+it.effect("Matches the typed parent ticket number, and comments are no longer a field", () =>
   withSearchServices((svc) =>
     Effect.gen(function* () {
       yield* seed(svc);
 
-      const commented = yield* titlesFor(svc, [filter("comment", "contains", text("wayne"))]);
+      const parent = yield* titlesFor(svc, [filter("parentticket", "equals", text("parent-100"))]);
+      const noParent = yield* titlesFor(svc, [filter("parentticket", "isEmpty", null)]);
+      const comment = yield* Effect.flip(
+        titlesFor(svc, [filter("comment", "contains", text("wayne"))]),
+      );
 
-      expect(commented).toEqual(["Training data"]);
+      expect(parent).toEqual(["Training data"]);
+      expect(noParent).toEqual(["Payroll export", "Plain ToDo"]);
+      expect(comment.message).toBe("Unknown search field 'comment'.");
     }),
   ),
 );

@@ -139,7 +139,7 @@ function toChoice(
 
 /** The active choices of a choice field in display order. */
 export function listChoices(store: SearchStore, field: Field): ReadonlyArray<Choice> {
-  const { itemTypes, priorityLevels } = FAKE_LOOKUPS;
+  const { priorityLevels } = FAKE_LOOKUPS;
   const active = <Row extends { readonly isArchived: boolean; readonly sortOrder: number }>(
     rows: ReadonlyArray<Row>,
   ) =>
@@ -149,9 +149,6 @@ export function listChoices(store: SearchStore, field: Field): ReadonlyArray<Cho
   if (field.fieldDefinitionId !== null) {
     const choices = active(store.customFields.choicesOf(field.fieldDefinitionId));
     return choices.map((row) => toChoice(row.id, row.label, row.sortOrder));
-  }
-  if (field.key === "type") {
-    return active(itemTypes).map((row) => toChoice(row.id, row.name, row.sortOrder));
   }
   return active(priorityLevels).map((row) =>
     toChoice(row.id, row.label, row.sortOrder, { name: row.name, number: row.number }),
@@ -232,7 +229,7 @@ function matchesQuery(store: SearchStore, item: Item, query: Query, fields: Read
 }
 
 function toResult(store: SearchStore, item: Item, project: Summary["project"]): Result {
-  const { itemTypes, priorityLevels } = FAKE_LOOKUPS;
+  const { priorityLevels } = FAKE_LOOKUPS;
   return {
     itemId: item.id,
     projectId: item.projectId,
@@ -241,14 +238,12 @@ function toResult(store: SearchStore, item: Item, project: Summary["project"]): 
     parentItemId: item.parentItemId,
     title: item.title,
     ticketNumber: item.ticketNumber,
-    itemTypeId: item.itemTypeId,
     priorityLevelId: item.priorityLevelId,
     statusId: item.statusId,
     dueDate: item.dueDate,
     dueTime: item.dueTime,
     isCompleted: item.completedAtUtc !== null,
     location: folderPath(store, project.name, item.folderId),
-    typeName: itemTypes.find((row) => row.id === item.itemTypeId)?.name ?? null,
     priorityLabel: priorityLevels.find((row) => row.id === item.priorityLevelId)?.label ?? null,
     statusName: store.statuses.rows.find((row) => row.id === item.statusId)?.name ?? null,
   };

@@ -2,21 +2,14 @@ import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
 import { nameKey, normalizeName } from "../metadata/names.js";
 import { trimText } from "../text/dotnet-white-space.js";
 import { orderRows } from "../metadata/order-rows.js";
-import type { ItemType } from "./item-type.js";
 import type { LookupEntity } from "./lookup-entity.js";
 import type { PriorityLevel } from "./priority-level.js";
 
-type Lookup = ItemType | PriorityLevel;
+type Lookup = PriorityLevel;
 type LookupChange<Row, Key extends keyof LookupEntity> = Omit<Row, Key> & Pick<LookupEntity, Key>;
 
 function newLookup(id: string, sortOrder: number) {
   return { id, sortOrder, name: "", colorKey: null, isBuiltIn: false, isArchived: false };
-}
-
-/** Appends a custom item type to a list containing both active and archived types. */
-export function createItemType(id: string, name: string, rows: readonly ItemType[]): ItemType {
-  const row: ItemType = { ...newLookup(id, rows.length), iconKey: null };
-  return renameLookup(row, name, rows);
 }
 
 /** Appends a custom priority to a list containing both active and archived priorities. */
@@ -77,16 +70,12 @@ export function restorePriorityLevel(
 }
 
 function assertUniqueName(row: Lookup, name: string, rows: readonly Lookup[]) {
-  const isItemType = "iconKey" in row;
   const key = nameKey(name);
-  const duplicate = rows.find(
-    (other) =>
-      "iconKey" in other === isItemType && other.id !== row.id && nameKey(other.name) === key,
-  );
+  const duplicate = rows.find((other) => other.id !== row.id && nameKey(other.name) === key);
   if (duplicate === undefined) {
     return;
   }
-  const kind = isItemType ? "item type" : "priority level";
+  const kind = "priority level";
   if (duplicate.isArchived) {
     const hint = rows.some((other) => other.id === row.id)
       ? "Restore or rename that one first."
@@ -102,7 +91,7 @@ export function renameLookup<Row extends Lookup>(
   name: string,
   rows: readonly Lookup[],
 ): LookupChange<Row, "name"> {
-  if ("number" in row && row.number !== null && trimText(name) === "") {
+  if (row.number !== null && trimText(name) === "") {
     return { ...row, name: "" };
   }
   const normalized = normalizeName(name, "Name", false);
@@ -112,9 +101,6 @@ export function renameLookup<Row extends Lookup>(
 
 /** Archives a lookup while keeping its identity available to existing items. */
 export function archiveLookup<Row extends Lookup>(row: Row): LookupChange<Row, "isArchived"> {
-  if (row.isBuiltIn && "iconKey" in row) {
-    throw new MetadataRuleError("Built-in item types cannot be archived.");
-  }
   return { ...row, isArchived: true };
 }
 

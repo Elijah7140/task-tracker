@@ -49,7 +49,7 @@ function QuickTodoFields({
 }
 
 /**
- * The ToDo's fields: quick add's four, or the detailed view with notes, type, status,
+ * The ToDo's fields: quick add's four, or the detailed view with notes, status,
  * parent, the due date block and the custom fields from the field manager.
  */
 export function TodoAddFields(props: TodoAddFieldsProps) {
@@ -74,13 +74,6 @@ export function TodoAddFields(props: TodoAddFieldsProps) {
           label="Parent"
           testId="add-parent"
           options={lookups.parentOptions}
-        />
-        <DraftSelect
-          {...draft}
-          field="itemTypeId"
-          label="Type"
-          testId="add-type"
-          options={lookups.typeOptions}
         />
         <DraftSelect
           {...draft}

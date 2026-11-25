@@ -26,15 +26,16 @@ function KindBadge({ node }: { readonly node: ItemNode }) {
   );
 }
 
-/** The item's shared properties as label and value pairs; empty values are left out. */
+/**
+ * The item's shared properties as label and value pairs; empty values are left out. A ToDo
+ * shows no ticket fields, even a ticket number it already had (§7.19).
+ */
 function propertyRows(node: ItemNode, lookups: ItemRowLookups) {
   const { item } = node;
   const ticket = item.kind === "Ticket";
   const rows: ReadonlyArray<readonly [string, string | null | undefined]> = [
-    ["Ticket #", ticket ? null : item.ticketNumber],
     ["Status", statusName(node, lookups)],
     ["Priority", lookups.priorityName(item.priorityLevelId)],
-    ["Type", ticket ? null : lookups.typeName(item.itemTypeId)],
     [ticket ? "Est. comp. date" : "Date", dateCell(node, lookups.timeZone)?.text],
   ];
   return rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
@@ -107,7 +108,7 @@ function TextSection({
 
 /**
  * The drilled-in item's own data beside its children (§7.19): kind, title, details,
- * a ticket's Detail, the notes and, for a ticket, its fixed fields and comment log.
+ * a ticket's Detail, the notes and, for a ticket, its fixed fields with the parent ticket.
  */
 export function ItemDetailsPanel({ node, lookups, actions }: ItemDetailsPanelProps) {
   const { item } = node;
@@ -125,9 +126,7 @@ export function ItemDetailsPanel({ node, lookups, actions }: ItemDetailsPanelPro
       <Properties node={node} lookups={lookups} />
       <TextSection title="Detail" text={item.description} testId="details-description" />
       <TextSection title="Notes" text={item.notes} testId="details-notes" />
-      {item.kind === "Ticket" ? (
-        <TicketDetails itemId={item.id} timeZone={lookups.timeZone} />
-      ) : null}
+      {item.kind === "Ticket" ? <TicketDetails itemId={item.id} /> : null}
     </aside>
   );
 }

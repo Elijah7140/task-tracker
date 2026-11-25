@@ -9,14 +9,12 @@ import { statusRepository } from "../db/repositories/status-repository.js";
 export interface ProjectedSearchResult extends ItemSearchResult {
   /** Project name followed by each folder name down to the item's folder. */
   readonly location: ReadonlyArray<string>;
-  readonly typeName: string | null;
   readonly priorityLabel: string | null;
   readonly statusName: string | null;
 }
 
 interface ResultLabels {
   readonly trees: ReadonlyMap<string, FolderTree>;
-  readonly typeNames: ReadonlyMap<string, string>;
   readonly priorityLabels: ReadonlyMap<string, string>;
   readonly statusNames: ReadonlyMap<string, string>;
 }
@@ -36,12 +34,10 @@ export function searchResultProjection(sql: SqlClient.SqlClient) {
 
   const loadLabels = Effect.fnUntraced(function* (results: ReadonlyArray<ItemSearchResult>) {
     const projectIds = [...new Set(results.map((result) => result.projectId))];
-    const itemTypes = yield* lookups.itemTypes.list();
     const levels = yield* lookups.priorityLevels.list();
     const statusRows = yield* statuses.list();
     return {
       trees: yield* loadTrees(projectIds),
-      typeNames: new Map(itemTypes.map((type) => [type.id, type.name])),
       priorityLabels: new Map(levels.map((level) => [level.id, priorityLabel(level)])),
       statusNames: new Map(statusRows.map((status) => [status.id, status.name])),
     } satisfies ResultLabels;
@@ -63,7 +59,6 @@ function projectResult(result: ItemSearchResult, labels: ResultLabels): Projecte
   return {
     ...result,
     location: folderPath(result, labels.trees.get(result.projectId)),
-    typeName: label(labels.typeNames, result.itemTypeId),
     priorityLabel: label(labels.priorityLabels, result.priorityLevelId),
     statusName: label(labels.statusNames, result.statusId),
   };

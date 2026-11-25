@@ -1,6 +1,5 @@
 import {
   archiveLookup,
-  createItemType,
   createPriorityLevel,
   MetadataRuleError,
   priorityLabel,
@@ -9,7 +8,6 @@ import {
   restoreLookup,
   restorePriorityLevel,
   setPriorityNumber,
-  type ItemType,
   type PriorityLevel,
 } from "@task-tracker/core";
 import { Context, Effect, Layer, Schema } from "effect";
@@ -24,7 +22,7 @@ import { operationTime } from "./operation-time.js";
 import { statusOperations } from "./status-operations.js";
 import { UndoService, undoLabel } from "./undo-service.js";
 
-type Lookup = ItemType | PriorityLevel;
+type Lookup = PriorityLevel;
 type StorageError = SqlError | Schema.SchemaError;
 const decodeId = Schema.decodeEffect(Guid);
 const decodeIds = Schema.decodeEffect(Schema.Array(Guid));
@@ -111,13 +109,6 @@ function manageLookups<Row extends Lookup>(
   };
 }
 
-const itemTypeHistory: LookupHistory<ItemType> = {
-  table: "ItemType",
-  noun: "item type",
-  reorderLabel: "Reorder item types",
-  title: (row) => row.name,
-};
-
 const priorityHistory: LookupHistory<PriorityLevel> = {
   table: "PriorityLevel",
   noun: "priority",
@@ -129,14 +120,9 @@ const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const undo = yield* UndoService;
   const repository = lookupRepository(sql);
-  const itemTypes = manageLookups(sql, undo, repository.itemTypes, itemTypeHistory);
   const priorities = manageLookups(sql, undo, repository.priorityLevels, priorityHistory);
   return {
     statuses: yield* statusOperations(sql),
-    itemTypes: {
-      ...itemTypes,
-      add: (name: string) => itemTypes.add((id, rows) => createItemType(id, name, rows)),
-    },
     priorityLevels: {
       ...priorities,
       /** Adds a level at the bottom of the list. A numbered level may leave its name empty. */
@@ -150,7 +136,7 @@ const make = Effect.gen(function* () {
   };
 });
 
-/** Transactional management of workflow statuses, item types and priority levels. */
+/** Transactional management of workflow statuses and priority levels. */
 export class LookupService extends Context.Service<LookupService>()(
   "@task-tracker/server/LookupService",
   { make },

@@ -8,6 +8,7 @@ import {
   LinkPolicy,
   listOf,
   nameKey,
+  parentTicketNumber,
   parseTransferDate,
   parseTransferTime,
   parseTransferUtc,
@@ -124,8 +125,7 @@ class ContentImport {
         document.notes,
       ),
       ticketNumber: isBlankText(document.ticketNumber) ? null : trimText(document.ticketNumber!),
-      itemTypeId: this.#lookupId(document, "type"),
-      priorityLevelId: this.#lookupId(document, "priority"),
+      priorityLevelId: this.#priorityId(document),
       dueDate: parseTransferDate(document.dueDate),
       dueTime: parseTransferTime(document.dueTime),
       ...this.#completion(document),
@@ -141,14 +141,9 @@ class ContentImport {
     };
   }
 
-  /** Only an item that names a type or priority gets one, as validation checked. */
-  #lookupId(document: ItemDocument, lookup: "type" | "priority"): string | null {
+  /** Only an item that names a priority gets one, as validation checked. */
+  #priorityId(document: ItemDocument): string | null {
     const { index, map } = this.context;
-    if (lookup === "type") {
-      const named = document.itemTypeId !== null || !isBlankText(document.itemType);
-      const found = named ? index.findItemType(document) : undefined;
-      return found === undefined ? null : map.itemTypes.get(found.id!)!;
-    }
     const named = document.priorityLevelId !== null || !isBlankText(document.priority);
     const found = named ? index.findPriority(document) : undefined;
     return found === undefined ? null : map.priorityLevels.get(found.id!)!;
@@ -214,7 +209,10 @@ class ContentImport {
     });
   }
 
-  /** A ticket's fixed fields with its list entries mapped, and its comment log (§7.19). */
+  /**
+   * A ticket's fixed fields with its list entries mapped (§7.19). An older file's comment log
+   * is ignored, since comments were removed on 25 Nov 2026.
+   */
   #ticket(item: TodoItem, document: ItemDocument): void {
     if (item.kind !== "Ticket") {
       return;
@@ -232,14 +230,8 @@ class ContentImport {
         dispatchedToId: entry(ticket.dispatchedToId),
         pendingPersonId: entry(ticket.pendingPersonId),
         ticketTypeId: entry(ticket.ticketTypeId),
-      });
-    }
-    for (const comment of listOf(document.comments)) {
-      this.context.plan.comments.push({
-        id: this.context.newId(),
-        itemId: item.id,
-        body: trimText(comment.body!),
-        createdAtUtc: parseTransferUtc(comment.createdAtUtc) ?? this.context.now,
+        parentTicketNumber: parentTicketNumber(ticket.parentTicketNumber),
+        showDetailOnCard: ticket.showDetailOnCard,
       });
     }
   }

@@ -70,8 +70,8 @@ export class FakeTransfer {
     unknownColumns: [],
     ignoredColumns: [],
     sampleRows: [
-      { rowNumber: 2, title: "One", type: "Change", priority: "", dueDate: "", hasError: false },
-      { rowNumber: 3, title: "Two", type: "", priority: "", dueDate: "", hasError: false },
+      { rowNumber: 2, title: "One", priority: "", dueDate: "", hasError: false },
+      { rowNumber: 3, title: "Two", priority: "", dueDate: "", hasError: false },
     ],
     issues: [],
     canImport: true,

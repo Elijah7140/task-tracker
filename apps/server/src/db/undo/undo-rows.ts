@@ -9,7 +9,6 @@ const keys = {
   ItemLink: ["Id"],
   FieldDefinition: ["Id"],
   FieldChoice: ["Id"],
-  ItemType: ["Id"],
   PriorityLevel: ["Id"],
   StatusLevel: ["Id"],
   GlobalSetting: ["Key"],
@@ -17,7 +16,6 @@ const keys = {
   SavedSearch: ["Id"],
   TicketListEntry: ["Id"],
   TicketDetail: ["ItemId"],
-  TicketComment: ["Id"],
 } as const;
 
 /** User-data tables supported by the row recorder. Derived search data follows its triggers. */

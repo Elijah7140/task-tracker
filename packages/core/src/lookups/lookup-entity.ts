@@ -1,4 +1,4 @@
-/** Editable data shared by item types and priority levels. */
+/** Editable data of a priority level, kept apart from its number. */
 export interface LookupEntity {
   readonly id: string;
   readonly name: string;

@@ -8,7 +8,6 @@ function edit(source: TodoItem, overrides: Partial<ItemEdit>): ItemEdit {
     description: source.description,
     notes: source.notes,
     ticketNumber: source.ticketNumber,
-    itemTypeId: source.itemTypeId,
     priorityLevelId: source.priorityLevelId,
     dueDate: source.dueDate,
     dueTime: source.dueTime,
@@ -25,18 +24,16 @@ describe("editItem", () => {
     expect(edited.title).toBe("\ufeffRenamed");
   });
 
-  it("Trims the ticket number like .NET and clears a blank one", () => {
-    const task = item("A");
+  it("Trims the ticket number like .NET", () => {
+    const task = item("A", { kind: "Ticket", ticketNumber: "T-0" });
 
     const trimmed = editItem(task, edit(task, { ticketNumber: "\u3000\u200bT-1\u0085" }), now);
-    const blank = editItem(task, edit(task, { ticketNumber: "\u00a0\u2028" }), now);
 
     expect(trimmed.ticketNumber).toBe("\u200bT-1");
-    expect(blank.ticketNumber).toBeNull();
   });
 
   it("Measures the ticket number's length after trimming", () => {
-    const task = item("A");
+    const task = item("A", { kind: "Ticket", ticketNumber: "T-0" });
     const fits = ` ${"1".repeat(100)}\u00a0`;
 
     const edited = editItem(task, edit(task, { ticketNumber: fits }), now);

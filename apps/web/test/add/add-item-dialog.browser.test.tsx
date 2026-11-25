@@ -5,7 +5,10 @@ import { renderApp } from "../support/render-app.js";
 
 const PROJECT = {
   name: "ClockTower",
-  items: [{ title: "Employee training conversion" }],
+  items: [
+    { title: "Employee training conversion" },
+    { title: "Payroll export", kind: "Ticket" as const, ticketNumber: "385400" },
+  ],
 };
 
 const dialog = () => page.getByTestId("add-item-dialog");
@@ -151,5 +154,53 @@ describe("AddItemDialog", () => {
     await page.getByTestId("workspace-add-todo").click();
 
     await expect.element(content()).toHaveAttribute("data-detailed", "false");
+  });
+
+  it("Takes a parent ticket as typed text and keeps the card as the place in the tree", async () => {
+    const { store, itemId } = await openProject();
+    await clickCardButton("Payroll export", "item-card-add-ticket");
+    const parent = dialog().getByTestId("add-parent");
+    await expect.element(parent).toHaveValue("385400");
+    await expect.element(parent).toHaveAccessibleName("Parent ticket");
+
+    await dialog().getByTestId("add-ticket-number").fill("385405");
+    await dialog().getByTestId("add-title").fill("Badge reader offline");
+    await parent.fill("JIRA-77");
+    await dialog().getByTestId("add-item-save").click();
+
+    await expect.element(dialog()).not.toBeInTheDocument();
+    expect(store.ticketFields.lastAdd).toMatchObject({
+      kind: "Ticket",
+      parentItemId: itemId("Payroll export"),
+      ticket: { parentTicketNumber: "JIRA-77" },
+    });
+  });
+
+  it("Offers the parent ticket in the detailed Add Ticket view too", async () => {
+    await openProject();
+    await page.getByTestId("workspace-add-ticket").click();
+
+    await dialog().getByTestId("add-item-expand").click();
+
+    await expect.element(dialog().getByTestId("add-parent")).toHaveValue("");
+    await expect
+      .element(dialog().getByRole("combobox", { name: "Parent ticket" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("Shows a ToDo no ticket fields in quick add or the detailed view", async () => {
+    await openProject();
+    await page.getByTestId("workspace-add-todo").click();
+
+    for (const detailed of [false, true]) {
+      await expect.element(content()).toHaveAttribute("data-detailed", String(detailed));
+      for (const testId of ["add-ticket-number", "add-description", "add-module", "add-type"]) {
+        await expect.element(dialog().getByTestId(testId)).not.toBeInTheDocument();
+      }
+      await expect.element(dialog().getByText("Parent ticket")).not.toBeInTheDocument();
+      if (!detailed) {
+        await dialog().getByTestId("add-item-expand").click();
+      }
+    }
   });
 });

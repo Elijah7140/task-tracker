@@ -5,7 +5,6 @@ import type { SeedProject } from "./fake-task-tracker-server.js";
 export const BILLING_ITEMS: ReadonlyArray<SeedItem> = [
   {
     title: "Add index to Invoice.CustomerId",
-    type: "Change",
     ticketNumber: "JIRA-1234",
     priority: "High",
     dueDate: "2026-11-20",
@@ -19,7 +18,6 @@ export const BILLING_ITEMS: ReadonlyArray<SeedItem> = [
   },
   {
     title: "Investigate nightly export failure",
-    type: "Error",
     ticketNumber: "OPS-88",
     priority: "Critical",
     dueDate: "2026-11-14",
@@ -28,18 +26,16 @@ export const BILLING_ITEMS: ReadonlyArray<SeedItem> = [
   },
   {
     title: "Schema review with the data team",
-    type: "Discussion",
     priority: "Medium",
   },
   {
     title: "Retire legacy billing views",
-    type: "Change",
     completedAtUtc: "2026-11-13T08:00:00Z",
     children: [{ title: "List view consumers" }],
   },
   { title: "Tidy column comments", priority: "Low" },
-  { title: "Archive 2024 invoices", type: "Change", completedAtUtc: "2026-11-11T10:00:00Z" },
-  { title: "Rotate service credentials", type: "Error", completedAtUtc: "2026-11-13T14:00:00Z" },
+  { title: "Archive 2024 invoices", completedAtUtc: "2026-11-11T10:00:00Z" },
+  { title: "Rotate service credentials", completedAtUtc: "2026-11-13T14:00:00Z" },
 ];
 
 /** A project with nested folders and populated areas. */

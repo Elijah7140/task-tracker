@@ -15,7 +15,6 @@ const itemFields = {
   /** A ticket's Detail; always null for a ToDo (§7.19). */
   description: Schema.NullOr(Schema.String),
   ticketNumber: Schema.NullOr(Schema.String),
-  itemTypeId: Schema.NullOr(Guid),
   priorityLevelId: Schema.NullOr(Guid),
   dueDate: Schema.NullOr(IsoDate),
   dueTime: Schema.NullOr(IsoTime.check(tickPrecision)),

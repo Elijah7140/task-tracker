@@ -28,7 +28,6 @@ function dueEntry(
     isCompleted: false,
     dueDate: date,
     dueTime: time,
-    itemType: null,
     priority: null,
     statusId: null,
     statusName: null,

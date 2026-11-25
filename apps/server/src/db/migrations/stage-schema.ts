@@ -20,6 +20,11 @@ import { ticketRankColumns } from "./add-ticket-rank.js";
 import { itemKindColumns, projectIconColumns, ticketSchema } from "./add-tickets.js";
 import { withoutSchedule } from "./drop-item-schedule.js";
 import { ticketSchemaWithoutExtras } from "./drop-ticket-extra-fields.js";
+import {
+  isRemovedSchemaObject,
+  ticketDetailCardColumns,
+  withoutItemType,
+} from "./reshape-ticket-fields.js";
 import { todayCompletionsSchema } from "./index-today-completions.js";
 import { initialSchema } from "./initial-create.js";
 
@@ -52,7 +57,8 @@ function extendInitialSchema(stage: number) {
           ',\n    CONSTRAINT "CK_TodoItem_DueTime"',
           itemColumns,
         );
-        return stage >= 14 ? withoutSchedule(table) : table;
+        const reshaped = stage >= 14 ? withoutSchedule(table) : table;
+        return stage >= 17 ? withoutItemType(reshaped) : reshaped;
       }
       if (stage >= 11 && statement.startsWith('CREATE TABLE "Project"')) {
         return extendTable(statement, ")", projectIconColumns);
@@ -85,9 +91,24 @@ function searchSchema(stage: number) {
     : [...itemSearchSchema, ...searchShadowSchema];
 }
 
+/** The ticket tables, slimmed at stage 15 and given the card columns at stage 17. */
+function ticketTables(stage: number) {
+  if (stage < 15) {
+    return ticketSchema;
+  }
+  if (stage < 17) {
+    return ticketSchemaWithoutExtras;
+  }
+  return ticketSchemaWithoutExtras.map((statement) =>
+    statement.startsWith("CREATE TABLE TicketDetail")
+      ? appendColumns(statement, ticketDetailCardColumns)
+      : statement,
+  );
+}
+
 /** Returns the stored application schema expected at a validated migration prefix. */
 export function stageSchema(stage: number) {
-  return [
+  const schema = [
     ...(stage >= 1 ? extendInitialSchema(stage) : []),
     ...(stage >= 2 ? customFieldSchema : []),
     ...(stage >= 3 ? searchSchema(stage) : []),
@@ -95,6 +116,7 @@ export function stageSchema(stage: number) {
     ...(stage >= 5 ? itemLinkSchema : []),
     ...(stage >= 8 ? todayCompletionsSchema : []),
     ...(stage >= 9 ? [...statusSchema(stage), ...itemStatusSchema] : []),
-    ...(stage >= 11 ? (stage >= 15 ? ticketSchemaWithoutExtras : ticketSchema) : []),
+    ...(stage >= 11 ? ticketTables(stage) : []),
   ];
+  return stage >= 17 ? schema.filter((statement) => !isRemovedSchemaObject(statement)) : schema;
 }

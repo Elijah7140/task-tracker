@@ -90,7 +90,7 @@ describe("Transfer service exports", () => {
           expect(document.projects.map((project: { name: string }) => project.name)).toEqual([
             "Home Lab",
           ]);
-          expect(document.itemTypes).toEqual([]);
+          expect(document).not.toHaveProperty("itemTypes");
           expect(document.fields.map((field: { key: string }) => field.key)).toEqual(["estimate"]);
           expect(document.savedSearches).toEqual([]);
           expect(document.globalSettings).toBeUndefined();

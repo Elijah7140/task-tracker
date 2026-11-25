@@ -14,7 +14,7 @@ import { cx } from "../ui/class-names.js";
 import { dialogStyles } from "../ui/dialog-styles.js";
 import { type AddItemDraft, emptyAddDraft } from "./add-item-draft.js";
 import { type AddItemRequest, useAddItemStore } from "./add-item-store.js";
-import { addLookups } from "./add-lookups.js";
+import { addLookups, presetParentTicketNumber } from "./add-lookups.js";
 import { customValueInputs, hasCustomDraftErrors } from "./custom-field-drafts.js";
 import { TicketAddFields } from "./ticket-add-fields.js";
 import { TodoAddFields } from "./todo-add-fields.js";
@@ -83,7 +83,12 @@ function AddItemForm({
   readonly onSaved: (itemId: string) => void;
   readonly firstFieldRef: RefObject<HTMLInputElement | null>;
 }) {
-  const [draft, setDraft] = useState<AddItemDraft>(() => emptyAddDraft(request.parentItemId));
+  const [draft, setDraft] = useState<AddItemDraft>(() =>
+    emptyAddDraft(
+      request.parentItemId,
+      request.kind === "Ticket" ? presetParentTicketNumber(snapshot, request.parentItemId) : null,
+    ),
+  );
   const [custom, setCustom] = useState<Readonly<Record<string, CustomFieldDraft>>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -95,7 +100,7 @@ function AddItemForm({
   const fields = useAtomValue(effectiveFieldsAtom(snapshot.projectId));
   const save = useSaveNewItem(snapshot.projectId, snapshot.folderId);
   const ticketLists = AsyncResult.isSuccess(lists) ? lists.value : [];
-  const lookups = addLookups(snapshot, ticketLists, request.kind, request.parentItemId);
+  const lookups = addLookups(snapshot, ticketLists);
   const onChange = (change: Partial<AddItemDraft>) => {
     setDraft((current) => ({ ...current, ...change }));
     setError(null);

@@ -43,23 +43,6 @@ function lookupFlags(lookup: LookupEntity) {
   ] as const;
 }
 
-function itemTypes(
-  catalogue: ExportCatalogue,
-  projects: readonly ProjectExportData[],
-  whole: boolean,
-) {
-  const used = new Set(projects.flatMap((data) => data.items.map((item) => item.itemTypeId)));
-  const selected = catalogue.itemTypes.filter((type) => whole || used.has(type.id));
-  return bySortOrder(selected).map((type) =>
-    jsonObject([
-      ...lookupMembers(type),
-      ["colorKey", optionalString(type.colorKey)],
-      ["iconKey", optionalString(type.iconKey)],
-      ...lookupFlags(type),
-    ]),
-  );
-}
-
 function priorityLevels(
   catalogue: ExportCatalogue,
   projects: readonly ProjectExportData[],
@@ -258,7 +241,6 @@ export function buildExportDocument(source: ExportSource): JsonOut {
     ["version", jsonInteger(EXPORT_FORMAT_VERSION)],
     ["exportedAtUtc", jsonString(formatTransferUtc(source.exportedAtUtc))],
     ["scope", jsonString(whole ? "all" : "project")],
-    ["itemTypes", jsonArray(itemTypes(catalogue, projects, whole))],
     ["priorityLevels", jsonArray(priorityLevels(catalogue, projects, whole))],
     ["statuses", jsonArray(statuses(catalogue, projects, whole))],
     ["fields", jsonArray(fields(catalogue, projects, whole))],

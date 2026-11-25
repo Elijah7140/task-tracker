@@ -50,7 +50,7 @@ it.effect("Returns every positioned error with its description and formats filte
       const client = yield* connectRenderer;
       const scope = { kind: "allProjects" } as const;
 
-      const invalid = yield* client.ParseSearchQuery({ scope, text: "ok tpye:error effort:x" });
+      const invalid = yield* client.ParseSearchQuery({ scope, text: "ok prioity:high effort:x" });
       const formatted = yield* client.FormatSearchQuery({
         scope,
         text: "dead lock",
@@ -65,16 +65,16 @@ it.effect("Returns every positioned error with its description and formats filte
         errors: [
           {
             position: 3,
-            length: 10,
-            message: "Unknown field 'tpye'. Did you mean 'type'?",
+            length: 12,
+            message: "Unknown field 'prioity'. Did you mean 'priority'?",
             description:
-              "Unknown field 'tpye'. Did you mean 'type'? (at \"tpye:error\", character 4)",
+              "Unknown field 'prioity'. Did you mean 'priority'? (at \"prioity:high\", character 4)",
           },
           {
-            position: 14,
+            position: 16,
             length: 8,
             message: expect.stringMatching(/^Unknown field 'effort'/),
-            description: expect.stringMatching(/\(at "effort:x", character 15\)$/),
+            description: expect.stringMatching(/\(at "effort:x", character 17\)$/),
           },
         ],
       });

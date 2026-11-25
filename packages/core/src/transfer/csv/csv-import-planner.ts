@@ -45,7 +45,6 @@ function sampleRow(record: CsvRecord, header: CsvHeader, isValid: boolean): CsvP
   return {
     rowNumber: record.rowNumber,
     title: header.cellText(record, CSV_COLUMNS.title),
-    type: header.cellText(record, CSV_COLUMNS.type),
     priority: header.cellText(record, CSV_COLUMNS.priority),
     dueDate: header.cellText(record, CSV_COLUMNS.dueDate),
     hasError: !isValid,

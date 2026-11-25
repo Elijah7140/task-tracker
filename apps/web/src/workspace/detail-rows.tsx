@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** A titled block of the details panel, such as Ticket or Comments. */
+/** A titled block of the details panel, such as Details or Ticket. */
 export function DetailSection({
   title,
   testId,

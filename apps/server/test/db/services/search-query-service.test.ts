@@ -46,17 +46,19 @@ it.effect("Binds text to scope fields and choices so the parsed query runs the s
       const project = yield* svc.projects.create("Billing");
       const severity = yield* svc.fields.create("Severity", "Choice", project.id);
       const major = yield* svc.fields.addChoice(severity.id, "Major");
-      const types = yield* svc.lookups.itemTypes.list();
-      const errorType = types.find((type) => type.name === "Error");
+      const area = yield* svc.fields.create("Area", "Choice", null);
+      const errorType = yield* svc.fields.addChoice(area.id, "Error");
       const [critical, high, medium] = yield* svc.lookups.priorityLevels.list();
       const seed = (title: string, priorityId: string, severityChoice: string | null) =>
         Effect.gen(function* () {
           const item = yield* svc.items.create(project.id, null, null, title);
-          const custom =
-            severityChoice === null
+          const custom = [
+            { fieldDefinitionId: area.id, choiceId: errorType.id },
+            ...(severityChoice === null
               ? []
-              : [{ fieldDefinitionId: severity.id, choiceId: severityChoice }];
-          const fields = { itemTypeId: errorType!.id, priorityLevelId: priorityId };
+              : [{ fieldDefinitionId: severity.id, choiceId: severityChoice }]),
+          ];
+          const fields = { priorityLevelId: priorityId };
           yield* svc.items.edit(item.id, editFields(title, fields), custom);
         });
       yield* seed("Deadlock in billing", high!.id, major.id);
@@ -66,14 +68,16 @@ it.effect("Binds text to scope fields and choices so the parsed query runs the s
       const atLeastHigh = yield* searchText(
         svc,
         queries,
-        `deadlock type:error priority>=high ${severity.key}:major`,
+        `deadlock ${area.key}:error priority>=high ${severity.key}:major`,
       );
-      const parsed = yield* queries.parse(ALL, `type:error ${severity.key}:MAJOR`);
+      const parsed = yield* queries.parse(ALL, `${area.key}:error ${severity.key}:MAJOR`);
 
       expect(atLeastHigh).toEqual(["Deadlock in billing"]);
-      expect(parsed.result.displayText).toBe(`type:Error ${severity.key}:Major`);
-      expect(parsed.result.stableText).toBe(`type:#${errorType!.id} ${severity.key}:#${major.id}`);
-      expect([...parsed.choices.keys()]).toEqual(["type", severity.key]);
+      expect(parsed.result.displayText).toBe(`${area.key}:Error ${severity.key}:Major`);
+      expect(parsed.result.stableText).toBe(
+        `${area.key}:#${errorType.id} ${severity.key}:#${major.id}`,
+      );
+      expect([...parsed.choices.keys()]).toEqual([area.key, severity.key]);
       expect(parsed.choices.get(severity.key)?.map((choice) => choice.label)).toEqual(["Major"]);
     }),
   ),

@@ -8,12 +8,10 @@ import type {
   IssueList,
   ItemFieldValue,
   ItemLink,
-  ItemType,
   PriorityLevel,
   Project,
   SavedSearch,
   StatusLevel,
-  TicketComment,
   TicketDetail,
   TicketListEntry,
   TodoItem,
@@ -23,7 +21,6 @@ import type {
 
 /** The rows an import reads from the database before planning. */
 export interface ImportExisting {
-  readonly itemTypes: readonly ItemType[];
   readonly priorityLevels: readonly PriorityLevel[];
   readonly statuses: readonly StatusLevel[];
   readonly fields: readonly FieldDefinition[];
@@ -45,7 +42,6 @@ export interface ImportedSetting {
 
 /** Every row an import adds, in the order they must be inserted. */
 export interface ImportPlan {
-  readonly itemTypes: ItemType[];
   readonly priorityLevels: PriorityLevel[];
   readonly statuses: StatusLevel[];
   readonly projects: Project[];
@@ -61,12 +57,10 @@ export interface ImportPlan {
   /** New ticket list entries, every level after the level above it (§7.19). */
   readonly ticketLists: TicketListEntry[];
   readonly ticketDetails: TicketDetail[];
-  readonly comments: TicketComment[];
 }
 
 /** Which new or matched row each id or key in the file turned into. */
 export class ImportMap {
-  readonly itemTypes = new Map<string, string>();
   readonly priorityLevels = new Map<string, string>();
   readonly statuses = new Map<string, string>();
   readonly choices = new Map<string, string>();
@@ -80,9 +74,9 @@ export class ImportMap {
   readonly fields = new Map<string, FieldDefinition>();
   firstDoneStatusId: string | null = null;
 
-  /** Every id a saved query can mention (types, priorities and choices) with its new id. */
+  /** Every id a saved query can mention (priorities and choices) with its new id. */
   queryIds(): Map<string, string> {
-    return new Map([...this.itemTypes, ...this.priorityLevels, ...this.choices]);
+    return new Map([...this.priorityLevels, ...this.choices]);
   }
 }
 

@@ -20,7 +20,6 @@ import {
 } from "./item-parts.js";
 import { ItemStatusChip } from "./item-status-chip.js";
 import { useItemSurface } from "./item-surface.js";
-import { ItemTypeIcon } from "./item-type-icon.js";
 import { UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
@@ -223,7 +222,6 @@ function RowContent(props: ItemRowProps) {
           completed={node.item.completedAtUtc !== null}
           onToggle={() => void actions.toggleComplete(node)}
         />
-        <ItemTypeIcon name={lookups.typeName(node.item.itemTypeId)} />
         <ItemTitle node={node} />
         <ItemStatusChip name={statusName(node, lookups)} />
         <span className="ml-auto flex shrink-0 items-center gap-1">

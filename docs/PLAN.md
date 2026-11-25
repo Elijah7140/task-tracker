@@ -29,7 +29,7 @@ fields today, and must be able to carry more metadata later that users can searc
 | R2 | Nested folders inside a project | Unlimited depth; create, rename, move, delete |
 | R3 | Todo items in the project root and in any folder | |
 | R4 | Item fields: title, description, ticket number, priority, type | Title required, the rest optional. Priorities, like types, are data: users can add and reorder levels |
-| R5 | Item types: Change, Error, Discussion, user-extensible | Stored as data, not an enum, so new types need no code change |
+| R5 | Item types: Change, Error, Discussion, user-extensible | Stored as data, not an enum, so new types need no code change. Removed on 25 Nov 2026 (§12 decision 19) |
 | R6 | Optional due date (with optional time) | Drives urgency color |
 | R7 | ~~Optional scheduled start/end~~ | Removed 23 Nov 2026: items have only a due date and optional time (§7.4) |
 | R8 | Urgency indicator: neutral, yellow, red | Thresholds configurable globally and per project (§6.5). A parent shows the most urgent of itself and its open sub-items |
@@ -123,9 +123,8 @@ Project ─1:N─ TodoItem (FolderId null = project root)
 TodoItem ─1:N─ TodoItem (ParentItemId, sub-items)
 TodoItem ─1:N─ ItemLink (§7.10)
 TodoItem ─N:1─ StatusLevel (§7.15)
-TodoItem ─N:1─ ItemType
 TodoItem ─N:1─ PriorityLevel
-TodoItem ─1:0..1─ TicketDetail ─N:1─ TicketListEntry;  TodoItem ─1:N─ TicketComment (§7.19)
+TodoItem ─1:0..1─ TicketDetail ─N:1─ TicketListEntry (§7.19)
 GlobalSetting (key/value);  ProjectSetting (ProjectId, key/value)
 FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1─ FieldDefinition
 ```
@@ -152,7 +151,6 @@ FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1
 | `TicketRank` | number or null | Position within the Tickets priority section (§7.16) |
 | `StatusId` / `ReopenStatusId` | UUID string or null | Workflow status and remembered open status (§7.15) |
 | `PriorityLevelId` | UUID string or null | null = no priority |
-| `ItemTypeId` | UUID string or null | |
 | `DueDate` | calendar date or null | |
 | `DueTime` | wall-clock time or null | Only valid when `DueDate` is set. Absent = due end of day |
 | `CompletedAtUtc` | UTC instant or null | null = open |
@@ -160,21 +158,24 @@ FieldDefinition ─1:N─ FieldChoice;  TodoItem ─1:N─ ItemFieldValue ─N:1
 | `CreatedAtUtc`, `UpdatedAtUtc` | UTC instant | |
 | deletion fields | | §5.3 |
 
-**ItemType** — `Id`, `Name` (unique), `ColorKey?`, `IconKey?`, `IsBuiltIn`, `IsArchived`, `SortOrder`.
-Seeded: Change, Error, Discussion. Users can add, rename, reorder and archive; built-ins
-can be renamed but not archived. Archived types stay on existing items but are hidden
-from pickers.
+**ItemType** was a user-extensible item classification (Change, Error, Discussion). The owner
+removed it on 25 Nov 2026 (§12 decision 19): migration `17_ReshapeTicketFields` drops the
+`ItemType` table and `TodoItem.ItemTypeId` with their values.
 
-**PriorityLevel** — same shape as `ItemType`: `Id`, `Name` (unique), `ColorKey?`,
+**TicketDetail** — `ItemId` (the ticket), the list references of §7.19, `ParentTicketNumber?`
+(free text, ≤ 100) and `ShowDetailOnCard?` (0/1, null follows the global
+`ShowTicketDetailOnCards`, §7.17). A ticket with no row has none of them filled in.
+
+**PriorityLevel** — `Id`, `Name` (unique), `ColorKey?`,
 `IsArchived`, `SortOrder`. **Order is rank**: the level at the top of the list is the
 most important. Seeded, top to bottom: Critical, High, Medium, Low. Users can add,
 rename, reorder and archive levels in Settings; an item with no level has no priority.
 Comparisons such as "priority ≥ High" (sorting now, search in Phase 4) use the current
 order, so reordering levels needs no data migration.
 
-`ItemType` and `PriorityLevel` share a small `LookupEntity` base (name, color, sort
-order, archive flag) and a shared management component. The port adds optional
-priority numbers and a status lookup (§7.15).
+`PriorityLevel` uses a small `LookupEntity` base (name, color, sort order, archive flag)
+and a shared management component. The port adds optional priority numbers and a status
+lookup (§7.15).
 
 Lookup names are reserved case-insensitively within each list, including archived
 entries. A number-only priority has no name to reserve. Custom field display names
@@ -210,7 +211,8 @@ denormalized root id that could go stale.
 - Preserve names and columns from `20261113163313_InitialCreate`,
   `20261114032356_AddCustomFields` and `TaskTrackerDbContextModelSnapshot`. The tables are
   `Project`, `Folder`, `TodoItem`, `ItemType`, `PriorityLevel`, `GlobalSetting`,
-  `ProjectSetting`, `FieldDefinition`, `FieldChoice` and `ItemFieldValue`.
+  `ProjectSetting`, `FieldDefinition`, `FieldChoice` and `ItemFieldValue`. Stage 17 later
+  drops `ItemType` (§12 decision 19).
 - Keep uppercase, hyphenated GUIDs in SQLite `TEXT`. Apply the same casing to bound IDs
   and new primary/foreign keys. Preserve seed IDs and any user changes to lookup rows.
   [Microsoft.Data.Sqlite GUID binding](https://raw.githubusercontent.com/dotnet/efcore/v10.0.0/src/Microsoft.Data.Sqlite.Core/SqliteValueBinder.cs#L158-L169)
@@ -264,7 +266,7 @@ Soft deletion records the batches used by Trash (§7.6).
 - Normal repository queries use shared active-row SQL filters (`DeletedAtUtc IS NULL`).
   Trash and restore operations use explicit queries that include deleted rows.
 - Uniqueness: folder and item names are **not** unique (duplicates are legitimate).
-  Unique keys that exist (`ItemType.Name`, `FieldDefinition.Key`) use archive,
+  Unique keys that exist (`PriorityLevel.Name`, `FieldDefinition.Key`) use archive,
   not soft delete, so they never collide with deleted rows.
 - Deleting a sub-item re-runs the completion rule on its ancestors (§6.1).
 
@@ -441,6 +443,7 @@ otherwise the global value.
 | `AutoHideCompleted` | boolean | on | no (§6.2) |
 | `TrayCardSize` | `Full` or `Compact` | Full | no (§7.18) |
 | `TrayCardShowsItems` | boolean | on | no (§7.18) |
+| `ShowTicketDetailOnCards` | boolean | on | no; a ticket can override it (§7.17) |
 | `UrgencyApproachingColor` / `UrgencyOverdueColor` | `#rrggbb` color or empty | empty (theme color) | no (§6.3) |
 
 Design:
@@ -456,7 +459,7 @@ Design:
   that turns auto-complete on for some projects (a project override, or a global change
   that inheriting projects pick up) runs the reconcile prompt for exactly those projects,
   in one transaction with the setting change.
-- UI: **App Settings** holds global values and the item type / priority lists. **Project
+- UI: **App Settings** holds global values and the priority and status lists. **Project
   Settings** (from the project's menu) shows each overridable setting with an
   "Override" checkbox.
 
@@ -516,7 +519,8 @@ Why typed columns instead of a JSON blob: range queries ("severity ≥ 3",
 
 **Field registry.** The field registry returns every searchable field as a
 `SearchableField { Key, DisplayName, DataType, Source }`. `Source` is either a built-in
-column (`title`, `ticket`, `priority`, `type`, `due`, `status`, `completed`, `link`) or a
+column (`title`, `ticket`, `priority`, `due`, `status`, `completed`, `link`, and the ticket keys
+of §7.19) or a
 `FieldDefinition`. Search code treats both the same.
 
 **Query model** (Core, storage-agnostic):
@@ -915,10 +919,10 @@ The server exports and imports with one transaction per public operation.
 
 **JSON export (full fidelity).** One versioned document: `{"format":"task-tracker","version":1,"exportedAtUtc":...,"scope":"all"|"project",...}`,
 camelCase, indented, nulls omitted, UTF-8 without BOM, text left readable (no `\u` escapes). Content, in order:
-`itemTypes`, `priorityLevels` (each with `id`, `name`, colour/icon key, built-in and archived flags, sort order, archived ones included),
+`priorityLevels` (each with `id`, `name`, colour key, built-in and archived flags, sort order, archived ones included; an older file's `itemTypes` list and item `itemTypeId`/`itemType` are ignored on import, §12 decision 19),
 `fields` (global and project definitions with `key`, `displayName`, `dataType`, `projectId`, archived flag, sort order and their
 `choices` with ids, labels, order and archived flag), `globalSettings` (reference only), `projects`, `savedSearches`.
-A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: type and priority by name **and** id,
+A project holds `settings` (its overrides), `folders` and `items`. An item has every §5 field: priority by name **and** id,
 `dueDate` (`yyyy-MM-dd`), `dueTime` (`HH:mm:ss`), `completedAtUtc` and the timestamps as UTC with `Z`, `sortOrder`, ticket, `description` (a ToDo's notes or a ticket's Detail, so a ToDo keeps its earlier form; a ticket adds `notes`, §7.19), and
 `links` (optional, §7.10), `recurrence`, `recurrenceSeriesId` and `recurrenceSuccessorCreated` (optional, §7.11), `fieldValues` (`fieldKey` plus exactly one of `text`, `number`, `date`, `boolean`, or a choice by `choiceLabel` and `choiceId`).
 Order is deterministic (sort order, then creation time, title, id), so exporting equal data twice gives equal text. Invariant
@@ -939,8 +943,8 @@ can also assign missing ranks to existing tickets in those sections (§7.16).
   floating times carry no `Z` or offset, UTC times end with `Z`) and the §7.1 value rules (exactly one value matching the field type,
   choice belongs to the field, project field only on that project's items, finite numbers, no blank text, one value per field per
   item). All problems are reported together, each with a JSON path (`$.projects[0].items[3].dueDate`).
-- *Matching and creating:* projects always get new ids; a project whose name exists gets " (imported)", " (imported 2)", ... Item types
-  and priority levels match by name ignoring case, otherwise are created after the existing ones (archived flags kept). A global field
+- *Matching and creating:* projects always get new ids; a project whose name exists gets " (imported)", " (imported 2)", ... Priority
+  levels match by name ignoring case, otherwise are created after the existing ones (archived flags kept). A global field
   matches an existing global field by key ignoring case (a different data type is an error); otherwise it is created, keeping its key
   when free. Project fields are always created (key numbered and display name suffixed " (imported)" if taken). Choices of a matched
   field match by label, missing ones are created. Folders, items, sub-items and values are recreated with new ids, keeping sort orders,
@@ -1589,10 +1593,16 @@ below were made while building it and are listed for review.
 
 - **Cards.** Each open top-level item in the area is one card. The card header has the
   completion checkbox, the title (up to three lines), the status chip, and a line with the
-  type icon, ticket number, due date, urgency label, the "from sub-item" marker and
-  the repeat marker. Urgency tints the header (§6.3). Sub-items never get cards of their own.
+  ticket number, due date, urgency label, the "from sub-item" marker and the repeat marker. Urgency tints the header (§6.3). Sub-items never get cards of their own.
 - **Card body.** The owner's request from 2026-11-23: the body reads like a simple dotted list.
   In order:
+  - **Detail.** A ticket's Detail, rendered in full as Markdown and never clamped, when its card
+    shows it (owner request, 25 Nov 2026). App Settings › **Show description on ticket cards**
+    (`showTicketDetailOnCards`, global, default on) decides for every ticket that has not chosen
+    for itself. Right-clicking a ticket card (or its ⋯ menu) offers **Show description** or
+    **Hide description** by what the card shows now; the choice is stored on the ticket
+    (`TicketDetail.ShowDetailOnCard`) as one undo step, "Show description of ⟨title⟩" or "Hide
+    description of ⟨title⟩". A ToDo has no Detail, so its menu has neither.
   - **Notes.** The item's Notes (§7.10), never a ticket's Detail, rendered in full as Markdown, so
     bullet lists show as lists. Clicking the notes swaps in a textarea with the raw Markdown;
     blur or Ctrl+Enter saves it as one undoable edit and Escape cancels. A card without notes
@@ -1600,7 +1610,7 @@ below were made while building it and are listed for review.
   - **Outline.** Every descendant shows nested under its parent at any depth, always
     expanded, with no chevrons. Rows keep complete, drag and menus, and each level keeps its
     collapsed "n completed" expander. Depth is shown by indentation only: one circle (the
-    completion mark) per row, and an untyped item shows no type glyph.
+    completion mark) per row.
   - **Inline add.** An open row shows a **+** on hover or selection (no Tab stop, §8). It
     opens a one-line input under the row at that row's level. Enter adds a ToDo right after
     the row; Shift+Enter adds it as the row's child. The input then follows the new item so
@@ -1763,11 +1773,16 @@ be the parent of either kind. A kind is chosen when the item is added and does n
   (§7.1). The ToDo's main text is `Title`; the UI labels it **Description**. Its longer
   text is its **Notes** (`TodoItem.Notes`). A ToDo has no Detail: its `Description` column
   stays null, and the server refuses one.
+- **Kinds keep their own fields** (owner request, 25 Nov 2026; the shared item table and
+  `TicketDetail` stay). No ToDo add, edit or details view shows a ticket field, the ticket
+  number included, and no ticket view shows a custom field. A ToDo that already has a ticket
+  number keeps it: the editor sends it back unchanged, and the card still shows it read-only
+  so the Tickets view (§7.16) keeps its legacy rows. Add views send no ticket number for a ToDo.
 - **Every item has Notes**, a ticket too. A ticket keeps its **Detail** and its Notes apart
   (owner decision, 23 Nov 2026): the card's inline notes, the editor's Notes field and the
   drill-in panel's Notes section never touch the Detail.
-- **Ticket fields are fixed**, not customizable. Custom fields, item type and repeat do not
-  apply to tickets. The mapping onto shared columns:
+- **Ticket fields are fixed**, not customizable. Custom fields and repeat do not apply to
+  tickets. The mapping onto shared columns:
 
   | Ticket field | Storage |
   |---|---|
@@ -1776,17 +1791,28 @@ be the parent of either kind. A kind is chosen when the item is added and does n
   | Notes | `Notes`, as on a ToDo |
   | Priority / Status | `PriorityLevelId` / `StatusId` |
   | Est. completion date | `DueDate`, so urgency applies (§6.3) |
-  | Parent ticket | `ParentItemId` |
+  | Parent ticket | `TicketDetail.ParentTicketNumber`, free text (§12 decision 17) |
   | Requestor, Dispatched to, Pending user | `TicketDetail` → **People** list |
   | Application › Module › Interface | `TicketDetail` → **Ticket levels** tree |
   | Ticket type | `TicketDetail` → **Ticket types** list |
-  | Comments | `TicketComment` rows, newest first |
 
   On 23 Nov 2026 the owner removed Version, Est. hours, % complete, Urgent and System outage
   entirely, saying stored data need not be kept. Migration `15_DropTicketExtraFields`
   rebuilds `TicketDetail` without those columns and their values, and their search keys,
   CSV columns and JSON properties are gone. An older JSON file that still carries them
   imports with them ignored.
+  On 25 Nov 2026 the owner removed ticket comments the same way (§12 decision 20): migration
+  `17_ReshapeTicketFields` drops `TicketComment` with its rows, and an older JSON file's
+  `comments` import ignored.
+- **Parent ticket** is the parent's ticket number as free text (§12 decision 17), not a link
+  to another item: the owner can type any number, whether or not Task Tracker holds that
+  ticket. The card a ticket was added under stays its place in the tree (`ParentItemId`) and
+  is no longer called its parent ticket. Migration 17 filled `ParentTicketNumber` from the
+  ticket number of each ticket's tree parent where that parent was a ticket. Wherever a
+  ticket's parent number shows (the drill-in panel and the editor), a paperclip button looks
+  it up (`FindTicketByNumber`: an active item whose ticket number matches ignoring case, a
+  ticket before a ToDo, then the most recently updated) and opens its drill-in view. With no
+  match it says "No ticket #⟨number⟩ in Task Tracker" beside the button, which stays enabled.
   Site-specific fields from the reference screen (plant, office and cell numbers, Helix and
   work-order numbers, mill impacted, tested/documented by, testing date) are left out.
 - **Lists in App Settings.** People, Ticket types and Ticket levels are one
@@ -1806,25 +1832,27 @@ workspace header has the same two buttons, which add to the area, or to the dril
 
 - **Quick add** opens a small dialog. ToDo: Description, Priority, Due date and time,
   Reminder. Ticket: Ticket #, Summary, Detail, Module, Interface, Dispatched to, Parent
-  ticket, Priority. Enter in a single-line box saves.
+  ticket (text; a ticket added under a ticket starts with that ticket's number), Priority.
+  Enter in a single-line box saves.
 - An **expand** button at its top right switches to the **detailed add view**, keeping what
-  was typed. The ToDo view adds Notes, Type, Status and custom fields.
-  The Ticket view has every ticket field above and Notes, except comments, which are added after.
+  was typed. The ToDo view adds Notes, Parent (its place in the tree), Status and custom
+  fields. The Ticket view has every ticket field above and Notes.
 - App Settings has **Open the detailed view when adding a ToDo** and **…a Ticket**
   (`todoAddOpensDetails`, `ticketAddOpensDetails`, global booleans, default off).
-- Parent ticket lists the area's tickets, plus the card's item when that is a ToDo. Saving
-  creates the item, its ticket details and custom values as one step, "Create ⟨title⟩".
+- Saving creates the item, its ticket details and custom values as one step, "Create ⟨title⟩".
 
 **Drill-in.** Double-clicking a card opens that item: the main pane shows its children as
 the card grid (priority sections, drag, Alt+↑/↓ and quick-add at that level). A right-hand
-details panel shows its fields, with **Edit** and, for a ticket, its comments. Double-clicking
+details panel shows its fields, with **Edit** and, for a ticket, its fixed fields with the
+parent ticket's paperclip. Double-clicking
 a child card goes one level deeper, with no depth limit. Breadcrumbs show the project,
 folders and item chain. Routes are `/projects/$projectId/items/$itemId` and
 `…/folders/$folderId/items/$itemId`. `MoveItemToPriorityGroup` takes the level's parent.
 Edit stays on the card and row menus and Enter. On 23 Nov 2026 the owner removed **Open**,
 **Rename**, **Add ToDo…** and **Add Ticket…** from the item menu: the card buttons and
-double-click cover them, and F2 still renames. A ticket's editor shows its fixed fields in place of type,
-repeat and custom fields.
+double-click cover them, and F2 still renames. A ticket's editor shows its ticket number and
+fixed fields, the parent ticket with its paperclip among them, in place of repeat and custom
+fields. A ToDo's editor shows no ticket fields.
 
 **Shell.**
 - The theme choice (Light, Dark, System) moves from the sidebar to App Settings ›
@@ -1841,18 +1869,25 @@ repeat and custom fields.
 
 **Search.** Built-in keys cover the kind and the ticket fields: `kind`, `requestor`,
 `dispatched`, `pending`, `application`, `module`, `interface` and `tickettype` (text,
-matching entry names) and `comment` (comment text). A ToDo has no ticket values, so it matches
-only IsEmpty. Migration `12_ReserveTicketSearchKeys` renamed custom fields that used one of
-these keys, and also `version`, `hours`, `percent`, `urgent` and `outage`, which were removed
-with their fields on 23 Nov 2026, and rewrote saved searches, as earlier reserved keys did.
+matching entry names) and `parentticket` (the typed parent number). A ToDo has no ticket
+values, so it matches only IsEmpty. Migration `12_ReserveTicketSearchKeys` renamed custom
+fields that used one of these keys, and also `version`, `hours`, `percent`, `urgent`,
+`outage` and `comment`, which were removed with their fields on 23 and 25 Nov 2026, and
+rewrote saved searches, as earlier reserved keys did; migration 17 reserves `parentticket`
+the same way. The removed `type` and `comment` keys leave the registry. Like the 23 Nov
+keys, a saved search that still names one is kept as written and reports "Unknown field"
+when run, so the owner can edit it.
 
 **Transfer.** JSON stays at version 1. A project carries `iconKey`; a ticket carries
-`kind: "Ticket"`, a `ticket` object of its fixed fields and `comments`; and the document carries
-`ticketLists`. Each is left out when empty, so files without tickets keep their earlier form,
-and files from older versions import every item as a ToDo. On import, list entries match
+`kind: "Ticket"` and a `ticket` object of its fixed fields, `parentTicketNumber` and
+`showDetailOnCard` among them; and the document carries `ticketLists`. Each is left out when
+empty, so files without tickets keep their earlier form, and files from older versions import
+every item as a ToDo. An older file's `comments` and item types are ignored. On import, list entries match
 existing ones by list, parent and name ignoring case, and the rest are added. CSV adds Kind and
-the ticket columns after the fixed columns, but only when an export holds a ticket; an import
-matches people, ticket types and levels by name, narrowing a level by the one above it.
+the ticket columns after the fixed columns, but only when an export holds a ticket, **Parent
+ticket** just before Ticket notes; an import matches people, ticket types and levels by name,
+narrowing a level by the one above it. The Type column is gone; an older file's Type column is
+read past as an ignored column, and a custom field named Type keeps its `(field)` suffix.
 
 Notes travel without changing a ToDo's form. A ToDo writes its notes as `description` (JSON)
 and in the Description column (CSV), as before. A ticket writes its Detail there and its notes
@@ -1861,8 +1896,9 @@ take the header of a custom field called Notes. On import a ToDo's description b
 notes, joined ahead of any `notes` or Ticket notes text the file also gives it.
 
 **Tests.** Core: ticket-list names, nesting and archive rules, ticket detail validation.
-SQLite: the migration on a populated database, adding each kind with undo, ticket edits,
-comments, list management, project icons and moving cards at a nested level. Browser:
+SQLite: the migrations on a populated database, adding each kind with undo, ticket edits,
+the parent ticket lookup, the card Detail choice, list management, project icons and moving
+cards at a nested level. Browser:
 both quick-add dialogs with expand, the setting that opens detailed views, the card buttons,
 drill-in by double-click, the sidebar toggle and the Appearance setting. Light and dark
 baselines for the changed screens.
@@ -1881,12 +1917,12 @@ for review.
   the `#/add-tickets` hash. A second click brings the open window forward with what it holds.
   The window stays open when it loses focus and has the main window's isolation (§4).
 - **Destination.** **Add to** pickers across the top choose a project and a folder, or the
-  project's **Top level**. Every ticket in the batch goes to the top level of that area, with
-  no parent ticket. The last destination saved is remembered per device in local storage. A
+  project's **Top level**. Every ticket in the batch goes to the top level of that area; a
+  typed parent ticket number does not place it in the tree. The last destination saved is remembered per device in local storage. A
   missing project or folder falls back to the first project and its top level. Changing the
   project starts at its top level. With no projects, the view says to create one first.
-- **Form.** The left column has quick add's ticket fields without Parent ticket (§7.19):
-  Ticket #, Summary, Detail, Module, Interface, Dispatched to and Priority. The ticket number
+- **Form.** The left column has quick add's ticket fields (§7.19): Ticket #, Summary, Detail,
+  Module, Interface, Dispatched to, Parent ticket (free text since 25 Nov 2026) and Priority. The ticket number
   takes focus. **Add**, or Enter in a single-line box, checks quick add's rules (a ticket
   number, then a summary). It moves the ticket to the end of the list and clears the form for
   the next ticket.
@@ -2070,7 +2106,7 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
 2. **Priorities.** Start with Critical/High/Medium/Low as reorderable data (§5).
 3. **Urgency thresholds.** Default to 3 days and 24 hours, with project overrides (§6.5).
 4. **Parent urgency.** Show the most urgent of the item and its open descendants (§6.3).
-5. **Item types.** Users add types in App Settings.
+5. **Item types.** Users add types in App Settings. Superseded by decision 19.
 6. **Build/test machines.** Develop on Linux with CI on Windows and Linux and a Windows
    machine for desktop testing.
 7. **Testing standard.** Use the layered standard in §11.1, including owner review.
@@ -2108,6 +2144,21 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
     little to work from, so each in-progress item shows as a full workspace card with its
     notes and outline, and items are checked off, added and noted there. Two global
     settings choose Full or Compact cards and whether cards show their items (§7.18).
+17. **Parent ticket as free text (25 Nov 2026).** A ticket's parent ticket is a typed
+    ticket number (`TicketDetail.ParentTicketNumber`), which Task Tracker may or may not
+    hold, not a link to another item. A paperclip beside it opens the matching item or says
+    there is none. The tree position stays `ParentItemId` (§7.19).
+18. **Kinds keep their own fields (25 Nov 2026).** ToDos never show ticket fields and
+    tickets never show custom fields, in add, edit and details views. The shared item table
+    and `TicketDetail` stay; a ToDo's existing ticket number is kept (§7.19).
+19. **Item types removed (25 Nov 2026).** Item types are removed end to end, with their
+    stored data (§5, §7.2, §7.9).
+20. **Ticket comments removed (25 Nov 2026).** Ticket comments are removed end to end,
+    with their stored data (§7.19).
+21. **Detail on ticket cards (25 Nov 2026).** A ticket's card shows its Detail as
+    Markdown above its notes. App Settings › Show description on ticket cards sets the
+    default (on), and each ticket's card menu can show or hide it for that ticket as one
+    undo step (§7.17).
 
 ## Appendix A. Historical review log
 

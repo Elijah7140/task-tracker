@@ -297,13 +297,10 @@ const ticket = orNull(
     dispatchedToId: optionalGuid,
     pendingPersonId: optionalGuid,
     ticketTypeId: optionalGuid,
+    parentTicketNumber: optionalText,
+    showDetailOnCard: optionalBoolean,
   }),
 );
-
-const comment = documentObject("CommentDocument", {
-  body: optionalText,
-  createdAtUtc: optionalText,
-});
 
 const itemProperties = object(
   `${DOCUMENTS}.ItemDocument`,
@@ -315,8 +312,6 @@ const itemProperties = object(
     description: optionalText,
     notes: optionalText,
     ticketNumber: optionalText,
-    itemTypeId: optionalGuid,
-    itemType: optionalText,
     priorityLevelId: optionalGuid,
     priority: optionalText,
     statusId: optionalGuid,
@@ -336,7 +331,6 @@ const itemProperties = object(
     links: list("ItemLinkDocument", link),
     kind: optionalText,
     ticket,
-    comments: list("CommentDocument", comment),
   },
   { recurrenceSuccessorCreated: false },
 );
@@ -392,7 +386,6 @@ const exportDocument = documentObject("ExportDocument", {
   version: optionalInt,
   exportedAtUtc: optionalText,
   scope: optionalText,
-  itemTypes: list("LookupDocument", lookup),
   priorityLevels: list("LookupDocument", lookup),
   statuses: list("LookupDocument", lookup),
   fields: list("FieldDocument", field),

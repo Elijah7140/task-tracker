@@ -18,7 +18,7 @@ import { UndoService } from "../../../src/services/undo-service.js";
 import { setAutoComplete, withSchema } from "./fixtures.js";
 import { roundTrip, snapshotTables } from "./undo-round-trip.js";
 
-/** `ItemService.add`, `edit` with ticket fields, comments and `loadTicket` (§7.19). */
+/** `ItemService.add`, `edit` with ticket fields, `loadTicket` and the card's Detail (§7.19). */
 
 const highId = builtInPriorityLevels[1].id;
 const queuedStatusId = "019A0000-0000-7000-8000-000000000201";
@@ -36,7 +36,6 @@ const fields = (overrides: Partial<ItemEdit> = {}): ItemEdit => ({
   title: "Training data is wrong",
   description: null,
   ticketNumber: null,
-  itemTypeId: null,
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
@@ -51,6 +50,7 @@ const noTicketFields: TicketDetailInput = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
+  parentTicketNumber: null,
 };
 
 const setup = Effect.gen(function* () {
@@ -81,7 +81,8 @@ const readTicketRow = (id: string) =>
     const sql = yield* SqlClient.SqlClient;
     return yield* sql.withTransaction(
       sql`SELECT item.ItemKind, item.TicketNumber, item.TicketRank, item.StatusId,
-            detail.ApplicationId, detail.ModuleId, detail.InterfaceId, detail.DispatchedToId
+            detail.ApplicationId, detail.ModuleId, detail.InterfaceId, detail.DispatchedToId,
+            detail.ParentTicketNumber, detail.ShowDetailOnCard
           FROM TodoItem AS item LEFT JOIN TicketDetail AS detail ON detail.ItemId = item.Id
           WHERE item.Id = ${id}`,
     );
@@ -95,6 +96,7 @@ it.effect("Adds a ticket with its fields, levels and rank as one undo step", () 
         ...noTicketFields,
         interfaceId: iface.id,
         dispatchedToId: person.id,
+        parentTicketNumber: " 385400 ",
       };
       const add = items.add(
         input({
@@ -119,6 +121,8 @@ it.effect("Adds a ticket with its fields, levels and rank as one undo step", () 
           ModuleId: module.id,
           InterfaceId: iface.id,
           DispatchedToId: person.id,
+          ParentTicketNumber: "385400",
+          ShowDetailOnCard: null,
         },
       ]);
       expect(undone).toEqual([[], []]);
@@ -240,13 +244,13 @@ it.effect("Edits a ticket's fields as one step and keeps an archived person alre
 
       expect(label).toBe("Edit 'Training data is wrong'");
       expect(undone).toEqual(before);
-      expect(loaded.detail).toMatchObject({ requestorId: person.id, moduleId: module.id });
+      expect(loaded).toMatchObject({ requestorId: person.id, moduleId: module.id });
       expect(refused.message).toBe("Dispatched to 'Elijah Harris' is archived.");
     }).pipe(Effect.provide(services)),
   ),
 );
 
-it.effect("Adds comments newest first and refuses comments and ticket fields on a ToDo", () =>
+it.effect("Shows and hides a ticket's Detail on its card as labelled undo steps", () =>
   withSchema(
     Effect.gen(function* () {
       const { items, input } = yield* setup;
@@ -255,44 +259,102 @@ it.effect("Adds comments newest first and refuses comments and ticket fields on 
       );
       const todo = yield* items.add(input({ fields: fields({ title: "Plain" }) }));
 
-      yield* items.addComment(ticket.id, "Expecting to get onto this next week.");
-      yield* TestClock.adjust("1 minute");
-      yield* items.addComment(ticket.id, "  Pending Wayne's discussion.  ");
-      const loaded = yield* items.loadTicket(ticket.id);
-      const onTodo = yield* Effect.flip(items.addComment(todo.id, "Nope"));
-      const blank = yield* Effect.flip(items.addComment(ticket.id, "   "));
+      const hide = yield* roundTrip(items.setDetailOnCard(ticket.id, false), ["TicketDetail"]);
+      const hidden = yield* items.loadTicket(ticket.id);
+      const show = yield* roundTrip(items.setDetailOnCard(ticket.id, true), ["TicketDetail"]);
+      yield* items.edit(ticket.id, fields({ ticketNumber: "385405" }), [], undefined, undefined, {
+        ...noTicketFields,
+        parentTicketNumber: "385400",
+      });
+      const afterEdit = yield* readTicketRow(ticket.id);
+      const onTodo = yield* Effect.flip(items.setDetailOnCard(todo.id, true));
 
-      expect(loaded.comments.map((comment) => comment.body)).toEqual([
-        "Pending Wayne's discussion.",
-        "Expecting to get onto this next week.",
-      ]);
+      expect(hide.label).toBe("Hide description of 'Training data is wrong'");
+      expect(hidden.showDetailOnCard).toBe(false);
+      expect(show.label).toBe("Show description of 'Training data is wrong'");
+      expect(show.undone).toEqual(hide.after);
+      expect(afterEdit[0]).toMatchObject({ ParentTicketNumber: "385400", ShowDetailOnCard: 1 });
       expect(onTodo.message).toBe("Only tickets have ticket fields.");
-      expect(blank.message).toBe("A comment needs some text.");
     }).pipe(Effect.provide(services)),
   ),
 );
 
-it.effect("Undo refuses to remove a created ticket once it has a newer comment", () =>
+it.effect("Each card follows the setting unless its ticket chose otherwise", () =>
   withSchema(
     Effect.gen(function* () {
-      const { items, input } = yield* setup;
-      const undo = yield* UndoService;
+      const { project, items, input } = yield* setup;
+      const shown = yield* items.add(
+        input({ kind: "Ticket", fields: fields({ ticketNumber: "1", title: "Shown" }) }),
+      );
+      const hidden = yield* items.add(
+        input({ kind: "Ticket", fields: fields({ ticketNumber: "2", title: "Hidden" }) }),
+      );
+      yield* items.add(input({ fields: fields({ title: "Plain" }) }));
+      yield* items.setDetailOnCard(hidden.id, false);
+      const readFlags = () =>
+        items
+          .loadArea(project.id, null)
+          .pipe(
+            Effect.map((area) =>
+              area.items.open.map((node) => [node.item.title, node.showsDetailOnCard] as const),
+            ),
+          );
+
+      const byDefault = yield* readFlags();
       const sql = yield* SqlClient.SqlClient;
-      const ticket = yield* items.add(
-        input({ kind: "Ticket", fields: fields({ ticketNumber: "385405" }) }),
-      );
       yield* sql.withTransaction(
-        sql`INSERT INTO TicketComment (Id, ItemId, Body, CreatedAtUtc)
-          VALUES ('019A0000-0000-7000-8000-00000000C0DE', ${ticket.id}, 'Imported', '2026-11-20 12:00:00')`,
+        sql`INSERT INTO GlobalSetting (Key, Value) VALUES ('showTicketDetailOnCards', 'false')`,
+      );
+      yield* items.setDetailOnCard(shown.id, true);
+      const settingOff = yield* readFlags();
+
+      expect(byDefault).toEqual([
+        ["Shown", true],
+        ["Hidden", false],
+        ["Plain", false],
+      ]);
+      expect(settingOff).toEqual([
+        ["Shown", true],
+        ["Hidden", false],
+        ["Plain", false],
+      ]);
+    }).pipe(Effect.provide(services)),
+  ),
+);
+
+it.effect("Finds an item by ticket number, a ticket first and then the latest", () =>
+  withSchema(
+    Effect.gen(function* () {
+      const { project, items, input } = yield* setup;
+      const sql = yield* SqlClient.SqlClient;
+      const older = yield* items.add(
+        input({ kind: "Ticket", fields: fields({ ticketNumber: "JIRA-9", title: "Older" }) }),
+      );
+      yield* TestClock.adjust("1 minute");
+      const newer = yield* items.add(
+        input({ kind: "Ticket", fields: fields({ ticketNumber: "JIRA-9", title: "Newer" }) }),
+      );
+      const legacy = yield* items.add(input({ fields: fields({ title: "Legacy" }) }));
+      yield* sql.withTransaction(
+        sql`UPDATE TodoItem SET TicketNumber = 'JIRA-7', UpdatedAtUtc = '2027-01-01 00:00:00'
+          WHERE Id = ${legacy.id}`,
       );
 
-      const refusal = yield* Effect.flip(undo.apply("undo"));
-      const remaining = yield* snapshotTables(["TodoItem"]);
+      const found = yield* items.findTicketByNumber(" jira-9 ");
+      const todoOnly = yield* items.findTicketByNumber("JIRA-7");
+      yield* items.delete(project.id, null, newer.id);
+      const afterDelete = yield* items.findTicketByNumber("JIRA-9");
+      const missing = yield* items.findTicketByNumber("NOPE-1");
 
-      expect(refusal.message).toBe(
-        "Other data still depends on this item; can't undo its removal.",
-      );
-      expect(remaining[0]).toHaveLength(1);
+      expect(found).toEqual({
+        itemId: newer.id,
+        projectId: project.id,
+        folderId: null,
+        title: "Newer",
+      });
+      expect(todoOnly?.itemId).toBe(legacy.id);
+      expect(afterDelete?.itemId).toBe(older.id);
+      expect(missing).toBeNull();
     }).pipe(Effect.provide(services)),
   ),
 );

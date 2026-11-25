@@ -24,7 +24,6 @@ const weekly = (overrides: Partial<Rule> = {}): Rule => ({
 const ITEMS: ReadonlyArray<SeedItem> = [
   {
     title: "Weekly report",
-    type: "Change",
     priority: "High",
     dueDate: "2026-11-20",
     recurrence: weekly(),
