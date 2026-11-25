@@ -609,10 +609,9 @@ export function ItemTree(props: ItemTreeProps) {
   const allNodes = props.allNodes ?? nodes;
   const rowKeys = { allNodes, actions: props.actions, onMenuFor: setMenuFor };
   const onItemKey = itemKeyHandler(rowKeys, expandedCompleted, onExpandedChange);
-  const quickAddAtTop = context.addLinePosition === "Top";
-  const quickAddItem = quickAdd === undefined ? null : <li role="none">{quickAdd}</li>;
+  const quickAddAtTop = context.addLinePosition === "Top" && quickAdd !== undefined;
 
-  return (
+  const tree = (
     <ul
       ref={treeRef}
       role="tree"
@@ -623,7 +622,6 @@ export function ItemTree(props: ItemTreeProps) {
       }
       className="flex list-none flex-col gap-5 p-0"
     >
-      {quickAddAtTop ? quickAddItem : null}
       {groups.map((group) => (
         <PrioritySection
           key={group.priorityLevelId ?? "none"}
@@ -641,7 +639,7 @@ export function ItemTree(props: ItemTreeProps) {
         </PrioritySection>
       ))}
       {dropTarget?.kind === "root-end" ? <RootEndIndicator /> : null}
-      {quickAddAtTop ? null : quickAddItem}
+      {quickAdd === undefined || quickAddAtTop ? null : <li role="none">{quickAdd}</li>}
       {nodes.finished.length === 0 ? null : (
         <CompletedBranch
           sectionKey={sectionKey}
@@ -652,6 +650,15 @@ export function ItemTree(props: ItemTreeProps) {
         />
       )}
     </ul>
+  );
+  // At the top the add bar sits before the tree, so Shift+Tab from the tree reaches it (§7.17).
+  return quickAddAtTop ? (
+    <div className="flex flex-col gap-3">
+      {quickAdd}
+      {tree}
+    </div>
+  ) : (
+    tree
   );
 }
 

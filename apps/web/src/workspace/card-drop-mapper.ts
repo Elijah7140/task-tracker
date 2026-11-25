@@ -51,6 +51,12 @@ function statusRun(cards: ReadonlyArray<ItemNode>, statusRank: StatusRank, rank:
   return { lower, upper };
 }
 
+/** A card to land beside, and on which side. */
+interface CardAnchor {
+  readonly targetId: string;
+  readonly position: "before" | "after";
+}
+
 /**
  * The card a move lands beside for a slot among a section's other cards. It prefers a card with
  * the moved card's status, so the saved sibling order puts the card exactly in that slot of its
@@ -60,50 +66,52 @@ function anchorAt(
   cards: ReadonlyArray<ItemNode>,
   run: { readonly lower: number; readonly upper: number },
   slot: number,
-): { readonly target: ItemNode; readonly position: "before" | "after" } | null {
+): CardAnchor | null {
   const before = cards[slot];
   const after = cards[slot - 1];
   if (slot < run.upper && before !== undefined) {
-    return { target: before, position: "before" };
+    return { targetId: before.item.id, position: "before" };
   }
   if (slot > run.lower && after !== undefined) {
-    return { target: after, position: "after" };
+    return { targetId: after.item.id, position: "after" };
   }
   if (before !== undefined) {
-    return { target: before, position: "before" };
+    return { targetId: before.item.id, position: "before" };
   }
-  return after === undefined ? null : { target: after, position: "after" };
+  return after === undefined ? null : { targetId: after.item.id, position: "after" };
 }
 
 /**
  * Places `source` at the slot of `group` nearest `desiredIndex` among the section's other cards
  * that keeps it among the cards with its status: after every card with an earlier status and
- * before every card with a later one (§7.17). Returns `null` when the section has no other card
- * to land beside.
+ * before every card with a later one (§7.17). When that is the desired slot itself, the move
+ * keeps the `requested` card and side, such as the card under the pointer. Returns `null` when
+ * the section has no other card to land beside.
  */
 function placeInGroup(
   nodes: ItemSiblings,
   group: PriorityGroup,
   source: ItemNode,
   desiredIndex: number,
+  requested?: CardAnchor,
 ): CardPlacement | null {
   const cards = group.cards.filter((card) => card.item.id !== source.item.id);
   const run = statusRun(cards, group.statusRank, group.statusRank(source.item.statusId));
-  const anchor = anchorAt(cards, run, Math.min(run.upper, Math.max(run.lower, desiredIndex)));
+  const slot = Math.min(run.upper, Math.max(run.lower, desiredIndex));
+  const anchor =
+    slot === desiredIndex && requested !== undefined ? requested : anchorAt(cards, run, slot);
   if (anchor === null) {
     return null;
   }
-  const { target, position } = anchor;
-  const index = otherTopLevel(nodes, source.item.id).findIndex(
-    (row) => row.item.id === target.item.id,
-  );
+  const { targetId, position } = anchor;
+  const index = otherTopLevel(nodes, source.item.id).findIndex((row) => row.item.id === targetId);
   if (index === -1) {
     return null;
   }
   return {
     priorityLevelId: group.priorityLevelId,
     index: index + (position === "after" ? 1 : 0),
-    targetId: target.item.id,
+    targetId,
     position,
   };
 }
@@ -140,7 +148,8 @@ export function mapCardDrop(
   }
   const cards = group.cards.filter((card) => card.item.id !== sourceId);
   const targetIndex = cards.findIndex((card) => card.item.id === targetId);
-  return placeInGroup(nodes, group, source, targetIndex + (position === "after" ? 1 : 0));
+  const desiredIndex = targetIndex + (position === "after" ? 1 : 0);
+  return placeInGroup(nodes, group, source, desiredIndex, { targetId, position });
 }
 
 /**

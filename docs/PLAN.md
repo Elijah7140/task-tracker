@@ -439,6 +439,9 @@ otherwise the global value.
 | `UrgencyYellowThreshold` | duration | 3 days | yes |
 | `UrgencyRedThreshold` | duration | 24 hours | yes |
 | `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
+| `ScaleCardColumnsToWindow` | boolean | on | no (§7.17) |
+| `AddLinePosition` | `Top` or `Bottom` | `Top` | no (§7.17) |
+| `DetailsPanelPosition` | `Side` or `Top` | `Side` | no (§7.19) |
 | `TodoAddOpensDetails` / `TicketAddOpensDetails` | boolean | off | no (§7.19) |
 | `AutoHideCompleted` | boolean | on | no (§6.2) |
 | `TrayCardSize` | `Full` or `Compact` | Full | no (§7.18) |
@@ -1592,8 +1595,9 @@ grouped by priority. The owner chose what a card holds, which cards share a heig
 below were made while building it and are listed for review.
 
 - **Cards.** Each open top-level item in the area is one card. The card header has the
-  completion checkbox, the title (up to three lines), the status chip, and a line with the
-  ticket number, due date, urgency label, the "from sub-item" marker and the repeat marker. Urgency tints the header (§6.3). Sub-items never get cards of their own.
+  completion checkbox, the title, the status chip, and a line with the ticket number, due
+  date, urgency label, the "from sub-item" marker and the repeat marker. Urgency tints the
+  header (§6.3). Sub-items never get cards of their own.
 - **Card body.** The owner's request from 2026-11-23: the body reads like a simple dotted list.
   In order:
   - **Detail.** A ticket's Detail, rendered in full as Markdown and never clamped, when its card
@@ -1615,23 +1619,46 @@ below were made while building it and are listed for review.
     opens a one-line input under the row at that row's level. Enter adds a ToDo right after
     the row; Shift+Enter adds it as the row's child. The input then follows the new item so
     typing continues; Escape, or blur while empty, closes it.
-  - **Add line.** Every open card ends with an "Add a ToDo…" line. Enter appends a ToDo as a
+  - **Add line.** Every open card has an "Add a ToDo…" line. Enter appends a ToDo as a
     direct child of the card's item; Shift+Enter adds it under the card's last open direct
     child, or directly when there is none.
+  - **Full text** (owner, 25 Nov 2026). Nothing on a card is cut off: the title, a ticket's
+    summary, the status chip, the notes and every outline row wrap and show in full.
   Added items are plain ToDos with only a title, one "Create ⟨title⟩" undo step each.
 - **Sections.** "No priority" comes first, then one section per priority level in level sort
   order (never by number, §7.15). Archived levels get a section while items still use them. A
   section shows its name and item count. Empty sections are hidden; use **Set priority ▸** to
   move an item to an unused level.
+- **Order by status** (owner, 25 Nov 2026). At every level, the cards inside a priority section
+  sort by their status's position in the Statuses list (App Settings › Statuses, which can be
+  reordered), so In progress comes before Testing. Cards with no status come last, and cards
+  with the same status keep the sibling order (`SortOrder`). This applies to ToDos and tickets
+  alike; the Completed section keeps its own order.
 - **Columns.** A global setting, **Cards per row** (1–8, default 4), in App Settings (§6.5).
-  When the pane is too narrow for that many cards at least 220 px wide, the grid uses fewer
-  columns.
-- **Height.** Every card in a grid row is as tall as the row's tallest card. A row is never
-  shorter than half the item pane's height (less room for a section header), so about two
-  rows show at once. Taller content makes its row taller; the pane scrolls.
+  With **Scale cards per row with window width** on (the default, owner 25 Nov 2026), the
+  setting counts the cards in a row when the window fills the screen. The target card width is
+  the screen's available width, less the room everything but the grid takes in the window
+  (sidebar, padding, a drilled-in item's details), divided by Cards per row. The grid then shows
+  as many cards of that width as fit, rounded to the nearest count and never more than the
+  setting, so cards keep about the same width and fewer fit as the window narrows: on a
+  2560-wide screen at half width, 4 becomes 2. The grid measures again when the window resizes
+  or moves to another screen. With the option off, the grid always shows Cards per row. Either
+  way a column is never narrower than 220 px, so a narrow pane uses fewer columns.
+- **Height** (owner, 25 Nov 2026). A grid row is exactly as tall as its tallest card's content,
+  and the other cards in the row stretch to that height. There is no minimum, so small cards
+  make short rows; taller content makes its row taller and the pane scrolls.
+- **Add-item line position** (owner, 25 Nov 2026). A global setting, **Top** (default) or
+  **Bottom**, places every card's "Add a ToDo…" line above its outline, under the notes, or
+  below the outline, and the level's add bar above or below the priority sections. At the top the line
+  stays in place and keeps focus after Enter, so the next entry never means chasing the input
+  down the list. New items still join the end of the list.
 - **Completed.** The area's "Completed (n)" expander (§6.2) stays below the sections. It shows
   finished top-level items as cards in the same grid, sized only by their content.
 - **Dragging.**
+  - Cards sort by status inside a section, so dragging and Alt+↑/↓ only reorder among cards with
+    the same status. A drop beside a card with a different status places the item at the
+    nearest slot among the cards of its own status, and a drop on a section header lands after
+    that section's last card of the item's status. A move never changes the status.
   - Cards are split into thirds from left to right. The left third inserts before the card,
     the right third inserts after it, and the middle third makes the dragged item a sub-item
     (§7.5). Sub-item rows inside a card keep their top, middle and bottom thirds.
@@ -1643,9 +1670,10 @@ below were made while building it and are listed for review.
     ⟨title⟩" when the priority changes and "Move ⟨title⟩" otherwise (§7.8). Changing priority
     clears the item's ticket rank, as everywhere else (§7.16).
 - **Keyboard.** Alt+↑ and Alt+↓ move the selected card one place in reading order. Inside a
-  section the card swaps with its neighbour. At a section edge it enters the neighbouring
-  section: at the end of the section above, or at the start of the section below, taking that
-  section's priority. On a sub-item or a completed card, Alt+↑/↓ still reorders siblings.
+  section the card swaps with its neighbour when that card has the same status. Otherwise it
+  enters the neighbouring section: at the end of the section above, or at the start of the
+  section below, among that section's cards of its status, taking that section's priority. On
+  a sub-item or a completed card, Alt+↑/↓ still reorders siblings.
 - **Implementation decisions.**
   - A move that keeps a top-level card in its own section is an ordinary sibling drop
     beside the target card, so finished items keep their saved slots (§6.4). Entering
@@ -1665,8 +1693,9 @@ below were made while building it and are listed for review.
     a drag or opens the card; double-click the header to drill in (§7.19).
   - The repeat marker joins the card header when recurring items land (§7.11).
 - **Tests.** Core: the move operation on real SQLite, including undo, sub-item promotion and
-  an archived level. React: the section order (with a 1, 7, 2 numbering), the drop and step
-  mapping, header drops and the setting. Headless: the grid layout, card and header drags, and
+  an archived level. React: the section order (with a 1, 7, 2 numbering), the status order
+  inside a section (statuses ordered 1, 7, 2), the drop and step mapping with status groups,
+  header drops, the column math for a scaled and a fixed count, and the settings. Headless: the grid layout, card and header drags, and
   Alt+↓ across a section; the card body's Markdown notes and inline edit, row inline add
   and add line with Enter and Shift+Enter, nested descendants and the missing type dot. Server:
   CreateItem after a sibling as one undo step. Light and dark snapshots of the grid.
@@ -1842,9 +1871,14 @@ workspace header has the same two buttons, which add to the area, or to the dril
 - Saving creates the item, its ticket details and custom values as one step, "Create ⟨title⟩".
 
 **Drill-in.** Double-clicking a card opens that item: the main pane shows its children as
-the card grid (priority sections, drag, Alt+↑/↓ and quick-add at that level). A right-hand
-details panel shows its fields, with **Edit** and, for a ticket, its fixed fields with the
-parent ticket's paperclip. Double-clicking
+the card grid (priority sections, drag, Alt+↑/↓ and quick-add at that level). A details panel
+shows its fields, with **Edit** and, for a ticket, its fixed fields with the parent ticket's
+paperclip. **Item details position** (owner, 25 Nov 2026), a global setting, puts it at the
+**Side** (default), a panel at the right, or at the **Top**, a band above the child cards whose
+sections flow across the width. A toggle (**Collapse details** / **Expand details**) collapses
+either out of the way: the side panel to a thin strip and the top band to a single header line,
+each keeping the expand button. Whether the details are collapsed is a per-device preference in
+local storage. Double-clicking
 a child card goes one level deeper, with no depth limit. Breadcrumbs show the project,
 folders and item chain. Routes are `/projects/$projectId/items/$itemId` and
 `…/folders/$folderId/items/$itemId`. `MoveItemToPriorityGroup` takes the level's parent.
@@ -1962,9 +1996,9 @@ share the row width proportionally and truncate instead of collapsing a column.
    context actions to create, rename, move and delete. Breadcrumbs show the current
    area. The main pane shows the open item tree with completion, type, title, ticket,
    priority, due date and urgency. Completed sections collapse at each
-   level (§6.2). Quick-add is an empty line at the end of the open list. Press Enter to
-   create an item. Right-click → Edit opens a floating panel with metadata and
-   sub-items. Group related fields compactly and keep all five custom-field controls.
+   level (§6.2). Quick-add is an empty line above or below the open list, as the
+   Add-item line position setting chooses (§7.17). Press Enter to create an item.
+   Right-click → Edit opens a floating panel with metadata and sub-items. Group related fields compactly and keep all five custom-field controls.
 3. **App Settings.** Global auto-complete and urgency thresholds, type and priority
    lists (add, rename, drag to reorder, archive) and global fields and choices.
 4. **Project Settings.** Per-project overrides (§6.5) and project fields and choices,
@@ -2159,6 +2193,18 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
     Markdown above its notes. App Settings › Show description on ticket cards sets the
     default (on), and each ticket's card menu can show or hide it for that ticket as one
     undo step (§7.17).
+22. **Cards show everything (25 Nov 2026).** Card text is never cut off, and a grid row is
+    as tall as its tallest card's content with no minimum height (§7.17).
+23. **Predictable card size (25 Nov 2026).** Cards per row counts cards at full-screen width
+    while **Scale cards per row with window width** is on (default), so cards keep about the
+    same width and fewer fit in a narrower window. Off keeps a fixed count (§6.5, §7.17).
+24. **Cards by status (25 Nov 2026).** Inside each priority section, cards sort by their
+    status's position in the Statuses list, with no status last. Moves stay among cards with
+    the same status and never change it (§7.17).
+25. **Add line and details placement (25 Nov 2026).** **Add-item line position** (Top by
+    default, or Bottom) places the card add lines and the level's add bar. **Item details
+    position** (Side by default, or Top) places a drilled-in item's details, and either
+    placement collapses with a toggle remembered per device (§6.5, §7.17, §7.19).
 
 ## Appendix A. Historical review log
 

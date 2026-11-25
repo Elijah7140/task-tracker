@@ -466,19 +466,19 @@ describe("Item actions and reorder", () => {
     const { store } = await openRoot([
       { name: "Billing DB", items: [{ title: "First" }, { title: "Second" }] },
     ]);
+    const tree = page.getByRole("tree", { name: "Items in Billing DB" }).element();
     await focusRow("First");
 
     await userEvent.keyboard("{Tab}");
 
-    await expect.element(quickAdd()).toHaveFocus();
+    await expect.element(row("First")).not.toHaveFocus();
+    expect(tree.contains(document.activeElement)).toBe(false);
 
     await focusRow("First");
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
 
-    await expect.element(row("First")).not.toHaveFocus();
-    const tree = page.getByRole("tree", { name: "Items in Billing DB" }).element();
-    expect(document.activeElement).not.toBe(document.body);
-    expect(tree.contains(document.activeElement)).toBe(false);
+    // The add bar sits above the tree by default (§7.17).
+    await expect.element(quickAdd()).toHaveFocus();
     expect(store.calls).not.toContain("IndentItem");
     expect(store.calls).not.toContain("OutdentItem");
     await expect.element(page.getByRole("alertdialog")).not.toBeInTheDocument();
@@ -665,8 +665,7 @@ describe("Item actions and reorder", () => {
     await userEvent.keyboard("{Enter}");
 
     await expect.element(row("Second")).toHaveFocus();
-    await userEvent.keyboard("{Tab}");
-    await expect.element(quickAdd()).toHaveFocus();
+    // The add bar sits above the tree by default, so Tab goes straight to Undo (§7.17).
     await userEvent.keyboard("{Tab}");
     await expect.element(page.getByTestId("item-undo-button")).toHaveFocus();
     await userEvent.keyboard("{Enter}");

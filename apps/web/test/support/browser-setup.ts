@@ -34,6 +34,11 @@ beforeEach(() => {
   useTransferStore.setState(initialTransferState);
   appUpdateStore.setState(initialAppUpdateValues);
   delete document.documentElement.dataset["theme"];
+  // The test window fills its screen, so a scaled card grid shows Cards per row (§7.17).
+  Object.defineProperty(window.screen, "availWidth", {
+    configurable: true,
+    get: () => window.innerWidth,
+  });
 });
 
 // Screens must not depend on installed system fonts, which differ between machines.

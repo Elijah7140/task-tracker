@@ -156,4 +156,45 @@ describe("Drill-in", () => {
       .toBeVisible();
     expect(itemId("Schedule the import", true)).toBe(itemId("Training rollout"));
   });
+
+  it("Collapses the side details to a strip and remembers it on this device", async () => {
+    await openProject();
+    await card("Training rollout").dblClick();
+    await expect.element(panel()).toHaveAttribute("data-placement", "Side");
+
+    await panel().getByRole("button", { name: "Collapse details" }).click();
+
+    await expect.element(panel()).toHaveAttribute("data-collapsed", "true");
+    await expect.element(panel().getByRole("heading")).not.toBeInTheDocument();
+    expect(localStorage.getItem("task-tracker.details-panel-collapsed")).toBe("true");
+    expect(panel().element().getBoundingClientRect().width).toBeLessThan(60);
+    await panel().getByTestId("details-panel-toggle").click();
+    await expect.element(panel().getByRole("heading", { name: "Training rollout" })).toBeVisible();
+    expect(localStorage.getItem("task-tracker.details-panel-collapsed")).toBe("false");
+  });
+
+  it("Puts the details in a band above the child cards and collapses it to one line", async () => {
+    await openProject((store) => {
+      const settings = store.settingsAndLookups.globalSettings;
+      const layout = { ...settings.workspaceLayout!, detailsPanelPosition: "Top" as const };
+      store.settingsAndLookups.globalSettings = { ...settings, workspaceLayout: layout };
+    });
+    await card("Training rollout").dblClick();
+    await expect.element(panel()).toHaveAttribute("data-placement", "Top");
+    const tree = drilled().getByRole("tree").element();
+    const above = (first: Element, second: Element) =>
+      (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(above(panel().element(), tree)).toBe(true);
+
+    panel().getByRole("button", { name: "Collapse details" }).element().focus();
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(panel()).toHaveAttribute("data-collapsed", "true");
+    await expect.element(panel().getByRole("heading", { name: "Training rollout" })).toBeVisible();
+    await expect.element(panel().getByTestId("details-edit")).not.toBeInTheDocument();
+    expect(panel().element().getBoundingClientRect().height).toBeLessThan(50);
+    await expect
+      .element(panel().getByRole("button", { name: "Expand details" }))
+      .toHaveAttribute("aria-expanded", "false");
+  });
 });

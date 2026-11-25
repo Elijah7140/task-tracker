@@ -39,7 +39,7 @@ export interface ItemCardProps {
   readonly dragging: boolean;
   /** Drop feedback while this card is the target of an item drag. */
   readonly dropIndicator: ItemDropPosition | null;
-  /** Where the "Add a ToDo…" line sits in the card body (§7.17); the top by default. */
+  /** Whether the "Add a ToDo…" line sits above or below the outline (§7.17); above by default. */
   readonly addLinePosition?: typeof AddLinePosition.Type | undefined;
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
@@ -230,7 +230,7 @@ function isOwnEvent(event: MouseEvent<HTMLElement>) {
 }
 
 /**
- * The always-present add line of an open card, at the top or the bottom of its body (§7.17).
+ * The always-present add line of an open card, above or below its outline (§7.17).
  * Enter adds a ToDo as the card's last direct child; Shift+Enter adds it under the card's last
  * open child instead. The line stays in place and keeps focus, so typing continues.
  */
@@ -322,6 +322,7 @@ export function ItemCard(props: ItemCardProps) {
                 onSave={(notes) => actions.saveNotes(node, notes)}
               />
             ) : null}
+            {addLineAtTop ? addLine : null}
             {props.children}
             {addLineAtTop ? null : addLine}
           </div>

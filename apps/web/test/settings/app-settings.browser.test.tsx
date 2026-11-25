@@ -12,6 +12,11 @@ const TICKS_PER_HOUR = 36_000_000_000n;
 const daysTicks = (count: number) => String(BigInt(count) * 24n * TICKS_PER_HOUR);
 const hoursTicks = (count: number) => String(BigInt(count) * TICKS_PER_HOUR);
 
+const DEFAULT_LAYOUT = {
+  scaleCardColumnsToWindow: true,
+  addLinePosition: "Top",
+  detailsPanelPosition: "Side",
+};
 const openSettingsFromMenu = () => chooseMenuCommand("file", "menu-app-settings");
 const autoCompleteBox = () => page.getByTestId("global-auto-complete");
 const yellowAmount = () => page.getByTestId("global-yellow-amount");
@@ -204,6 +209,7 @@ describe("AppSettingsPage", () => {
       urgencyColors: { approaching: null, overdue: null },
       trayCard: { size: "Full", showItems: true },
       showTicketDetailOnCards: true,
+      workspaceLayout: DEFAULT_LAYOUT,
     });
   });
 
@@ -251,6 +257,31 @@ describe("AppSettingsPage", () => {
     expect(store.settingsAndLookups.globalSettings.trayCard).toEqual({
       size: "Compact",
       showItems: false,
+    });
+  });
+
+  it("Saves the workspace layout choices with the other defaults", async () => {
+    const { store } = await openAppSettings();
+    const scale = page.getByTestId("global-scale-card-columns");
+    const addLine = page.getByRole("combobox", { name: "Add-item line position" });
+    const details = page.getByRole("combobox", { name: "Item details position" });
+    await expect.element(scale).toBeChecked();
+    await expect.element(addLine).toHaveTextContent("Top");
+    await expect.element(details).toHaveTextContent("Side");
+
+    await scale.click();
+    await addLine.click();
+    await page.getByRole("option", { name: "Bottom", exact: true }).click();
+    details.element().focus();
+    await userEvent.keyboard("{Enter}");
+    await page.getByRole("option", { name: "Top", exact: true }).click();
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.workspaceLayout).toEqual({
+      scaleCardColumnsToWindow: false,
+      addLinePosition: "Bottom",
+      detailsPanelPosition: "Top",
     });
   });
 
@@ -416,6 +447,7 @@ describe("AppSettingsPage", () => {
       urgencyColors: { approaching: null, overdue: null },
       trayCard: { size: "Full", showItems: true },
       showTicketDetailOnCards: true,
+      workspaceLayout: DEFAULT_LAYOUT,
     });
   });
 
@@ -465,6 +497,7 @@ describe("AppSettingsPage", () => {
       urgencyColors: { approaching: null, overdue: null },
       trayCard: { size: "Full", showItems: true },
       showTicketDetailOnCards: true,
+      workspaceLayout: DEFAULT_LAYOUT,
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });

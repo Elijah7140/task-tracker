@@ -85,6 +85,25 @@ const GRID_PROJECT: SeedProject = {
   ],
 };
 
+/**
+ * "No priority" [Plain card] and "High" with one card per status: two In progress, Testing,
+ * Queued and none, in a sibling order unlike the status order.
+ */
+const STATUS_PROJECT: SeedProject = {
+  name: "Statuses",
+  items: [
+    { title: "Plain card" },
+    { title: "Testing card", priority: "High", status: "Testing" },
+    { title: "Bare card", priority: "High" },
+    { title: "First in progress", priority: "High", status: "In progress" },
+    { title: "Queued card", priority: "High", status: "Queued" },
+    { title: "Second in progress", priority: "High", status: "In progress" },
+  ],
+};
+
+const statusIdOf = (store: FakeProjectStore, name: string) =>
+  store.statuses.rows.find((row) => row.name === name)?.id;
+
 const steps = (count: number) =>
   Array.from({ length: count }, (_, index) => ({ title: `Step ${index + 1}` }));
 
@@ -158,6 +177,28 @@ async function openProject(
   app.history.push(`/projects/${projectId}`);
   await expect.element(page.getByTestId("quick-add-input")).toBeVisible();
   return { ...app, projectId };
+}
+
+/** Keeps Cards per row fixed, whatever the window and screen widths (§7.17). */
+const fixedColumns = (store: FakeProjectStore) => {
+  setLayout(store, { scaleCardColumnsToWindow: false });
+};
+
+type Layout = NonNullable<
+  FakeProjectStore["settingsAndLookups"]["globalSettings"]["workspaceLayout"]
+>;
+
+/** Changes the saved workspace layout choices before the app loads. */
+function setLayout(store: FakeProjectStore, change: Partial<Layout>) {
+  const settings = store.settingsAndLookups.globalSettings;
+  const workspaceLayout = { ...settings.workspaceLayout!, ...change };
+  store.settingsAndLookups.globalSettings = { ...settings, workspaceLayout };
+}
+
+/** Puts the test window on a screen `width` pixels wide and reports the screen change. */
+function onScreen(width: number) {
+  Object.defineProperty(window.screen, "availWidth", { configurable: true, get: () => width });
+  (window.screen as Screen & EventTarget).dispatchEvent(new Event("change"));
 }
 
 const numbered = (id: string, number: number, sortOrder: number) => ({
@@ -249,7 +290,7 @@ describe("Workspace priority card grid", () => {
     expect(page.getByTestId("item-card-header").elements()).toHaveLength(2);
   });
 
-  it("Matches card heights in a row, keeps rows half the pane tall and sizes completed cards by content", async () => {
+  it("Sizes each row to its tallest card's content with no minimum height", async () => {
     await openProject({
       name: "Heights",
       items: [
@@ -259,6 +300,8 @@ describe("Workspace priority card grid", () => {
           notes: "Line one\nLine two\nLine three\nLine four",
           children: [{ title: "Sub 1" }, { title: "Sub 2" }, { title: "Sub 3" }],
         },
+        { title: "Small high", priority: "High" },
+        { title: "Other small high", priority: "High" },
         { title: "Done card", completedAtUtc: "2026-11-12T10:00:00Z" },
       ],
     });
@@ -269,12 +312,32 @@ describe("Workspace priority card grid", () => {
     const pane = page.getByRole("main").element().clientHeight;
 
     expect(Math.abs(height("Short card") - height("Tall card"))).toBeLessThanOrEqual(1);
-    expect(height("Short card")).toBeGreaterThan(pane / 2 - 120);
-    expect(height("Done card")).toBeLessThan(height("Short card") / 2);
+    expect(Math.abs(height("Small high") - height("Other small high"))).toBeLessThanOrEqual(1);
+    expect(height("Small high")).toBeLessThan(height("Tall card") - 60);
+    expect(height("Small high")).toBeLessThan(pane / 4);
+  });
+
+  it("Shows long titles on cards and sub-item rows in full", async () => {
+    const longTitle = `Reconcile ${"the quarterly ledger exports ".repeat(12)}before close`;
+    const longChild = `Check ${"each vendor statement line ".repeat(8)}by hand`;
+    await openProject({
+      name: "Long text",
+      items: [{ title: longTitle, children: [{ title: longChild }] }],
+    });
+    const cardTitle = surface(longTitle).getByTestId("item-title").first().element();
+    const rowTitle = surface(longChild).getByTestId("item-title").element();
+
+    const lineHeight = Number.parseFloat(getComputedStyle(cardTitle).lineHeight);
+
+    expect(cardTitle.textContent).toBe(longTitle);
+    expect(cardTitle.getBoundingClientRect().height).toBeGreaterThan(lineHeight * 3.5);
+    expect(cardTitle.scrollHeight).toBeLessThanOrEqual(cardTitle.clientHeight + 1);
+    expect(rowTitle.getBoundingClientRect().height).toBeGreaterThan(lineHeight * 1.5);
+    expect(rowTitle.scrollWidth).toBeLessThanOrEqual(rowTitle.clientWidth + 1);
   });
 
   it("Uses fewer columns than Cards per row when the pane is too narrow", async () => {
-    await openProject();
+    await openProject(GRID_PROJECT, fixedColumns);
     const grid = () => page.getByTestId("card-grid").first();
     const { innerWidth, innerHeight } = window;
     onTestFinished(() => page.viewport(innerWidth, innerHeight));
@@ -286,24 +349,27 @@ describe("Workspace priority card grid", () => {
     await expect.element(grid()).toHaveAttribute("data-columns", "2");
   });
 
-  it("Measures rows and columns again after the window is resized behind Search", async () => {
+  it("Measures columns again after the window is resized behind Search", async () => {
     const { innerWidth, innerHeight } = window;
     onTestFinished(() => page.viewport(innerWidth, innerHeight));
     await page.viewport(1000, 700);
-    await openProject({
-      name: "Short",
-      items: [
-        { title: "Plain card" },
-        { title: "Parent card", children: [{ title: "Nested task" }] },
-        { title: "High card", priority: "High" },
-      ],
-    });
+    await openProject(
+      {
+        name: "Short",
+        items: [
+          { title: "Plain card" },
+          { title: "Parent card", children: [{ title: "Nested task" }] },
+          { title: "High card", priority: "High" },
+        ],
+      },
+      fixedColumns,
+    );
     const grid = () => page.getByTestId("card-grid").first();
     const height = () => surface("Plain card").element().getBoundingClientRect().height;
     const searchHeading = page.getByRole("heading", { name: "Search", level: 1 });
     const smallHeight = height();
     await page.viewport(1440, 900);
-    await expect.poll(height).toBeGreaterThan(smallHeight + 50);
+    await expect.element(grid()).toHaveAttribute("data-columns", "4");
     await item("Plain card").getByTestId("item-title").first().click();
     await userEvent.keyboard("{Control>}f{/Control}");
     await expect.element(searchHeading).toBeVisible();
@@ -444,6 +510,139 @@ describe("Workspace priority card grid", () => {
     expect(moves(store)).toBe(1);
     // Steps inside a section swap siblings (legacy ReorderSelectedAsync), so finished slots hold.
     expect(store.calls.filter((call) => call === "ReorderItems")).toHaveLength(2);
+  });
+
+  it("Shows fewer cards of the full-screen width as a scaled window narrows", async () => {
+    const { innerWidth, innerHeight } = window;
+    onTestFinished(() => page.viewport(innerWidth, innerHeight));
+    await page.viewport(2560, 1000);
+    onScreen(2560);
+    await openProject();
+    const grid = () => page.getByTestId("card-grid").first();
+    await expect.element(grid()).toHaveAttribute("data-columns", "4");
+
+    await page.viewport(1280, 1000);
+
+    await expect.element(grid()).toHaveAttribute("data-columns", "2");
+  });
+
+  it("Measures scaled columns again when the window moves to another screen", async () => {
+    const { innerWidth, innerHeight } = window;
+    onTestFinished(() => page.viewport(innerWidth, innerHeight));
+    await page.viewport(1280, 1000);
+    onScreen(2560);
+    await openProject();
+    const grid = () => page.getByTestId("card-grid").first();
+    await expect.element(grid()).toHaveAttribute("data-columns", "2");
+
+    onScreen(1280);
+
+    await expect.element(grid()).toHaveAttribute("data-columns", "4");
+  });
+
+  it("Keeps Cards per row in a narrow window when scaling is off", async () => {
+    const { innerWidth, innerHeight } = window;
+    onTestFinished(() => page.viewport(innerWidth, innerHeight));
+    await page.viewport(1280, 1000);
+    onScreen(2560);
+
+    await openProject(GRID_PROJECT, fixedColumns);
+
+    await expect
+      .element(page.getByTestId("card-grid").first())
+      .toHaveAttribute("data-columns", "4");
+  });
+
+  it("Orders the cards in a section by the Statuses list, with no status last", async () => {
+    await openProject(STATUS_PROJECT, (store) => {
+      store.statuses.rows = store.statuses.rows.map((row) =>
+        row.name === "Testing" ? { ...row, sortOrder: 7 } : row,
+      );
+    });
+
+    expect(cardTitles("High")).toEqual([
+      "Queued card",
+      "First in progress",
+      "Second in progress",
+      "Testing card",
+      "Bare card",
+    ]);
+  });
+
+  it("Lands a drop beside a card with another status among the item's own status", async () => {
+    const { store, projectId } = await openProject(STATUS_PROJECT);
+    const target = point(surface("Testing card").element(), 0.85);
+
+    await beginDrag(surface("First in progress").element(), target);
+    await expect
+      .element(surface("Second in progress").getByTestId("drop-indicator"))
+      .toHaveAttribute("data-placement", "after");
+    await release(target);
+
+    await expect
+      .poll(() => cardTitles("High"))
+      .toEqual([
+        "Queued card",
+        "Second in progress",
+        "First in progress",
+        "Testing card",
+        "Bare card",
+      ]);
+    const moved = store.findItemByTitle(projectId, null, "First in progress")!.item;
+    expect(moved.statusId).toBe(statusIdOf(store, "In progress"));
+    expect(moves(store)).toBe(0);
+  });
+
+  it("Steps a card past a neighbour with another status into the next section with Alt+Up", async () => {
+    const { store, projectId } = await openProject(STATUS_PROJECT);
+    item("First in progress").element().focus();
+
+    await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await expect
+      .poll(() => cardTitles("High"))
+      .toEqual([
+        "Queued card",
+        "Second in progress",
+        "First in progress",
+        "Testing card",
+        "Bare card",
+      ]);
+    item("Testing card").element().focus();
+    await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
+
+    // Testing sorts before a card with no status, so it lands ahead of Plain card.
+    await expect.poll(() => cardTitles("No priority")).toEqual(["Testing card", "Plain card"]);
+    const moved = store.findItemByTitle(projectId, null, "Testing card")!.item;
+    expect(moved.statusId).toBe(statusIdOf(store, "Testing"));
+    expect(moved.priorityLevelId).toBeNull();
+  });
+
+  it("Puts the add bar above the sections by default and below them when set to Bottom", async () => {
+    const { screen } = await openProject();
+    const follows = (first: Element, second: Element) =>
+      (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    const addBar = () => page.getByTestId("quick-add-row").element();
+    const firstSection = () => page.getByTestId("priority-section").first().element();
+    expect(follows(addBar(), firstSection())).toBe(true);
+    await screen.unmount();
+
+    await openProject(GRID_PROJECT, (store) => setLayout(store, { addLinePosition: "Bottom" }));
+
+    expect(follows(firstSection(), addBar())).toBe(true);
+  });
+
+  it("Keeps the add bar at the top focused for the next entry after Enter", async () => {
+    const { store, projectId } = await openProject();
+    await page.getByTestId("quick-add-input").click();
+
+    await userEvent.keyboard("Top entry{Enter}");
+    await expect.element(item("Top entry")).toBeVisible();
+    await userEvent.keyboard("Next entry{Enter}");
+
+    await expect.element(item("Next entry")).toBeVisible();
+    await expect.element(page.getByTestId("quick-add-input")).toHaveFocus();
+    await expect.element(page.getByTestId("quick-add-input")).toHaveValue("");
+    expect(store.findItemByTitle(projectId, null, "Top entry")).toBeDefined();
   });
 
   it("Selects a clicked sub-item row rather than its card, and opens cards in the editor", async () => {

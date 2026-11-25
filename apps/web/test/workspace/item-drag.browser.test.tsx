@@ -9,6 +9,8 @@ import { settleTheme, THEMES } from "../support/screenshots.js";
 const row = (name: string) => page.getByRole("treeitem", { name, exact: true });
 const surface = (name: string) => row(name).getByTestId("item-row").first();
 const folder = () => row("Destination").getByTestId("folder-row");
+/** A card's header, which a drag can start from anywhere; its body holds the add line. */
+const cardHeader = (name: string) => row(name).getByTestId("item-card-header").first();
 const title = () => page.getByTestId("item-editor-title");
 
 const project: SeedProject = {
@@ -210,13 +212,13 @@ it("Folder drops move an entire root branch, while sub-items cannot drop on fold
   await userEvent.dragAndDrop(surface("Child"), folder());
   expect(store.calls).not.toContain("MoveItemToArea");
 
-  await userEvent.dragAndDrop(surface("First"), folder());
+  await userEvent.dragAndDrop(cardHeader("First"), folder());
 
   await expect.element(row("First")).toHaveFocus();
   await expect.element(page.getByRole("tree", { name: "Items in Destination" })).toBeVisible();
   expect(store.findItemByTitle(projectId, destination!, "Child")?.item.folderId).toBe(destination);
 
-  await userEvent.dragAndDrop(surface("First"), page.getByTestId("sidebar-project-link"));
+  await userEvent.dragAndDrop(cardHeader("First"), page.getByTestId("sidebar-project-link"));
 
   await expect.element(page.getByRole("tree", { name: "Items in Project" })).toBeVisible();
   await expect.element(row("First")).toHaveFocus();
@@ -326,7 +328,7 @@ it("New edits to a moved row follow it to its new area with editor focus", async
   onTestFinished(release);
   row("First").element().focus();
 
-  await userEvent.dragAndDrop(surface("First"), folder());
+  await userEvent.dragAndDrop(cardHeader("First"), folder());
   await expect.poll(() => store.calls.includes("MoveItemToArea")).toBe(true);
   await userEvent.keyboard("{Enter}");
   await title().fill("Typed while moving areas");
