@@ -100,6 +100,16 @@ export async function addItem(page: Page, area: string, title: string) {
   await itemRow(page, area, title).waitFor();
 }
 
+/** Adds a ticket at the area's top level through Add Ticket's quick add (§7.19). */
+export async function addTicket(page: Page, area: string, ticketNumber: string, title: string) {
+  await page.getByTestId("workspace-add-ticket").click();
+  const dialog = page.getByTestId("add-item-dialog");
+  await dialog.getByTestId("add-ticket-number").fill(ticketNumber);
+  await dialog.getByTestId("add-title").fill(title);
+  await dialog.getByTestId("add-item-save").click();
+  await itemRow(page, area, title).waitFor();
+}
+
 /** Expands an area's or item's collapsed Completed section. */
 export async function expandCompleted(scope: Locator, label: string) {
   await scope

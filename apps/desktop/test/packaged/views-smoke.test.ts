@@ -4,6 +4,7 @@ import { desktopTest, withDesktop } from "../support/desktop-app.js";
 import {
   SMOKE_PROJECT,
   addItem,
+  addTicket,
   chooseMenuCommand,
   createProject,
   expectFocused,
@@ -111,10 +112,7 @@ desktopTest(
     await withDesktop(desktop, async (page) => {
       await createProject(page);
       await openProject(page);
-      await addItem(page, SMOKE_PROJECT, title);
-      const editor = await openItemEditor(page, itemRow(page, SMOKE_PROJECT, title));
-      await editor.getByLabel("Ticket number", { exact: true }).fill("PAY-17");
-      await saveItemEditor(editor);
+      await addTicket(page, SMOKE_PROJECT, "PAY-17", title);
 
       await chooseMenuCommand(page, "view", "menu-tickets");
       await expectTicketIn(page, title, "No priority");
