@@ -1,37 +1,25 @@
 import { expect, it } from "@effect/vitest";
-import { builtInItemTypes, builtInPriorityLevels, comparePriority } from "@task-tracker/core";
+import { builtInPriorityLevels, comparePriority } from "@task-tracker/core";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { LookupService } from "../../../src/services/lookup-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
 import { UndoService } from "../../../src/services/undo-service.js";
 import { itemId, readItems, seedItem, withSchema } from "./fixtures.js";
-import { refuseAfterChange, roundTrip, snapshotTables } from "./undo-round-trip.js";
+import { snapshotTables } from "./undo-round-trip.js";
 
 it.effect("Added, renamed and reordered lookups persist", () =>
   Effect.gen(function* () {
     const lookups = yield* LookupService;
-    const type = yield* lookups.itemTypes.add("Custom");
     const priority = yield* lookups.priorityLevels.add("Later");
-    const types = yield* lookups.itemTypes.list();
     const levels = yield* lookups.priorityLevels.list();
 
-    yield* lookups.itemTypes.rename(type.id, "Renamed");
     yield* lookups.priorityLevels.rename(priority.id, "Someday");
-    yield* lookups.itemTypes.reorder([
-      type.id,
-      ...types.filter((row) => row.id !== type.id).map((row) => row.id),
-    ]);
     yield* lookups.priorityLevels.reorder([
       priority.id,
       ...levels.filter((row) => row.id !== priority.id).map((row) => row.id),
     ]);
 
-    expect((yield* lookups.itemTypes.list())[0]).toMatchObject({
-      id: type.id,
-      name: "Renamed",
-      sortOrder: 0,
-    });
     expect((yield* lookups.priorityLevels.list())[0]).toMatchObject({
       id: priority.id,
       name: "Someday",
@@ -40,25 +28,19 @@ it.effect("Added, renamed and reordered lookups persist", () =>
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );
 
-it.effect("Archived lookups stay on items and built-in types cannot be archived", () =>
+it.effect("Archived priorities stay on items", () =>
   Effect.gen(function* () {
     const lookups = yield* LookupService;
     const projects = yield* ProjectService;
     const project = yield* projects.create("Project");
-    const type = yield* lookups.itemTypes.add("Custom");
     const priority = yield* lookups.priorityLevels.add("Later");
-    yield* seedItem(project.id, { Id: itemId, ItemTypeId: type.id, PriorityLevelId: priority.id });
+    yield* seedItem(project.id, { Id: itemId, PriorityLevelId: priority.id });
 
-    const builtInError = yield* Effect.flip(lookups.itemTypes.archive(builtInItemTypes[0].id));
-    yield* lookups.itemTypes.archive(type.id);
     yield* lookups.priorityLevels.archive(priority.id);
     const items = yield* readItems();
-    const types = yield* lookups.itemTypes.list();
     const levels = yield* lookups.priorityLevels.list();
 
-    expect(builtInError.message).toBe("Built-in item types cannot be archived.");
-    expect(items).toMatchObject([{ ItemTypeId: type.id, PriorityLevelId: priority.id }]);
-    expect(types).toContainEqual({ ...type, isArchived: true });
+    expect(items).toMatchObject([{ PriorityLevelId: priority.id }]);
     expect(levels).toContainEqual({ ...priority, isArchived: true });
   }).pipe(
     Effect.provide(LookupService.layer),
@@ -69,14 +51,14 @@ it.effect("Archived lookups stay on items and built-in types cannot be archived"
 
 it.effect("Adding or renaming to an existing lookup name is rejected ignoring case", () =>
   Effect.gen(function* () {
-    const { itemTypes } = yield* LookupService;
-    const custom = yield* itemTypes.add("Custom");
+    const { priorityLevels } = yield* LookupService;
+    const custom = yield* priorityLevels.add("Custom");
 
-    const added = yield* Effect.flip(itemTypes.add(" custom "));
-    const renamed = yield* Effect.flip(itemTypes.rename(custom.id, "Change"));
+    const added = yield* Effect.flip(priorityLevels.add(" custom "));
+    const renamed = yield* Effect.flip(priorityLevels.rename(custom.id, "High"));
 
-    expect(added.message).toBe("The name 'custom' is already used by another item type.");
-    expect(renamed.message).toBe("The name 'Change' is already used by another item type.");
+    expect(added.message).toBe("The name 'custom' is already used by another priority level.");
+    expect(renamed.message).toBe("The name 'High' is already used by another priority level.");
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );
 
@@ -94,16 +76,12 @@ it.effect("Renaming a lookup to its own name is allowed", () =>
 
 it.effect("Restoring archived lookups preserves their identity and order", () =>
   Effect.gen(function* () {
-    const { itemTypes, priorityLevels } = yield* LookupService;
-    const type = yield* itemTypes.add("Custom");
+    const { priorityLevels } = yield* LookupService;
     const priority = yield* priorityLevels.add("Later");
-    yield* itemTypes.archive(type.id);
     yield* priorityLevels.archive(priority.id);
 
-    yield* itemTypes.restore(type.id);
     yield* priorityLevels.restore(priority.id);
 
-    expect(yield* itemTypes.list()).toContainEqual(type);
     expect(yield* priorityLevels.list()).toContainEqual(priority);
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );
@@ -151,19 +129,19 @@ it.effect("Adds number-only and named levels and keeps the number when renaming"
 
 it.effect("Says to restore an archived lookup when adding or renaming to its name", () =>
   Effect.gen(function* () {
-    const { itemTypes } = yield* LookupService;
-    const type = yield* itemTypes.add("Bug");
-    const other = yield* itemTypes.add("Other");
-    yield* itemTypes.archive(type.id);
+    const { priorityLevels } = yield* LookupService;
+    const level = yield* priorityLevels.add("Bug");
+    const other = yield* priorityLevels.add("Other");
+    yield* priorityLevels.archive(level.id);
 
-    const added = yield* Effect.flip(itemTypes.add("BUG"));
-    const renamed = yield* Effect.flip(itemTypes.rename(other.id, "bug"));
+    const added = yield* Effect.flip(priorityLevels.add("BUG"));
+    const renamed = yield* Effect.flip(priorityLevels.rename(other.id, "bug"));
 
     expect(added.message).toBe(
-      "The name 'BUG' is used by an archived item type. Restore it instead.",
+      "The name 'BUG' is used by an archived priority level. Restore it instead.",
     );
     expect(renamed.message).toBe(
-      "The name 'bug' is used by an archived item type. Restore or rename that one first.",
+      "The name 'bug' is used by an archived priority level. Restore or rename that one first.",
     );
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );
@@ -306,58 +284,7 @@ it.effect("Refuses to undo into a case-equivalent archived priority name", () =>
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );
 
-const itemTypeOperations = {
-  add: "Add item type 'Added'",
-  rename: "Rename item type 'Renamed'",
-  archive: "Archive item type 'Custom'",
-  restore: "Restore item type 'Custom'",
-  reorder: "Reorder item types",
-} as const;
-
-it.effect.each(Object.entries(itemTypeOperations))(
-  "Round-trips an item type %s and refuses to undo it after the row changed",
-  ([operation, label]) =>
-    Effect.gen(function* () {
-      const { itemTypes } = yield* LookupService;
-      const projects = yield* ProjectService;
-      const project = yield* projects.create("Project");
-      const type = yield* itemTypes.add("Custom");
-      yield* seedItem(project.id, { Id: itemId, ItemTypeId: type.id });
-      if (operation === "restore") {
-        yield* itemTypes.archive(type.id);
-      }
-      const reversed = (yield* itemTypes.list()).map((row) => row.id).toReversed();
-      const run = {
-        add: () => itemTypes.add("Added"),
-        rename: () => itemTypes.rename(type.id, "Renamed"),
-        archive: () => itemTypes.archive(type.id),
-        restore: () => itemTypes.restore(type.id),
-        reorder: () => itemTypes.reorder(reversed),
-      }[operation as keyof typeof itemTypeOperations];
-      const tables = ["ItemType", "TodoItem"] as const;
-
-      const trip = yield* roundTrip(run(), tables);
-      const refusal = yield* refuseAfterChange(
-        "UPDATE ItemType SET SortOrder = 99 WHERE Name IN ('Custom', 'Renamed', 'Added')",
-        "undo",
-        tables,
-      );
-
-      expect(trip.label).toBe(label);
-      expect(trip.after).not.toEqual(trip.before);
-      expect(trip.undone).toEqual(trip.before);
-      expect(trip.redone).toEqual(trip.after);
-      expect(refusal.failure.message).toBe("This item type changed since; can't undo.");
-      expect(refusal.afterTables).toEqual(refusal.changed);
-      expect(refusal.afterHistory).toEqual(refusal.history);
-    }).pipe(
-      Effect.provide(LookupService.layer),
-      Effect.provide(ProjectService.layer("UTC")),
-      withSchema,
-    ),
-);
-
-const rankedKinds = ["ItemType", "PriorityLevel"] as const;
+const rankedKinds = ["PriorityLevel"] as const;
 
 /** Inserts a lookup the way an import does, appending it at `sortOrder` outside history. */
 const importLookupAtRank = (table: (typeof rankedKinds)[number], sortOrder: number) =>
@@ -384,10 +311,7 @@ it.effect.each(rankedKinds)("Refuses to redo a %s rank now used by an imported l
   Effect.gen(function* () {
     const lookups = yield* LookupService;
     const undo = yield* UndoService;
-    const added =
-      table === "ItemType"
-        ? yield* lookups.itemTypes.add("Original")
-        : yield* lookups.priorityLevels.add("Original");
+    const added = yield* lookups.priorityLevels.add("Original");
     yield* undo.apply("undo");
     yield* importLookupAtRank(table, added.sortOrder);
     const before = yield* snapshotTables([table]);
@@ -397,29 +321,6 @@ it.effect.each(rankedKinds)("Refuses to redo a %s rank now used by an imported l
 
     expect(failure.message).toContain("rank");
     expect(yield* snapshotTables([table])).toEqual(before);
-    expect(yield* undo.status()).toEqual(history);
-  }).pipe(Effect.provide(LookupService.layer), withSchema),
-);
-
-it.effect("Refuses to undo into a case-equivalent archived item type name", () =>
-  Effect.gen(function* () {
-    const { itemTypes } = yield* LookupService;
-    const undo = yield* UndoService;
-    const original = yield* itemTypes.add("Ürgent");
-    yield* itemTypes.rename(original.id, "Review");
-    yield* importLookupAtRank("ItemType", 9);
-    yield* changeLookupsDirectly(
-      "UPDATE ItemType SET Name = 'ürgent', IsArchived = 1 WHERE Name = 'Imported'",
-    );
-    const before = yield* snapshotTables(["ItemType"]);
-    const history = yield* undo.status();
-
-    const failure = yield* Effect.flip(undo.apply("undo"));
-
-    expect(failure.message).toBe(
-      "The name 'Ürgent' is used by an archived item type. Restore or rename that one first.",
-    );
-    expect(yield* snapshotTables(["ItemType"])).toEqual(before);
     expect(yield* undo.status()).toEqual(history);
   }).pipe(Effect.provide(LookupService.layer), withSchema),
 );

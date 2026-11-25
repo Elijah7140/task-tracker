@@ -63,7 +63,7 @@ afterEach(() => {
 });
 
 describe("adding tickets", () => {
-  it("Shows quick add's ticket fields without Parent ticket, with the ticket number focused", async () => {
+  it("Shows quick add's ticket fields, Parent ticket as text, with the ticket number focused", async () => {
     await renderTicketBatch({ projects: PROJECTS });
 
     await expect.element(form().getByTestId("add-ticket-number")).toHaveFocus();
@@ -72,7 +72,8 @@ describe("adding tickets", () => {
       await expect.element(form().getByText(label, { exact: true })).toBeVisible();
     }
     await expect.element(form().getByText("Dispatched to", { exact: true })).toBeVisible();
-    await expect.element(form().getByTestId("add-parent")).not.toBeInTheDocument();
+    await expect.element(form().getByTestId("add-parent")).toHaveAccessibleName("Parent ticket");
+    await expect.element(form().getByTestId("add-parent")).toHaveValue("");
     await expect.element(page.getByTestId("ticket-batch-empty")).toBeVisible();
     await expect.element(done()).toBeDisabled();
   });
@@ -137,6 +138,7 @@ describe("Done", () => {
     await pick("Project", "ClockTower");
     await pick("Folder", " Line 2");
     await addTicket("385405", "Conversion data is wrong");
+    await form().getByTestId("add-parent").fill("385400");
     await addTicket("385406", "Badge reader offline");
 
     await done().click();
@@ -148,7 +150,10 @@ describe("Done", () => {
       folderId: line2.id,
       tickets: [
         { fields: { ticketNumber: "385405", title: "Conversion data is wrong" } },
-        { fields: { ticketNumber: "385406", title: "Badge reader offline" } },
+        {
+          fields: { ticketNumber: "385406", title: "Badge reader offline" },
+          ticket: { parentTicketNumber: "385400" },
+        },
       ],
     });
     expect(store.findItemByTitle(line2.projectId, line2.id, "Badge reader offline")).toBeDefined();

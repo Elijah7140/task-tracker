@@ -1,6 +1,6 @@
 import { Effect, Option, Schema } from "effect";
 import { SqlSchema, type SqlClient } from "effect/sql";
-import { Guid, UtcTimestamp } from "../storage-codecs.js";
+import { Bit, Guid } from "../storage-codecs.js";
 
 const optionalId = Schema.NullOr(Guid);
 
@@ -14,6 +14,8 @@ const TicketDetailRow = Schema.Struct({
   dispatchedToId: optionalId,
   pendingPersonId: optionalId,
   ticketTypeId: optionalId,
+  parentTicketNumber: Schema.NullOr(Schema.String),
+  showDetailOnCard: Schema.NullOr(Bit),
 }).pipe(
   Schema.encodeKeys({
     itemId: "ItemId",
@@ -24,25 +26,43 @@ const TicketDetailRow = Schema.Struct({
     dispatchedToId: "DispatchedToId",
     pendingPersonId: "PendingPersonId",
     ticketTypeId: "TicketTypeId",
+    parentTicketNumber: "ParentTicketNumber",
+    showDetailOnCard: "ShowDetailOnCard",
   }),
 );
 
-/** A TicketComment row (§7.19). */
-const TicketCommentRow = Schema.Struct({
-  id: Guid,
-  itemId: Guid,
-  body: Schema.String,
-  createdAtUtc: UtcTimestamp,
-}).pipe(
-  Schema.encodeKeys({ id: "Id", itemId: "ItemId", body: "Body", createdAtUtc: "CreatedAtUtc" }),
-);
+/** A ticket's own choice about showing its Detail on its card (§7.17). */
+const CardOverrideRow = Schema.Struct({ itemId: Guid, showDetailOnCard: Bit });
 
-/** Reads and writes a ticket's fixed fields and comment log on the caller's transaction. */
+const AreaRequest = Schema.Struct({ projectId: Guid, folderId: Schema.NullOr(Guid) });
+
+/** Where an item found by its ticket number lives (§7.19). */
+const TicketLocationRow = Schema.Struct({
+  itemId: Guid,
+  projectId: Guid,
+  folderId: Schema.NullOr(Guid),
+  title: Schema.String,
+});
+
+/** Reads and writes a ticket's fixed fields on the caller's transaction. */
 export function ticketDetailRepository(sql: SqlClient.SqlClient) {
   const find = SqlSchema.findOneOption({
     Request: Guid,
     Result: TicketDetailRow,
     execute: (itemId) => sql`SELECT * FROM TicketDetail WHERE ItemId = ${itemId}`,
+  });
+  const findByNumber = SqlSchema.findOneOption({
+    Request: Schema.String,
+    Result: TicketLocationRow,
+    execute: (ticketNumber) => sql`
+      SELECT i.Id AS itemId, i.ProjectId AS projectId, i.FolderId AS folderId, i.Title AS title
+      FROM TodoItem i
+      JOIN Project p ON p.Id = i.ProjectId AND p.DeletedAtUtc IS NULL
+      LEFT JOIN Folder f ON f.Id = i.FolderId
+      WHERE i.DeletedAtUtc IS NULL AND (i.FolderId IS NULL OR f.DeletedAtUtc IS NULL)
+        AND i.TicketNumber = ${ticketNumber} COLLATE NOCASE
+      ORDER BY i.ItemKind = 'Ticket' DESC, i.UpdatedAtUtc DESC, i.rowid DESC
+      LIMIT 1`,
   });
   return {
     /** The ticket's stored fields, or null when none were ever saved. */
@@ -51,13 +71,6 @@ export function ticketDetailRepository(sql: SqlClient.SqlClient) {
       Request: TicketDetailRow,
       execute: (row) => sql`INSERT INTO TicketDetail ${sql.insert(row)}
         ON CONFLICT (ItemId) DO UPDATE SET ${sql.update(row, ["ItemId"])}`,
-    }),
-    /** The comment log, newest first. */
-    listComments: SqlSchema.findAll({
-      Request: Guid,
-      Result: TicketCommentRow,
-      execute: (itemId) => sql`SELECT * FROM TicketComment WHERE ItemId = ${itemId}
-        ORDER BY CreatedAtUtc DESC, rowid DESC`,
     }),
     /** The fixed fields of the project's active tickets, for export (§7.9, §7.19). */
     listForActiveItems: SqlSchema.findAll({
@@ -68,18 +81,21 @@ export function ticketDetailRepository(sql: SqlClient.SqlClient) {
         WHERE item.ProjectId = ${projectId} AND item.DeletedAtUtc IS NULL
         ORDER BY detail.rowid`,
     }),
-    /** The comments of the project's active tickets, oldest first, for export. */
-    listCommentsForActiveItems: SqlSchema.findAll({
-      Request: Guid,
-      Result: TicketCommentRow,
-      execute: (projectId) => sql`SELECT comment.* FROM TicketComment AS comment
-        JOIN TodoItem AS item ON item.Id = comment.ItemId
-        WHERE item.ProjectId = ${projectId} AND item.DeletedAtUtc IS NULL
-        ORDER BY comment.CreatedAtUtc, comment.rowid`,
+    /** The card Detail choices of the area's tickets that do not follow the setting (§7.17). */
+    listCardOverrides: SqlSchema.findAll({
+      Request: AreaRequest,
+      Result: CardOverrideRow,
+      execute: ({ projectId, folderId }) => sql`
+        SELECT detail.ItemId AS itemId, detail.ShowDetailOnCard AS showDetailOnCard
+        FROM TicketDetail AS detail JOIN TodoItem AS item ON item.Id = detail.ItemId
+        WHERE item.ProjectId = ${projectId} AND item.FolderId IS ${folderId}
+          AND item.DeletedAtUtc IS NULL AND detail.ShowDetailOnCard IS NOT NULL`,
     }),
-    insertComment: SqlSchema.void({
-      Request: TicketCommentRow,
-      execute: (row) => sql`INSERT INTO TicketComment ${sql.insert(row)}`,
-    }),
+    /**
+     * The active item with this ticket number, ignoring case: a ticket before a ToDo, then
+     * the most recently updated. Null when Task Tracker holds none (§7.19).
+     */
+    findByTicketNumber: (ticketNumber: string) =>
+      findByNumber(ticketNumber).pipe(Effect.map(Option.getOrNull)),
   };
 }

@@ -27,9 +27,10 @@ function* csvFields(text: string) {
 }
 
 /** A CSV record as fields with the separator that ends each. */
-type CsvRecord = Array<{ field: string; separator: string }>;
+export type CsvRecord = Array<{ field: string; separator: string }>;
 
-function csvRecords(text: string): CsvRecord[] {
+/** Splits CSV text into records, keeping every field's separator so it can be rejoined. */
+export function csvRecords(text: string): CsvRecord[] {
   const records: CsvRecord[] = [[]];
   for (const part of csvFields(text)) {
     records.at(-1)!.push(part);

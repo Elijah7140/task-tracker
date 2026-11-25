@@ -39,6 +39,7 @@ const {
   urgencyOverdueColor,
   trayCardSize,
   trayCardShowsItems,
+  showTicketDetailOnCards,
 } = SettingsCatalogue;
 
 /** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
@@ -212,6 +213,10 @@ const make = Effect.gen(function* () {
         size: parseOrDefault(trayCardSize, global.get(trayCardSize.key)),
         showItems: parseOrDefault(trayCardShowsItems, global.get(trayCardShowsItems.key)),
       } satisfies TrayCardSettingsInput,
+      showTicketDetailOnCards: parseOrDefault(
+        showTicketDetailOnCards,
+        global.get(showTicketDetailOnCards.key),
+      ),
     };
   }, sql.withTransaction);
 
@@ -386,6 +391,7 @@ const make = Effect.gen(function* () {
       urgencyColors?: UrgencyColorsInput,
       autoHide?: boolean,
       trayCard?: TrayCardSettingsInput,
+      ticketDetailOnCards?: boolean,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -420,6 +426,9 @@ const make = Effect.gen(function* () {
         if (trayCard !== undefined) {
           proposeGlobal(proposed, current, trayCardSize, trayCard.size);
           proposeGlobal(proposed, current, trayCardShowsItems, trayCard.showItems);
+        }
+        if (ticketDetailOnCards !== undefined) {
+          proposeGlobal(proposed, current, showTicketDetailOnCards, ticketDetailOnCards);
         }
         return proposed;
       }, approval),

@@ -226,7 +226,6 @@ export function applyCreateItem(
         description: null,
         notes: null,
         ticketNumber: null,
-        itemTypeId: null,
         priorityLevelId: null,
         dueDate: null,
         dueTime: null,
@@ -242,6 +241,7 @@ export function applyCreateItem(
       ownUrgency: "None",
       displayedUrgency: { value: "None", sourceDescendantId: null },
       isFinished: false,
+      showsDetailOnCard: false,
       children: [],
     };
     area.baseUrgencies.set(id, "None");

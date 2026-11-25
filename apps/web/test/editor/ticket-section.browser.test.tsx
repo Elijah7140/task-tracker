@@ -67,6 +67,26 @@ describe("TicketSection in the item editor", () => {
     });
   });
 
+  it("Saves a typed parent ticket and says when Task Tracker holds no such ticket", async () => {
+    const { store } = await openTicketEditor();
+    const parent = editor().getByTestId("ticket-editor-parentTicketNumber");
+    await expect.element(editor().getByTestId("item-editor-ticket")).toHaveValue("385405");
+    await expect.element(editor().getByTestId("parent-ticket-open")).not.toBeInTheDocument();
+
+    await parent.fill("999999");
+    await editor().getByRole("button", { name: "Open ticket #999999" }).click();
+
+    await expect
+      .element(editor().getByTestId("parent-ticket-message"))
+      .toHaveTextContent("No ticket #999999 in Task Tracker");
+    await editor().getByTestId("item-editor-save").click();
+    await expect.element(editor()).not.toBeInTheDocument();
+    expect(store.ticketFields.lastEditTicket).toEqual({
+      ...NO_TICKET_FIELDS,
+      parentTicketNumber: "999999",
+    });
+  });
+
   it("Sends no ticket fields when only the summary changes", async () => {
     const { store } = await openTicketEditor();
     await expect.element(editor().getByTestId("item-editor-ticket-fields")).toBeVisible();

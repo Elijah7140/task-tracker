@@ -251,7 +251,7 @@ describe("JSON import validation", () => {
     }),
   );
 
-  it.effect("Rejects an unknown item type or priority", () =>
+  it.effect("Rejects an unknown priority and ignores an older file's item type", () =>
     Effect.gen(function* () {
       const issues = yield* rejected((document) => {
         const item = itemTitled(document, "Fix invoice totals");
@@ -260,7 +260,7 @@ describe("JSON import validation", () => {
       });
 
       const paths = issues.map((issue) => issue.path);
-      expect(paths.some((path) => path.endsWith(".itemType"))).toBe(true);
+      expect(paths.some((path) => path.endsWith(".itemType"))).toBe(false);
       expect(paths.some((path) => path.endsWith(".priority"))).toBe(true);
     }),
   );
@@ -408,18 +408,18 @@ describe("JSON import validation", () => {
     }),
   );
 
-  it.effect("Rejects duplicate item type names and active choice labels", () =>
+  it.effect("Rejects duplicate priority names and active choice labels", () =>
     Effect.gen(function* () {
       const types = yield* rejected((document) => {
-        document.itemTypes[3].name = "change";
+        document.priorityLevels[1].name = "critical";
       });
       const labels = yield* rejected((document) => {
         fieldKeyed(document, "severity").choices[1].label = "minor";
       });
 
       expect(types).toContainEqual({
-        path: "$.itemTypes[3].name",
-        message: "The name 'change' is used more than once.",
+        path: "$.priorityLevels[1].name",
+        message: "The name 'critical' is used more than once.",
       });
       expect(labels.some((issue) => issue.message.includes("more than one active choice"))).toBe(
         true,

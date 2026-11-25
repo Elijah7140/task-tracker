@@ -29,9 +29,10 @@ describe("CSV import preview", () => {
         const preview = yield* world.previewCsv(csv, yield* billingOf(world));
 
         expect(preview.rowCount).toBe(2);
-        expect(preview.recognizedColumns).toEqual(["Title", "Type", "Priority", "Severity"]);
+        // Item types were removed (§12), so an older file's Type column is read past.
+        expect(preview.recognizedColumns).toEqual(["Title", "Priority", "Severity"]);
         expect(preview.unknownColumns).toEqual(["Mystery"]);
-        expect(preview.ignoredColumns).toEqual(["Project"]);
+        expect(preview.ignoredColumns).toEqual(["Type", "Project"]);
         expect(preview.sampleRows.map((row) => row.title)).toEqual(["One", "Two"]);
         expect(preview.canImport).toBe(true);
         expect(preview.fileName).toMatch(/^import-\d+\.csv$/);
@@ -56,24 +57,23 @@ describe("CSV import preview", () => {
     seededWorld((world) =>
       Effect.gen(function* () {
         const csv =
-          "Title,Type,Priority,Due date,Estimate,Severity\r\n" +
-          "Good,Change,High,2026-12-01,1,Major\r\n" +
-          "Bad type,Bug,High,2026-12-01,1,Major\r\n" +
-          ",Change,Urgent,13/01/2026,abc,Huge\r\n";
+          "Title,Priority,Due date,Estimate,Severity\r\n" +
+          "Good,High,2026-12-01,1,Major\r\n" +
+          "Bad priority,Whenever,2026-12-01,1,Major\r\n" +
+          ",Urgent,13/01/2026,abc,Huge\r\n";
 
         const preview = yield* world.previewCsv(csv, yield* billingOf(world));
 
         expect(preview.canImport).toBe(false);
         expect(preview.issues.map((issue) => issue.path)).toEqual([
-          "Row 3, Type",
+          "Row 3, Priority",
           "Row 4, Title",
           "Row 4, Due date",
           "Row 4, Estimate",
           "Row 4, Severity",
         ]);
-        expect(preview.issues[0]!.message).toContain("'Bug'");
-        expect(preview.issues[0]!.message).toContain("Change, Error, Discussion, Spike");
-        expect(preview.issues[4]!.message).toContain("Minor, Major");
+        expect(preview.issues[0]!.message).toContain("'Whenever'");
+        expect(preview.issues.at(-1)!.message).toContain("Minor, Major");
         expect(preview.sampleRows.map((row) => row.hasError)).toEqual([false, true, true]);
       }),
     ),
@@ -217,7 +217,6 @@ describe("CSV import", () => {
         expect(created).toMatchObject({
           ParentItemId: null,
           FolderId: null,
-          ItemTypeId: BUILT_IN.change,
           PriorityLevelId: BUILT_IN.high,
           TicketNumber: "T-1",
           TicketRank: fix.TicketRank! + 1,
@@ -344,11 +343,11 @@ describe("CSV import", () => {
         const before = yield* countRows(world);
 
         const result = yield* world.importCsv(
-          "Title,Type\r\nFine,Change\r\nBroken,Nope\r\n",
+          "Title,Priority\r\nFine,High\r\nBroken,Nope\r\n",
           yield* billingOf(world),
         );
 
-        expect(issuesOf(result).map((issue) => issue.path)).toEqual(["Row 3, Type"]);
+        expect(issuesOf(result).map((issue) => issue.path)).toEqual(["Row 3, Priority"]);
         expect(yield* countRows(world)).toEqual(before);
         expect(world.backup.count).toBe(0);
       }),
@@ -473,18 +472,16 @@ describe("CSV import", () => {
     seededWorld((world) =>
       Effect.gen(function* () {
         const billing = yield* billingOf(world);
-        const csv = "Title,Type\r\nLate,Spike\r\n";
+        const csv = "Title,Priority\r\nLate,Low\r\n";
         const preview = yield* world.previewCsv(csv, billing);
         yield* world.sql.withTransaction(
-          world.sql`UPDATE ItemType SET IsArchived = 1 WHERE Name = 'Spike'`,
+          world.sql`UPDATE PriorityLevel SET IsArchived = 1 WHERE Name = 'Low'`,
         );
 
         const result = yield* world.importCsv(csv, billing);
 
         expect(preview.canImport).toBe(true);
-        expect(issuesOf(result)).toEqual([
-          { path: "Row 2, Type", message: "The type 'Spike' is archived." },
-        ]);
+        expect(issuesOf(result).map((issue) => issue.path)).toEqual(["Row 2, Priority"]);
       }),
     ),
   );

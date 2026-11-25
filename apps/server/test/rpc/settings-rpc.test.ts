@@ -85,6 +85,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         autoHideCompleted: true,
         urgencyColors: { approaching: null, overdue: null },
         trayCard: { size: "Full", showItems: true },
+        showTicketDetailOnCards: true,
       });
       expect(result).toEqual({ kind: "applied" });
       expect(saved).toEqual({
@@ -96,6 +97,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         autoHideCompleted: true,
         urgencyColors: { approaching: null, overdue: null },
         trayCard: { size: "Full", showItems: true },
+        showTicketDetailOnCards: true,
       });
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },
@@ -451,6 +453,31 @@ it.effect("Hides a malformed stored setting behind an operation failure", () =>
         _tag: "OperationFailed",
         message: "The operation could not be completed.",
       });
+    }),
+  ),
+);
+
+it.effect("Saves whether ticket cards show their Detail and keeps it when a save omits it", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const defaults = yield* client.LoadGlobalSettings();
+
+      yield* client.SaveGlobalSettings({
+        settings: { ...defaults, showTicketDetailOnCards: false },
+      });
+      const { showTicketDetailOnCards: _omitted, ...withoutChoice } = defaults;
+      yield* client.SaveGlobalSettings({
+        settings: { ...withoutChoice, autoCompleteParents: false },
+      });
+      const saved = yield* client.LoadGlobalSettings();
+
+      expect(defaults.showTicketDetailOnCards).toBe(true);
+      expect(saved.showTicketDetailOnCards).toBe(false);
+      expect(yield* storedRows("GlobalSetting")).toEqual([
+        { Key: "autoCompleteParents", Value: "false" },
+        { Key: "showTicketDetailOnCards", Value: "false" },
+      ]);
     }),
   ),
 );

@@ -201,7 +201,6 @@ function EditorContent({
           <PropertyFields
             item={node.item}
             texts={texts}
-            itemTypes={snapshot.itemTypes}
             priorityLevels={snapshot.priorityLevels}
             statuses={snapshot.statuses}
             onChange={store.setBuiltIn}
@@ -212,6 +211,12 @@ function EditorContent({
               overrides={store.ticket}
               onChange={store.setTicket}
               onStored={onStoredTicket}
+              openGuard={(open) =>
+                session.guarded(async () => {
+                  store.close();
+                  await open();
+                })
+              }
             />
           ) : null}
           {ticket ? null : (

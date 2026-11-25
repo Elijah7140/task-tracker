@@ -17,14 +17,13 @@ type Snapshot = typeof AreaSnapshot.Type;
 export interface BuiltInFieldsProps {
   readonly item: typeof Item.Type;
   readonly texts: BuiltInTexts;
-  readonly itemTypes: Snapshot["itemTypes"];
   readonly priorityLevels: Snapshot["priorityLevels"];
   readonly statuses: Snapshot["statuses"];
   readonly titleRef: Ref<HTMLInputElement>;
   readonly onChange: (key: BuiltInKey, value: string) => void;
 }
 
-/** True for a ticket, whose fields are fixed: no type and only one date (§7.19). */
+/** True for a ticket, whose fields are fixed: a ticket number and only one date (§7.19). */
 const isTicket = (item: typeof Item.Type) => item.kind === "Ticket";
 
 type ChangeProps = Pick<BuiltInFieldsProps, "texts" | "onChange">;
@@ -104,7 +103,6 @@ function LookupSelect({
 function DetailsGroup({
   item,
   texts,
-  itemTypes,
   priorityLevels,
   statuses,
   onChange,
@@ -112,15 +110,6 @@ function DetailsGroup({
   return (
     <EditorGroup title="Details" testId="item-editor-details">
       <div className="flex flex-col gap-1.5">
-        {isTicket(item) ? null : (
-          <LookupSelect
-            label="Type"
-            value={texts.itemTypeId}
-            options={lookupOptions(itemTypes, item.itemTypeId)}
-            testId="item-editor-type"
-            onValueChange={(value) => onChange("itemTypeId", value)}
-          />
-        )}
         <LookupSelect
           label="Priority"
           value={texts.priorityLevelId}
@@ -135,16 +124,18 @@ function DetailsGroup({
           testId="item-editor-status"
           onValueChange={(value) => onChange("statusId", value)}
         />
-        <EditorField label="Ticket number">
-          <Input
-            value={texts.ticketNumber}
-            onValueChange={(value: string) => onChange("ticketNumber", value)}
-            data-testid="item-editor-ticket"
-            autoComplete="off"
-            spellCheck={false}
-            className={fieldStyles.compactControl}
-          />
-        </EditorField>
+        {isTicket(item) ? (
+          <EditorField label="Ticket number">
+            <Input
+              value={texts.ticketNumber}
+              onValueChange={(value: string) => onChange("ticketNumber", value)}
+              data-testid="item-editor-ticket"
+              autoComplete="off"
+              spellCheck={false}
+              className={fieldStyles.compactControl}
+            />
+          </EditorField>
+        ) : null}
       </div>
     </EditorGroup>
   );
@@ -190,8 +181,8 @@ function ScheduleGroup({ texts, onChange, ticket }: ChangeProps & { readonly tic
 }
 
 /**
- * The item's built-in metadata as compact property rows: Details (type,
- * priority, ticket) and Schedule (due date and time).
+ * The item's built-in metadata as compact property rows: Details (priority, status and a
+ * ticket's number; a ToDo never shows ticket fields, §7.19) and Schedule (due date and time).
  */
 export function PropertyFields(props: Omit<BuiltInFieldsProps, "titleRef">) {
   return (

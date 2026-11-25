@@ -89,14 +89,12 @@ export { planFieldValueEdits, type FieldValueEdits } from "./fields/field-value-
 export type { FieldValueInput } from "./fields/field-value-input.js";
 export { validateFieldValue } from "./fields/field-value-validator.js";
 export type { ItemFieldValue } from "./fields/item-field-value.js";
-export { builtInItemTypes, builtInPriorityLevels } from "./lookups/built-in-lookups.js";
-export type { ItemType } from "./lookups/item-type.js";
+export { builtInPriorityLevels } from "./lookups/built-in-lookups.js";
 export type { LookupEntity } from "./lookups/lookup-entity.js";
 export {
   activeLookups,
   archiveLookup,
   comparePriority,
-  createItemType,
   createPriorityLevel,
   renameLookup,
   reorderLookups,
@@ -192,7 +190,6 @@ export * from "./items/item-kind.js";
 export * from "./items/imported-item-text.js";
 export * from "./tickets/ticket-list-entry.js";
 export * from "./tickets/ticket-detail.js";
-export * from "./tickets/ticket-comment.js";
 export { editItem, type ItemEdit } from "./items/item-edit.js";
 export type { ItemLink, ItemLinkInput } from "./items/item-link.js";
 export { planItemLinkEdits, type ItemLinkEdits } from "./items/item-link-edits.js";

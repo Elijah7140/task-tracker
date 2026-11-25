@@ -28,7 +28,6 @@ export const writeImportPlan = Effect.fnUntraced(function* (
 ) {
   const lookups = lookupRepository(sql);
   const fields = fieldRepository(sql);
-  yield* each(plan.itemTypes, lookups.itemTypes.insert);
   yield* each(plan.priorityLevels, lookups.priorityLevels.insert);
   yield* each(plan.statuses, statusRepository(sql).insert);
   yield* each(plan.projects, projectRepository(sql).insert);
@@ -43,7 +42,6 @@ export const writeImportPlan = Effect.fnUntraced(function* (
   yield* each(plan.links, itemLinkRepository(sql).insert);
   yield* each(plan.ticketLists, ticketListRepository(sql).insert);
   yield* each(plan.ticketDetails, ticketDetailRepository(sql).upsert);
-  yield* each(plan.comments, ticketDetailRepository(sql).insertComment);
   yield* each(plan.savedSearches, savedSearchRepository(sql).insert);
   yield* appendNewTickets(
     sql,

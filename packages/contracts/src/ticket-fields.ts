@@ -1,6 +1,5 @@
 import { Schema } from "effect";
 import { Guid } from "./guid.js";
-import { IsoUtcInstant } from "./iso-date-time.js";
 
 /** ToDo or Ticket (§7.19). */
 export const ItemKind = Schema.Literals(["Todo", "Ticket"]);
@@ -35,19 +34,20 @@ export const TicketDetailInput = Schema.Struct({
   dispatchedToId: optionalEntry,
   pendingPersonId: optionalEntry,
   ticketTypeId: optionalEntry,
+  /** The parent ticket's number as free text; Task Tracker may not hold that ticket. */
+  parentTicketNumber: Schema.NullOr(Schema.String),
 });
 
-/** One entry of a ticket's comment log. */
-export const TicketCommentProjection = Schema.Struct({
-  id: Guid,
-  itemId: Guid,
-  body: Schema.String,
-  createdAtUtc: IsoUtcInstant,
-});
-
-/** A ticket's fixed fields and its comments, newest first. */
+/** A ticket's fixed fields. */
 export const TicketSnapshot = Schema.Struct({
   itemId: Guid,
   detail: TicketDetailInput,
-  comments: Schema.Array(TicketCommentProjection),
+});
+
+/** Where a ticket found by its number lives, for opening its drill-in view (§7.19). */
+export const TicketLocation = Schema.Struct({
+  itemId: Guid,
+  projectId: Guid,
+  folderId: Schema.NullOr(Guid),
+  title: Schema.String,
 });

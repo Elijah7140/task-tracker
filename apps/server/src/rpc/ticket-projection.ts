@@ -1,25 +1,13 @@
-import type {
-  TicketCommentProjection,
-  TicketListEntryProjection,
-  TicketSnapshot,
-} from "@task-tracker/contracts";
-import type { TicketComment, TicketDetail, TicketListEntry } from "@task-tracker/core";
+import type { TicketListEntryProjection, TicketSnapshot } from "@task-tracker/contracts";
+import type { TicketDetail, TicketListEntry } from "@task-tracker/core";
 
-/** A comment with its UTC timestamp as an ISO string. */
-export function projectTicketComment(comment: TicketComment): typeof TicketCommentProjection.Type {
-  return { ...comment, createdAtUtc: comment.createdAtUtc.toString() };
-}
-
-/** A ticket's fixed fields and comment log, newest first (§7.19). */
-export function projectTicket({
-  detail,
-  comments,
-}: {
-  readonly detail: TicketDetail;
-  readonly comments: readonly TicketComment[];
-}): typeof TicketSnapshot.Type {
-  const { itemId, ...fields } = detail;
-  return { itemId, detail: fields, comments: comments.map(projectTicketComment) };
+/**
+ * A ticket's fixed fields (§7.19). The card's Detail choice reaches the renderer through the
+ * area snapshot instead, and an editor save leaves it as stored.
+ */
+export function projectTicket(detail: TicketDetail): typeof TicketSnapshot.Type {
+  const { itemId, showDetailOnCard: _cardChoice, ...fields } = detail;
+  return { itemId, detail: fields };
 }
 
 /** A ticket list entry as the renderer sees it. */

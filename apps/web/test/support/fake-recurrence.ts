@@ -286,6 +286,7 @@ export class FakeRecurrence {
         updatedAtUtc: now,
       },
       isFinished: false,
+      showsDetailOnCard: node.showsDetailOnCard,
       // recomputeAreaTree assigns each copied child's parent and position.
       children,
     };

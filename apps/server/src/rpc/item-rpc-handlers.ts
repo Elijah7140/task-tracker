@@ -10,7 +10,7 @@ import {
 } from "./item-projection.js";
 import { parseFieldValueInput, projectItemFieldValue } from "./field-value-projection.js";
 import { projectItemLink } from "./item-link-projection.js";
-import { projectTicket, projectTicketComment } from "./ticket-projection.js";
+import { projectTicket } from "./ticket-projection.js";
 
 import { mapOperationError } from "./map-operation-error.js";
 import { mapAddTicketsError } from "./map-add-tickets-error.js";
@@ -44,8 +44,10 @@ export const itemRpcHandlers = (timeZone: string) =>
           ),
         LoadTicket: ({ itemId }) =>
           items.loadTicket(itemId).pipe(Effect.map(projectTicket), mapOperationError),
-        AddTicketComment: ({ itemId, body }) =>
-          items.addComment(itemId, body).pipe(Effect.map(projectTicketComment), mapOperationError),
+        FindTicketByNumber: ({ ticketNumber }) =>
+          items.findTicketByNumber(ticketNumber).pipe(mapOperationError),
+        SetTicketDetailOnCard: ({ itemId, show }) =>
+          items.setDetailOnCard(itemId, show).pipe(mapOperationError),
         CreateItem: ({ projectId, folderId, parentItemId, title, afterItemId }) =>
           items
             .create(projectId, folderId, parentItemId, title, afterItemId)

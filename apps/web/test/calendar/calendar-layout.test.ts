@@ -30,7 +30,6 @@ function entry(overrides: Partial<Entry>): Entry {
     isCompleted: false,
     dueDate: MONDAY,
     dueTime: null,
-    itemType: null,
     priority: null,
     statusId: null,
     statusName: null,
@@ -224,14 +223,14 @@ describe("entryOnDay", () => {
     expect(timed.monthLabel).toBe("09:05 Timed");
   });
 
-  it("Names type and priority in the tooltip with placeholders and adds the status", () => {
-    const full = clip(due(MONDAY, "Full", null, { itemType: "Task", priority: "High" }));
+  it("Names the priority in the tooltip with a placeholder and adds the status", () => {
+    const full = clip(due(MONDAY, "Full", null, { priority: "High" }));
     const bare = clip(due(MONDAY, "Bare"));
     const withStatus = clip(due(MONDAY, "Status", null, { statusName: "Blocked" }));
 
-    expect(full.tooltip).toBe("Task · High");
-    expect(bare.tooltip).toBe("No type · No priority");
-    expect(withStatus.tooltip).toBe("No type · No priority · Blocked");
+    expect(full.tooltip).toBe("High");
+    expect(bare.tooltip).toBe("No priority");
+    expect(withStatus.tooltip).toBe("No priority · Blocked");
   });
 });
 

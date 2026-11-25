@@ -29,9 +29,10 @@ function customField(
   } satisfies SearchableField;
 }
 
-/** The built-in fields plus a Number and a Boolean custom field. */
+/** The built-in fields plus a Choice, a Number and a Boolean custom field. */
 export const SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   ...BUILT_IN_SEARCH_FIELDS,
+  customField("00000000-0000-0000-0000-0000000000F0", "type", "Type", "Choice"),
   customField("00000000-0000-0000-0000-0000000000F1", "effort", "Effort", "Number"),
   customField("00000000-0000-0000-0000-0000000000F2", "flagged", "Flagged", "Boolean"),
 ];

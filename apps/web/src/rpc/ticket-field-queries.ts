@@ -7,7 +7,7 @@ type Id = typeof Guid.Type;
 /** Reactivity key for People, Ticket types and the ticket levels (§7.19). */
 export const TICKET_LISTS_KEY = "ticket-lists";
 
-/** Reactivity key for one ticket's fields and comments. */
+/** Reactivity key for one ticket's fields. */
 export const ticketKey = (itemId: Id) => `ticket:${itemId}`;
 
 /** Every ticket list entry, archived ones included, in list order. */
@@ -15,7 +15,7 @@ export const ticketListsAtom = TaskTrackerClient.query("ListTicketListEntries", 
   reactivityKeys: [HISTORY_REPLAY_KEY, TICKET_LISTS_KEY],
 });
 
-/** One ticket's fixed fields and comment log. */
+/** One ticket's fixed fields. */
 export const ticketAtom = (itemId: Id) =>
   TaskTrackerClient.query(
     "LoadTicket",

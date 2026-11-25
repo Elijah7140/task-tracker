@@ -144,7 +144,6 @@ it.effect("Projects every result property with its location and lookup labels", 
     Effect.gen(function* () {
       const project = yield* svc.projects.create("Billing");
       const folder = yield* svc.folders.create(project.id, null, "Tables");
-      const [itemType] = yield* svc.lookups.itemTypes.list();
       const [priority] = yield* svc.lookups.priorityLevels.list();
       const parent = yield* svc.items.create(project.id, folder.id, null, "Parent");
       const child = yield* svc.items.create(project.id, folder.id, parent.id, "Child");
@@ -152,7 +151,6 @@ it.effect("Projects every result property with its location and lookup labels", 
         child.id,
         editFields("Child", {
           ticketNumber: "OPS-42",
-          itemTypeId: itemType!.id,
           priorityLevelId: priority!.id,
           dueDate: Temporal.PlainDate.from("2026-11-20"),
           dueTime: Temporal.PlainTime.from("09:30:15.1234567"),
@@ -173,14 +171,12 @@ it.effect("Projects every result property with its location and lookup labels", 
             parentItemId: parent.id,
             title: "Child",
             ticketNumber: "OPS-42",
-            itemTypeId: itemType!.id,
             priorityLevelId: priority!.id,
             statusId: expect.any(String),
             dueDate: "2026-11-20",
             dueTime: "09:30:15.1234567",
             isCompleted: true,
             location: ["Billing", "Tables"],
-            typeName: itemType!.name,
             priorityLabel: "Critical",
             statusName: "Completed",
           },
@@ -553,12 +549,11 @@ it.effect("Filters completion and custom Booleans with every allowed operator", 
   ),
 );
 
-it.effect("Filters type, priority and custom choices, with priority ordered by rank", () =>
+it.effect("Filters priority and custom choices, with priority ordered by rank", () =>
   withSearchServices((svc) =>
     Effect.gen(function* () {
       const matrix = yield* seedFilterMatrix(svc);
       const cases = [
-        { key: "type", id: matrix.typeA.id },
         { key: "priority", id: matrix.priorityA.id },
         { key: matrix.category.key, id: matrix.choiceA.id },
       ];
@@ -585,7 +580,7 @@ it.effect("Filters type, priority and custom choices, with priority ordered by r
       ];
 
       const expected = [["Alpha"], ["Beta"], ["Gamma"], ["Alpha", "Beta"]];
-      expect(equality).toEqual([expected, expected, expected]);
+      expect(equality).toEqual([expected, expected]);
       expect(ordered).toEqual([["Alpha"], ["Beta"], ["Alpha", "Beta"]]);
     }),
   ),
@@ -740,13 +735,12 @@ it.effect("Rejects choices from another field, archived choices and invalid cust
       yield* svc.fields.archiveChoice(fieldA.id, old.id);
       const archived = yield* svc.fields.create("Archived", "Text", null);
       yield* svc.fields.archive(archived.id);
-      const [type] = yield* svc.lookups.itemTypes.list();
       const [high] = yield* svc.lookups.priorityLevels.list();
       const invalid = [
         filter(fieldA.key, "equals", choice(choiceB.id)),
         filter(fieldA.key, "equals", choice(old.id)),
-        filter("type", "equals", choice(high!.id)),
-        filter("priority", "equals", choice(type!.id)),
+        filter(fieldB.key, "equals", choice(high!.id)),
+        filter("priority", "equals", choice(choiceB.id)),
         filter(archived.key, "equals", text("hidden")),
       ];
 
@@ -757,7 +751,7 @@ it.effect("Rejects choices from another field, archived choices and invalid cust
       expect(messages).toEqual([
         `Choice does not belong to search field '${fieldA.key}'.`,
         `Choice does not belong to search field '${fieldA.key}'.`,
-        "Choice does not belong to search field 'type'.",
+        `Choice does not belong to search field '${fieldB.key}'.`,
         "Choice does not belong to search field 'priority'.",
         `Unknown search field '${archived.key}'.`,
       ]);
@@ -784,7 +778,6 @@ it.effect("Lists built-in, global and scoped project fields in registry order", 
       const builtIns = [
         "title",
         "ticket",
-        "type",
         "priority",
         "due",
         "status",
@@ -800,7 +793,7 @@ it.effect("Lists built-in, global and scoped project fields in registry order", 
         "module",
         "interface",
         "tickettype",
-        "comment",
+        "parentticket",
       ];
       expect(projectKeys).toEqual([...builtIns, "global", "local"]);
       expect(allKeys).toEqual([...builtIns, "global", "local", "other"]);
@@ -817,17 +810,19 @@ it.effect("Lists active choices in sort order for a field key in scope", () =>
       const hidden = yield* svc.fields.addChoice(category.id, "Hidden");
       yield* svc.fields.reorderChoices(category.id, [second.id, firstChoice.id, hidden.id]);
       yield* svc.fields.archiveChoice(category.id, hidden.id);
-      const hiddenType = yield* svc.lookups.itemTypes.add("Hidden type");
-      yield* svc.lookups.itemTypes.archive(hiddenType.id);
+      const hiddenLevel = yield* svc.lookups.priorityLevels.add("Hidden level");
+      yield* svc.lookups.priorityLevels.archive(hiddenLevel.id);
 
       const choices = yield* svc.search.listChoices(ALL, category.key);
-      const types = yield* svc.search.listChoices(ALL, "type");
+      const levels = yield* svc.search.listChoices(ALL, "priority");
       const unknown = yield* Effect.flip(svc.search.listChoices(ALL, "missing"));
+      const removed = yield* Effect.flip(svc.search.listChoices(ALL, "type"));
 
       expect(choices.map((option) => option.label)).toEqual(["Second", "First"]);
-      expect(types.map((option) => option.label)).not.toContain("Hidden type");
-      expect(types.length).toBeGreaterThan(0);
+      expect(levels.map((option) => option.label)).not.toContain("Hidden level");
+      expect(levels.length).toBeGreaterThan(0);
       expect(unknown.message).toBe("Unknown search field 'missing'.");
+      expect(removed.message).toBe("Unknown search field 'type'.");
     }),
   ),
 );

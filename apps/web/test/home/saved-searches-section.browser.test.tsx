@@ -6,7 +6,8 @@ import type { FakeProjectStore, SeedProject } from "../support/fake-task-tracker
 import { renderApp } from "../support/render-app.js";
 import { matchShellAtBothSizes, THEMES } from "../support/screenshots.js";
 
-const typeId = (name: string) => FAKE_LOOKUPS.itemTypes.find((type) => type.name === name)!.id;
+const priorityId = (name: string) =>
+  FAKE_LOOKUPS.priorityLevels.find((level) => level.name === name)!.id;
 
 const homeHeading = () => page.getByRole("heading", { name: "Projects", level: 1 });
 const searchHeading = () => page.getByRole("heading", { name: "Search", exact: true });
@@ -29,8 +30,8 @@ const PROJECTS: ReadonlyArray<SeedProject> = [
     openCount: 2,
     overdueCount: 1,
     items: [
-      { title: "Fix deadlock", type: "Error", priority: "High" },
-      { title: "Review invoice indexes", type: "Change", priority: "High", dueDate: "2026-11-12" },
+      { title: "Fix deadlock", priority: "High" },
+      { title: "Review invoice indexes", priority: "High", dueDate: "2026-11-12" },
     ],
   },
   { name: "Website", openCount: 1 },
@@ -57,7 +58,7 @@ async function answerPrompt(title: string, name: string) {
 it("Lists saved searches in stored order and hides the section when there are none", async () => {
   const { store } = await openHome(() => [
     { name: "Overdue", queryText: "due<today" },
-    { name: "Errors", queryText: `type:#${typeId("Error")}` },
+    { name: "Errors", queryText: `priority:#${priorityId("High")}` },
   ]);
 
   await expect.element(links().first()).toMatchTextContent("Overdue");
@@ -74,14 +75,14 @@ it("Lists saved searches in stored order and hides the section when there are no
 });
 
 it("Opens a saved search from Home with the keyboard and Back returns Home", async () => {
-  await openHome(() => [{ name: "Errors", queryText: `deadlock type:#${typeId("Error")}` }]);
+  await openHome(() => [{ name: "Errors", queryText: `deadlock priority:#${priorityId("High")}` }]);
 
   await expect.element(link("Errors")).toBeVisible();
   link("Errors").element().focus();
   await userEvent.keyboard("{Enter}");
 
   await expect.element(searchHeading()).toBeVisible();
-  await expect.element(searchInput()).toHaveValue("deadlock type:Error");
+  await expect.element(searchInput()).toHaveValue("deadlock priority:High");
   await expect.element(results()).toHaveLength(1);
   await expect
     .element(page.getByRole("navigation", { name: "Saved searches" }).getByRole("button"))
@@ -156,7 +157,7 @@ it("Opening a saved search deleted meanwhile says so, stays Home and refreshes t
 it("Returning Home lists a search saved on the Search page and undo removes it", async () => {
   await openHome(() => []);
   await userEvent.keyboard("{Control>}f{/Control}");
-  await searchInput().fill("type:error");
+  await searchInput().fill("priority:high");
 
   await page.getByRole("button", { name: "Save search", exact: true }).click();
   await answerPrompt("Save search", "Fresh");
@@ -191,7 +192,7 @@ it("A saved search whose project was deleted shows an inline error", async () =>
 
 it.each(THEMES)("Renders Home with saved searches in %s mode", async (theme) => {
   await openHome((store) => [
-    { name: "Overdue changes", queryText: `type:#${typeId("Change")} due<today` },
+    { name: "Overdue changes", queryText: `priority:#${priorityId("Medium")} due<today` },
     {
       name: "Urgent invoices",
       queryText: "invoice",

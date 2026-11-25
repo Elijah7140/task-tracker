@@ -73,36 +73,36 @@ it.effect(
 );
 
 it.effect(
-  "Undo after renaming an item type or a choice reverts that rename, not the step before",
+  "Undo after renaming a priority or a choice reverts that rename, not the step before",
   () =>
     withRendererRpc(
       Effect.gen(function* () {
         const client = yield* connectRenderer;
-        const type = yield* client.AddItemType({ name: "Review" });
+        const type = yield* client.AddPriorityLevel({ name: "Review" });
         const field = yield* client.CreateField({
           name: "Size",
           dataType: "Choice",
           projectId: null,
         });
         const choice = yield* client.AddFieldChoice({ fieldId: field.id, label: "Small" });
-        yield* client.RenameItemType({ id: type.id, name: "Audit" });
+        yield* client.RenamePriorityLevel({ id: type.id, name: "Audit" });
         yield* client.RenameFieldChoice({ fieldId: field.id, choiceId: choice.id, label: "Tiny" });
         const latest = yield* client.GetHistory();
 
         const choiceUndo = yield* client.ApplyHistory({ direction: "undo" });
         const choices = yield* client.ListFieldChoices({ fieldId: field.id });
         const typeUndo = yield* client.ApplyHistory({ direction: "undo" });
-        const types = yield* client.ListItemTypes();
+        const types = yield* client.ListPriorityLevels();
         const remaining = yield* client.GetHistory();
 
         expect(latest.undo).toBe("Rename choice 'Tiny'");
         expect(choiceUndo?.label).toBe("Rename choice 'Tiny'");
         expect(choices).toMatchObject([{ id: choice.id, label: "Small" }]);
-        expect(typeUndo?.label).toBe("Rename item type 'Audit'");
+        expect(typeUndo?.label).toBe("Rename priority 'Audit'");
         expect(types).toContainEqual(expect.objectContaining({ id: type.id, name: "Review" }));
         expect(remaining).toMatchObject({
           undo: "Add choice 'Small'",
-          redo: "Rename item type 'Audit'",
+          redo: "Rename priority 'Audit'",
         });
       }),
     ),

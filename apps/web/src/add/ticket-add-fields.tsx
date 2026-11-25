@@ -17,8 +17,6 @@ export interface TicketAddFieldsProps extends DraftProps {
   readonly detailed: boolean;
   readonly lookups: AddLookups;
   readonly firstFieldRef: Ref<HTMLInputElement>;
-  /** Shows Parent ticket in quick add; the tray's multi-ticket add has no parent (§7.20). */
-  readonly withParent?: boolean | undefined;
 }
 
 type LevelProps = DraftProps & { readonly lookups: AddLookups };
@@ -88,11 +86,17 @@ function LevelFields({
 const personOptions = (lookups: AddLookups, selected: string) =>
   entryOptions(lookups.ticketLists, "Person", selected);
 
+/** The parent ticket's number, typed freely; Task Tracker may not hold that ticket (§7.19). */
+function ParentTicketField(draft: DraftProps) {
+  return (
+    <DraftText {...draft} field="parentTicketNumber" label="Parent ticket" testId="add-parent" />
+  );
+}
+
 /** Quick add's ticket fields, in the owner's order (§7.19). */
 function QuickTicketFields({
   lookups,
   firstFieldRef,
-  withParent = true,
   ...draft
 }: Omit<TicketAddFieldsProps, "detailed">) {
   return (
@@ -114,15 +118,7 @@ function QuickTicketFields({
         testId="add-dispatched-to"
         options={personOptions(lookups, draft.draft.dispatchedToId)}
       />
-      {withParent ? (
-        <DraftSelect
-          {...draft}
-          field="parentItemId"
-          label="Parent ticket"
-          testId="add-parent"
-          options={lookups.parentOptions}
-        />
-      ) : null}
+      <ParentTicketField {...draft} />
       <DraftSelect
         {...draft}
         field="priorityLevelId"
@@ -134,11 +130,10 @@ function QuickTicketFields({
   );
 }
 
-/** Every fixed ticket field except comments, which are added once the ticket exists. */
+/** Every fixed ticket field. */
 function DetailedTicketFields({
   lookups,
   firstFieldRef,
-  withParent: _withParent,
   ...draft
 }: Omit<TicketAddFieldsProps, "detailed">) {
   const people = (selected: string) => personOptions(lookups, selected);
@@ -162,13 +157,7 @@ function DetailedTicketFields({
           testId="add-requestor"
           options={people(draft.draft.requestorId)}
         />
-        <DraftSelect
-          {...draft}
-          field="parentItemId"
-          label="Parent ticket"
-          testId="add-parent"
-          options={lookups.parentOptions}
-        />
+        <ParentTicketField {...draft} />
         <DraftSelect
           {...draft}
           field="ticketTypeId"

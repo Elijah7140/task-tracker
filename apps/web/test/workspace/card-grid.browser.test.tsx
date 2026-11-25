@@ -103,7 +103,6 @@ const SNAPSHOT_PROJECT: SeedProject = {
     { title: "Tidy the test fixtures", dueDate: "2026-11-25", children: steps(2) },
     {
       title: "Add index to Invoice.CustomerId",
-      type: "Change",
       priority: "High",
       ticketNumber: "DB-161",
       dueDate: "2026-11-25",
@@ -113,7 +112,6 @@ const SNAPSHOT_PROJECT: SeedProject = {
     { title: "Review migration", priority: "High", ticketNumber: "DB-146", dueDate: "2026-11-25" },
     {
       title: "Fix rounding in tax totals",
-      type: "Error",
       priority: "High",
       ticketNumber: "DB-156",
       dueDate: "2026-11-14",

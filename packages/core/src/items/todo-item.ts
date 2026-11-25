@@ -20,7 +20,6 @@ export interface TodoItem extends DeletionFields {
   readonly notes: string | null;
   readonly ticketNumber: string | null;
   readonly priorityLevelId: string | null;
-  readonly itemTypeId: string | null;
   readonly dueDate: Temporal.PlainDate | null;
   readonly dueTime: Temporal.PlainTime | null;
   readonly statusId: string | null;
@@ -69,7 +68,6 @@ export function createItem(
     notes: null,
     ticketNumber: null,
     priorityLevelId: null,
-    itemTypeId: null,
     dueDate: null,
     dueTime: null,
     statusId: null,

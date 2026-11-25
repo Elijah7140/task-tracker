@@ -28,14 +28,14 @@ export { CompletionResult } from "./completion-result.js";
 export { CardColumns } from "./card-columns.js";
 export { HexColor, UrgencyColors } from "./urgency-colors.js";
 export { DurationTicks } from "./duration-ticks.js";
-export { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
+export { PriorityLevelProjection } from "./lookup-projection.js";
 export { LookupRpcs } from "./lookup-rpcs.js";
 export {
   ItemKind,
-  TicketCommentProjection,
   TicketDetailInput,
   TicketListEntryProjection,
   TicketListKind,
+  TicketLocation,
   TicketSnapshot,
 } from "./ticket-fields.js";
 export { TicketListRpcs } from "./ticket-list-rpcs.js";

@@ -4,7 +4,7 @@ import { parseJson } from "./transfer-json.js";
 import { projectId } from "./transfer-rows.js";
 import { emptyWorld, readRows, type TransferWorld } from "./transfer-world.js";
 
-/** Tickets, ticket lists, comments and project icons in JSON and CSV transfer (§7.19). */
+/** Tickets, ticket lists and project icons in JSON and CSV transfer (§7.19). */
 
 const APP = "019A0000-0000-7000-8000-0000000E0001";
 const MODULE = "019A0000-0000-7000-8000-0000000E0002";
@@ -14,6 +14,16 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
     format: "task-tracker",
     version: 1,
+    // Item types were removed on 25 Nov 2026 (§12); an older file's list is ignored.
+    itemTypes: [
+      {
+        id: "019A0000-0000-7000-8000-000000000001",
+        name: "Change",
+        isBuiltIn: true,
+        isArchived: false,
+        sortOrder: 0,
+      },
+    ],
     ticketLists: [
       {
         id: APP,
@@ -57,6 +67,8 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
               applicationId: APP,
               moduleId: MODULE,
               dispatchedToId: PERSON,
+              parentTicketNumber: " 385400 ",
+              showDetailOnCard: false,
               // Fields removed on 23 Nov 2026, which older files still carry and import ignores.
               version: "1.0.0",
               estimatedHours: 16,
@@ -64,6 +76,9 @@ const ticketFile = (overrides: Record<string, unknown> = {}) =>
               isUrgent: true,
               isSystemOutage: false,
             },
+            itemTypeId: "019A0000-0000-7000-8000-000000000001",
+            itemType: "Change",
+            // Comments were removed on 25 Nov 2026 (§12); an older file's are ignored.
             comments: [
               {
                 body: "Expecting to get onto this next week.",
@@ -90,6 +105,7 @@ interface TicketRow {
   readonly Module: string | null;
   readonly Application: string | null;
   readonly DispatchedTo: string | null;
+  readonly ParentTicketNumber: string | null;
 }
 
 const readTickets = (world: TransferWorld, project: string) =>
@@ -98,17 +114,18 @@ const readTickets = (world: TransferWorld, project: string) =>
     `SELECT item.Title, item.ItemKind, item.Description, item.Notes, item.TicketNumber,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.ModuleId) AS Module,
         (SELECT Name FROM TicketListEntry WHERE Id = detail.ApplicationId) AS Application,
-        (SELECT Name FROM TicketListEntry WHERE Id = detail.DispatchedToId) AS DispatchedTo
+        (SELECT Name FROM TicketListEntry WHERE Id = detail.DispatchedToId) AS DispatchedTo,
+        detail.ParentTicketNumber
       FROM TodoItem AS item LEFT JOIN TicketDetail AS detail ON detail.ItemId = item.Id
       WHERE item.ProjectId = ? ORDER BY item.Title`,
     project,
   );
 
-const readComments = (world: TransferWorld, project: string) =>
-  readRows<{ readonly Body: string; readonly CreatedAtUtc: string }>(
+const readCardChoices = (world: TransferWorld, project: string) =>
+  readRows<{ readonly ShowDetailOnCard: number | null }>(
     world,
-    `SELECT comment.Body, comment.CreatedAtUtc FROM TicketComment AS comment
-      JOIN TodoItem AS item ON item.Id = comment.ItemId WHERE item.ProjectId = ?`,
+    `SELECT detail.ShowDetailOnCard FROM TicketDetail AS detail
+      JOIN TodoItem AS item ON item.Id = detail.ItemId WHERE item.ProjectId = ?`,
     project,
   );
 
@@ -122,6 +139,7 @@ const expectedTickets = [
     Module: null,
     Application: null,
     DispatchedTo: null,
+    ParentTicketNumber: null,
   },
   {
     Title: "Training data",
@@ -132,12 +150,13 @@ const expectedTickets = [
     Module: "Train",
     Application: "ClockTower",
     DispatchedTo: "Harris, Elijah",
+    ParentTicketNumber: "385400",
   },
 ];
 
 describe("Ticket transfer", () => {
   it.effect(
-    "Imports tickets, lists, comments and the icon, and round-trips them through export",
+    "Imports tickets, lists and the icon, ignores comments and types, and round-trips them",
     () =>
       emptyWorld((world) =>
         Effect.gen(function* () {
@@ -151,12 +170,7 @@ describe("Ticket transfer", () => {
           expect(second.kind).toBe("imported");
           for (const project of [original, copy]) {
             expect(yield* readTickets(world, project)).toEqual(expectedTickets);
-            expect(yield* readComments(world, project)).toEqual([
-              {
-                Body: "Expecting to get onto this next week.",
-                CreatedAtUtc: "2026-11-19 12:32:26",
-              },
-            ]);
+            expect(yield* readCardChoices(world, project)).toEqual([{ ShowDetailOnCard: 0 }]);
           }
           const icons = yield* readRows<{ IconKey: string | null }>(
             world,
@@ -199,6 +213,12 @@ describe("Ticket transfer", () => {
         expect(todo).toMatchObject({ description: "Older files keep a ToDo's notes here." });
         expect(Object.keys(todo!)).not.toContain("notes");
         expect(Object.keys(ticket!["ticket"] as object)).not.toContain("version");
+        expect(ticket!["ticket"]).toMatchObject({
+          parentTicketNumber: "385400",
+          showDetailOnCard: false,
+        });
+        expect(Object.keys(ticket!)).not.toContain("comments");
+        expect(Object.keys(ticket!)).not.toContain("itemType");
         expect(Object.keys(todo!)).not.toContain("kind");
         expect(Object.keys(todo!)).not.toContain("ticket");
       }),
@@ -246,7 +266,7 @@ describe("Ticket transfer", () => {
 
         const header = csv.split("\r\n")[0]!;
         expect(header).toContain("Kind,Requestor,Application,Module,Interface,Dispatched to");
-        expect(header).toContain("Ticket type,Ticket notes");
+        expect(header).toContain("Ticket type,Parent ticket,Ticket notes");
         expect(result.kind).toBe("imported");
         expect(yield* readTickets(world, target)).toEqual(expectedTickets);
       }),

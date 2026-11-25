@@ -1,36 +1,7 @@
 import { expect, it } from "@effect/vitest";
-import { builtInItemTypes, builtInPriorityLevels } from "../../src/index.js";
+import { builtInPriorityLevels } from "../../src/index.js";
 
-it("matches the seven lookup rows in the legacy initial migration", () => {
-  expect(builtInItemTypes).toEqual([
-    {
-      id: "019A0000-0000-7000-8000-000000000001",
-      name: "Change",
-      sortOrder: 0,
-      colorKey: null,
-      iconKey: null,
-      isBuiltIn: true,
-      isArchived: false,
-    },
-    {
-      id: "019A0000-0000-7000-8000-000000000002",
-      name: "Error",
-      sortOrder: 1,
-      colorKey: null,
-      iconKey: null,
-      isBuiltIn: true,
-      isArchived: false,
-    },
-    {
-      id: "019A0000-0000-7000-8000-000000000003",
-      name: "Discussion",
-      sortOrder: 2,
-      colorKey: null,
-      iconKey: null,
-      isBuiltIn: true,
-      isArchived: false,
-    },
-  ]);
+it("matches the priority rows in the legacy initial migration", () => {
   expect(builtInPriorityLevels).toEqual([
     {
       id: "019A0000-0000-7000-8000-000000000101",

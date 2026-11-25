@@ -64,4 +64,17 @@ describe("TicketListsCard", () => {
       ticket: true,
     });
   });
+
+  it("Saves whether ticket cards show their description with the global defaults", async () => {
+    const { store } = await renderApp({ path: "/settings" });
+    const choice = page.getByTestId("global-ticket-card-detail");
+    await expect.element(choice).toBeChecked();
+    await expect.element(choice).toHaveAccessibleName("Show description on ticket cards");
+
+    await choice.click();
+    await page.getByTestId("save-global-settings").click();
+
+    await expect.element(page.getByTestId("save-global-settings")).toBeDisabled();
+    expect(store.settingsAndLookups.globalSettings.showTicketDetailOnCards).toBe(false);
+  });
 });

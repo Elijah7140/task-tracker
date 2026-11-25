@@ -4,7 +4,6 @@ import type { TransferIssue } from "../transfer-issue.js";
 export interface CsvPreviewRow {
   readonly rowNumber: number;
   readonly title: string;
-  readonly type: string;
   readonly priority: string;
   readonly dueDate: string;
   readonly hasError: boolean;

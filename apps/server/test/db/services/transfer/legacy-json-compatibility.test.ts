@@ -3,6 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { formatStjDouble, quoteStjString } from "@task-tracker/core";
 import { Effect } from "effect";
 import { TestClock } from "effect/testing";
+import { withoutItemTypeProperties } from "./dropped-item-types.js";
 import { withoutScheduleProperties } from "./dropped-schedule.js";
 import { editJson, withoutIds } from "./transfer-json.js";
 import { emptyWorld, fixturePath, fixtureText, seededWorld } from "./transfer-world.js";
@@ -25,9 +26,9 @@ const typeScriptExport = emptyWorld((world) =>
 const legacyExportedAt = "2026-11-13T12:00:03.1333494Z";
 const clockExportedAt = "2026-11-13T12:00:03.133Z";
 
-/** A legacy export as TypeScript writes it now: Clock time and no item schedule (§7.4). */
+/** A legacy export as TypeScript writes it now: Clock time, no schedule (§7.4) or types (§12). */
 const sameExportTime = (text: string) =>
-  withoutScheduleProperties(text).replace(
+  withoutItemTypeProperties(withoutScheduleProperties(text)).replace(
     `"exportedAtUtc": "${legacyExportedAt}"`,
     `"exportedAtUtc": "${clockExportedAt}"`,
   );
@@ -67,7 +68,9 @@ describe("Legacy JSON compatibility", () => {
       }
 
       expect(withoutIds(text)).toBe(
-        withoutIds(withoutScheduleProperties(fixtureText("ts-export-all.json"))),
+        withoutIds(
+          withoutItemTypeProperties(withoutScheduleProperties(fixtureText("ts-export-all.json"))),
+        ),
       );
     }),
   );

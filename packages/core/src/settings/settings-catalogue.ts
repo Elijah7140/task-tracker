@@ -62,6 +62,16 @@ export const SettingsCatalogue = {
   trayCardSize: new SettingDefinition("trayCardSize", "Full", false, trayCardSizeCodec),
   /** Whether tray cards show each item's outline and add line (§7.18). Global only. */
   trayCardShowsItems: new SettingDefinition("trayCardShowsItems", true, false, booleanCodec),
+  /**
+   * Whether a ticket's card shows its Detail above its notes (§7.17). A ticket can
+   * override it from the card menu. Global only.
+   */
+  showTicketDetailOnCards: new SettingDefinition(
+    "showTicketDetailOnCards",
+    true,
+    false,
+    booleanCodec,
+  ),
   /** Whether open dated items remind (§7.12). */
   remindersEnabled: new SettingDefinition("remindersEnabled", true, true, booleanCodec),
   /** How long before the due moment an item on the Default choice reminds. */

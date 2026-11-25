@@ -13,7 +13,7 @@ const PROJECT: SeedProject = {
           title: "Prepare",
           children: [{ title: "Draft notes", children: [{ title: "Collect changes" }] }],
         },
-        { title: "Typed step", type: "Error" },
+        { title: "Typed step" },
         { title: "Shipped", completedAtUtc: "2026-11-12T10:00:00Z" },
       ],
     },
@@ -62,9 +62,9 @@ describe("ItemCard", () => {
 
     expect(indent("Draft notes")).toBeGreaterThan(indent("Prepare"));
     expect(indent("Collect changes")).toBeGreaterThan(indent("Draft notes"));
-    expect(rowSurface("Prepare").getByTestId("item-type").elements()).toHaveLength(0);
     expect(rowSurface("Prepare").getByTestId("item-completion").elements()).toHaveLength(1);
-    await expect.element(rowSurface("Typed step").getByTestId("item-type")).toBeInTheDocument();
+    // Item types were removed (§12), so no row shows a type glyph.
+    expect(page.getByTestId("item-type").elements()).toHaveLength(0);
   });
 
   it("Moves to the parent row with Left because sub-item rows never collapse", async () => {

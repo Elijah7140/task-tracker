@@ -1,5 +1,6 @@
 import {
   isBlankText,
+  trimText,
   type ItemEdit,
   type ReminderChoice,
   type TicketDetailInput,
@@ -21,10 +22,12 @@ export interface AddItemDraft {
   /** The item's Markdown notes. */
   readonly notes: string;
   readonly ticketNumber: string;
+  /** The card the item is added under: its place in the tree, not its parent ticket. */
   readonly parentItemId: string;
+  /** A ticket's parent ticket number, typed freely (§7.19). */
+  readonly parentTicketNumber: string;
   readonly priorityLevelId: string;
   readonly statusId: string;
-  readonly itemTypeId: string;
   readonly dueDate: string;
   readonly dueTime: string;
   /** "default", "none" or an offset in minutes, as the editor's reminder picker uses. */
@@ -43,17 +46,23 @@ export type AddDraftTextKey = {
   [Key in keyof AddItemDraft]: AddItemDraft[Key] extends string ? Key : never;
 }[keyof AddItemDraft];
 
-/** A blank draft placed under `parentItemId`, or at the level's top when it is empty. */
-export function emptyAddDraft(parentItemId: string | null): AddItemDraft {
+/**
+ * A blank draft placed under `parentItemId`, or at the level's top when it is empty. A
+ * ticket added under a ticket starts with that ticket's number as its parent ticket.
+ */
+export function emptyAddDraft(
+  parentItemId: string | null,
+  parentTicketNumber: string | null = null,
+): AddItemDraft {
   return {
     title: "",
     description: "",
     notes: "",
     ticketNumber: "",
     parentItemId: parentItemId ?? "",
+    parentTicketNumber: parentTicketNumber ?? "",
     priorityLevelId: "",
     statusId: "",
-    itemTypeId: "",
     dueDate: "",
     dueTime: "",
     reminder: "default",
@@ -98,8 +107,7 @@ function itemFields(kind: AddKind, draft: AddItemDraft): typeof ItemEdit.Type {
     title: draft.title,
     description: todo ? null : orNull(draft.description),
     notes: orNull(draft.notes),
-    ticketNumber: orNull(draft.ticketNumber),
-    itemTypeId: todo ? orNull(draft.itemTypeId) : null,
+    ticketNumber: todo ? null : orNull(draft.ticketNumber),
     priorityLevelId: orNull(draft.priorityLevelId),
     statusId: orNull(draft.statusId),
     dueDate: orNull(draft.dueDate),
@@ -116,6 +124,7 @@ function ticketFields(draft: AddItemDraft): typeof TicketDetailInput.Type {
     dispatchedToId: orNull(draft.dispatchedToId),
     pendingPersonId: orNull(draft.pendingPersonId),
     ticketTypeId: orNull(draft.ticketTypeId),
+    parentTicketNumber: orNull(trimText(draft.parentTicketNumber)),
   };
 }
 

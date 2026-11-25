@@ -38,11 +38,6 @@ export class ImportIndex {
     return this.#projectOfFolder.get(folderId);
   }
 
-  /** The item type an item refers to: by id when it has one, otherwise by name. */
-  findItemType(item: ItemDocument): LookupDocument | undefined {
-    return findLookup(listOf(this.document.itemTypes), item.itemTypeId, item.itemType);
-  }
-
   /** The priority level an item refers to: by id when it has one, otherwise by name. */
   findPriority(item: ItemDocument): LookupDocument | undefined {
     return findLookup(listOf(this.document.priorityLevels), item.priorityLevelId, item.priority);

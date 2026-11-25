@@ -24,7 +24,6 @@ function SampleRow({ row }: { readonly row: Row }) {
     <tr data-testid="csv-preview-row" className="border-t border-line">
       <td className={cx(CELL, "text-fg-subtle tabular-nums")}>{row.rowNumber}</td>
       <td className={cx(CELL, "max-w-0 font-medium")}>{row.title}</td>
-      <td className={cx(CELL, "max-w-0")}>{row.type}</td>
       <td className={cx(CELL, "max-w-0")}>{row.priority}</td>
       <td className={cx(CELL, "tabular-nums")}>{row.dueDate}</td>
       <td className={CELL}>
@@ -57,7 +56,7 @@ function SampleTable({ rows }: { readonly rows: ReadonlyArray<Row> }) {
         </colgroup>
         <thead className="text-xs text-fg-subtle">
           <tr>
-            {["Row", "Title", "Type", "Priority", "Due date"].map((name) => (
+            {["Row", "Title", "Priority", "Due date"].map((name) => (
               <th key={name} scope="col" className={cx(CELL, "font-medium")}>
                 {name}
               </th>

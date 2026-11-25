@@ -14,7 +14,6 @@ export const OTHER_ITEM = "Investigate nightly export failure";
 export const EDITOR_ITEMS: ReadonlyArray<SeedItem> = [
   {
     title: EDITOR_ITEM,
-    type: "Change",
     ticketNumber: "JIRA-1234",
     priority: "High",
     dueDate: "2026-11-20",
@@ -23,7 +22,7 @@ export const EDITOR_ITEMS: ReadonlyArray<SeedItem> = [
       { title: "Draft migration script", completedAtUtc: "2026-11-12T16:00:00Z" },
     ],
   },
-  { title: OTHER_ITEM, type: "Error", priority: "Critical", dueDate: "2026-11-14" },
+  { title: OTHER_ITEM, priority: "Critical", dueDate: "2026-11-14" },
 ];
 
 /** The project the editor tests open. */

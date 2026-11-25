@@ -47,15 +47,6 @@ function checkUniqueName(name: string | null, path: string, names: Set<string>, 
   names.add(nameKey(trimmed));
 }
 
-/** Checks an item type list: unique ids and unique, valid names. */
-export function validateItemTypes(
-  lookups: DocumentList<LookupDocument>,
-  path: string,
-  issues: IssueList,
-) {
-  checkIdsAndNames(listOf(lookups), path, issues, false);
-}
-
 function isValidNumber(level: LookupDocument, activeNumbers: Set<number>): boolean {
   if (level.number === null) {
     return true;

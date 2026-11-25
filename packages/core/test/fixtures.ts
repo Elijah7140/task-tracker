@@ -16,7 +16,6 @@ export function item(id: string, overrides: Partial<TodoItem> = {}): TodoItem {
     notes: null,
     ticketNumber: null,
     priorityLevelId: null,
-    itemTypeId: null,
     dueDate: null,
     dueTime: null,
     statusId: null,

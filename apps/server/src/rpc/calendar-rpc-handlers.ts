@@ -20,7 +20,6 @@ function projectCalendarEntry(entry: CalendarEntry, now: Temporal.Instant, timeZ
     isCompleted: entry.isCompleted,
     dueDate: entry.dueDate === null ? null : entry.dueDate.toString(),
     dueTime: entry.dueTime === null ? null : entry.dueTime.toString(),
-    itemType: entry.itemType,
     priority: entry.priority,
     statusId: entry.statusId,
     statusName: entry.statusName,

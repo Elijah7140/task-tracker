@@ -22,22 +22,20 @@ async function focusRow(name: string) {
 }
 
 describe("ItemTree", () => {
-  it("Describes each row's type, ticket, priority, date and urgency", async () => {
+  it("Describes each row's ticket, priority, date and urgency", async () => {
     await openRoot();
 
     await expect
       .element(row(PARENT))
       .toHaveAccessibleDescription(
-        "Open, Change, JIRA-1234, High, Due Nov 20, 2026, Overdue, from sub-item Check query plan before/after",
+        "Open, JIRA-1234, High, Due Nov 20, 2026, Overdue, from sub-item Check query plan before/after",
       );
     await expect
       .element(row("Investigate nightly export failure"))
-      .toHaveAccessibleDescription(
-        "Open, Error, OPS-88, Critical, Due Nov 14, 2026, 5:00 PM, Imminent",
-      );
+      .toHaveAccessibleDescription("Open, OPS-88, Critical, Due Nov 14, 2026, 5:00 PM, Imminent");
     await expect
       .element(row("Schema review with the data team"))
-      .toHaveAccessibleDescription("Open, Discussion, Medium");
+      .toHaveAccessibleDescription("Open, Medium");
   });
 
   it("Shows open items first and finished items in a collapsed Completed section", async () => {
@@ -60,7 +58,7 @@ describe("ItemTree", () => {
     await expect.element(finished.nth(1)).toHaveAccessibleName("Archive 2024 invoices");
     await expect
       .element(finished.nth(0))
-      .toHaveAccessibleDescription("Completed, Error, Done Nov 13, 2026");
+      .toHaveAccessibleDescription("Completed, Done Nov 13, 2026");
   });
 
   it("Keeps a completed parent with an open sub-item in the open list, struck through", async () => {

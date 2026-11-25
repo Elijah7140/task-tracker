@@ -21,7 +21,7 @@ export type AddEntryResult =
   | { readonly ok: true; readonly batch: TicketBatch }
   | { readonly ok: false; readonly message: string };
 
-/** A blank form at the top level of the chosen area, as the tray has no parent ticket. */
+/** A blank form at the top level of the chosen area; a parent ticket is only a typed number. */
 export const blankBatchDraft = (): AddItemDraft => emptyAddDraft(null);
 
 /** An empty view: a blank form and no listed tickets. */

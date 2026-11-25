@@ -1,6 +1,7 @@
 import type { ItemKind } from "../../items/item-kind.js";
 import { nameKey } from "../../metadata/names.js";
 import { trimText as trim } from "../../text/dotnet-white-space.js";
+import { TICKET_NUMBER_MAX_LENGTH } from "../json/import-checks.js";
 import type { TicketDetailInput } from "../../tickets/ticket-detail.js";
 import type { TicketListEntry, TicketListKind } from "../../tickets/ticket-list-entry.js";
 import { TICKET_CSV_COLUMNS as T } from "./csv-columns.js";
@@ -78,6 +79,16 @@ class EntryReader {
   }
 }
 
+/** Reads the Parent ticket cell: the number as typed, or null when blank. */
+function readParentTicket(text: CellText, fail: Fail): string | null {
+  const number = trim(text(T.parentTicket));
+  if (number.length > TICKET_NUMBER_MAX_LENGTH) {
+    const limit = TICKET_NUMBER_MAX_LENGTH;
+    fail(T.parentTicket, `The parent ticket must be ${limit} characters or fewer.`);
+  }
+  return number.length === 0 ? null : number;
+}
+
 /** Reads a ticket row's fixed fields, matching people, types and levels by name (§7.19). */
 export function readCsvTicket(
   entries: readonly TicketListEntry[],
@@ -95,6 +106,7 @@ export function readCsvTicket(
     dispatchedToId: names.read(T.dispatchedTo, "Person"),
     pendingPersonId: names.read(T.pendingUser, "Person"),
     ticketTypeId: names.read(T.ticketType, "TicketType"),
+    parentTicketNumber: readParentTicket(text, fail),
   };
 }
 
@@ -112,5 +124,6 @@ export function writeCsvTicketCells(
     name(ticket?.dispatchedToId),
     name(ticket?.pendingPersonId),
     name(ticket?.ticketTypeId),
+    ticket?.parentTicketNumber ?? "",
   ];
 }

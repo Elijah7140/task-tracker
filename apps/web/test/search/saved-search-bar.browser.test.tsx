@@ -6,7 +6,6 @@ import type { FakeProjectStore, SeedProject } from "../support/fake-task-tracker
 import { renderApp } from "../support/render-app.js";
 import { matchShellAtBothSizes, THEMES } from "../support/screenshots.js";
 
-const typeId = (name: string) => FAKE_LOOKUPS.itemTypes.find((type) => type.name === name)!.id;
 const priorityId = (name: string) =>
   FAKE_LOOKUPS.priorityLevels.find((level) => level.name === name)!.id;
 
@@ -33,12 +32,11 @@ const PROJECTS: ReadonlyArray<SeedProject> = [
   {
     name: "Billing",
     items: [
-      { title: "Fix deadlock", type: "Error", priority: "High" },
-      { title: "Tidy logs", type: "Error", priority: "Low" },
-      { title: "Talk deadlock", type: "Discussion", priority: "High" },
+      { title: "Fix deadlock", priority: "High" },
+      { title: "Tidy logs", priority: "Low" },
+      { title: "Talk deadlock", priority: "Medium" },
       {
         title: "Closed deadlock",
-        type: "Error",
         priority: "High",
         completedAtUtc: "2026-11-12T09:00:00Z",
       },
@@ -139,7 +137,7 @@ it("Saving invalid text lists the errors and asks nothing", async () => {
 it("Cancelling the name prompt saves nothing", async () => {
   const { store } = await openApp();
   await openSearch();
-  await typeQuery("type:error");
+  await typeQuery("priority:high");
 
   await saveButton().click();
   await expect.element(dialog()).toHaveAccessibleName("Save search");
@@ -152,10 +150,10 @@ it("Cancelling the name prompt saves nothing", async () => {
 
 it("Saving over an existing name asks before replacing it", async () => {
   const { store } = await openApp({
-    saved: () => [{ name: "Mine", queryText: `type:#${typeId("Discussion")}` }],
+    saved: () => [{ name: "Mine", queryText: `priority:#${priorityId("Low")}` }],
   });
   await openSearch();
-  await typeQuery("type:error");
+  await typeQuery("priority:high");
 
   await saveButton().click();
   await answerPrompt("Save search", "mine");
@@ -164,14 +162,14 @@ it("Saving over an existing name asks before replacing it", async () => {
     .toMatchTextContent("A saved search named 'Mine' already exists. Replace it?");
   await userEvent.keyboard("{Escape}");
   await expect.element(alert()).not.toBeInTheDocument();
-  expect(store.savedSearches.rows[0]?.queryText).toBe(`type:#${typeId("Discussion")}`);
+  expect(store.savedSearches.rows[0]?.queryText).toBe(`priority:#${priorityId("Low")}`);
   await saveButton().click();
   await answerPrompt("Save search", "MINE");
   await confirmDialog("Replace saved search", "Replace");
 
   await expect.element(chip("Mine")).toHaveAttribute("aria-current", "true");
   expect(store.savedSearches.rows).toEqual([
-    expect.objectContaining({ name: "Mine", queryText: `type:#${typeId("Error")}` }),
+    expect.objectContaining({ name: "Mine", queryText: `priority:#${priorityId("High")}` }),
   ]);
   expect(store.calls.filter((call) => call === "SaveSavedSearch")).toHaveLength(1);
 });
@@ -182,7 +180,7 @@ it("Opening a chip restores scope, text, rows and completed switch and runs it o
       { name: "Other", queryText: "tidy" },
       {
         name: "Errors",
-        queryText: `deadlock type:#${typeId("Error")}`,
+        queryText: `deadlock priority:#${priorityId("High")}`,
         scope: { kind: "project", projectId: seeded.summaries[0]!.project.id },
         includeCompleted: true,
       },
@@ -196,14 +194,14 @@ it("Opening a chip restores scope, text, rows and completed switch and runs it o
 
   await expect.element(results().first()).toBeVisible();
   expect(titlesShown().toSorted()).toEqual(["Closed deadlock", "Fix deadlock"]);
-  await expect.element(searchInput()).toHaveValue("deadlock type:Error");
+  await expect.element(searchInput()).toHaveValue("deadlock priority:High");
   await expect.element(searchInput()).toHaveFocus();
   await expect.element(scopeSelect()).toMatchTextContent("This project");
   await expect.element(includeCompleted()).toBeChecked();
   await expect.element(filterRows()).toHaveLength(1);
   await expect
     .element(filterRows().getByRole("combobox", { name: "Filter field" }))
-    .toMatchTextContent("Type");
+    .toMatchTextContent("Priority");
   await expect.element(chip("Errors")).toHaveAttribute("aria-current", "true");
   expect(chip("Other").element()).not.toHaveAttribute("aria-current");
   expect(store.calls.filter((call) => call === "SearchItems")).toHaveLength(1);
@@ -211,7 +209,7 @@ it("Opening a chip restores scope, text, rows and completed switch and runs it o
 
 it("Opening from Search replaces it, keeps the return page and reaches chips by keyboard", async () => {
   const { history } = await openApp({
-    saved: () => [{ name: "Errors", queryText: `type:#${typeId("Error")}` }],
+    saved: () => [{ name: "Errors", queryText: `priority:#${priorityId("High")}` }],
   });
   await page.getByRole("article", { name: "Billing" }).click();
   const returnPath = history.location.pathname;
@@ -221,7 +219,7 @@ it("Opening from Search replaces it, keeps the return page and reaches chips by 
   await expect.element(chip("Errors")).toBeVisible();
   chip("Errors").element().focus();
   await userEvent.keyboard("{Enter}");
-  await expect.element(searchInput()).toHaveValue("type:Error");
+  await expect.element(searchInput()).toHaveValue("priority:High");
   await expect.element(scopeSelect()).toMatchTextContent("All projects");
   await expect.element(searchInput()).toHaveFocus();
   await userEvent.keyboard("{Escape}");
@@ -294,8 +292,8 @@ it.each([
   },
   {
     stale: "a deleted choice",
-    queryText: "type:#0190A1B2-0000-7000-8000-00000000DEAD",
-    reason: "That Type choice no longer exists.",
+    queryText: "priority:#0190A1B2-0000-7000-8000-00000000DEAD",
+    reason: "That Priority choice no longer exists.",
     configure: () => {},
   },
 ])("A saved search with $stale reports it inline and runs nothing", async (example) => {
@@ -316,7 +314,7 @@ it.each([
 it("Undo removes a saved search from the chips", async () => {
   const { store } = await openApp();
   await openSearch();
-  await typeQuery("type:error");
+  await typeQuery("priority:high");
   await saveButton().click();
   await answerPrompt("Save search", "Errors");
   await expect.element(chip("Errors")).toBeVisible();
@@ -331,7 +329,7 @@ it("Undo removes a saved search from the chips", async () => {
 it.each(THEMES)("Renders Search opened from a saved search in %s mode", async (theme) => {
   await openApp({
     saved: (store) => [
-      { name: "Overdue changes", queryText: `type:#${typeId("Change")} due<2026-11-13` },
+      { name: "Overdue changes", queryText: `priority:#${priorityId("Medium")} due<2026-11-13` },
       {
         name: "Urgent deadlocks",
         queryText: `deadlock priority:#${priorityId("High")}`,

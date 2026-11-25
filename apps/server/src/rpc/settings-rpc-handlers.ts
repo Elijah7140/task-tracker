@@ -30,6 +30,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
               autoHideCompleted,
               urgencyColors,
               trayCard,
+              showTicketDetailOnCards,
             }) => ({
               ...projectGlobalSettings(values),
               reminders: projectReminderDefaults(reminders),
@@ -39,6 +40,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
               autoHideCompleted,
               urgencyColors,
               trayCard,
+              showTicketDetailOnCards,
             }),
           ),
           mapOperationError,
@@ -68,6 +70,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
             values.urgencyColors,
             values.autoHideCompleted,
             values.trayCard,
+            values.showTicketDetailOnCards,
           ),
         ).pipe(mapOperationError),
       SaveProjectSettings: ({ projectId, overrides, approval }) =>

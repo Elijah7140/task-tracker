@@ -14,6 +14,7 @@ import addTickets from "./add-tickets.js";
 import dropItemSchedule from "./drop-item-schedule.js";
 import dropTicketExtraFields from "./drop-ticket-extra-fields.js";
 import reserveTicketSearchKeys from "./reserve-ticket-search-keys.js";
+import reshapeTicketFields from "./reshape-ticket-fields.js";
 import indexTodayCompletions from "./index-today-completions.js";
 import initialCreate from "./initial-create.js";
 
@@ -35,6 +36,7 @@ export const databaseMigrations = Migrator.fromRecord({
   "14_DropItemSchedule": dropItemSchedule,
   "15_DropTicketExtraFields": dropTicketExtraFields,
   "16_AddItemNotes": addItemNotes,
+  "17_ReshapeTicketFields": reshapeTicketFields,
 });
 
 /** Records the validated EF stages and applies any remaining migrations in the same transaction. */

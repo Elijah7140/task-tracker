@@ -5,12 +5,11 @@ import {
   nameKey,
   readStatusKind,
   trimText,
-  type ItemType,
   type LookupDocument,
   type PriorityLevel,
   type StatusLevel,
 } from "@task-tracker/core";
-import { type ImportContext, type ImportExisting, nextSortOrder } from "./import-plan.js";
+import { type ImportContext, type ImportExisting } from "./import-plan.js";
 
 const sameName = (existing: string, imported: string | null) =>
   imported !== null && nameKey(existing) === nameKey(trimText(imported));
@@ -20,27 +19,6 @@ function ordered(documents: readonly LookupDocument[]) {
   return documents
     .map((document, index) => ({ document, index }))
     .toSorted((left, right) => (left.document.sortOrder ?? 0) - (right.document.sortOrder ?? 0));
-}
-
-function importItemTypes(context: ImportContext, known: ItemType[]): void {
-  let order = nextSortOrder(known);
-  for (const { document } of ordered(listOf(context.document.itemTypes))) {
-    let match = known.find((type) => sameName(type.name, document.name));
-    if (match === undefined) {
-      match = {
-        id: context.newId(),
-        name: trimText(document.name!),
-        colorKey: document.colorKey,
-        iconKey: document.iconKey,
-        isBuiltIn: false,
-        isArchived: document.isArchived === true,
-        sortOrder: order++,
-      };
-      context.plan.itemTypes.push(match);
-      known.push(match);
-    }
-    context.map.itemTypes.set(document.id!, match.id);
-  }
 }
 
 /** Exact IDs first, then names, then number-only levels by number and archive state (§7.15). */
@@ -146,11 +124,10 @@ function importStatuses(context: ImportContext, known: StatusLevel[]): void {
 }
 
 /**
- * Matches the file's item types, priority levels and statuses to existing ones by
+ * Matches the file's priority levels and statuses to existing ones by
  * name ignoring case and plans the missing ones after the existing lists (§7.9).
  */
 export function importLookups(context: ImportContext, existing: ImportExisting): void {
-  importItemTypes(context, [...existing.itemTypes]);
   importPriorityLevels(context, [...existing.priorityLevels]);
   importStatuses(context, [...existing.statuses]);
 }

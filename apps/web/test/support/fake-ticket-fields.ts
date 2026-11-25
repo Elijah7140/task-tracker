@@ -3,7 +3,6 @@ import {
   type NotFound,
   type ProjectWorkspaceRpcs,
   RuleViolation,
-  type TicketCommentProjection,
   type TicketDetailInput,
   type TicketListEntryProjection,
   type TicketListRpcs,
@@ -20,7 +19,6 @@ import {
 
 type Entry = typeof TicketListEntryProjection.Type;
 type Detail = typeof TicketDetailInput.Type;
-type Comment = typeof TicketCommentProjection.Type;
 type Payload<Group, Tag extends string> = Group extends {
   readonly requests: ReadonlyMap<string, infer R>;
 }
@@ -42,13 +40,13 @@ export const NO_TICKET_FIELDS: Detail = {
   dispatchedToId: null,
   pendingPersonId: null,
   ticketTypeId: null,
+  parentTicketNumber: null,
 };
 
-/** People, ticket types, levels, ticket fields and comments for the web tests (§7.19). */
+/** People, ticket types, levels and ticket fields for the web tests (§7.19). */
 export class FakeTicketFields {
   entries: Array<Entry> = [];
   readonly details = new Map<string, Detail>();
-  readonly comments = new Map<string, Array<Comment>>();
   /** The last AddItem payload, so tests can assert what a dialog sent. */
   lastAdd: AddItemPayload | null = null;
 
@@ -98,12 +96,51 @@ export interface TicketFieldsStore extends FakeItemStoreContext {
   ) => Effect.Effect<void, never>;
 }
 
+type FakeNode = FakeAreaState["nodes"][number];
+
+/** Every node of every area, depth first. */
+function allNodes(store: TicketFieldsStore): FakeNode[] {
+  const walk = (nodes: ReadonlyArray<FakeNode>): FakeNode[] =>
+    nodes.flatMap((node) => [node, ...walk(node.children)]);
+  return store.allAreas().flatMap((area) => walk(area.nodes));
+}
+
+/** The item with this ticket number, ignoring case: a ticket first, as the server picks (§7.19). */
+function findTicket(store: TicketFieldsStore, ticketNumber: string) {
+  const wanted = ticketNumber.trim().toLowerCase();
+  const matches = allNodes(store).filter(
+    (node) => wanted !== "" && node.item.ticketNumber?.toLowerCase() === wanted,
+  );
+  const found = matches.find((node) => node.item.kind === "Ticket") ?? matches[0];
+  if (found === undefined) {
+    return null;
+  }
+  const { id, projectId, folderId, title } = found.item;
+  return { itemId: id, projectId, folderId, title };
+}
+
+/** Stores a ticket's card Detail choice on its node, as the snapshot reports it (§7.17). */
+function setDetailOnCard(store: TicketFieldsStore, itemId: string, show: boolean) {
+  let title = "";
+  for (const area of store.allAreas()) {
+    area.nodes = mapTree(area.nodes, (node) => {
+      if (node.item.id !== itemId) {
+        return node;
+      }
+      title = node.item.title;
+      return { ...node, showsDetailOnCard: show };
+    });
+  }
+  return title;
+}
+
 function applyAddedFields(area: FakeAreaState, id: string, payload: AddItemPayload) {
   const { fields, kind } = payload;
   area.nodes = mapTree(area.nodes, (node) =>
     node.item.id === id
       ? {
           ...node,
+          showsDetailOnCard: kind === "Ticket",
           item: {
             ...node.item,
             kind,
@@ -111,7 +148,6 @@ function applyAddedFields(area: FakeAreaState, id: string, payload: AddItemPaylo
             notes: fields.notes === undefined ? node.item.notes : fields.notes,
             ticketNumber: fields.ticketNumber?.trim() || null,
             priorityLevelId: fields.priorityLevelId,
-            itemTypeId: fields.itemTypeId,
             dueDate: fields.dueDate,
             dueTime: fields.dueTime,
             statusId: fields.statusId ?? null,
@@ -247,22 +283,23 @@ export function ticketFieldHandlers(
         Effect.map(() => ({
           itemId,
           detail: data.details.get(itemId) ?? NO_TICKET_FIELDS,
-          comments: [...(data.comments.get(itemId) ?? [])],
         })),
       ),
-    AddTicketComment: ({ itemId, body }: { readonly itemId: string; readonly body: string }) =>
-      record("AddTicketComment").pipe(
-        Effect.map(() => {
-          const comment = {
-            id: store.nextId(),
-            itemId,
-            body: body.trim(),
-            createdAtUtc: store.nextTimestamp(),
-          };
-          data.comments.set(itemId, [comment, ...(data.comments.get(itemId) ?? [])]);
-          return comment;
-        }),
-      ),
+    FindTicketByNumber: ({ ticketNumber }: { readonly ticketNumber: string }) =>
+      record("FindTicketByNumber").pipe(Effect.map(() => findTicket(store, ticketNumber))),
+    SetTicketDetailOnCard: ({
+      itemId,
+      show,
+    }: {
+      readonly itemId: string;
+      readonly show: boolean;
+    }) =>
+      track(
+        record("SetTicketDetailOnCard").pipe(
+          Effect.map(() => setDetailOnCard(store, itemId, show)),
+        ),
+        (title) => `${show ? "Show" : "Hide"} description of '${title}'`,
+      ).pipe(Effect.asVoid),
     SetProjectIcon: ({ projectId, iconKey }: SetIconPayload) =>
       record("SetProjectIcon").pipe(Effect.andThen(store.setProjectIcon(projectId, iconKey))),
   };

@@ -32,10 +32,6 @@ export class FakeCalendar {
 
 /** Fake RPC handlers for `LoadCalendar` and `LocateCalendarItem`. */
 export function calendarHandlers(store: FakeProjectStore) {
-  const typeNames = () =>
-    new Map(
-      [...FAKE_LOOKUPS.itemTypes, ...store.extraLookups.itemTypes].map((row) => [row.id, row.name]),
-    );
   const priorityLabels = () =>
     new Map(
       [...FAKE_LOOKUPS.priorityLevels, ...store.extraLookups.priorityLevels].map((row) => [
@@ -81,7 +77,6 @@ export function calendarHandlers(store: FakeProjectStore) {
               new RuleViolation({ message: "Calendar range must have a positive length." }),
             );
           }
-          const types = typeNames();
           const priorities = priorityLabels();
           const statuses = statusNames();
           const entries: Array<WireEntry> = [];
@@ -103,7 +98,6 @@ export function calendarHandlers(store: FakeProjectStore) {
               isCompleted,
               dueDate: item.dueDate,
               dueTime: item.dueTime,
-              itemType: item.itemTypeId === null ? null : (types.get(item.itemTypeId) ?? null),
               priority:
                 item.priorityLevelId === null
                   ? null

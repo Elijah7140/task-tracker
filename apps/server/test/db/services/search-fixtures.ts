@@ -54,7 +54,6 @@ export function editFields(title: string, overrides: Partial<ItemEdit> = {}): It
     title,
     description: null,
     ticketNumber: null,
-    itemTypeId: null,
     priorityLevelId: null,
     dueDate: null,
     dueTime: null,
@@ -105,7 +104,6 @@ const day = (text: string) => Temporal.PlainDate.from(text);
  */
 export const seedFilterMatrix = Effect.fnUntraced(function* (svc: SearchServices) {
   const project = yield* svc.projects.create("Matrix");
-  const [typeA, typeB] = yield* svc.lookups.itemTypes.list();
   const [priorityA, priorityB] = yield* svc.lookups.priorityLevels.list();
   const note = yield* svc.fields.create("Note", "Text", null);
   const estimate = yield* svc.fields.create("Estimate", "Number", null);
@@ -121,7 +119,6 @@ export const seedFilterMatrix = Effect.fnUntraced(function* (svc: SearchServices
     alpha.id,
     editFields("Alpha", {
       ticketNumber: "JIRA-1234",
-      itemTypeId: typeA!.id,
       priorityLevelId: priorityA!.id,
       dueDate: day("2026-11-20"),
     }),
@@ -137,7 +134,6 @@ export const seedFilterMatrix = Effect.fnUntraced(function* (svc: SearchServices
     beta.id,
     editFields("Beta", {
       ticketNumber: "OPS-9",
-      itemTypeId: typeB!.id,
       priorityLevelId: priorityB!.id,
       dueDate: day("2026-11-30"),
     }),
@@ -157,7 +153,6 @@ export const seedFilterMatrix = Effect.fnUntraced(function* (svc: SearchServices
     approved,
     category,
     choiceA,
-    typeA: typeA!,
     priorityA: priorityA!,
     priorityB: priorityB!,
   };

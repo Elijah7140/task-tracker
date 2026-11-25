@@ -131,7 +131,6 @@ describe("recurring completion", () => {
       {
         description: "Details",
         ticketNumber: "AUD-1",
-        itemTypeId: "type",
         priorityLevelId: "priority",
         statusId: "testing",
         dueTime: Temporal.PlainTime.from("12:30"),
@@ -156,7 +155,6 @@ describe("recurring completion", () => {
       title: "source",
       description: "Details",
       ticketNumber: "AUD-1",
-      itemTypeId: "type",
       priorityLevelId: "priority",
       statusId: "testing",
       reopenStatusId: null,

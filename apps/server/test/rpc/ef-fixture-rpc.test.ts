@@ -22,8 +22,6 @@ const parentId = "019A0000-0000-7000-8000-000000000CCA";
 const childId = "019A0000-0000-7000-8000-000000000CCB";
 const deletedId = "019A0000-0000-7000-8000-000000000CCC";
 const efBatchId = "019A0000-0000-7000-8000-000000000DDD";
-const archivedTypeId = "019A0000-0000-7000-8000-000000000EEE";
-const renamedChangeId = "019A0000-0000-7000-8000-000000000001";
 const highPriorityId = "019A0000-0000-7000-8000-000000000102";
 
 const phase3FieldIds = {
@@ -47,7 +45,6 @@ const nestedArea = { projectId, folderId: childFolderId };
 const blankFields = {
   description: null,
   ticketNumber: null,
-  itemTypeId: null,
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
@@ -109,7 +106,6 @@ function assertSharedFixtureState(
   projectSettings: unknown,
   workspace: unknown,
   area: unknown,
-  itemTypes: unknown,
 ) {
   expect(globalSettings).toEqual({
     autoCompleteParents: true,
@@ -122,6 +118,7 @@ function assertSharedFixtureState(
     autoHideCompleted: true,
     urgencyColors: { approaching: null, overdue: null },
     trayCard: { size: "Full", showItems: true },
+    showTicketDetailOnCards: true,
     startWithSystem: false,
   });
   expect(projectSettings).toEqual({
@@ -155,22 +152,6 @@ function assertSharedFixtureState(
       },
     ],
   });
-  expect(itemTypes).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        id: renamedChangeId,
-        name: "Renamed Change",
-        isBuiltIn: true,
-        isArchived: false,
-      }),
-      expect.objectContaining({
-        id: archivedTypeId,
-        name: "Archived type",
-        isBuiltIn: false,
-        isArchived: true,
-      }),
-    ]),
-  );
   expect(area).toMatchObject({
     projectId,
     folderId: childFolderId,
@@ -192,7 +173,6 @@ function assertSharedFixtureState(
                 item: {
                   id: childId,
                   title: "Sample child",
-                  itemTypeId: archivedTypeId,
                   priorityLevelId: highPriorityId,
                   dueDate: "2026-12-10",
                   dueTime: "09:30:00.12",
@@ -222,16 +202,9 @@ it.effect(
             const projectSettings = yield* client.LoadProjectSettings({ projectId });
             const workspace = yield* client.LoadWorkspace({ projectId });
             const initialArea = yield* client.LoadArea(nestedArea);
-            const itemTypes = yield* client.ListItemTypes();
             const initialFields = yield* client.ListFields({ projectId });
             const initialValues = yield* client.LoadItemFieldValues({ itemId: childId });
-            assertSharedFixtureState(
-              globalSettings,
-              projectSettings,
-              workspace,
-              initialArea,
-              itemTypes,
-            );
+            assertSharedFixtureState(globalSettings, projectSettings, workspace, initialArea);
             expect(initialFields).toEqual([]);
             expect(initialValues).toEqual([]);
 
@@ -277,7 +250,6 @@ it.effect(
                 description: null,
                 notes: "Adopted description",
                 ticketNumber: "EF-1",
-                itemTypeId: childItem.itemTypeId,
                 priorityLevelId: childItem.priorityLevelId,
                 dueDate: childItem.dueDate,
                 dueTime: childItem.dueTime,
@@ -392,7 +364,6 @@ it.effect(
             const effectiveFields = yield* client.ListEffectiveFields({ projectId });
             const managedFields = yield* client.ListFields({ projectId });
             const choices = yield* client.ListFieldChoices({ fieldId: written.status.id });
-            const itemTypes = yield* client.ListItemTypes();
             const priorities = yield* client.ListPriorityLevels();
 
             expect(globalSettings).toEqual({
@@ -407,6 +378,7 @@ it.effect(
               autoHideCompleted: true,
               urgencyColors: { approaching: null, overdue: null },
               trayCard: { size: "Full", showItems: true },
+              showTicketDetailOnCards: true,
             });
             expect(projectSettings).toEqual({
               projectId,
@@ -444,7 +416,6 @@ it.effect(
                       description: null,
                       notes: "Adopted description",
                       ticketNumber: "EF-1",
-                      itemTypeId: archivedTypeId,
                       priorityLevelId: highPriorityId,
                       dueDate: "2026-12-10",
                       dueTime: "09:30:00.12",
@@ -526,12 +497,6 @@ it.effect(
                 choiceId: written.retiredChoice.id,
               },
             ]);
-            expect(itemTypes).toContainEqual(
-              expect.objectContaining({ id: renamedChangeId, name: "Renamed Change" }),
-            );
-            expect(itemTypes).toContainEqual(
-              expect.objectContaining({ id: archivedTypeId, isArchived: true }),
-            );
             expect(priorities).toContainEqual({ ...written.customPriority, isArchived: true });
           }),
         );
@@ -553,20 +518,13 @@ it.effect(
             const projectSettings = yield* client.LoadProjectSettings({ projectId });
             const workspace = yield* client.LoadWorkspace({ projectId });
             const initialArea = yield* client.LoadArea(nestedArea);
-            const itemTypes = yield* client.ListItemTypes();
             const managedFields = yield* client.ListFields({ projectId });
             const effectiveFields = yield* client.ListEffectiveFields({ projectId });
             const initialChoices = yield* client.ListFieldChoices({
               fieldId: phase3FieldIds.status,
             });
             const initialValues = yield* client.LoadItemFieldValues({ itemId: childId });
-            assertSharedFixtureState(
-              globalSettings,
-              projectSettings,
-              workspace,
-              initialArea,
-              itemTypes,
-            );
+            assertSharedFixtureState(globalSettings, projectSettings, workspace, initialArea);
             expect(managedFields.map(({ id }) => id)).toEqual([
               phase3FieldIds.notes,
               phase3FieldIds.estimate,
@@ -672,7 +630,6 @@ it.effect(
                 title: "Updated child",
                 description: null,
                 ticketNumber: "P3-9",
-                itemTypeId: childItem.itemTypeId,
                 priorityLevelId: childItem.priorityLevelId,
                 dueDate: childItem.dueDate,
                 dueTime: childItem.dueTime,
@@ -733,8 +690,6 @@ it.effect(
             });
             const newBatchId = yield* client.DeleteItem({ ...newArea, itemId: batchItem.id });
 
-            const newType = yield* client.AddItemType({ name: "Follow-up" });
-            yield* client.ArchiveItemType({ id: newType.id });
             yield* client.SaveGlobalSettings({
               settings: {
                 autoCompleteParents: true,
@@ -745,7 +700,7 @@ it.effect(
               },
             });
 
-            return { activeChoice, activeSummary, newFolder, batchItem, newBatchId, newType };
+            return { activeChoice, activeSummary, newFolder, batchItem, newBatchId };
           }),
         );
 
@@ -764,7 +719,6 @@ it.effect(
             const parentValues = yield* client.LoadItemFieldValues({ itemId: parentId });
             const managedFields = yield* client.ListFields({ projectId });
             const choices = yield* client.ListFieldChoices({ fieldId: phase3FieldIds.status });
-            const itemTypes = yield* client.ListItemTypes();
 
             expect(globalSettings).toEqual({
               autoCompleteParents: true,
@@ -778,6 +732,7 @@ it.effect(
               autoHideCompleted: true,
               urgencyColors: { approaching: null, overdue: null },
               trayCard: { size: "Full", showItems: true },
+              showTicketDetailOnCards: true,
             });
             expect(projectSettings).toEqual({
               projectId,
@@ -814,7 +769,6 @@ it.effect(
                       id: childId,
                       title: "Updated child",
                       ticketNumber: "P3-9",
-                      itemTypeId: archivedTypeId,
                       priorityLevelId: highPriorityId,
                       dueDate: "2026-12-10",
                       dueTime: "09:30:00.12",
@@ -915,7 +869,6 @@ it.effect(
                 choiceId: written.activeChoice.id,
               },
             ]);
-            expect(itemTypes).toContainEqual({ ...written.newType, isArchived: true });
           }),
         );
       }),

@@ -54,8 +54,11 @@ export const pushBackOneDayAtom = TaskTrackerClient.mutation("PushBackOneDay");
 /** Adds a ToDo or Ticket with its fields from quick add or the detailed add view (§7.19). */
 export const addItemAtom = TaskTrackerClient.mutation("AddItem");
 
-/** Appends a comment to a ticket's log (§7.19). */
-export const addTicketCommentAtom = TaskTrackerClient.mutation("AddTicketComment");
-
 /** Adds the tray's batch of tickets to one area as one undo step (§7.20). */
 export const addTicketsAtom = TaskTrackerClient.mutation("AddTickets");
+
+/** Finds the active item with a ticket number, for opening a parent ticket (§7.19). */
+export const findTicketByNumberAtom = TaskTrackerClient.mutation("FindTicketByNumber");
+
+/** Shows or hides a ticket's Detail on its card as one undo step (§7.17). */
+export const setTicketDetailOnCardAtom = TaskTrackerClient.mutation("SetTicketDetailOnCard");

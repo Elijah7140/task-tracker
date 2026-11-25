@@ -123,7 +123,7 @@ describe("Date field", () => {
 
     await dueDate().fill("2026-02-30");
     await expect.element(dueDate()).toHaveAttribute("aria-invalid", "true");
-    await editor().getByLabelText("Ticket number", { exact: true }).click();
+    await editor().getByLabelText("Notes", { exact: true }).click();
 
     await expect.element(dueDate()).toHaveValue("11/20/2026");
     await expect.element(dueDate()).not.toHaveAttribute("aria-invalid");

@@ -19,16 +19,7 @@ export interface LookupListCardProps {
 }
 
 /** Visible text and test IDs for one lookup list. */
-function lookupLabels(kind: LookupKind) {
-  if (kind === "itemTypes") {
-    return {
-      title: "Item types",
-      description: "Changes save immediately.",
-      listLabel: "item types",
-      singular: "item type",
-      testId: "lookup-list-item-types",
-    };
-  }
+function lookupLabels(_kind: LookupKind) {
   return {
     title: "Priority levels",
     description: "Top of the list is the most important. Changes save immediately.",

@@ -20,7 +20,6 @@ const nullElements: ReadonlyArray<
   readonly [string, (document: JsonDocument) => unknown[], string]
 > = [
   ["projects", (document) => document.projects, "$.projects[0]"],
-  ["itemTypes", (document) => document.itemTypes, "$.itemTypes[0]"],
   ["priorityLevels", (document) => document.priorityLevels, "$.priorityLevels[0]"],
   ["statuses", (document) => document.statuses, "$.statuses[0]"],
   ["savedSearches", (document) => document.savedSearches, "$.savedSearches[0]"],

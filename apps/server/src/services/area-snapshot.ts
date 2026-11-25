@@ -6,7 +6,6 @@ import {
   type DisplayedUrgency,
   type EffectiveSettings,
   type ItemTree,
-  type ItemType,
   type PriorityLevel,
   type StatusLevel,
   type TodoItem,
@@ -19,6 +18,8 @@ export interface ItemNode {
   readonly ownUrgency: Urgency;
   readonly displayedUrgency: DisplayedUrgency;
   readonly isFinished: boolean;
+  /** Whether the card shows the item's Detail (§7.17); always false for a ToDo. */
+  readonly showsDetailOnCard: boolean;
   readonly children: ItemSiblings;
 }
 
@@ -33,7 +34,6 @@ export interface AreaSnapshot {
   readonly projectId: string;
   readonly folderId: string | null;
   readonly items: ItemSiblings;
-  readonly itemTypes: readonly ItemType[];
   readonly priorityLevels: readonly PriorityLevel[];
   readonly statuses: readonly StatusLevel[];
   readonly settings: EffectiveSettings;
@@ -45,6 +45,7 @@ export function projectAreaItems(
   settings: EffectiveSettings,
   now: Temporal.Instant,
   timeZone: string,
+  showsDetailOnCard: (item: TodoItem) => boolean = () => false,
 ): ItemSiblings {
   const thresholds = new UrgencyThresholds(
     settings.urgencyYellowThreshold.value,
@@ -55,6 +56,7 @@ export function projectAreaItems(
     ownUrgency: calculateUrgency(item, now, timeZone, thresholds),
     displayedUrgency: calculateDisplayedUrgency(tree, item.id, now, timeZone, thresholds),
     isFinished: CompletionService.isFinished(tree, item.id),
+    showsDetailOnCard: showsDetailOnCard(item),
     children: buildSiblings(item.id),
   });
   const buildSiblings = (parentId: string | null): ItemSiblings => {

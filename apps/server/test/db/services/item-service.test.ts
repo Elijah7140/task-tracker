@@ -16,7 +16,6 @@ const edit = (title: string) => ({
   title,
   description: null,
   ticketNumber: null,
-  itemTypeId: null,
   priorityLevelId: null,
   dueDate: null,
   dueTime: null,
@@ -316,21 +315,19 @@ it.effect("Editing built-in fields round-trips floating values and UTC timestamp
     Effect.gen(function* () {
       const { root, lookups, items, snapshot } = yield* setup;
       const item = yield* root("Original");
-      const type = yield* lookups.itemTypes.add("Custom");
       const priority = yield* lookups.priorityLevels.add("Later");
       const fields = {
         title: "Edited",
         description: null,
         notes: "Notes",
         ticketNumber: "T-7",
-        itemTypeId: type.id,
         priorityLevelId: priority.id,
         dueDate: Temporal.PlainDate.from("2026-11-14"),
         dueTime: Temporal.PlainTime.from("17:45:00.1234567"),
       };
       yield* TestClock.adjust("1 second");
 
-      yield* items.edit(item.id, { ...fields, itemTypeId: type.id.toLowerCase() });
+      yield* items.edit(item.id, { ...fields, priorityLevelId: priority.id.toLowerCase() });
       const saved = yield* snapshot();
 
       expect(saved.items.open).toMatchObject([
@@ -432,7 +429,6 @@ it.effect("An area includes active children, lookups, settings and descendant ur
           children: { open: [{ item: { id: leaf.id } }] },
         },
       ]);
-      expect(saved.itemTypes).toHaveLength(3);
       expect(saved.priorityLevels).toHaveLength(4);
       expect(saved.settings.autoCompleteParents.value).toBe(true);
     }),

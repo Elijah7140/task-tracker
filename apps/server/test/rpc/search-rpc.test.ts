@@ -30,7 +30,6 @@ it.effect("Lists fields and choices, runs scoped search, locates items and maps 
           title: "Audit invoice",
           description: null,
           ticketNumber: "BILL-7",
-          itemTypeId: null,
           priorityLevelId: null,
           dueDate: null,
           dueTime: null,

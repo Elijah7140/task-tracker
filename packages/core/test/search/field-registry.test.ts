@@ -45,7 +45,6 @@ describe("listSearchableFields", () => {
     expect(projectFields.map((field) => field.key)).toEqual([
       "title",
       "ticket",
-      "type",
       "priority",
       "due",
       "status",
@@ -61,14 +60,13 @@ describe("listSearchableFields", () => {
       "module",
       "interface",
       "tickettype",
-      "comment",
+      "parentticket",
       "global",
       "local",
     ]);
     expect(allFields.map((field) => field.key)).toEqual([
       "title",
       "ticket",
-      "type",
       "priority",
       "due",
       "status",
@@ -84,7 +82,7 @@ describe("listSearchableFields", () => {
       "module",
       "interface",
       "tickettype",
-      "comment",
+      "parentticket",
       "global",
       "local",
       "other",
@@ -141,7 +139,6 @@ describe("listSearchChoices", () => {
     )!;
 
     const choices = listSearchChoices(priorityField, {
-      itemTypes: [],
       priorityLevels: levels,
       choices: [],
     });
@@ -182,7 +179,6 @@ describe("listSearchChoices", () => {
     ];
 
     const choices = listSearchChoices(field, {
-      itemTypes: [],
       priorityLevels: [],
       choices: rawChoices,
     });

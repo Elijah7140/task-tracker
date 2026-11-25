@@ -53,15 +53,13 @@ it.effect("Edits and reads floating times and UTC timestamps through the rendere
     Effect.gen(function* () {
       const { client, area, create } = yield* setup;
       const item = yield* create("Original");
-      const { itemTypes, priorityLevels } = yield* client.LoadArea(area);
-      const itemTypeId = itemTypes[0]?.id ?? "";
+      const { priorityLevels } = yield* client.LoadArea(area);
       const priorityLevelId = priorityLevels[0]?.id ?? "";
       const fields = {
         title: "Edited",
         description: null,
         notes: "Notes",
         ticketNumber: "T-7",
-        itemTypeId: itemTypeId.toLowerCase(),
         priorityLevelId: priorityLevelId.toLowerCase(),
         dueDate: "2026-11-12",
         dueTime: "17:45:00.1234567",
@@ -78,7 +76,6 @@ it.effect("Edits and reads floating times and UTC timestamps through the rendere
           item: {
             ...fields,
             id: item.id,
-            itemTypeId,
             priorityLevelId,
             createdAtUtc,
             updatedAtUtc: "2026-11-13T12:00:01Z",
@@ -313,7 +310,7 @@ it.effect("Returns a typed edit error and preserves the stored fields", () =>
     Effect.gen(function* () {
       const { client, area, create } = yield* setup;
       const item = yield* create("Original");
-      const { title, description, ticketNumber, itemTypeId, priorityLevelId, dueDate } = item;
+      const { title, description, ticketNumber, priorityLevelId, dueDate } = item;
 
       const error = yield* Effect.flip(
         client.EditItem({
@@ -322,7 +319,6 @@ it.effect("Returns a typed edit error and preserves the stored fields", () =>
             title: "Rejected",
             description,
             ticketNumber,
-            itemTypeId,
             priorityLevelId,
             dueDate,
             dueTime: "09:00",
@@ -392,7 +388,6 @@ it.effect("Identifies a deleted item in both edit and completion requests", () =
             title: "Edited",
             description: null,
             ticketNumber: null,
-            itemTypeId: null,
             priorityLevelId: null,
             dueDate: null,
             dueTime: null,
@@ -533,7 +528,6 @@ it.effect(
           title: "Renamed parent",
           description: null,
           ticketNumber: null,
-          itemTypeId: null,
           priorityLevelId: null,
           dueDate: null,
           dueTime: null,
@@ -582,7 +576,6 @@ it.effect("Saves, reorders and reads item links through the renderer client", ()
         title: "Linked",
         description: null,
         ticketNumber: null,
-        itemTypeId: null,
         priorityLevelId: null,
         dueDate: null,
         dueTime: null,
@@ -635,7 +628,6 @@ const repeatFields = (title: string) => ({
   title,
   description: null,
   ticketNumber: null,
-  itemTypeId: null,
   priorityLevelId: null,
   dueDate: "2026-11-10",
   dueTime: null,

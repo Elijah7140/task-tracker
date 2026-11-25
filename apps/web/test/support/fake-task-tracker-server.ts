@@ -203,11 +203,10 @@ export class FakeProjectStore {
   /** The session's reminders panel, which tests fill as the scheduler would (§7.12). */
   readonly reminders = new FakeReminders();
 
-  /** Lookups appended to every area snapshot, such as an archived item type. */
+  /** Lookups appended to every area snapshot, such as an archived priority. */
   readonly extraLookups: {
-    itemTypes: Array<Snapshot["itemTypes"][number]>;
     priorityLevels: Array<Snapshot["priorityLevels"][number]>;
-  } = { itemTypes: [], priorityLevels: [] };
+  } = { priorityLevels: [] };
 
   /** Returns an increasing UTC ISO instant for deterministic newest-first ordering in tests. */
   nextTimestamp = () => {
@@ -400,7 +399,6 @@ export class FakeProjectStore {
       autoCompleteByProject: this.autoCompleteByProject,
       values: this.customFields.values,
       priorityLevels: this.settingsAndLookups.priorityLevels,
-      itemTypes: this.settingsAndLookups.itemTypes,
       fields: this.customFields.fields,
       choices: this.customFields.choices,
       statuses: this.statuses.rows,
@@ -420,7 +418,6 @@ export class FakeProjectStore {
       autoCompleteByProject,
       values,
       priorityLevels,
-      itemTypes,
       fields,
       choices,
       statuses,
@@ -437,7 +434,6 @@ export class FakeProjectStore {
     this.autoCompleteByProject = autoCompleteByProject;
     this.customFields.restoreValues(values);
     this.settingsAndLookups.priorityLevels = priorityLevels;
-    this.settingsAndLookups.itemTypes = itemTypes;
     this.customFields.fields = fields;
     this.customFields.choices = choices;
     this.trash.batches = trash;
@@ -540,7 +536,6 @@ export class FakeProjectStore {
         );
         return {
           ...snapshot,
-          itemTypes: [...snapshot.itemTypes, ...this.extraLookups.itemTypes],
           priorityLevels: [...snapshot.priorityLevels, ...this.extraLookups.priorityLevels],
           statuses: this.statuses.ordered(),
           settings: {
@@ -736,7 +731,7 @@ function planReminder(
   });
 }
 
-/** Settings and lookup handlers whose item type and priority changes record history, as on the server. */
+/** Settings and lookup handlers whose priority changes record history, as on the server. */
 function trackedLookupHandlers(
   store: FakeProjectStore,
   track: ReturnType<typeof fakeHistory>["track"],
@@ -744,20 +739,8 @@ function trackedLookupHandlers(
   const lookups = settingsAndLookupHandlers(store, store.record);
   const title = (id: string) =>
     store.settingsAndLookups.priorityLevels.find((row) => row.id === id.toUpperCase())?.label;
-  const typeName = (id: string) =>
-    store.settingsAndLookups.itemTypes.find((row) => row.id === id.toUpperCase())?.name;
   return {
     ...lookups,
-    AddItemType: (payload: Parameters<typeof lookups.AddItemType>[0]) =>
-      track(lookups.AddItemType(payload), (row) => `Add item type '${row.name}'`),
-    RenameItemType: (payload: Parameters<typeof lookups.RenameItemType>[0]) =>
-      track(lookups.RenameItemType(payload), () => `Rename item type '${typeName(payload.id)}'`),
-    ArchiveItemType: (payload: Parameters<typeof lookups.ArchiveItemType>[0]) =>
-      track(lookups.ArchiveItemType(payload), () => `Archive item type '${typeName(payload.id)}'`),
-    RestoreItemType: (payload: Parameters<typeof lookups.RestoreItemType>[0]) =>
-      track(lookups.RestoreItemType(payload), () => `Restore item type '${typeName(payload.id)}'`),
-    ReorderItemTypes: (payload: Parameters<typeof lookups.ReorderItemTypes>[0]) =>
-      track(lookups.ReorderItemTypes(payload), () => "Reorder item types"),
     AddPriorityLevel: (payload: Parameters<typeof lookups.AddPriorityLevel>[0]) =>
       track(lookups.AddPriorityLevel(payload), (row) => `Add priority '${row.label}'`),
     RenamePriorityLevel: (payload: Parameters<typeof lookups.RenamePriorityLevel>[0]) =>

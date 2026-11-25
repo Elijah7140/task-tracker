@@ -9,6 +9,7 @@ const stored = {
   dispatchedToId: "wayne",
   pendingPersonId: null,
   ticketTypeId: "defect",
+  parentTicketNumber: null,
 };
 
 describe("ticketDraftStatus", () => {
@@ -30,6 +31,19 @@ describe("ticketDraftStatus", () => {
     const status = ticketDraftStatus(stored, { dispatchedToId: "" });
 
     expect(status).toEqual({ dirty: true, ticket: { ...stored, dispatchedToId: null } });
+  });
+
+  it("Sends a typed parent ticket number trimmed and a blank one as none", () => {
+    const typed = ticketDraftStatus(stored, { parentTicketNumber: " 385400 " });
+    const blank = ticketDraftStatus(
+      { ...stored, parentTicketNumber: "385400" },
+      {
+        parentTicketNumber: "  ",
+      },
+    );
+
+    expect(typed.ticket?.parentTicketNumber).toBe("385400");
+    expect(blank.ticket?.parentTicketNumber).toBeNull();
   });
 
   it("Is not dirty while the stored fields load", () => {

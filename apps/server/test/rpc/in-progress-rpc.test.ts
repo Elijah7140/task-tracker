@@ -24,7 +24,6 @@ it.effect("Lists items whose status is marked In progress over RPC", () =>
           title: item.title,
           description: null,
           ticketNumber: null,
-          itemTypeId: null,
           priorityLevelId: null,
           dueDate: null,
           dueTime: null,

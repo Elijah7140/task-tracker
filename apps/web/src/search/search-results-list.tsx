@@ -21,8 +21,8 @@ type Result = typeof ItemSearchResult.Type;
  * proportionally and truncates instead of collapsing the title to nothing.
  */
 const COLUMNS = [
-  "grid grid-cols-[1.25rem_minmax(0,2fr)_6rem_minmax(0,1.4fr)_5.5rem_6.5rem_9rem] items-center gap-3",
-  "max-lg:grid-cols-[1.25rem_minmax(0,2fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,1.2fr)] max-lg:gap-2",
+  "grid grid-cols-[1.25rem_minmax(0,2fr)_6rem_minmax(0,1.4fr)_6.5rem_9rem] items-center gap-3",
+  "max-lg:grid-cols-[1.25rem_minmax(0,2fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)] max-lg:gap-2",
 ].join(" ");
 
 /** Props for {@link SearchResultsList}. */
@@ -132,7 +132,6 @@ function ResultButton({
       <ResultTitle result={result} />
       <span className={`${cell} font-mono`}>{result.ticketNumber ?? ""}</span>
       <span className={cell}>{result.location.join(" › ")}</span>
-      <span className={cell}>{result.typeName ?? ""}</span>
       <span className={cell}>{result.priorityLabel ?? ""}</span>
       <span className={cell}>{dueText(result)}</span>
     </button>
@@ -167,7 +166,6 @@ function ResultsHeader() {
       <span className="truncate">Title</span>
       <span className="truncate">Ticket</span>
       <span className="truncate">Location</span>
-      <span className="truncate">Type</span>
       <span className="truncate">Priority</span>
       <span className="truncate">Due</span>
     </div>

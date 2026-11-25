@@ -17,7 +17,6 @@ function useBatchLookups(): AddLookups {
   return {
     priorityOptions: lookupOptions(AsyncResult.isSuccess(priorities) ? priorities.value : [], null),
     statusOptions: [],
-    typeOptions: [],
     parentOptions: [],
     ticketLists: AsyncResult.isSuccess(lists) ? lists.value : [],
   };
@@ -63,7 +62,6 @@ export function TicketBatchForm({
           detailed={false}
           lookups={lookups}
           firstFieldRef={firstFieldRef}
-          withParent={false}
         />
       </div>
       <footer className="flex items-center gap-2 border-t border-line px-5 py-3">

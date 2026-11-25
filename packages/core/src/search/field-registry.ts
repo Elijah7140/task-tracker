@@ -1,7 +1,6 @@
 import type { FieldChoice } from "../fields/field-choice.js";
 import type { FieldDataType } from "../fields/field-data-type.js";
 import type { FieldDefinition } from "../fields/field-definition.js";
-import type { ItemType } from "../lookups/item-type.js";
 import { priorityLabel, type PriorityLevel } from "../lookups/priority-level.js";
 import type { Project } from "../projects/project.js";
 import { scopeProjectId, type SearchScope } from "./search-scope.js";
@@ -33,7 +32,8 @@ function customField(definition: FieldDefinition): SearchableField {
 
 /**
  * The item kind and the fixed ticket fields (§7.19). People, levels and ticket types match by
- * entry name; a ToDo has no ticket fields, so it matches only IsEmpty.
+ * entry name, and the parent ticket by its typed number; a ToDo has no ticket fields, so it
+ * matches only IsEmpty.
  */
 export const TICKET_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("kind", "Kind", "Text"),
@@ -44,14 +44,13 @@ export const TICKET_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("module", "Module", "Text"),
   builtInField("interface", "Interface", "Text"),
   builtInField("tickettype", "Ticket Type", "Text"),
-  builtInField("comment", "Comments", "Text"),
+  builtInField("parentticket", "Parent Ticket", "Text"),
 ];
 
 /** Built-in item columns exposed by the search field registry (§7.2). */
 export const BUILT_IN_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
   builtInField("title", "Title", "Text"),
   builtInField("ticket", "Ticket Number", "Text"),
-  builtInField("type", "Type", "Choice"),
   builtInField("priority", "Priority", "Choice"),
   builtInField("due", "Due Date", "Date"),
   builtInField("status", "Status", "Text"),
@@ -64,7 +63,6 @@ export const BUILT_IN_SEARCH_FIELDS: ReadonlyArray<SearchableField> = [
 
 /** Active lookup and custom choice rows used to populate choice search filters. */
 export interface SearchChoiceSources {
-  readonly itemTypes: ReadonlyArray<ItemType>;
   readonly priorityLevels: ReadonlyArray<PriorityLevel>;
   readonly choices: ReadonlyArray<FieldChoice>;
 }
@@ -114,19 +112,6 @@ export function listSearchChoices(
   field: SearchableField,
   sources: SearchChoiceSources,
 ): ReadonlyArray<SearchChoice> {
-  if (isBuiltInSearchField(field) && field.key === "type") {
-    return sources.itemTypes
-      .filter((type) => !type.isArchived)
-      .toSorted((left, right) => left.sortOrder - right.sortOrder)
-      .map((type) => ({
-        id: type.id,
-        label: type.name,
-        sortOrder: type.sortOrder,
-        name: null,
-        number: null,
-      }));
-  }
-
   if (isBuiltInSearchField(field) && field.key === "priority") {
     return sources.priorityLevels
       .filter((level) => !level.isArchived)

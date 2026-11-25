@@ -10,7 +10,6 @@ const STANDARD_HEADER = [
   "Title",
   "Description",
   "Ticket",
-  "Type",
   "Priority",
   "Priority reference",
   "Status",
@@ -98,15 +97,15 @@ describe("CSV export", () => {
     ),
   );
 
-  it.effect("Writes type, priority and custom values as names and invariant text", () =>
+  it.effect("Writes priority and custom values as names and invariant text, and no type", () =>
     seededWorld((world) =>
       Effect.gen(function* () {
         const billing = yield* projectId(world, "Billing");
 
         const fix = csvRow(yield* world.exportProjectCsv(billing), "Fix invoice totals");
 
+        expect(fix).not.toHaveProperty("Type");
         expect(fix).toMatchObject({
-          Type: "Change",
           Priority: "High",
           "Priority reference": "#name:High",
           Severity: "Major",

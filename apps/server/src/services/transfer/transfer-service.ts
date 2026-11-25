@@ -44,7 +44,6 @@ const loadExisting = Effect.fnUntraced(function* (sql: SqlClient.SqlClient) {
   const lookups = lookupRepository(sql);
   const fields = fieldRepository(sql);
   const existing: ImportExisting = {
-    itemTypes: yield* lookups.itemTypes.list(),
     priorityLevels: yield* lookups.priorityLevels.list(),
     statuses: yield* statusRepository(sql).list(),
     fields: yield* fields.definitions.list(),

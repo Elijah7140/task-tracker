@@ -19,7 +19,8 @@ export interface SeedItem {
   /** Markdown notes, shown on the card (§7.17). */
   readonly notes?: string;
   readonly ticketNumber?: string;
-  readonly type?: "Change" | "Error" | "Discussion" | "Review";
+  /** A ticket's own choice about showing its Detail on its card; the default shows it. */
+  readonly showDetail?: boolean;
   readonly priority?: "Critical" | "High" | "Medium" | "Low";
   /** A seeded workflow status. Completed items default to Completed. */
   readonly status?: FakeStatusName;
@@ -39,7 +40,6 @@ const TIMESTAMP = "2026-11-13T12:00:00Z";
 const lookupId = (kind: number, sequence: number) =>
   `019A0000-0000-7000-8000-00000000${kind}${String(sequence).padStart(3, "0")}`;
 
-const TYPES = ["Change", "Error", "Discussion", "Review"] as const;
 const PRIORITIES = ["Critical", "High", "Medium", "Low"] as const;
 
 const lookup = (name: string, index: number, kind: number) => ({
@@ -67,9 +67,8 @@ export const COMPLETED_STATUS_ID = "019A0000-0000-7000-8000-000000000204";
 const statusId = (name: FakeStatusName) =>
   `019A0000-0000-7000-8000-00000000020${STATUSES.findIndex(([seeded]) => seeded === name) + 1}`;
 
-/** Seeded item types, priority levels and statuses, as the server returns them. */
+/** Seeded priority levels and statuses, as the server returns them. */
 export const FAKE_LOOKUPS = {
-  itemTypes: TYPES.map((name, index) => ({ ...lookup(name, index, 1), iconKey: null })),
   priorityLevels: PRIORITIES.map((name, index) => ({
     ...lookup(name, index, 2),
     number: null,
@@ -142,6 +141,7 @@ export class FakeAreaBuilder {
       ownUrgency,
       displayedUrgency: { value: ownUrgency, sourceDescendantId: null },
       isFinished: completedAtUtc !== null && children.every((child) => child.isFinished),
+      showsDetailOnCard: seed.kind === "Ticket" && (seed.showDetail ?? true),
       children,
     };
   }
@@ -157,7 +157,6 @@ export class FakeAreaBuilder {
       notes: seed.notes ?? null,
       ticketNumber: seed.ticketNumber ?? null,
       kind: seed.kind ?? "Todo",
-      itemTypeId: seed.type === undefined ? null : lookupId(1, TYPES.indexOf(seed.type)),
       priorityLevelId:
         seed.priority === undefined ? null : lookupId(2, PRIORITIES.indexOf(seed.priority)),
       dueDate: seed.dueDate ?? null,
@@ -235,6 +234,7 @@ export function recomputeAreaTree(
       ownUrgency,
       displayedUrgency: { value: bestUrgency, sourceDescendantId },
       isFinished: completed && children.every((child) => child.isFinished),
+      showsDetailOnCard: node.showsDetailOnCard,
       children,
     };
   });

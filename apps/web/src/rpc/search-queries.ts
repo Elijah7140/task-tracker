@@ -1,7 +1,7 @@
 import type { FieldFilter, ItemQuery, SearchableField, SearchScope } from "@task-tracker/contracts";
 import { FIELD_CHOICES_KEY, FIELDS_KEY, fieldChoicesKey } from "./field-queries.js";
 import { HISTORY_KEY, HISTORY_REPLAY_KEY } from "./history-queries.js";
-import { ITEM_TYPES_KEY, LOOKUPS_KEY, PRIORITY_LEVELS_KEY } from "./lookup-queries.js";
+import { LOOKUPS_KEY, PRIORITY_LEVELS_KEY } from "./lookup-queries.js";
 import { PROJECTS_KEY } from "./project-queries.js";
 import { TaskTrackerClient } from "./task-tracker-client.js";
 
@@ -20,7 +20,7 @@ function choiceKeys(field: typeof SearchableField.Type): ReadonlyArray<string> {
   if (field.fieldDefinitionId !== null) {
     return [FIELD_CHOICES_KEY, fieldChoicesKey(field.fieldDefinitionId)];
   }
-  return [LOOKUPS_KEY, field.key === "type" ? ITEM_TYPES_KEY : PRIORITY_LEVELS_KEY];
+  return [LOOKUPS_KEY, PRIORITY_LEVELS_KEY];
 }
 
 /** The active choices of a choice field in `scope`, refreshed by choice and lookup changes. */

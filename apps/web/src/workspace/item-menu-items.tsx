@@ -1,6 +1,8 @@
 import {
   CircleCheck,
   CornerDownRight,
+  Eye,
+  EyeOff,
   Flag,
   FolderInput,
   IndentDecrease,
@@ -57,6 +59,26 @@ function RepeatMenuItems({ node, actions }: Pick<ItemMenuItemsProps, "node" | "a
   );
 }
 
+/**
+ * "Show description" or "Hide description" for a ticket, by whether its card shows its
+ * Detail now (§7.17). A ToDo has no Detail, so it has neither.
+ */
+function DetailOnCardMenuItem({ node, actions }: Pick<ItemMenuItemsProps, "node" | "actions">) {
+  if (node.item.kind !== "Ticket") {
+    return null;
+  }
+  const shown = node.showsDetailOnCard;
+  return (
+    <MenuItem
+      icon={shown ? <EyeOff size={14} /> : <Eye size={14} />}
+      onClick={() => void actions.setDetailOnCard(node, !shown)}
+      testId="item-menu-toggle-detail"
+    >
+      {shown ? "Hide description" : "Show description"}
+    </MenuItem>
+  );
+}
+
 /** Item actions shared by an item row's overflow menu and context menu. */
 export function ItemMenuItems({
   node,
@@ -76,6 +98,7 @@ export function ItemMenuItems({
       >
         Edit…
       </MenuItem>
+      <DetailOnCardMenuItem node={node} actions={actions} />
       <RowLookupMenu
         label="Set priority"
         icon={<Flag size={14} />}

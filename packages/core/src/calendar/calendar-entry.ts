@@ -33,7 +33,6 @@ export interface CalendarEntry {
   readonly isCompleted: boolean;
   readonly dueDate: Temporal.PlainDate | null;
   readonly dueTime: Temporal.PlainTime | null;
-  readonly itemType: string | null;
   readonly priority: string | null;
   readonly statusId: string | null;
   readonly statusName: string | null;

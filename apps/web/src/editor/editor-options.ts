@@ -1,16 +1,12 @@
 import type {
   FieldChoiceProjection,
-  ItemTypeProjection,
   PriorityLevelProjection,
   StatusProjection,
 } from "@task-tracker/contracts";
 import type { SelectOption } from "../ui/select.js";
 
 type Choice = typeof FieldChoiceProjection.Type;
-type Lookup =
-  | typeof ItemTypeProjection.Type
-  | typeof PriorityLevelProjection.Type
-  | typeof StatusProjection.Type;
+type Lookup = typeof PriorityLevelProjection.Type | typeof StatusProjection.Type;
 
 /** The dropdown value that stands for "no value", since dropdown values are strings. */
 export const NONE_VALUE = "none";
@@ -55,7 +51,7 @@ export function choiceOptions(
   ];
 }
 
-/** "None" then the offered item types or priority levels, as for {@link choiceOptions}. */
+/** "None" then the offered priority levels or statuses, as for {@link choiceOptions}. */
 export function lookupOptions(
   lookups: ReadonlyArray<Lookup>,
   storedId: string | null,

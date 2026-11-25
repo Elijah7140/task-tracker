@@ -203,6 +203,7 @@ describe("AppSettingsPage", () => {
       autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
       trayCard: { size: "Full", showItems: true },
+      showTicketDetailOnCards: true,
     });
   });
 
@@ -414,6 +415,7 @@ describe("AppSettingsPage", () => {
       autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
       trayCard: { size: "Full", showItems: true },
+      showTicketDetailOnCards: true,
     });
   });
 
@@ -462,6 +464,7 @@ describe("AppSettingsPage", () => {
       autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
       trayCard: { size: "Full", showItems: true },
+      showTicketDetailOnCards: true,
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);
   });
@@ -619,8 +622,8 @@ describe("AppSettingsPage", () => {
       await openAppSettings({
         projects: [{ name: "Billing DB" }],
         configure: (appStore) => {
-          appStore.settingsAndLookups.addItemTypeSeed("Review");
-          appStore.settingsAndLookups.addItemTypeSeed("Legacy spike", { isArchived: true });
+          appStore.settingsAndLookups.addPriorityLevelSeed("Review");
+          appStore.settingsAndLookups.addPriorityLevelSeed("Legacy spike", { isArchived: true });
         },
       });
 

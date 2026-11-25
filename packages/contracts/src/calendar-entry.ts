@@ -16,7 +16,6 @@ export const CalendarEntry = Schema.Struct({
   isCompleted: Schema.Boolean,
   dueDate: Schema.NullOr(IsoDate),
   dueTime: Schema.NullOr(IsoTime),
-  itemType: Schema.NullOr(Schema.String),
   priority: Schema.NullOr(Schema.String),
   statusId: Schema.NullOr(Guid),
   statusName: Schema.NullOr(Schema.String),

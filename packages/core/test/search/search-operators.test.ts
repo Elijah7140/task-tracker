@@ -66,9 +66,9 @@ describe("searchOperatorsFor", () => {
     },
   );
 
-  it("Offers ordered comparisons for built-in priority but not type", () => {
+  it("Offers ordered comparisons for built-in priority but not a custom choice", () => {
     const priority = searchOperatorsFor(field("priority", "Choice"));
-    const type = searchOperatorsFor(field("type", "Choice"));
+    const type = searchOperatorsFor(field("type", "Choice", "FIELD-2"));
 
     expect(priority).toContain("between");
     expect(priority).toContain("greaterThan");
@@ -90,26 +90,6 @@ describe("searchOperatorsFor", () => {
   });
 
   it("Accepts every offered operator with a suitable value in the query validator", () => {
-    const itemTypes = [
-      {
-        id: "TYPE-1",
-        name: "Change",
-        colorKey: null,
-        iconKey: null,
-        isBuiltIn: true,
-        isArchived: false,
-        sortOrder: 0,
-      },
-      {
-        id: "TYPE-2",
-        name: "Error",
-        colorKey: null,
-        iconKey: null,
-        isBuiltIn: true,
-        isArchived: false,
-        sortOrder: 1,
-      },
-    ];
     const priorityLevels = [
       {
         id: "PRI-1",
@@ -140,7 +120,7 @@ describe("searchOperatorsFor", () => {
     const fields = listSearchableFields(scope, definitions, []);
 
     for (const candidate of fields) {
-      const choices = listSearchChoices(candidate, { itemTypes, priorityLevels, choices: [] });
+      const choices = listSearchChoices(candidate, { priorityLevels, choices: [] });
       for (const operator of searchOperatorsFor(candidate)) {
         const query: ItemQuery = {
           scope,

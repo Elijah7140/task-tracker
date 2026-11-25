@@ -81,6 +81,8 @@ interface GlobalDraft {
   readonly urgencyColors: UrgencyColors;
   /** The tray card's size and whether its cards show their items (§7.18). */
   readonly trayCard: TrayCard;
+  /** Whether a ticket's card shows its Detail unless the ticket says otherwise (§7.17). */
+  readonly showTicketDetailOnCards: boolean;
 }
 
 type AddViewDefaults = NonNullable<Global["addOpensDetails"]>;
@@ -115,6 +117,9 @@ const autoHideCompletedOf = (settings: Global) => settings.autoHideCompleted ?? 
 /** The saved start-with-system choice, off for a server that sent none (§7.13). */
 const startWithSystemOf = (settings: Global) => settings.startWithSystem ?? false;
 
+/** The saved ticket card choice, on for a server that sent none (§7.17). */
+const showTicketDetailOf = (settings: Global) => settings.showTicketDetailOnCards ?? true;
+
 function sameGlobal(left: Global, right: Global) {
   return (
     left.autoCompleteParents === right.autoCompleteParents &&
@@ -127,7 +132,8 @@ function sameGlobal(left: Global, right: Global) {
     sameAddViews(addOpensDetailsOf(left), addOpensDetailsOf(right)) &&
     autoHideCompletedOf(left) === autoHideCompletedOf(right) &&
     sameUrgencyColors(urgencyColorsOf(left), urgencyColorsOf(right)) &&
-    sameTrayCard(trayCardOf(left), trayCardOf(right))
+    sameTrayCard(trayCardOf(left), trayCardOf(right)) &&
+    showTicketDetailOf(left) === showTicketDetailOf(right)
   );
 }
 
@@ -144,6 +150,7 @@ function draftFrom(settings: Global): GlobalDraft {
     autoHideCompleted: autoHideCompletedOf(settings),
     urgencyColors: urgencyColorsOf(settings),
     trayCard: trayCardOf(settings),
+    showTicketDetailOnCards: showTicketDetailOf(settings),
   };
 }
 
@@ -177,6 +184,7 @@ function useGlobalDraft(initial: Global) {
     draft.autoHideCompleted !== autoHideCompletedOf(saved) ||
     !sameUrgencyColors(draft.urgencyColors, urgencyColorsOf(saved)) ||
     !sameTrayCard(draft.trayCard, trayCardOf(saved)) ||
+    draft.showTicketDetailOnCards !== showTicketDetailOf(saved) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
   const validationError =
@@ -223,6 +231,22 @@ function AddViewChoices({ form }: { readonly form: GlobalForm }) {
   );
 }
 
+/**
+ * Whether ticket cards show their Detail (§7.17). A ticket's own Show or Hide description
+ * from its card menu wins over this default.
+ */
+function TicketCardChoice({ form }: { readonly form: GlobalForm }) {
+  return (
+    <Checkbox
+      checked={form.draft.showTicketDetailOnCards}
+      onCheckedChange={(showTicketDetailOnCards) => form.edit({ showTicketDetailOnCards })}
+      testId="global-ticket-card-detail"
+    >
+      Show description on ticket cards
+    </Checkbox>
+  );
+}
+
 /** The settings the draft would save, or null while a threshold is invalid. */
 function nextGlobal(form: GlobalForm): Global | null {
   if (form.yellowTicks === null || form.redTicks === null || form.reminders === null) {
@@ -240,6 +264,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     autoHideCompleted: form.draft.autoHideCompleted,
     urgencyColors: form.draft.urgencyColors,
     trayCard: form.draft.trayCard,
+    showTicketDetailOnCards: form.draft.showTicketDetailOnCards,
   };
 }
 
@@ -437,6 +462,7 @@ export function GlobalDefaultsCard({
           value={form.draft.trayCard}
           onChange={(trayCard) => form.edit({ trayCard })}
         />
+        <TicketCardChoice form={form} />
         {startWithSystemAvailable ? (
           <Checkbox
             checked={form.draft.startWithSystem}

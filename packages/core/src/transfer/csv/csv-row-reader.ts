@@ -43,7 +43,6 @@ export class CsvRowReader {
     const problemsBefore = this.issues.count;
     const title = this.#readTitle();
     const ticketNumber = this.#readTicket();
-    const itemTypeId = this.#readLookup(C.type, "type", this.context.itemTypes);
     const priorityLevelId = readCsvPriority(this.#textCell.bind(this), this.context, this.#fail);
     const [dueDate, dueTime] = this.#readDue();
     const [statusId, completedAtUtc] = this.#readStatusAndCompletion();
@@ -59,7 +58,6 @@ export class CsvRowReader {
       description: this.#readLongText(C.description),
       notes: this.#readLongText(TICKET_CSV_COLUMNS.notes),
       ticketNumber,
-      itemTypeId,
       priorityLevelId,
       statusId,
       dueDate,

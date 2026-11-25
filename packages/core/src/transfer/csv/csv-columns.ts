@@ -6,7 +6,6 @@ export const CSV_COLUMNS = {
   /** A ToDo's notes or a ticket's Detail, so exports of ToDos keep their earlier form. */
   description: "Description",
   ticket: "Ticket",
-  type: "Type",
   priority: "Priority",
   priorityReference: "Priority reference",
   status: "Status",
@@ -20,6 +19,13 @@ export const CSV_COLUMNS = {
   links: "Links",
   repeats: "Repeats",
 } as const;
+
+/**
+ * Columns older exports wrote for fields since removed. An import recognises and ignores
+ * them, and a custom field of the same name keeps its `(field)` suffix. Item types were
+ * removed on 25 Nov 2026.
+ */
+export const RETIRED_CSV_COLUMNS: readonly string[] = ["Type"];
 
 /** Every fixed column, in the order an export writes them. */
 export const STANDARD_CSV_COLUMNS: readonly string[] = Object.values(CSV_COLUMNS);
@@ -37,6 +43,8 @@ export const TICKET_CSV_COLUMNS = {
   dispatchedTo: "Dispatched to",
   pendingUser: "Pending user",
   ticketType: "Ticket type",
+  /** The parent ticket's number as typed (§7.19). */
+  parentTicket: "Parent ticket",
   /**
    * A ticket's notes, kept apart from its Detail in Description. The name keeps clear of
    * a custom field called Notes.
@@ -53,6 +61,7 @@ export const CSV_COLUMNS_IGNORED_ON_IMPORT: readonly string[] = [
   CSV_COLUMNS.folderPath,
   CSV_COLUMNS.parentTitle,
   CSV_COLUMNS.repeats,
+  ...RETIRED_CSV_COLUMNS,
 ];
 
 const FIELD_SUFFIX = " (field)";
@@ -60,7 +69,7 @@ const FIELD_SUFFIX = " (field)";
 /** The fixed column a header names, ignoring case, or undefined. */
 export function standardCsvColumn(name: string): string | undefined {
   const key = nameKey(name);
-  return [...STANDARD_CSV_COLUMNS, ...TICKET_CSV_COLUMN_NAMES].find(
+  return [...STANDARD_CSV_COLUMNS, ...TICKET_CSV_COLUMN_NAMES, ...RETIRED_CSV_COLUMNS].find(
     (column) => nameKey(column) === key,
   );
 }

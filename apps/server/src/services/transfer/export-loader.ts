@@ -25,7 +25,6 @@ export const loadExportCatalogue = Effect.fnUntraced(function* (sql: SqlClient.S
   const lookups = lookupRepository(sql);
   const fields = fieldRepository(sql);
   const catalogue: ExportCatalogue = {
-    itemTypes: yield* lookups.itemTypes.list(),
     priorityLevels: yield* lookups.priorityLevels.list(),
     statuses: yield* statusRepository(sql).list(),
     fields: yield* fields.definitions.list(),
@@ -44,7 +43,6 @@ const loadProject = Effect.fnUntraced(function* (sql: SqlClient.SqlClient, proje
     values: yield* itemFieldValueRepository(sql).listForActiveItems(project.id),
     links: yield* itemLinkRepository(sql).listForActiveItems(project.id),
     ticketDetails: yield* ticketDetailRepository(sql).listForActiveItems(project.id),
-    comments: yield* ticketDetailRepository(sql).listCommentsForActiveItems(project.id),
     settings: yield* settingsRepository(sql).project(project.id),
   };
   return data;

@@ -11,6 +11,8 @@ export interface TicketTexts {
   readonly dispatchedToId: string;
   readonly pendingPersonId: string;
   readonly ticketTypeId: string;
+  /** The parent ticket's number, typed freely. */
+  readonly parentTicketNumber: string;
 }
 
 /** The ticket values the user changed. Untouched fields are absent. */
@@ -29,6 +31,7 @@ export function storedTicketTexts(detail: Detail): TicketTexts {
     dispatchedToId: detail.dispatchedToId ?? "",
     pendingPersonId: detail.pendingPersonId ?? "",
     ticketTypeId: detail.ticketTypeId ?? "",
+    parentTicketNumber: detail.parentTicketNumber ?? "",
   };
 }
 
@@ -65,6 +68,7 @@ export function ticketDraftStatus(
     dispatchedToId: orNull(texts.dispatchedToId),
     pendingPersonId: orNull(texts.pendingPersonId),
     ticketTypeId: orNull(texts.ticketTypeId),
+    parentTicketNumber: orNull(texts.parentTicketNumber),
   };
   return { dirty, ticket };
 }

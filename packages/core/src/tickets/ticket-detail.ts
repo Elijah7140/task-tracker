@@ -1,4 +1,5 @@
 import { MetadataRuleError } from "../metadata/metadata-rule-error.js";
+import { isBlankText, trimText } from "../text/dotnet-white-space.js";
 import {
   parentKindOf,
   ticketListNoun,
@@ -9,7 +10,7 @@ import {
 
 /**
  * The fixed ticket fields that have no shared item column (§7.19). Summary, detail,
- * number, priority, status, completion date and parent live on the item itself.
+ * number, priority, status and completion date live on the item itself.
  */
 export interface TicketDetail {
   readonly itemId: string;
@@ -20,10 +21,26 @@ export interface TicketDetail {
   readonly dispatchedToId: string | null;
   readonly pendingPersonId: string | null;
   readonly ticketTypeId: string | null;
+  /**
+   * The parent ticket's number as free text (§7.19). Task Tracker may or may not hold a
+   * ticket with that number; the tree position is `ParentItemId` and is separate.
+   */
+  readonly parentTicketNumber: string | null;
+  /**
+   * Whether the card shows the Detail, or null to follow the global
+   * `showTicketDetailOnCards` setting (§7.17).
+   */
+  readonly showDetailOnCard: boolean | null;
 }
 
-/** The ticket fields a save supplies. The item ID comes from the item being saved. */
-export type TicketDetailInput = Omit<TicketDetail, "itemId">;
+/**
+ * The ticket fields a save supplies. The item ID comes from the item being saved, and the
+ * card's Detail override keeps its stored value: only the card menu changes it.
+ */
+export type TicketDetailInput = Omit<TicketDetail, "itemId" | "showDetailOnCard">;
+
+/** The longest parent ticket number accepted, as for a ticket number. */
+const maxParentTicketNumberLength = 100;
 
 /** A ticket with nothing filled in beyond its item columns. */
 export function emptyTicketDetail(itemId: string): TicketDetail {
@@ -36,7 +53,31 @@ export function emptyTicketDetail(itemId: string): TicketDetail {
     dispatchedToId: null,
     pendingPersonId: null,
     ticketTypeId: null,
+    parentTicketNumber: null,
+    showDetailOnCard: null,
   };
+}
+
+/** Trims a parent ticket number, treating blank text as none. */
+export function parentTicketNumber(text: string | null): string | null {
+  if (text === null || isBlankText(text)) {
+    return null;
+  }
+  const trimmed = trimText(text);
+  if (trimmed.length > maxParentTicketNumberLength) {
+    throw new MetadataRuleError(
+      `Parent ticket must be at most ${maxParentTicketNumberLength} characters.`,
+    );
+  }
+  return trimmed;
+}
+
+/** Whether a ticket's card shows its Detail: its own choice, or else the global setting. */
+export function showsDetailOnCard(
+  detail: Pick<TicketDetail, "showDetailOnCard"> | null,
+  globalDefault: boolean,
+): boolean {
+  return detail?.showDetailOnCard ?? globalDefault;
 }
 
 type EntryField =
@@ -121,5 +162,10 @@ export function validateTicketDetail(
     checkEntry(detail, previous, byId, field);
   }
   checkLevelChain(detail, byId);
-  return { ...detail, itemId };
+  return {
+    ...detail,
+    itemId,
+    parentTicketNumber: parentTicketNumber(detail.parentTicketNumber),
+    showDetailOnCard: previous?.showDetailOnCard ?? null,
+  };
 }

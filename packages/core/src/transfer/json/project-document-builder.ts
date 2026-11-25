@@ -2,7 +2,6 @@ import type { ItemFieldValue } from "../../fields/item-field-value.js";
 import type { ItemLink } from "../../items/item-link.js";
 import type { TodoItem } from "../../items/todo-item.js";
 import type { Folder } from "../../projects/folder.js";
-import type { TicketComment } from "../../tickets/ticket-comment.js";
 import type { TicketDetail } from "../../tickets/ticket-detail.js";
 import {
   formatTransferDate,
@@ -49,13 +48,11 @@ function folderDocument(folder: Folder): JsonOut {
 class ItemDocuments {
   readonly #fieldKeys: ReadonlyMap<string, string>;
   readonly #choiceLabels: ReadonlyMap<string, string>;
-  readonly #typeNames: ReadonlyMap<string, string>;
   readonly #priorityNames: ReadonlyMap<string, string>;
 
   constructor(catalogue: ExportCatalogue) {
     this.#fieldKeys = new Map(catalogue.fields.map((field) => [field.id, field.key]));
     this.#choiceLabels = new Map(catalogue.choices.map((choice) => [choice.id, choice.label]));
-    this.#typeNames = new Map(catalogue.itemTypes.map((type) => [type.id, type.name]));
     this.#priorityNames = new Map(catalogue.priorityLevels.map((level) => [level.id, level.name]));
   }
 
@@ -87,8 +84,6 @@ class ItemDocuments {
       ["title", jsonString(item.title)],
       ["description", optionalString(item.kind === "Ticket" ? item.description : item.notes)],
       ["ticketNumber", optionalString(item.ticketNumber)],
-      ["itemTypeId", exportGuid(item.itemTypeId)],
-      ["itemType", name(this.#typeNames, item.itemTypeId)],
       ["priorityLevelId", exportGuid(item.priorityLevelId)],
       ["priority", name(this.#priorityNames, item.priorityLevelId)],
       ["statusId", exportGuid(item.statusId)],
@@ -134,7 +129,6 @@ interface ItemExtras {
   readonly values: readonly ItemFieldValue[];
   readonly links: readonly ItemLink[];
   readonly ticket: TicketDetail | undefined;
-  readonly comments: readonly TicketComment[];
 }
 
 const optionalId = (id: string | null) => exportGuid(id);
@@ -148,24 +142,16 @@ function ticketDocument(detail: TicketDetail): JsonOut {
     ["dispatchedToId", optionalId(detail.dispatchedToId)],
     ["pendingPersonId", optionalId(detail.pendingPersonId)],
     ["ticketTypeId", optionalId(detail.ticketTypeId)],
+    ["parentTicketNumber", optionalString(detail.parentTicketNumber)],
+    [
+      "showDetailOnCard",
+      detail.showDetailOnCard === null ? null : jsonBoolean(detail.showDetailOnCard),
+    ],
   ]);
 }
 
-/** The comment log oldest first, or null when there is none so the property is left out. */
-function commentsDocument(comments: readonly TicketComment[]): JsonOut | null {
-  const documents = comments
-    .toSorted((left, right) => Temporal.Instant.compare(left.createdAtUtc, right.createdAtUtc))
-    .map((comment) =>
-      jsonObject([
-        ["body", jsonString(comment.body)],
-        ["createdAtUtc", utc(comment.createdAtUtc)],
-      ]),
-    );
-  return documents.length === 0 ? null : jsonArray(documents);
-}
-
 /**
- * A ticket's kind, fixed fields and comments (§7.19). A ToDo writes none of them, so exports
+ * A ticket's kind, notes and fixed fields (§7.19). A ToDo writes none of them, so exports
  * without tickets keep their earlier form.
  */
 function ticketMembers(item: TodoItem, extras: ItemExtras) {
@@ -176,7 +162,6 @@ function ticketMembers(item: TodoItem, extras: ItemExtras) {
     ["kind", jsonString("Ticket")],
     ["notes", optionalString(item.notes)],
     ["ticket", extras.ticket === undefined ? null : ticketDocument(extras.ticket)],
-    ["comments", commentsDocument(extras.comments)],
   ] as const;
 }
 
@@ -210,7 +195,6 @@ export function buildProjectDocument(data: ProjectExportData, catalogue: ExportC
   const valuesByItem = Map.groupBy(data.values, (value) => value.itemId);
   const linksByItem = Map.groupBy(data.links, (link) => link.itemId);
   const ticketsByItem = new Map(data.ticketDetails.map((detail) => [detail.itemId, detail]));
-  const commentsByItem = Map.groupBy(data.comments, (comment) => comment.itemId);
   const folders = data.folders.toSorted(compareRows((folder: Folder) => folder.name));
   const ordered = data.items.toSorted(compareRows((item: TodoItem) => item.title));
   return jsonObject([
@@ -231,7 +215,6 @@ export function buildProjectDocument(data: ProjectExportData, catalogue: ExportC
             values: valuesByItem.get(item.id) ?? [],
             links: linksByItem.get(item.id) ?? [],
             ticket: ticketsByItem.get(item.id),
-            comments: commentsByItem.get(item.id) ?? [],
           }),
         ),
       ),

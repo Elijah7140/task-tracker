@@ -39,7 +39,6 @@ function checkProjects(projects: DocumentList<ProjectDocument>, issues: IssueLis
  */
 export function findNullElements(document: ExportDocument): readonly TransferIssue[] {
   const issues = new IssueList();
-  checkList(document.itemTypes, "$.itemTypes", issues);
   checkList(document.priorityLevels, "$.priorityLevels", issues);
   checkList(document.statuses, "$.statuses", issues);
   checkList(document.savedSearches, "$.savedSearches", issues);

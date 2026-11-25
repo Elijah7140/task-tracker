@@ -16,7 +16,7 @@ import { folderRepository } from "../db/repositories/folder-repository.js";
 import { lookupRepository } from "../db/repositories/lookup-repository.js";
 import { projectRepository } from "../db/repositories/project-repository.js";
 
-const NO_CHOICES = { itemTypes: [], priorityLevels: [], choices: [] } as const;
+const NO_CHOICES = { priorityLevels: [], choices: [] } as const;
 
 /**
  * Loads the field registry, choices and scope checks for search on the caller's
@@ -59,12 +59,6 @@ export function searchRegistry(sql: SqlClient.SqlClient) {
   });
 
   const listChoices = Effect.fnUntraced(function* (field: SearchableField) {
-    if (isBuiltInSearchField(field) && field.key === "type") {
-      return listSearchChoices(field, {
-        ...NO_CHOICES,
-        itemTypes: yield* lookups.itemTypes.list(),
-      });
-    }
     if (isBuiltInSearchField(field) && field.key === "priority") {
       const priorityLevels = yield* lookups.priorityLevels.list();
       return listSearchChoices(field, { ...NO_CHOICES, priorityLevels });

@@ -11,9 +11,6 @@ const editableColumns = {
 } as const;
 const lookupFields = { ...editableFields, colorKey: Schema.NullOr(Schema.String), isBuiltIn: Bit };
 const lookupColumns = { ...editableColumns, colorKey: "ColorKey", isBuiltIn: "IsBuiltIn" } as const;
-const itemType = Schema.Struct({ ...lookupFields, iconKey: Schema.NullOr(Schema.String) }).pipe(
-  Schema.encodeKeys({ ...lookupColumns, iconKey: "IconKey" }),
-);
 const numberField = { number: Schema.NullOr(Schema.Int) };
 const priorityLevel = Schema.Struct({ ...lookupFields, ...numberField }).pipe(
   Schema.encodeKeys({ ...lookupColumns, number: "Number" }),
@@ -25,10 +22,7 @@ const editable = Schema.Struct(editableFields).pipe(Schema.encodeKeys(editableCo
 
 /** Lookup persistence includes archived rows so they remain addressable and reserve their names. */
 export function lookupRepository(sql: SqlClient.SqlClient) {
-  function forTable<Row extends typeof itemType | typeof priorityLevel>(
-    table: "ItemType" | "PriorityLevel",
-    row: Row,
-  ) {
+  function forTable<Row extends typeof priorityLevel>(table: "PriorityLevel", row: Row) {
     const list = SqlSchema.findAll({
       Request: Schema.Void,
       Result: row,
@@ -48,7 +42,6 @@ export function lookupRepository(sql: SqlClient.SqlClient) {
     };
   }
   return {
-    itemTypes: forTable("ItemType", itemType),
     priorityLevels: {
       ...forTable("PriorityLevel", priorityLevel),
       update: SqlSchema.void({

@@ -14,7 +14,7 @@ export function addsTicketOccurrence(tree: ItemTree, applied: AppliedCompletion)
 
 /**
  * The rows an area write can change, including the custom values and links that
- * a next occurrence copies (§7.11), and the ticket fields and comments of tickets
+ * a next occurrence copies (§7.11), and the ticket fields of tickets
  * that an undone creation removes (§7.19). Each predicate selects them before
  * and after.
  *
@@ -34,7 +34,6 @@ export function areaUndoSources(
     { table: "ItemFieldValue", where: sql`ItemId IN (${areaItems})` },
     { table: "ItemLink", where: sql`ItemId IN (${areaItems})` },
     { table: "TicketDetail", where: sql`ItemId IN (${areaItems})` },
-    { table: "TicketComment", where: sql`ItemId IN (${areaItems})` },
   ];
   return ranksTickets ? [...area, ticketUndoSource(sql)] : area;
 }

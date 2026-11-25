@@ -3,7 +3,7 @@ import { CardColumns } from "./card-columns.js";
 import { DurationTicks } from "./duration-ticks.js";
 import { Guid } from "./guid.js";
 import { Item } from "./item.js";
-import { ItemTypeProjection, PriorityLevelProjection } from "./lookup-projection.js";
+import { PriorityLevelProjection } from "./lookup-projection.js";
 
 import { StatusProjection } from "./status-projection.js";
 
@@ -16,6 +16,11 @@ const itemNodeFields = {
     sourceDescendantId: Schema.NullOr(Guid),
   }),
   isFinished: Schema.Boolean,
+  /**
+   * Whether the card shows the item's Detail: a ticket's own choice, or else the global
+   * `showTicketDetailOnCards` setting. Always false for a ToDo (§7.17).
+   */
+  showsDetailOnCard: Schema.Boolean,
 };
 
 type ItemNode = typeof itemNodeFieldsSchema.Type & { readonly children: ItemSiblings };
@@ -43,7 +48,6 @@ export const AreaSnapshot = Schema.Struct({
   projectId: Guid,
   folderId: Schema.NullOr(Guid),
   items: itemSiblings,
-  itemTypes: Schema.Array(ItemTypeProjection),
   priorityLevels: Schema.Array(PriorityLevelProjection),
   statuses: Schema.Array(StatusProjection),
   settings: Schema.Struct({

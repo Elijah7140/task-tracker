@@ -1,71 +1,73 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
-import { openMenu } from "../support/menu-bar.js";
 import { renderApp } from "../support/render-app.js";
 import { settleTheme, THEMES } from "../support/screenshots.js";
 
-const itemTypesCard = () => page.getByTestId("lookup-list-item-types");
 const priorityLevelsCard = () => page.getByTestId("lookup-list-priority-levels");
 
-const activeRows = (card: ReturnType<typeof itemTypesCard>) => card.getByTestId("lookup-row");
+const activeRows = (card: ReturnType<typeof priorityLevelsCard>) => card.getByTestId("lookup-row");
 
-const rowIn = (card: ReturnType<typeof itemTypesCard>, name: string) =>
+const rowIn = (card: ReturnType<typeof priorityLevelsCard>, name: string) =>
   card.getByRole("listitem", { name, exact: true });
 
 async function openLookups(options: Parameters<typeof renderApp>[0] = {}) {
   const app = await renderApp({ path: "/settings", ...options });
-  await expect.element(itemTypesCard()).toBeVisible();
   await expect.element(priorityLevelsCard()).toBeVisible();
   return app;
 }
 
 describe("LookupListCard", () => {
-  it("Adds an item type with Enter and a priority level with Add, clearing each input", async () => {
+  it("Has no item types list, which were removed (§12)", async () => {
+    await openLookups();
+
+    await expect.element(page.getByTestId("lookup-list-item-types")).not.toBeInTheDocument();
+  });
+
+  it("Adds a priority level with Enter and with Add, clearing the input", async () => {
     const { store } = await openLookups();
+    const input = priorityLevelsCard().getByTestId("lookup-new-name");
 
-    await itemTypesCard().getByTestId("lookup-new-name").fill("Review");
+    await input.fill("Review");
     await userEvent.keyboard("{Enter}");
-
-    await expect.element(rowIn(itemTypesCard(), "Review")).toBeVisible();
-    await expect.element(itemTypesCard().getByTestId("lookup-new-name")).toHaveValue("");
-    expect(store.settingsAndLookups.itemTypeNames()).toEqual([
-      "Change",
-      "Error",
-      "Discussion",
-      "Review",
-    ]);
-
-    await priorityLevelsCard().getByTestId("lookup-new-name").fill("Urgent");
+    await expect.element(rowIn(priorityLevelsCard(), "Review")).toBeVisible();
+    await expect.element(input).toHaveValue("");
+    await input.fill("Urgent");
     await priorityLevelsCard().getByTestId("lookup-add").click();
 
     await expect.element(rowIn(priorityLevelsCard(), "Urgent")).toBeVisible();
-    await expect.element(priorityLevelsCard().getByTestId("lookup-new-name")).toHaveValue("");
+    await expect.element(input).toHaveValue("");
     expect(store.settingsAndLookups.priorityLevelNames()).toEqual([
       "Critical",
       "High",
       "Medium",
       "Low",
+      "Review",
       "Urgent",
     ]);
   });
 
   it("Rejects duplicate and blank names with a dialog while keeping the typed text", async () => {
     const { store } = await openLookups();
-    const input = itemTypesCard().getByTestId("lookup-new-name");
+    const input = priorityLevelsCard().getByTestId("lookup-new-name");
 
-    await input.fill("change");
+    await input.fill("high");
     await userEvent.keyboard("{Enter}");
 
     const alert = page.getByRole("alertdialog", { name: "Lookup validation" });
     await expect
       .element(alert)
-      .toHaveAccessibleDescription("The name 'change' is already used by another item type.");
+      .toHaveAccessibleDescription("The name 'high' is already used by another priority level.");
     await page.getByTestId("message-dialog-ok").click();
-    await expect.element(input).toHaveValue("change");
-    expect(store.settingsAndLookups.itemTypeNames()).toEqual(["Change", "Error", "Discussion"]);
+    await expect.element(input).toHaveValue("high");
+    expect(store.settingsAndLookups.priorityLevelNames()).toEqual([
+      "Critical",
+      "High",
+      "Medium",
+      "Low",
+    ]);
 
     await input.fill("   ");
-    await itemTypesCard().getByTestId("lookup-add").click();
+    await priorityLevelsCard().getByTestId("lookup-add").click();
 
     await expect
       .element(page.getByRole("alertdialog", { name: "Lookup validation" }))
@@ -77,36 +79,36 @@ describe("LookupListCard", () => {
   it("Renames a lookup through the prompt dialog and ignores Escape cancel", async () => {
     const { store } = await openLookups({
       configure: (appStore) => {
-        appStore.settingsAndLookups.addItemTypeSeed("Review");
+        appStore.settingsAndLookups.addPriorityLevelSeed("Review");
       },
     });
 
-    await rowIn(itemTypesCard(), "Review").getByTestId("lookup-rename").click();
-    await expect.element(page.getByRole("dialog", { name: "Rename item type" })).toBeVisible();
+    await rowIn(priorityLevelsCard(), "Review").getByTestId("lookup-rename").click();
+    await expect.element(page.getByRole("dialog", { name: "Rename priority level" })).toBeVisible();
     await userEvent.keyboard("{Escape}");
 
-    expect(store.calls).not.toContain("RenameItemType");
-    await expect.element(rowIn(itemTypesCard(), "Review")).toBeVisible();
+    expect(store.calls).not.toContain("RenamePriorityLevel");
+    await expect.element(rowIn(priorityLevelsCard(), "Review")).toBeVisible();
 
-    await rowIn(itemTypesCard(), "Review").getByTestId("lookup-rename").click();
+    await rowIn(priorityLevelsCard(), "Review").getByTestId("lookup-rename").click();
     await userEvent.keyboard("Approval{Enter}");
 
-    await expect.element(rowIn(itemTypesCard(), "Approval")).toBeVisible();
-    expect(store.settingsAndLookups.itemTypeNames()).toContain("Approval");
-    expect(store.settingsAndLookups.itemTypeNames()).not.toContain("Review");
+    await expect.element(rowIn(priorityLevelsCard(), "Approval")).toBeVisible();
+    expect(store.settingsAndLookups.priorityLevelNames()).toContain("Approval");
+    expect(store.settingsAndLookups.priorityLevelNames()).not.toContain("Review");
   });
 
   it("Keeps the rename prompt open with Enter a name when the new name is blank", async () => {
     const { store } = await openLookups();
 
-    await rowIn(itemTypesCard(), "Error").getByTestId("lookup-rename").click();
+    await rowIn(priorityLevelsCard(), "High").getByTestId("lookup-rename").click();
     await userEvent.keyboard("{Backspace}{Enter}");
 
     await expect
       .element(page.getByTestId("prompt-dialog-error"))
       .toHaveTextContent("Enter a name.");
     await expect.element(page.getByTestId("prompt-dialog-submit")).toBeDisabled();
-    expect(store.calls).not.toContain("RenameItemType");
+    expect(store.calls).not.toContain("RenamePriorityLevel");
   });
 
   it("Ignores a second Move up click while the first move is still saving", async () => {
@@ -219,27 +221,23 @@ describe("LookupListCard", () => {
     expect(store.settingsAndLookups.priorityLevelNames(true)).toContain("Retired");
   });
 
-  it("Archives and restores custom types and priority levels", async () => {
+  it("Archives and restores priority levels, built-in ones too", async () => {
     const { store } = await openLookups({
       configure: (appStore) => {
-        appStore.settingsAndLookups.addItemTypeSeed("Review");
+        appStore.settingsAndLookups.addPriorityLevelSeed("Review");
       },
     });
 
-    await rowIn(itemTypesCard(), "Review").getByTestId("lookup-archive").click();
+    await rowIn(priorityLevelsCard(), "Review").getByTestId("lookup-archive").click();
 
-    const archived = itemTypesCard().getByTestId("lookup-archived-section");
+    const archived = priorityLevelsCard().getByTestId("lookup-archived-section");
     await expect.element(archived).toBeVisible();
     await expect
       .element(archived.getByTestId("lookup-archived-row"))
       .toHaveAccessibleName("Review");
-    expect(store.settingsAndLookups.itemTypeNames()).toEqual(["Change", "Error", "Discussion"]);
-
     await archived.getByTestId("lookup-restore").click();
-
     await expect.element(archived).not.toBeInTheDocument();
-    await expect.element(rowIn(itemTypesCard(), "Review")).toBeVisible();
-    expect(store.settingsAndLookups.itemTypeNames()).toContain("Review");
+    await expect.element(rowIn(priorityLevelsCard(), "Review")).toBeVisible();
 
     await rowIn(priorityLevelsCard(), "Low").getByTestId("lookup-archive").click();
 
@@ -251,47 +249,16 @@ describe("LookupListCard", () => {
       .getByTestId("lookup-restore")
       .click();
     await expect.element(rowIn(priorityLevelsCard(), "Low")).toBeVisible();
+    expect(store.settingsAndLookups.priorityLevelNames()).toContain("Review");
   });
 
-  it("Disables archiving built-in item types with an explanatory tooltip", async () => {
-    const { store } = await openLookups();
-    const archiveButton = rowIn(itemTypesCard(), "Change").getByTestId("lookup-archive");
-
-    await expect.element(archiveButton).toHaveAttribute("aria-disabled", "true");
-    await userEvent.hover(archiveButton);
-
-    await expect
-      .element(page.getByTestId("lookup-archive-tooltip"))
-      .toHaveTextContent("Built-in types can't be archived");
-
-    await archiveButton.click({ force: true });
-    expect(store.calls).not.toContain("ArchiveItemType");
-    await expect
-      .element(itemTypesCard().getByTestId("lookup-archived-section"))
-      .not.toBeInTheDocument();
-  });
-
-  it("Shows restore guidance when adding or renaming to an archived lookup name", async () => {
+  it("Shows restore guidance when renaming to an archived lookup name", async () => {
     const { store } = await openLookups({
       configure: (appStore) => {
-        appStore.settingsAndLookups.addItemTypeSeed("Review", { isArchived: true });
         appStore.settingsAndLookups.addPriorityLevelSeed("Later", { isArchived: true });
       },
     });
     const alert = page.getByRole("alertdialog", { name: "Lookup validation" });
-    const typeInput = itemTypesCard().getByTestId("lookup-new-name");
-
-    await typeInput.fill("review");
-    await itemTypesCard().getByTestId("lookup-add").click();
-
-    await expect
-      .element(alert)
-      .toHaveAccessibleDescription(
-        "The name 'review' is used by an archived item type. Restore it instead.",
-      );
-    await page.getByTestId("message-dialog-ok").click();
-    await expect.element(typeInput).toHaveValue("review");
-    expect(store.settingsAndLookups.itemTypeNames()).toEqual(["Change", "Error", "Discussion"]);
 
     await rowIn(priorityLevelsCard(), "Low").getByTestId("lookup-rename").click();
     await userEvent.keyboard("LATER{Enter}");
@@ -509,55 +476,5 @@ describe("Priority list history", () => {
       "Medium",
       "Low",
     ]);
-  });
-});
-
-describe("Item type list history", () => {
-  it("Names an item type rename in the Edit menu and Ctrl+Z restores the old name", async () => {
-    const { store } = await openLookups({
-      configure: (appStore) => {
-        appStore.settingsAndLookups.addItemTypeSeed("Review");
-      },
-    });
-    await rowIn(itemTypesCard(), "Review").getByTestId("lookup-rename").click();
-    await userEvent.keyboard("{Control>}a{/Control}Approval{Enter}");
-    await expect.element(rowIn(itemTypesCard(), "Approval")).toBeVisible();
-
-    await openMenu("edit");
-
-    await expect
-      .element(page.getByRole("menuitem", { name: "Undo: Rename item type 'Approval'" }))
-      .toBeEnabled();
-    await userEvent.keyboard("{Escape}");
-    await userEvent.keyboard("{Control>}z{/Control}");
-    await expect.element(rowIn(itemTypesCard(), "Review")).toBeVisible();
-    expect(store.settingsAndLookups.itemTypeNames()).toContain("Review");
-    await openMenu("edit");
-    await expect
-      .element(page.getByRole("menuitem", { name: "Redo: Rename item type 'Approval'" }))
-      .toBeEnabled();
-  });
-
-  it("Redoes an item type archive from the Edit menu and shows it archived again", async () => {
-    await openLookups({
-      configure: (appStore) => {
-        appStore.settingsAndLookups.addItemTypeSeed("Review");
-      },
-    });
-    await rowIn(itemTypesCard(), "Review").getByTestId("lookup-archive").click();
-    await expect
-      .element(rowIn(itemTypesCard(), "Review"))
-      .toHaveAttribute("data-testid", "lookup-archived-row");
-    await userEvent.keyboard("{Control>}z{/Control}");
-    await expect
-      .element(rowIn(itemTypesCard(), "Review"))
-      .toHaveAttribute("data-testid", "lookup-row");
-
-    await openMenu("edit");
-    await page.getByRole("menuitem", { name: "Redo: Archive item type 'Review'" }).click();
-
-    await expect
-      .element(rowIn(itemTypesCard(), "Review"))
-      .toHaveAttribute("data-testid", "lookup-archived-row");
   });
 });

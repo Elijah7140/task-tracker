@@ -21,7 +21,6 @@ const ITEM: ItemRecord = {
   description: null,
   notes: null,
   ticketNumber: "OPS-1",
-  itemTypeId: TYPE_ID,
   priorityLevelId: PRIORITY_ID,
   dueDate: "2026-11-20",
   dueTime: "17:00:00.1234567",
@@ -40,7 +39,6 @@ const STORED_EDIT = {
   description: null,
   notes: null,
   ticketNumber: "OPS-1",
-  itemTypeId: TYPE_ID,
   priorityLevelId: PRIORITY_ID,
   dueDate: "2026-11-20",
   dueTime: "17:00:00.1234567",
@@ -55,7 +53,6 @@ describe("storedTexts", () => {
       description: "",
       notes: "",
       ticketNumber: "OPS-1",
-      itemTypeId: TYPE_ID,
       priorityLevelId: PRIORITY_ID,
       dueDate: "2026-11-20",
       dueTime: "17:00",
@@ -134,18 +131,17 @@ describe("itemEdit", () => {
     expect(cleared).toEqual({ ...STORED_EDIT, statusId: null });
   });
 
-  it("Clears the type and priority when None is chosen", () => {
-    const edit = itemEdit(ITEM, { itemTypeId: "", priorityLevelId: "" });
+  it("Clears the priority when None is chosen", () => {
+    const edit = itemEdit(ITEM, { priorityLevelId: "" });
 
-    expect(edit.itemTypeId).toBeNull();
     expect(edit.priorityLevelId).toBeNull();
   });
 
-  it("Keeps an archived type and priority until they are replaced", () => {
+  it("Keeps an archived priority until it is replaced", () => {
     const edit = itemEdit(ITEM, { title: "Renamed" });
 
-    expect(edit.itemTypeId).toBe(TYPE_ID);
     expect(edit.priorityLevelId).toBe(PRIORITY_ID);
+    expect(edit).not.toHaveProperty("itemTypeId");
   });
 
   it("Clears dates and times that were emptied", () => {

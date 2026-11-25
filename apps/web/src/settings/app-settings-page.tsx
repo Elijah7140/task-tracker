@@ -4,7 +4,7 @@ import { AsyncResult } from "effect/reactivity";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
-import { itemTypesAtom, priorityLevelsAtom } from "../rpc/lookup-queries.js";
+import { priorityLevelsAtom } from "../rpc/lookup-queries.js";
 import { globalSettingsAtom } from "../rpc/settings-queries.js";
 import { statusesAtom } from "../rpc/status-queries.js";
 import { buttonClassName } from "../ui/button.js";
@@ -54,7 +54,7 @@ function SettingsSkeleton() {
 
 /**
  * The App Settings route (`/settings`): global completion and urgency defaults,
- * the desktop About card, editable item type, priority level and status lists
+ * the desktop About card, editable priority level and status lists
  * and the global custom fields.
  */
 export function AppSettingsPage() {
@@ -67,27 +67,22 @@ export function AppSettingsPage() {
 
   const installation = useDesktopInstallation();
   const globalSettings = useAtomValue(globalSettingsAtom);
-  const itemTypes = useAtomValue(itemTypesAtom);
   const priorityLevels = useAtomValue(priorityLevelsAtom);
   const statuses = useAtomValue(statusesAtom);
   const refreshGlobal = useAtomRefresh(globalSettingsAtom);
-  const refreshTypes = useAtomRefresh(itemTypesAtom);
   const refreshLevels = useAtomRefresh(priorityLevelsAtom);
   const refreshStatuses = useAtomRefresh(statusesAtom);
 
   const failure = AsyncResult.isFailure(globalSettings)
     ? globalSettings
-    : AsyncResult.isFailure(itemTypes)
-      ? itemTypes
-      : AsyncResult.isFailure(priorityLevels)
-        ? priorityLevels
-        : AsyncResult.isFailure(statuses)
-          ? statuses
-          : undefined;
+    : AsyncResult.isFailure(priorityLevels)
+      ? priorityLevels
+      : AsyncResult.isFailure(statuses)
+        ? statuses
+        : undefined;
 
   const retryAll = () => {
     refreshGlobal();
-    refreshTypes();
     refreshLevels();
     refreshStatuses();
   };
@@ -96,7 +91,7 @@ export function AppSettingsPage() {
     <PageContainer>
       <PageHeader
         title="App Settings"
-        description="Global defaults, appearance, item types, priority levels, ticket lists and custom fields."
+        description="Global defaults, appearance, priority levels, statuses, ticket lists and custom fields."
         actions={<AppSettingsBack />}
       />
       {failure !== undefined ? (
@@ -106,7 +101,6 @@ export function AppSettingsPage() {
           testId="app-settings-load-failure"
         />
       ) : !AsyncResult.isSuccess(globalSettings) ||
-        !AsyncResult.isSuccess(itemTypes) ||
         !AsyncResult.isSuccess(priorityLevels) ||
         !AsyncResult.isSuccess(statuses) ? (
         <SettingsSkeleton />
@@ -121,7 +115,6 @@ export function AppSettingsPage() {
           <AppearanceCard />
           {installation === undefined ? null : <AboutCard installation={installation} />}
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-            <LookupListCard kind="itemTypes" rows={itemTypes.value} />
             <LookupListCard kind="priorityLevels" rows={priorityLevels.value} />
             <StatusListCard rows={statuses.value} />
           </div>
