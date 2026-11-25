@@ -161,7 +161,7 @@ function reconcileAncestors(
   const updates = new Map<string, string | null>();
   for (const id of toReconcile) {
     const located = locateNode(area.nodes, id);
-    if (located === undefined || located.node.children.length === 0) {
+    if (located === undefined || located.node.children.length === 0 || isTicket(located.node)) {
       continue;
     }
     const allComplete = located.node.children.every(
@@ -329,6 +329,11 @@ export function applySetItemPriority(
   });
 }
 
+/** A ticket's completion follows its status, never its sub-items (§6.1). */
+function isTicket(node: FakeItemNode): boolean {
+  return node.item.kind === "Ticket";
+}
+
 /** Completes or reopens an item, mirroring Core's confirmation, blocked, and roll-up rules. */
 export function applySetItemCompleted(
   store: FakeItemStoreContext,
@@ -344,8 +349,9 @@ export function applySetItemCompleted(
   }
   const autoComplete = store.autoCompleteFor(projectId);
   const now = store.nextTimestamp();
+  const followsChildren = autoComplete && !isTicket(located.node);
   if (completed) {
-    const openDescendants = autoComplete ? collectOpenDescendants(located.node) : [];
+    const openDescendants = followsChildren ? collectOpenDescendants(located.node) : [];
     const openSubItemIds = openDescendants.map((node) => node.item.id);
     if (openSubItemIds.length > 0 && !sameIdSet(openSubItemIds, confirmedOpenItemIds)) {
       return Effect.succeed({
@@ -369,7 +375,7 @@ export function applySetItemCompleted(
   }
 
   if (
-    autoComplete &&
+    followsChildren &&
     located.node.children.length > 0 &&
     located.node.children.every((child) => child.item.completedAtUtc !== null)
   ) {

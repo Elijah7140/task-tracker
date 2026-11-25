@@ -305,3 +305,89 @@ it("applies the approval when all previously previewed descendants are now compl
 
   expect(result).toEqual({ kind: "applied", changes: [change("root", now)] });
 });
+
+function ticket(id: string, overrides: Partial<TodoItem> = {}) {
+  return item(id, { kind: "Ticket", ticketNumber: id.toUpperCase(), ...overrides });
+}
+
+it("leaves a ticket and the ToDo above it open when the ticket's last open sub-item completes", () => {
+  const items = tree(
+    item("root"),
+    ticket("ticket", { parentItemId: "root" }),
+    item("child", { parentItemId: "ticket" }),
+  );
+
+  const result = CompletionService.complete(items, "child", true, now);
+
+  expect(result).toEqual({ kind: "applied", changes: [change("child", now)] });
+});
+
+it("completes a ToDo whose only child is a ticket when the ticket completes", () => {
+  const items = tree(
+    item("root"),
+    ticket("ticket", { parentItemId: "root" }),
+    item("child", { parentItemId: "ticket" }),
+  );
+
+  const result = CompletionService.complete(items, "ticket", true, now);
+
+  expect(result).toEqual({
+    kind: "applied",
+    changes: [change("root", now), change("ticket", now)],
+  });
+});
+
+it("completes a ticket with open sub-items without asking and changes only the ticket", () => {
+  const items = tree(ticket("ticket"), item("child", { parentItemId: "ticket" }));
+
+  const result = CompletionService.complete(items, "ticket", true, now);
+
+  expect(result).toEqual({ kind: "applied", changes: [change("ticket", now)] });
+});
+
+it("reopens a ticket whose sub-items are all complete instead of blocking it", () => {
+  const items = tree(
+    ticket("ticket", { completedAtUtc: earlier }),
+    item("child", { parentItemId: "ticket", completedAtUtc: earlier }),
+  );
+
+  const result = CompletionService.reopen(items, "ticket", true, now);
+
+  expect(result).toEqual({ kind: "applied", changes: [change("ticket", null)] });
+});
+
+it("keeps a completed ticket and the ToDo above it complete when the ticket gains an open sub-item", () => {
+  const items = tree(
+    item("root", { completedAtUtc: earlier }),
+    ticket("ticket", { parentItemId: "root", completedAtUtc: earlier }),
+  );
+
+  items.add(item("child", { parentItemId: "ticket" }), now);
+  const result = CompletionService.afterStructureChanged(items, ["ticket"], true, now);
+
+  expect(result.changes).toEqual([]);
+});
+
+it("ignores ticket parents when reconciling the whole tree", () => {
+  const items = tree(
+    ticket("open-ticket"),
+    item("done", { parentItemId: "open-ticket", completedAtUtc: earlier }),
+    ticket("done-ticket", { completedAtUtc: earlier }),
+    item("open", { parentItemId: "done-ticket" }),
+  );
+
+  const preview = CompletionService.previewReconciliation(items, now);
+
+  expect(preview).toEqual({ parentsToComplete: 0, parentsToReopen: 0 });
+});
+
+it("still completes a ticket beneath a ToDo when the ToDo's whole subtree is completed", () => {
+  const items = tree(item("root"), ticket("ticket", { parentItemId: "root" }));
+
+  const result = CompletionService.complete(items, "root", true, now, ["ticket"]);
+
+  expect(result).toEqual({
+    kind: "applied",
+    changes: [change("root", now), change("ticket", now)],
+  });
+});

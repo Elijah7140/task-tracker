@@ -119,6 +119,7 @@ function assertSharedFixtureState(
     reminders: DEFAULT_REMINDERS,
     keepRunningInTray: false,
     addOpensDetails: { todo: false, ticket: false },
+    autoHideCompleted: true,
     urgencyColors: { approaching: null, overdue: null },
     startWithSystem: false,
   });
@@ -402,6 +403,7 @@ it.effect(
               keepRunningInTray: false,
               startWithSystem: false,
               addOpensDetails: { todo: false, ticket: false },
+              autoHideCompleted: true,
               urgencyColors: { approaching: null, overdue: null },
             });
             expect(projectSettings).toEqual({
@@ -771,6 +773,7 @@ it.effect(
               keepRunningInTray: false,
               startWithSystem: false,
               addOpensDetails: { todo: false, ticket: false },
+              autoHideCompleted: true,
               urgencyColors: { approaching: null, overdue: null },
             });
             expect(projectSettings).toEqual({

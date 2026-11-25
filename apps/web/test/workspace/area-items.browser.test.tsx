@@ -101,3 +101,83 @@ describe("AreaItems", () => {
       .toHaveTextContent("No items in this area yet.");
   });
 });
+
+describe("Auto-hide completed (§6.2)", () => {
+  const tree = () => page.getByRole("tree", { name: "Items in Billing DB" });
+  const card = (name: string) => tree().getByRole("treeitem", { name, exact: true });
+  const completedSection = () => tree().getByRole("treeitem", { name: "Completed (1)" });
+
+  async function openWith(autoHideCompleted: boolean) {
+    const { clock, advance } = createTestClock();
+    const app = await renderApp({
+      clock,
+      projects: [
+        {
+          name: "Billing DB",
+          items: [
+            { title: "Write report" },
+            { title: "Ship fix", kind: "Ticket", ticketNumber: "4021" },
+            { title: "Plan sprint" },
+          ],
+        },
+      ],
+      configure: (store) => store.settingsAndLookups.setGlobalSettings({ autoHideCompleted }),
+    });
+    const projectId = app.store.summaries[0]?.project.id ?? "";
+    app.history.push(`/projects/${projectId}`);
+    await expect.element(card("Write report")).toBeVisible();
+    return { ...app, projectId, advance };
+  }
+
+  const complete = (name: string) => card(name).getByTestId("item-completion").first().click();
+
+  it("Keeps a ToDo checked in place through reloads until the user leaves and returns", async () => {
+    const { history, projectId, advance } = await openWith(false);
+
+    await complete("Write report");
+    await expect
+      .element(card("Write report").getByTestId("item-completion").first())
+      .toHaveAttribute("data-completed", "true");
+    await advance("1 minute");
+
+    await expect.element(completedSection()).not.toBeInTheDocument();
+    await expect.element(card("Write report")).toBeVisible();
+
+    history.push("/");
+    await expect.element(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
+    history.push(`/projects/${projectId}`);
+
+    await expect.element(completedSection()).toBeVisible();
+    await expect.element(card("Write report")).not.toBeInTheDocument();
+  });
+
+  it("Moves a checked ToDo to Completed at once with the setting on", async () => {
+    await openWith(true);
+
+    await complete("Write report");
+
+    await expect.element(completedSection()).toBeVisible();
+    await expect.element(card("Write report")).not.toBeInTheDocument();
+  });
+
+  it("Moves a completed ticket to Completed at once with the setting off", async () => {
+    await openWith(false);
+
+    await complete("Ship fix");
+
+    await expect.element(completedSection()).toBeVisible();
+    await expect.element(card("Ship fix")).not.toBeInTheDocument();
+  });
+
+  it("Reopens a ToDo kept in place", async () => {
+    await openWith(false);
+    await complete("Write report");
+    const mark = card("Write report").getByTestId("item-completion").first();
+    await expect.element(mark).toHaveAttribute("data-completed", "true");
+
+    await mark.click();
+
+    await expect.element(mark).toHaveAttribute("data-completed", "false");
+    await expect.element(completedSection()).not.toBeInTheDocument();
+  });
+});

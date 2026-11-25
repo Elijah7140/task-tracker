@@ -33,6 +33,7 @@ const {
   startWithSystem,
   todoAddOpensDetails,
   ticketAddOpensDetails,
+  autoHideCompleted,
   urgencyApproachingColor,
   urgencyOverdueColor,
 } = SettingsCatalogue;
@@ -190,6 +191,7 @@ const make = Effect.gen(function* () {
         todo: parseOrDefault(todoAddOpensDetails, global.get(todoAddOpensDetails.key)),
         ticket: parseOrDefault(ticketAddOpensDetails, global.get(ticketAddOpensDetails.key)),
       } satisfies AddViewDefaults,
+      autoHideCompleted: parseOrDefault(autoHideCompleted, global.get(autoHideCompleted.key)),
       urgencyColors: {
         approaching: parseOrDefault(
           urgencyApproachingColor,
@@ -369,6 +371,7 @@ const make = Effect.gen(function* () {
       startup?: boolean,
       addViews?: AddViewDefaults,
       urgencyColors?: UrgencyColorsInput,
+      autoHide?: boolean,
     ) =>
       updateGlobal((current) => {
         const proposed = new Map<string, string>();
@@ -396,6 +399,9 @@ const make = Effect.gen(function* () {
         if (urgencyColors !== undefined) {
           proposeGlobal(proposed, current, urgencyApproachingColor, urgencyColors.approaching);
           proposeGlobal(proposed, current, urgencyOverdueColor, urgencyColors.overdue);
+        }
+        if (autoHide !== undefined) {
+          proposeGlobal(proposed, current, autoHideCompleted, autoHide);
         }
         return proposed;
       }, approval),

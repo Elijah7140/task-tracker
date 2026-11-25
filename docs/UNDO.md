@@ -39,7 +39,7 @@ Replay checks, in addition to SQLite's foreign keys and unique indexes:
 - **D** requires every dependent of a hard-deleted row to be removed by the same step.
 - **H** refuses to activate a row beneath a deleted ancestor or leave newer rows in a
   deleted branch.
-- **C** checks parent completion against the effective settings the replay leaves.
+- **C** checks ToDo parent completion against the effective settings the replay leaves (tickets follow their status, §6.1).
 - **V** checks custom values against the current field type, scope and choice.
 - **L** checks the final item type or priority list: Core's Unicode name rule including
   archived names, unique ranks and active priority numbers.

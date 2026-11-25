@@ -313,6 +313,25 @@ ancestor chains deepest first against the final tree. Specifically:
 
 With the setting **off**, every item completes and reopens independently.
 
+**Tickets are exempt** (owner decision, 25 Nov 2026). The setting applies to ToDos
+only. A ticket is complete exactly when its status is a Done-kind status (§7.15):
+setting a Done status completes it and setting an Open status or none reopens it,
+whatever its sub-items are doing. So, with the setting on:
+
+- Completing a ticket's last open sub-item, or adding an open one, never changes the
+  ticket. The bottom-up walk skips a ticket ancestor and continues to the items above
+  it, where a ToDo parent still counts the ticket as one child, complete when the
+  ticket is.
+- Completing a ticket never asks "Also complete N open sub-items?", and reopening one is
+  never blocked; each changes only the ticket. Completing a ToDo still completes its
+  whole subtree, tickets included, each with the first Done status.
+- Turning the setting on reconciles only ToDo parents, and undo's parent completion
+  check (C in [UNDO.md](UNDO.md)) ignores ticket parents.
+
+A ticket that children completed under the old rule already holds a Done status, since
+status and completion are kept in sync by triggers, so it needs no data repair: it
+stays complete until its status is set to an Open one.
+
 **Turning the setting on** always leaves the data consistent with it. If any trees
 disagree, the app shows: "Turning this on will complete M parents and reopen K parents.
 Continue?" **Continue** → the setting change and the bottom-up reconciliation commit in
@@ -340,6 +359,17 @@ finished items move into a Completed section, so open work is never hidden.
   last descendant is done. (With the setting on, this state cannot occur.)
 - Reopening an item returns it to the open list at its previous `SortOrder`.
 - Expander state is per session and starts collapsed.
+
+**Auto-hide completed** (`AutoHideCompleted`, global, default on; owner decision,
+25 Nov 2026). On, a finished item moves to Completed or the "n completed" expander
+as soon as it is completed. Off, a **ToDo** completed while the user views its area or
+drilled-in item, by its check mark, a row menu's status or the editor, stays where it
+is in the open list, shown checked and struck through, together with anything the same
+action completed. It survives the automatic reloads after each change and the minute
+refresh, and moves to Completed once the user leaves the view (any route change,
+including drilling in or out) or reloads the window. The renderer keeps these IDs in a
+session-only set and the server is unaware of them. Reopening such an item works as
+usual. **Tickets ignore the setting**: a completed ticket leaves the open list at once.
 
 ### 6.3 Urgency color
 
@@ -408,6 +438,7 @@ otherwise the global value.
 | `UrgencyRedThreshold` | duration | 24 hours | yes |
 | `WorkspaceCardColumns` | whole number, 1–8 | 4 | no (§7.17) |
 | `TodoAddOpensDetails` / `TicketAddOpensDetails` | boolean | off | no (§7.19) |
+| `AutoHideCompleted` | boolean | on | no (§6.2) |
 | `UrgencyApproachingColor` / `UrgencyOverdueColor` | `#rrggbb` color or empty | empty (theme color) | no (§6.3) |
 
 Design:
@@ -419,7 +450,7 @@ Design:
 - Preserve the storage keys `autoCompleteParents`, `urgencyYellowThreshold` and
   `urgencyRedThreshold` and their text encodings. Keep the legacy boolean encoding.
   Read and write durations in .NET `XmlConvert` format (e.g. `P1D`, `PT3H`, `PT0.5S`).
-- **Auto-complete and reconciliation (§6.1)** apply to the *effective* value: a change
+- **Auto-complete and reconciliation (§6.1)** apply to ToDo parents only, and to the *effective* value: a change
   that turns auto-complete on for some projects (a project override, or a global change
   that inheriting projects pick up) runs the reconcile prompt for exactly those projects,
   in one transaction with the setting change.
@@ -1401,7 +1432,8 @@ the decisions below were made autonomously; they are listed for review.
   - Completing an item any other way sets the first done status in sort order and remembers the
     previous open status.
   - Reopening restores `ReopenStatusId`, or no status.
-  - Auto-completed and auto-reopened parents follow the same rules.
+  - Auto-completed and auto-reopened parents follow the same rules. Tickets are never
+    auto-completed or auto-reopened (§6.1).
   - Status and completion stay in sync. The service and database constraints enforce the applicable invariants.
 - **Setting a status or priority.**
   - Every item row menu (workspace tree, Search, Calendar, Today, Tickets) gets **Set status ▸**
@@ -2034,6 +2066,13 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
 13. **Notes apart from Detail (23 Nov 2026).** Both kinds have Notes; only a ticket has
     a Detail. A ToDo's existing text moves to its Notes, and a ticket's stays its Detail
     (§7.19).
+14. **Tickets exempt from auto-complete (25 Nov 2026).** `AutoCompleteParents` applies to
+    ToDos only. A ticket is complete exactly when its status is Done-kind, never because of
+    its sub-items, and completing or reopening it never asks about or is blocked by them.
+    A ToDo above a ticket still counts the ticket as a child (§6.1).
+15. **Auto-hide completed, ToDos only (25 Nov 2026).** A global setting, default on. Off,
+    a ToDo completed in the current view stays in the open list, checked, until the user
+    leaves the view or reloads. Tickets always move once completed (§6.2).
 
 ## Appendix A. Historical review log
 

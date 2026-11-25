@@ -34,6 +34,11 @@ export const GlobalSettings = Schema.Struct({
     Schema.Struct({ todo: Schema.Boolean, ticket: Schema.Boolean }),
   ),
   /**
+   * Whether a ToDo completed in the current view leaves the open list at once (§6.2).
+   * The server always sends it; a save without it keeps it.
+   */
+  autoHideCompleted: Schema.optionalKey(Schema.Boolean),
+  /**
    * The chosen urgency colors (§6.3). The server always sends them; a save without
    * them keeps them.
    */

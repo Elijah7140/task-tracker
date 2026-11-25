@@ -8,13 +8,14 @@ interface Mismatch {
 }
 
 /**
- * Active parents whose completion disagrees with their active children, the state that
- * automatic completion forbids. Only parents selected by the condition are considered.
+ * Active ToDo parents whose completion disagrees with their active children, the state
+ * that automatic completion forbids. A ticket follows its status, not its children, so
+ * it is never a mismatch (§6.1). Only parents selected by the condition are considered.
  */
 const mismatchedParents = (sql: SqlClient.SqlClient, parents: Statement.Fragment) => sql<Mismatch>`
   SELECT parent.ProjectId FROM TodoItem AS parent
     JOIN TodoItem AS child ON child.ParentItemId = parent.Id AND child.DeletedAtUtc IS NULL
-   WHERE parent.DeletedAtUtc IS NULL AND ${parents}
+   WHERE parent.DeletedAtUtc IS NULL AND parent.ItemKind = 'Todo' AND ${parents}
    GROUP BY parent.Id
   HAVING (parent.CompletedAtUtc IS NOT NULL) <> (SUM(child.CompletedAtUtc IS NULL) = 0)`;
 

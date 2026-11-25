@@ -82,6 +82,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         keepRunningInTray: false,
         startWithSystem: false,
         addOpensDetails: { todo: false, ticket: false },
+        autoHideCompleted: true,
         urgencyColors: { approaching: null, overdue: null },
       });
       expect(result).toEqual({ kind: "applied" });
@@ -91,6 +92,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         keepRunningInTray: false,
         startWithSystem: false,
         addOpensDetails: { todo: false, ticket: false },
+        autoHideCompleted: true,
         urgencyColors: { approaching: null, overdue: null },
       });
       expect(yield* storedRows("GlobalSetting")).toEqual([

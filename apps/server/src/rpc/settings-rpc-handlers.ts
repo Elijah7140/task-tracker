@@ -27,6 +27,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
               keepRunningInTray,
               startWithSystem,
               addOpensDetails,
+              autoHideCompleted,
               urgencyColors,
             }) => ({
               ...projectGlobalSettings(values),
@@ -34,6 +35,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
               keepRunningInTray,
               startWithSystem,
               addOpensDetails,
+              autoHideCompleted,
               urgencyColors,
             }),
           ),
@@ -62,6 +64,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
             values.startWithSystem,
             values.addOpensDetails,
             values.urgencyColors,
+            values.autoHideCompleted,
           ),
         ).pipe(mapOperationError),
       SaveProjectSettings: ({ projectId, overrides, approval }) =>

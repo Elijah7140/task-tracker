@@ -12,6 +12,7 @@ import { FieldService } from "../../../src/services/field-service.js";
 import type { ItemAddInput } from "../../../src/services/item-add-operation.js";
 import { ItemService } from "../../../src/services/item-service.js";
 import { ProjectService } from "../../../src/services/project-service.js";
+import { SettingsService } from "../../../src/services/settings-service.js";
 import { TicketListService } from "../../../src/services/ticket-list-service.js";
 import { UndoService } from "../../../src/services/undo-service.js";
 import { setAutoComplete, withSchema } from "./fixtures.js";
@@ -28,6 +29,7 @@ const services = Layer.mergeAll(
   ItemService.layer("UTC"),
   FieldService.layer,
   TicketListService.layer,
+  SettingsService.layer,
 );
 
 const fields = (overrides: Partial<ItemEdit> = {}): ItemEdit => ({
@@ -291,6 +293,144 @@ it.effect("Undo refuses to remove a created ticket once it has a newer comment",
         "Other data still depends on this item; can't undo its removal.",
       );
       expect(remaining[0]).toHaveLength(1);
+    }).pipe(Effect.provide(services)),
+  ),
+);
+
+/** Reads a stored item's status and completion through a fresh operation. */
+const readCompletion = (id: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const [row] = yield* sql.withTransaction(
+      sql<{ StatusId: string | null; Completed: number }>`
+        SELECT StatusId, CompletedAtUtc IS NOT NULL AS Completed FROM TodoItem WHERE Id = ${id}`,
+    );
+    return row!;
+  });
+
+/** Adds a ticket under `parentItemId` with the given ToDo children, completing the chosen ones. */
+const ticketWithChildren = Effect.fnUntraced(function* (
+  { project, items, input }: Effect.Success<typeof setup>,
+  children: readonly ("open" | "done")[],
+  parentItemId: string | null = null,
+) {
+  const ticketFields = fields({ ticketNumber: "385405", statusId: queuedStatusId });
+  const ticket = yield* items.add(
+    input({ kind: "Ticket", parentItemId, fields: ticketFields, ticket: noTicketFields }),
+  );
+  const childIds: string[] = [];
+  for (const [index, state] of children.entries()) {
+    const child = yield* items.add(
+      input({ parentItemId: ticket.id, fields: fields({ title: `Child ${index}` }) }),
+    );
+    if (state === "done") {
+      yield* items.setCompleted(project.id, null, child.id, true);
+    }
+    childIds.push(child.id);
+  }
+  /** Saves the editor with only the status changed, as the ticket editor sends it. */
+  const saveStatus = (statusId: string) =>
+    items.edit(ticket.id, { ...ticketFields, statusId }, [], undefined, undefined, noTicketFields);
+  return { ticket, childIds, saveStatus };
+});
+
+it.effect.each([
+  ["no sub-items", []],
+  ["an open sub-item", ["open"]],
+  ["only completed sub-items", ["done", "done"]],
+] as const)("Saving only a ticket's status completes and reopens it with %s", ([, children]) =>
+  withSchema(
+    Effect.gen(function* () {
+      yield* setAutoComplete(true);
+      const { ticket, childIds, saveStatus } = yield* ticketWithChildren(yield* setup, children);
+      const childrenBefore = yield* Effect.forEach(childIds, readCompletion);
+
+      const completed = yield* saveStatus(completedStatusId);
+      const afterComplete = yield* readCompletion(ticket.id);
+      const reopened = yield* saveStatus(queuedStatusId);
+
+      expect(completed.kind).toBe("applied");
+      expect(afterComplete).toEqual({ StatusId: completedStatusId, Completed: 1 });
+      expect(reopened.kind).toBe("applied");
+      expect(yield* readCompletion(ticket.id)).toEqual({ StatusId: queuedStatusId, Completed: 0 });
+      expect(yield* Effect.forEach(childIds, readCompletion)).toEqual(childrenBefore);
+    }).pipe(Effect.provide(services)),
+  ),
+);
+
+it.effect("Completing a ticket's last sub-item leaves the ticket open with its status", () =>
+  withSchema(
+    Effect.gen(function* () {
+      yield* setAutoComplete(true);
+      const context = yield* setup;
+      const { ticket, childIds } = yield* ticketWithChildren(context, ["done", "open"]);
+
+      yield* context.items.setCompleted(context.project.id, null, childIds[1]!, true);
+
+      expect(yield* readCompletion(ticket.id)).toEqual({ StatusId: queuedStatusId, Completed: 0 });
+    }).pipe(Effect.provide(services)),
+  ),
+);
+
+it.effect("A ToDo above a ticket completes when the ticket's status is set to Done", () =>
+  withSchema(
+    Effect.gen(function* () {
+      yield* setAutoComplete(true);
+      const context = yield* setup;
+      const parent = yield* context.items.add(
+        context.input({ fields: fields({ title: "Parent" }) }),
+      );
+      const { ticket, saveStatus } = yield* ticketWithChildren(context, ["open"], parent.id);
+
+      yield* saveStatus(completedStatusId);
+      const parentDone = yield* readCompletion(parent.id);
+      yield* saveStatus(queuedStatusId);
+
+      expect(parentDone.Completed).toBe(1);
+      expect((yield* readCompletion(parent.id)).Completed).toBe(0);
+      expect((yield* readCompletion(ticket.id)).Completed).toBe(0);
+    }).pipe(Effect.provide(services)),
+  ),
+);
+
+it.effect("Undo and redo replay a ticket completed over an open sub-item", () =>
+  withSchema(
+    Effect.gen(function* () {
+      yield* setAutoComplete(true);
+      const undo = yield* UndoService;
+      const { ticket, saveStatus } = yield* ticketWithChildren(yield* setup, ["open"]);
+      yield* saveStatus(completedStatusId);
+
+      yield* undo.apply("undo");
+      const undone = yield* readCompletion(ticket.id);
+      yield* undo.apply("redo");
+
+      expect(undone).toEqual({ StatusId: queuedStatusId, Completed: 0 });
+      expect(yield* readCompletion(ticket.id)).toEqual({
+        StatusId: completedStatusId,
+        Completed: 1,
+      });
+    }).pipe(Effect.provide(services)),
+  ),
+);
+
+it.effect("Turning auto-complete on leaves ticket parents to their statuses", () =>
+  withSchema(
+    Effect.gen(function* () {
+      yield* setAutoComplete(false);
+      const settings = yield* SettingsService;
+      const context = yield* setup;
+      const finished = yield* ticketWithChildren(context, ["done"]);
+      const completedOverOpen = yield* ticketWithChildren(context, ["open"]);
+      yield* completedOverOpen.saveStatus(completedStatusId);
+
+      const preview = yield* settings.previewGlobalAutoComplete();
+
+      expect(preview).toMatchObject({ parentsToComplete: 0, parentsToReopen: 0 });
+      expect(yield* readCompletion(finished.ticket.id)).toEqual({
+        StatusId: queuedStatusId,
+        Completed: 0,
+      });
     }).pipe(Effect.provide(services)),
   ),
 );
