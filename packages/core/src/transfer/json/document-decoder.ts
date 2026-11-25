@@ -24,7 +24,8 @@ export function decodeExportDocument(
   root: JsonNode,
 ): { readonly document: ExportDocument } | { readonly issue: TransferIssue } {
   try {
-    return { document: exportDocument(root, "$") as ExportDocument };
+    const { itemTypes, ...document } = exportDocument(root, "$");
+    return { document: { ...document, usesLegacyTicketParents: itemTypes === true } };
   } catch (error) {
     if (error instanceof DecodeFailure) {
       return { issue: { path: error.path, message: error.message } };
@@ -386,6 +387,8 @@ const exportDocument = documentObject("ExportDocument", {
   version: optionalInt,
   exportedAtUtc: optionalText,
   scope: optionalText,
+  // Every pre-reshape export wrote this member, even when the list was empty.
+  itemTypes: () => true,
   priorityLevels: list("LookupDocument", lookup),
   statuses: list("LookupDocument", lookup),
   fields: list("FieldDocument", field),

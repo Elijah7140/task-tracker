@@ -151,6 +151,32 @@ describe("Auto-hide completed (§6.2)", () => {
     await expect.element(card("Write report")).not.toBeInTheDocument();
   });
 
+  it("Keeps a checked card ahead of a later status when auto-hide is off", async () => {
+    const app = await renderApp({
+      projects: [
+        {
+          name: "Billing DB",
+          items: [
+            { title: "Write report", status: "Queued" },
+            { title: "Plan sprint", status: "Testing" },
+          ],
+        },
+      ],
+      configure: (store) =>
+        store.settingsAndLookups.setGlobalSettings({ autoHideCompleted: false }),
+    });
+    app.history.push(`/projects/${app.store.summaries[0]?.project.id}`);
+    const first = card("Write report");
+    const second = card("Plan sprint");
+    await expect.element(first).toBeVisible();
+
+    await complete("Write report");
+    await expect.element(first.getByTestId("item-status-chip")).toHaveTextContent("Completed");
+
+    const position = first.element().compareDocumentPosition(second.element());
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("Moves a checked ToDo to Completed at once with the setting on", async () => {
     await openWith(true);
 

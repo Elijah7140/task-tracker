@@ -1,6 +1,6 @@
 import type { PriorityLevelProjection } from "@task-tracker/contracts";
 import type { ItemNode } from "./item-outline.js";
-import type { StatusRank } from "./status-rank.js";
+import { cardStatusId, type StatusRank } from "./status-rank.js";
 
 /** Heading for open top-level items with no priority or an unknown priority ID. */
 export const NO_PRIORITY_TITLE = "No priority";
@@ -21,7 +21,7 @@ export interface PriorityGroup {
 /** Sorts cards by their status's list position; the stable sort keeps sibling order for ties. */
 function byStatus(cards: ReadonlyArray<ItemNode>, statusRank: StatusRank) {
   return cards.toSorted(
-    (left, right) => statusRank(left.item.statusId) - statusRank(right.item.statusId),
+    (left, right) => statusRank(cardStatusId(left)) - statusRank(cardStatusId(right)),
   );
 }
 

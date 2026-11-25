@@ -2,6 +2,7 @@ import {
   CompletionService,
   completionStatus,
   DEFAULT_REMINDER,
+  emptyTicketDetail,
   FolderTree,
   ItemTree,
   isBlankText,
@@ -96,6 +97,7 @@ class ContentImport {
   }
 
   #items(documents: readonly ItemDocument[], projectId: string): TodoItem[] {
+    const byId = new Map(documents.map((item) => [item.id, item]));
     return parentFirst(
       documents,
       (item) => item.id,
@@ -105,7 +107,8 @@ class ContentImport {
       this.context.map.items.set(document.id!, item.id);
       this.#values(item.id, listOf(document.fieldValues));
       this.#links(item.id, document);
-      this.#ticket(item, document);
+      const parent = byId.get(document.parentItemId);
+      this.#ticket(item, document, parent);
       return item;
     });
   }
@@ -213,14 +216,26 @@ class ContentImport {
    * A ticket's fixed fields with its list entries mapped (§7.19). An older file's comment log
    * is ignored, since comments were removed on 25 Nov 2026.
    */
-  #ticket(item: TodoItem, document: ItemDocument): void {
+  #ticket(item: TodoItem, document: ItemDocument, parent: ItemDocument | undefined): void {
     if (item.kind !== "Ticket") {
       return;
     }
     const entry = (id: string | null) =>
       id === null ? null : (this.context.map.ticketEntries.get(id) ?? null);
     const ticket = document.ticket;
-    if (ticket !== null) {
+    const legacyParentNumber =
+      this.context.document.usesLegacyTicketParents && parent?.kind === "Ticket"
+        ? parent.ticketNumber
+        : null;
+    const parentNumber = parentTicketNumber(ticket?.parentTicketNumber ?? legacyParentNumber);
+    if (ticket === null) {
+      if (parentNumber !== null) {
+        this.context.plan.ticketDetails.push({
+          ...emptyTicketDetail(item.id),
+          parentTicketNumber: parentNumber,
+        });
+      }
+    } else {
       this.context.plan.ticketDetails.push({
         itemId: item.id,
         requestorId: entry(ticket.requestorId),
@@ -230,7 +245,7 @@ class ContentImport {
         dispatchedToId: entry(ticket.dispatchedToId),
         pendingPersonId: entry(ticket.pendingPersonId),
         ticketTypeId: entry(ticket.ticketTypeId),
-        parentTicketNumber: parentTicketNumber(ticket.parentTicketNumber),
+        parentTicketNumber: parentNumber,
         showDetailOnCard: ticket.showDetailOnCard,
       });
     }

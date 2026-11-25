@@ -186,6 +186,37 @@ describe("Ticket transfer", () => {
       ),
   );
 
+  it.effect("Restores legacy parent ticket numbers and preserves blanks in newer exports", () =>
+    emptyWorld((world) =>
+      Effect.gen(function* () {
+        const parentId = "019A0000-0000-7000-8000-0000000AC101";
+        const legacy = ticketFile({
+          items: [
+            { id: parentId, title: "Parent", kind: "Ticket", ticketNumber: "385400" },
+            {
+              id: "019A0000-0000-7000-8000-0000000AC102",
+              parentItemId: parentId,
+              title: "Child",
+              kind: "Ticket",
+              ticketNumber: "385405",
+            },
+          ],
+        });
+        const current = legacy.replace('"itemTypes":', '"ignoredItemTypes":');
+
+        yield* world.importJson(legacy);
+        yield* world.importJson(current);
+        const legacyProject = yield* projectId(world, "ClockTower");
+        const currentProject = yield* projectId(world, "ClockTower (imported)");
+
+        const legacyRows = yield* readTickets(world, legacyProject);
+        const currentRows = yield* readTickets(world, currentProject);
+        expect(legacyRows[0]).toMatchObject({ Title: "Child", ParentTicketNumber: "385400" });
+        expect(currentRows[0]).toMatchObject({ Title: "Child", ParentTicketNumber: null });
+      }),
+    ),
+  );
+
   it.effect("Writes ticket members only for tickets, so a ToDo keeps its earlier form", () =>
     emptyWorld((world) =>
       Effect.gen(function* () {
