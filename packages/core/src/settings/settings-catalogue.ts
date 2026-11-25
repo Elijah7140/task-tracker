@@ -1,5 +1,6 @@
 import { ticksPerDay, ticksPerHour } from "../time/duration-ticks.js";
 import { booleanCodec } from "./boolean-codec.js";
+import { choiceCodec } from "./choice-codec.js";
 import { durationCodec } from "./duration-codec.js";
 import { localTimeCodec } from "./local-time-codec.js";
 import { optionalHexColorCodec } from "./optional-hex-color-codec.js";
@@ -7,6 +8,12 @@ import { reminderOffsetCodec } from "./reminder-offset-codec.js";
 import { SettingDefinition } from "./setting-definition.js";
 import { trayCardSizeCodec } from "./tray-card-size-codec.js";
 import { wholeNumberCodec } from "./whole-number-codec.js";
+import {
+  ADD_LINE_POSITIONS,
+  type AddLinePosition,
+  DETAILS_PANEL_POSITIONS,
+  type DetailsPanelPosition,
+} from "./workspace-layout-choices.js";
 
 /** The typed definitions of the built-in global settings and project overrides. */
 export const SettingsCatalogue = {
@@ -48,6 +55,36 @@ export const SettingsCatalogue = {
     4,
     false,
     wholeNumberCodec(1, 8),
+  ),
+  /**
+   * Whether Cards per row means "cards per row when the window fills the screen", so cards
+   * keep their width and fewer fit as the window narrows (§7.17). Global only.
+   */
+  scaleCardColumnsToWindow: new SettingDefinition(
+    "scaleCardColumnsToWindow",
+    true,
+    false,
+    booleanCodec,
+  ),
+  /**
+   * Whether a card's "Add a ToDo…" line and the level's add bar sit at the top or the
+   * bottom (§7.17). Global only.
+   */
+  addLinePosition: new SettingDefinition<AddLinePosition>(
+    "addLinePosition",
+    "Top",
+    false,
+    choiceCodec(ADD_LINE_POSITIONS),
+  ),
+  /**
+   * Whether a drilled-in item's details sit beside or above its child cards (§7.19).
+   * Global only.
+   */
+  detailsPanelPosition: new SettingDefinition<DetailsPanelPosition>(
+    "detailsPanelPosition",
+    "Side",
+    false,
+    choiceCodec(DETAILS_PANEL_POSITIONS),
   ),
   /** Whether Add ToDo opens the detailed add view instead of quick add (§7.19). Global only. */
   todoAddOpensDetails: new SettingDefinition("todoAddOpensDetails", false, false, booleanCodec),

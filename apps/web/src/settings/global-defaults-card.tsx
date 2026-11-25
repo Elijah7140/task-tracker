@@ -34,6 +34,7 @@ import {
   sameReminderDefaults,
 } from "./reminder-settings-draft.js";
 import { THEME_URGENCY_COLORS } from "../state/urgency-color-style.js";
+import { DEFAULT_WORKSPACE_LAYOUT } from "../workspace/use-workspace-layout.js";
 import { ThresholdInput } from "./threshold-input.js";
 import { DEFAULT_TRAY_CARD, sameTrayCard, TrayCardChoices } from "./tray-card-choices.js";
 import { UrgencyColorFields } from "./urgency-color-fields.js";
@@ -83,7 +84,30 @@ interface GlobalDraft {
   readonly trayCard: TrayCard;
   /** Whether a ticket's card shows its Detail unless the ticket says otherwise (§7.17). */
   readonly showTicketDetailOnCards: boolean;
+  /** Card scaling and where add lines and item details sit (§7.17, §7.19). */
+  readonly workspaceLayout: WorkspaceLayoutDraft;
 }
+
+type WorkspaceLayoutDraft = NonNullable<Global["workspaceLayout"]>;
+
+/** The saved workspace layout, the defaults for a server that sent none (§6.5). */
+const workspaceLayoutOf = (settings: Global): WorkspaceLayoutDraft =>
+  settings.workspaceLayout ?? DEFAULT_WORKSPACE_LAYOUT;
+
+const sameWorkspaceLayout = (left: WorkspaceLayoutDraft, right: WorkspaceLayoutDraft) =>
+  left.scaleCardColumnsToWindow === right.scaleCardColumnsToWindow &&
+  left.addLinePosition === right.addLinePosition &&
+  left.detailsPanelPosition === right.detailsPanelPosition;
+
+const ADD_LINE_OPTIONS = [
+  { value: "Top", label: "Top" },
+  { value: "Bottom", label: "Bottom" },
+] as const;
+
+const DETAILS_POSITION_OPTIONS = [
+  { value: "Side", label: "Side" },
+  { value: "Top", label: "Top" },
+] as const;
 
 type AddViewDefaults = NonNullable<Global["addOpensDetails"]>;
 
@@ -133,7 +157,8 @@ function sameGlobal(left: Global, right: Global) {
     autoHideCompletedOf(left) === autoHideCompletedOf(right) &&
     sameUrgencyColors(urgencyColorsOf(left), urgencyColorsOf(right)) &&
     sameTrayCard(trayCardOf(left), trayCardOf(right)) &&
-    showTicketDetailOf(left) === showTicketDetailOf(right)
+    showTicketDetailOf(left) === showTicketDetailOf(right) &&
+    sameWorkspaceLayout(workspaceLayoutOf(left), workspaceLayoutOf(right))
   );
 }
 
@@ -151,6 +176,7 @@ function draftFrom(settings: Global): GlobalDraft {
     urgencyColors: urgencyColorsOf(settings),
     trayCard: trayCardOf(settings),
     showTicketDetailOnCards: showTicketDetailOf(settings),
+    workspaceLayout: workspaceLayoutOf(settings),
   };
 }
 
@@ -185,6 +211,7 @@ function useGlobalDraft(initial: Global) {
     !sameUrgencyColors(draft.urgencyColors, urgencyColorsOf(saved)) ||
     !sameTrayCard(draft.trayCard, trayCardOf(saved)) ||
     draft.showTicketDetailOnCards !== showTicketDetailOf(saved) ||
+    !sameWorkspaceLayout(draft.workspaceLayout, workspaceLayoutOf(saved)) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
   const validationError =
@@ -247,6 +274,50 @@ function TicketCardChoice({ form }: { readonly form: GlobalForm }) {
   );
 }
 
+/**
+ * How cards scale with the window and where the add line and a drilled-in item's details sit
+ * (§7.17, §7.19).
+ */
+function WorkspaceLayoutChoices({ form }: { readonly form: GlobalForm }) {
+  const layout = form.draft.workspaceLayout;
+  const edit = (change: Partial<WorkspaceLayoutDraft>) =>
+    form.edit({ workspaceLayout: { ...layout, ...change } });
+  return (
+    <fieldset className="flex flex-col gap-2.5">
+      <legend className="mb-1 text-[13px] font-medium text-fg-muted">Workspace layout</legend>
+      <Checkbox
+        checked={layout.scaleCardColumnsToWindow}
+        onCheckedChange={(scaleCardColumnsToWindow) => edit({ scaleCardColumnsToWindow })}
+        testId="global-scale-card-columns"
+      >
+        Scale cards per row with window width
+      </Checkbox>
+      <div className="grid grid-cols-1 items-center gap-x-3 gap-y-2.5 sm:grid-cols-[13rem_8rem]">
+        <span aria-hidden="true" className="text-sm text-fg">
+          Add-item line position
+        </span>
+        <Select
+          value={layout.addLinePosition}
+          onValueChange={(addLinePosition) => edit({ addLinePosition })}
+          options={ADD_LINE_OPTIONS}
+          ariaLabel="Add-item line position"
+          testId="global-add-line-position"
+        />
+        <span aria-hidden="true" className="text-sm text-fg">
+          Item details position
+        </span>
+        <Select
+          value={layout.detailsPanelPosition}
+          onValueChange={(detailsPanelPosition) => edit({ detailsPanelPosition })}
+          options={DETAILS_POSITION_OPTIONS}
+          ariaLabel="Item details position"
+          testId="global-details-position"
+        />
+      </div>
+    </fieldset>
+  );
+}
+
 /** The settings the draft would save, or null while a threshold is invalid. */
 function nextGlobal(form: GlobalForm): Global | null {
   if (form.yellowTicks === null || form.redTicks === null || form.reminders === null) {
@@ -265,6 +336,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     urgencyColors: form.draft.urgencyColors,
     trayCard: form.draft.trayCard,
     showTicketDetailOnCards: form.draft.showTicketDetailOnCards,
+    workspaceLayout: form.draft.workspaceLayout,
   };
 }
 
@@ -442,6 +514,7 @@ export function GlobalDefaultsCard({
           Auto-hide completed ToDos right away
         </Checkbox>
         <GlobalThresholdRows form={form} />
+        <WorkspaceLayoutChoices form={form} />
         <UrgencyColorFields
           colors={form.draft.urgencyColors}
           onChange={(urgencyColors) => form.edit({ urgencyColors })}

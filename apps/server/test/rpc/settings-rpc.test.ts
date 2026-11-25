@@ -45,6 +45,11 @@ const setupDisagreement = Effect.gen(function* () {
 });
 
 /** The reminder defaults of a database that stores none (§7.12). */
+const DEFAULT_WORKSPACE_LAYOUT = {
+  scaleCardColumnsToWindow: true,
+  addLinePosition: "Top",
+  detailsPanelPosition: "Side",
+};
 const DEFAULT_REMINDERS = {
   remindersEnabled: true,
   defaultReminderOffset: "36000000000",
@@ -86,6 +91,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         urgencyColors: { approaching: null, overdue: null },
         trayCard: { size: "Full", showItems: true },
         showTicketDetailOnCards: true,
+        workspaceLayout: DEFAULT_WORKSPACE_LAYOUT,
       });
       expect(result).toEqual({ kind: "applied" });
       expect(saved).toEqual({
@@ -98,6 +104,7 @@ it.effect("Reads and saves global defaults as exact tick strings stored in XmlCo
         urgencyColors: { approaching: null, overdue: null },
         trayCard: { size: "Full", showItems: true },
         showTicketDetailOnCards: true,
+        workspaceLayout: DEFAULT_WORKSPACE_LAYOUT,
       });
       expect(yield* storedRows("GlobalSetting")).toEqual([
         { Key: "autoCompleteParents", Value: "false" },
@@ -152,6 +159,49 @@ it.effect("Saves urgency colors in lowercase and keeps them when a save omits th
         { Key: "autoCompleteParents", Value: "false" },
         { Key: "urgencyApproachingColor", Value: "#00aa88" },
       ]);
+    }),
+  ),
+);
+
+it.effect("Saves the workspace layout choices and keeps them when a save omits them", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const client = yield* connectRenderer;
+      const defaults = yield* client.LoadGlobalSettings();
+      const workspaceLayout = {
+        scaleCardColumnsToWindow: false,
+        addLinePosition: "Bottom",
+        detailsPanelPosition: "Top",
+      } as const;
+
+      yield* client.SaveGlobalSettings({ settings: { ...defaults, workspaceLayout } });
+      const { workspaceLayout: _omitted, ...withoutLayout } = defaults;
+      yield* client.SaveGlobalSettings({
+        settings: { ...withoutLayout, autoCompleteParents: false },
+      });
+      const saved = yield* client.LoadGlobalSettings();
+
+      expect(saved.workspaceLayout).toEqual(workspaceLayout);
+      expect(yield* storedRows("GlobalSetting")).toEqual([
+        { Key: "addLinePosition", Value: "Bottom" },
+        { Key: "autoCompleteParents", Value: "false" },
+        { Key: "detailsPanelPosition", Value: "Top" },
+        { Key: "scaleCardColumnsToWindow", Value: "false" },
+      ]);
+    }),
+  ),
+);
+
+it.effect("Reads a malformed stored layout choice as its default", () =>
+  withRendererRpc(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const client = yield* connectRenderer;
+      yield* sql`INSERT INTO GlobalSetting (Key, Value) VALUES ('addLinePosition', 'Middle')`;
+
+      const settings = yield* client.LoadGlobalSettings();
+
+      expect(settings.workspaceLayout).toEqual(DEFAULT_WORKSPACE_LAYOUT);
     }),
   ),
 );

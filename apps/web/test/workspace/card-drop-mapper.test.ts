@@ -7,6 +7,7 @@ import {
 } from "../../src/workspace/card-drop-mapper.js";
 import type { ItemNode, ItemSiblings } from "../../src/workspace/item-outline.js";
 import { buildPriorityGroups } from "../../src/workspace/priority-groups.js";
+import { statusRankOf } from "../../src/workspace/status-rank.js";
 
 const HIGH_ID = "0190A1B2-0000-7000-8000-000000000102";
 
@@ -18,6 +19,7 @@ function makeNode(
     priorityLevelId?: string | null;
     parentItemId?: string | null;
     isFinished?: boolean;
+    statusId?: string | null;
     children?: ReadonlyArray<ItemNode>;
   } = {},
 ): ItemNode {
@@ -32,7 +34,7 @@ function makeNode(
       notes: null,
       ticketNumber: null,
       priorityLevelId: options.priorityLevelId ?? null,
-      statusId: null,
+      statusId: options.statusId ?? null,
       reopenStatusId: null,
       dueDate: null,
       dueTime: null,
@@ -74,7 +76,7 @@ function fixture() {
       sortOrder: 0,
     },
   ];
-  const groups = buildPriorityGroups(nodes.open, levels);
+  const groups = buildPriorityGroups(nodes.open, levels, statusRankOf([]));
   return { nodes, groups };
 }
 
@@ -176,7 +178,7 @@ describe("card-drop-mapper", () => {
       { ...level, id: archivedId, label: "Legacy", isArchived: true, sortOrder: 0 },
       { ...level, id: HIGH_ID, label: "High", isArchived: false, sortOrder: 1 },
     ];
-    const groups = buildPriorityGroups(nodes.open, levels);
+    const groups = buildPriorityGroups(nodes.open, levels, statusRankOf([]));
 
     const fromPlain = stepCard(nodes, groups, "PLAIN", 1);
     const fromLegacy = stepCard(nodes, groups, "LEGACY", 1);
@@ -191,10 +193,128 @@ describe("card-drop-mapper", () => {
     const noPriority = groups[0]!;
     const high = groups[1]!;
 
-    expect(mapCardDropToGroupEnd(nodes, groups, "PLAIN", high)).toMatchObject({
+    expect(mapCardDropToGroupEnd(nodes, "PLAIN", high)).toMatchObject({
       priorityLevelId: HIGH_ID,
       index: 2,
     });
-    expect(mapCardDropToGroupEnd(nodes, groups, "PLAIN", noPriority)).toBeNull();
+    expect(mapCardDropToGroupEnd(nodes, "PLAIN", noPriority)).toBeNull();
+  });
+});
+
+const IN_PROGRESS = "0190A1B2-0000-7000-8000-000000000201";
+const TESTING = "0190A1B2-0000-7000-8000-000000000207";
+const QUEUED = "0190A1B2-0000-7000-8000-000000000202";
+
+/** Statuses whose list order (1, 7, 2) differs from the order they were declared in. */
+const STATUSES = [
+  { id: IN_PROGRESS, name: "In progress", sortOrder: 1 },
+  { id: TESTING, name: "Testing", sortOrder: 7 },
+  { id: QUEUED, name: "Queued", sortOrder: 2 },
+].map((status) => ({ ...status, kind: "Open" as const, isArchived: false, isInProgress: false }));
+
+const HIGH_LEVEL = {
+  id: HIGH_ID,
+  name: "High",
+  number: null,
+  label: "High",
+  colorKey: null,
+  isBuiltIn: true,
+  isArchived: false,
+  sortOrder: 0,
+};
+
+/**
+ * Sibling order: Testing (0), In progress A (1), Bare (2), In progress B (3), Plain (4).
+ * Sections: "No priority" [Plain], "High" [In progress A, In progress B, Testing, Bare].
+ */
+function statusFixture() {
+  const high = { priorityLevelId: HIGH_ID };
+  const nodes: ItemSiblings = {
+    open: [
+      makeNode("TEST", "Testing", 0, { ...high, statusId: TESTING }),
+      makeNode("IP-A", "In progress A", 1, { ...high, statusId: IN_PROGRESS }),
+      makeNode("BARE", "Bare", 2, high),
+      makeNode("IP-B", "In progress B", 3, { ...high, statusId: IN_PROGRESS }),
+      makeNode("PLAIN", "Plain", 4, { statusId: IN_PROGRESS }),
+    ],
+    finished: [],
+  };
+  const groups = buildPriorityGroups(nodes.open, [HIGH_LEVEL], statusRankOf(STATUSES));
+  return { nodes, groups };
+}
+
+describe("card-drop-mapper with statuses", () => {
+  it("Drops beside a card with an earlier status at the start of the item's own status", () => {
+    const { nodes, groups } = statusFixture();
+
+    const placement = mapCardDrop(nodes, groups, "TEST", "IP-A", "before");
+
+    expect(placement).toMatchObject({ targetId: "BARE", position: "before" });
+  });
+
+  it("Drops beside a card with a later status after the last card of the item's own status", () => {
+    const { nodes, groups } = statusFixture();
+
+    const placement = mapCardDrop(nodes, groups, "IP-A", "BARE", "after");
+
+    expect(placement).toEqual({
+      priorityLevelId: HIGH_ID,
+      index: 3,
+      targetId: "IP-B",
+      position: "after",
+    });
+  });
+
+  it("Reorders among cards with the same status as usual", () => {
+    const { nodes, groups } = statusFixture();
+
+    const placement = mapCardDrop(nodes, groups, "IP-B", "IP-A", "before");
+
+    expect(placement).toMatchObject({ targetId: "IP-A", position: "before", index: 1 });
+  });
+
+  it("Enters another section within the cards that share the item's status", () => {
+    const { nodes, groups } = statusFixture();
+
+    const placement = mapCardDrop(nodes, groups, "PLAIN", "BARE", "after");
+
+    expect(placement).toMatchObject({
+      priorityLevelId: HIGH_ID,
+      targetId: "IP-B",
+      position: "after",
+    });
+  });
+
+  it("Appends a header drop after the section's last card with the item's status", () => {
+    const { nodes, groups } = statusFixture();
+    const high = groups[1]!;
+
+    const placement = mapCardDropToGroupEnd(nodes, "PLAIN", high);
+
+    expect(placement).toMatchObject({ targetId: "IP-B", position: "after" });
+  });
+
+  it("Steps only among cards with the same status inside a section", () => {
+    const { nodes, groups } = statusFixture();
+
+    const down = stepCard(nodes, groups, "IP-A", 1);
+
+    expect(down).toMatchObject({ priorityLevelId: HIGH_ID, targetId: "IP-B", position: "after" });
+  });
+
+  it("Steps past cards with another status into the neighbouring section", () => {
+    const { nodes, groups } = statusFixture();
+
+    const upFromHigh = stepCard(nodes, groups, "IP-A", -1);
+    const downFromRun = stepCard(nodes, groups, "IP-B", 1);
+    const downFromPlain = stepCard(nodes, groups, "PLAIN", 1);
+
+    expect(upFromHigh).toMatchObject({ priorityLevelId: null, targetId: "PLAIN" });
+    expect(downFromRun).toBeNull();
+    expect(downFromPlain).toMatchObject({
+      priorityLevelId: HIGH_ID,
+      targetId: "IP-A",
+      position: "before",
+    });
   });
 });

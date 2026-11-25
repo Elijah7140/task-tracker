@@ -74,6 +74,29 @@ it("Card columns default to four and ignore project overrides", () => {
   expect(SettingsCatalogue.workspaceCardColumns.projectOverridable).toBe(false);
 });
 
+it("Workspace layout settings default to scaling, a top add line and side details", () => {
+  const { scaleCardColumnsToWindow, addLinePosition, detailsPanelPosition } = SettingsCatalogue;
+  const global = new Map([
+    [addLinePosition.key, "Bottom"],
+    [detailsPanelPosition.key, "Top"],
+  ]);
+
+  const scale = SettingsResolver.resolveValue(scaleCardColumnsToWindow, empty, empty);
+  const addLine = SettingsResolver.resolveValue(addLinePosition, global, empty);
+  const details = SettingsResolver.resolveValue(detailsPanelPosition, global, empty);
+
+  expect(scale).toEqual({ value: true, source: "Global" });
+  expect(addLine).toEqual({ value: "Bottom", source: "Global" });
+  expect(details).toEqual({ value: "Top", source: "Global" });
+  expect(addLinePosition.defaultValue).toBe("Top");
+  expect(detailsPanelPosition.defaultValue).toBe("Side");
+  expect(
+    [scaleCardColumnsToWindow, addLinePosition, detailsPanelPosition].some(
+      (definition) => definition.projectOverridable,
+    ),
+  ).toBe(false);
+});
+
 it("Start with system defaults to off and cannot be overridden per project", () => {
   const definition = SettingsCatalogue.startWithSystem;
 

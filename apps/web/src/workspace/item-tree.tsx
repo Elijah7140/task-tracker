@@ -6,17 +6,16 @@ import {
   type PointerEvent,
   type ReactNode,
   type RefObject,
-  useEffect,
   useRef,
   useState,
 } from "react";
+import type { AddLinePosition } from "@task-tracker/contracts";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { cx } from "../ui/class-names.js";
 import { handleTreeKeyDown, TREE_NODE_ATTRIBUTE } from "../ui/tree-keyboard.js";
 import { treeStyles } from "../ui/tree-styles.js";
 import { useRovingFocus } from "../ui/use-roving-focus.js";
 import { CardGrid } from "./card-grid.js";
-import { computeCardMinHeight } from "./card-grid-layout.js";
 import { ItemCard } from "./item-card.js";
 import {
   canIndentNode,
@@ -30,6 +29,8 @@ import { InlineAddLine, type InlineAdd, useInlineAdd } from "./inline-add-line.j
 import { ItemRow } from "./item-row.js";
 import { buildPriorityGroups, type PriorityGroup } from "./priority-groups.js";
 import { PrioritySection } from "./priority-section.js";
+import { statusRankOf } from "./status-rank.js";
+import { useWorkspaceLayout } from "./use-workspace-layout.js";
 import type { ItemActions } from "./use-item-actions.js";
 import { type ActiveItemDrag, type ItemDropPosition, useItemDrag } from "./use-item-drag.js";
 
@@ -47,6 +48,8 @@ const isCompletedNode = (nodeId: string) => nodeId.startsWith(COMPLETED_PREFIX);
 interface TreeContext {
   readonly allNodes: ItemSiblings;
   readonly cardColumns: number;
+  readonly scaleCardColumns: boolean;
+  readonly addLinePosition: typeof AddLinePosition.Type;
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
   readonly hasFolders: boolean;
@@ -118,7 +121,10 @@ function CompletedBranch({ sectionKey, nodes, depth, label, context }: Completed
       {expanded ? (
         depth === 0 ? (
           <div className="mt-2">
-            <CardGrid preferredColumns={context.cardColumns} minRowHeight={0}>
+            <CardGrid
+              preferredColumns={context.cardColumns}
+              scaleToWindow={context.scaleCardColumns}
+            >
               {nodes.map((node) => (
                 <CardBranch key={node.item.id} node={node} context={context} />
               ))}
@@ -218,6 +224,7 @@ function CardBranch({ node, context }: { readonly node: ItemNode; readonly conte
         hasFolders={context.hasFolders}
         dragging={context.dragState?.sourceId === id}
         dropIndicator={cardDropIndicator(context.dragState, id)}
+        addLinePosition={context.addLinePosition}
         lookups={context.lookups}
         actions={context.actions}
         onSelect={() => context.onSelect(id)}
@@ -477,40 +484,6 @@ function RootEndIndicator() {
   );
 }
 
-/**
- * Tracks the item pane viewport height so about two open card rows fit at once (§7.17).
- * While a covering page hides the workspace the tree has no layout, so the height is
- * kept and measured again when the tree is shown.
- */
-function useViewportMinRowHeight(treeRef: RefObject<HTMLUListElement | null>) {
-  const [minRowHeight, setMinRowHeight] = useState(0);
-
-  useEffect(() => {
-    const tree = treeRef.current;
-    const main = tree?.closest("main") ?? null;
-    if (tree === null || main === null) {
-      return;
-    }
-    const update = () => {
-      if (tree.offsetParent === null) {
-        return;
-      }
-      const headerHeight = Math.max(0, tree.offsetTop - main.offsetTop);
-      setMinRowHeight(computeCardMinHeight(Math.max(0, main.clientHeight - headerHeight)));
-    };
-    update();
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const observer = new ResizeObserver(update);
-    observer.observe(main);
-    observer.observe(tree);
-    return () => observer.disconnect();
-  }, [treeRef]);
-
-  return minRowHeight;
-}
-
 /** Props for {@link ItemTree}. */
 export interface ItemTreeProps {
   readonly label: string;
@@ -526,6 +499,10 @@ export interface ItemTreeProps {
   readonly sectionKey: string;
   /** Global "Cards per row" setting (1–8, default 4). */
   readonly cardColumns?: number | undefined;
+  /** Whether Cards per row counts cards at full-screen width (§7.17); off by default. */
+  readonly scaleCardColumns?: boolean | undefined;
+  /** Where the add bar and each card's add line sit (§7.17); the bottom by default. */
+  readonly addLinePosition?: typeof AddLinePosition.Type | undefined;
   readonly lookups: ItemRowLookups;
   readonly actions: ItemActions;
   readonly hasFolders: boolean;
@@ -578,6 +555,8 @@ function useTreeContext(
   const context: TreeContext = {
     allNodes: props.allNodes ?? nodes,
     cardColumns,
+    scaleCardColumns: props.scaleCardColumns ?? false,
+    addLinePosition: props.addLinePosition ?? "Bottom",
     lookups: props.lookups,
     actions,
     hasFolders: props.hasFolders,
@@ -609,8 +588,9 @@ function useTreeContext(
 
 /**
  * An area's items as a priority-grouped card grid inside an ARIA tree (§7.17):
- * "No priority" first, then one section per priority level in level sort order,
- * quick-add below the open sections, and a collapsed "Completed (n)" section
+ * "No priority" first, then one section per priority level in level sort order, cards
+ * inside a section by status, quick-add above or below the open sections, and a
+ * collapsed "Completed (n)" section
  * whose finished items render as content-sized cards. Sub-items remain accessible
  * as nested rows inside each card.
  */
@@ -618,8 +598,8 @@ export function ItemTree(props: ItemTreeProps) {
   const { label, nodes, sectionKey, quickAdd, cardColumns = 4 } = props;
   const treeRef = useRef<HTMLUListElement>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const groups = buildPriorityGroups(nodes.open, props.lookups.priorityLevels);
-  const minRowHeight = useViewportMinRowHeight(treeRef);
+  const statusRank = statusRankOf(props.lookups.statuses);
+  const groups = buildPriorityGroups(nodes.open, props.lookups.priorityLevels, statusRank);
   const { context, expandedCompleted, onExpandedChange, dropTarget } = useTreeContext(
     props,
     groups,
@@ -630,8 +610,9 @@ export function ItemTree(props: ItemTreeProps) {
   const allNodes = props.allNodes ?? nodes;
   const rowKeys = { allNodes, actions: props.actions, onMenuFor: setMenuFor };
   const onItemKey = itemKeyHandler(rowKeys, expandedCompleted, onExpandedChange);
+  const quickAddAtTop = context.addLinePosition === "Top" && quickAdd !== undefined;
 
-  return (
+  const tree = (
     <ul
       ref={treeRef}
       role="tree"
@@ -647,7 +628,7 @@ export function ItemTree(props: ItemTreeProps) {
           key={group.priorityLevelId ?? "none"}
           group={group}
           preferredColumns={cardColumns}
-          minRowHeight={minRowHeight}
+          scaleToWindow={context.scaleCardColumns}
           isDropTarget={
             dropTarget?.kind === "group" &&
             dropTarget.placement.priorityLevelId === group.priorityLevelId
@@ -659,7 +640,7 @@ export function ItemTree(props: ItemTreeProps) {
         </PrioritySection>
       ))}
       {dropTarget?.kind === "root-end" ? <RootEndIndicator /> : null}
-      {quickAdd === undefined ? null : <li role="none">{quickAdd}</li>}
+      {quickAdd === undefined || quickAddAtTop ? null : <li role="none">{quickAdd}</li>}
       {nodes.finished.length === 0 ? null : (
         <CompletedBranch
           sectionKey={sectionKey}
@@ -670,6 +651,15 @@ export function ItemTree(props: ItemTreeProps) {
         />
       )}
     </ul>
+  );
+  // At the top the add bar sits before the tree, so Shift+Tab from the tree reaches it (§7.17).
+  return quickAddAtTop ? (
+    <div className="flex flex-col gap-3">
+      {quickAdd}
+      {tree}
+    </div>
+  ) : (
+    tree
   );
 }
 
@@ -725,9 +715,12 @@ function useCardTreeContext(props: ItemCardTreeProps, treeRef: RefObject<HTMLULi
     selected !== null && visible.has(selected) ? selected : node.item.id,
     visible,
   );
+  const { addLinePosition } = useWorkspaceLayout();
   const context: TreeContext = {
     allNodes,
     cardColumns: 1,
+    scaleCardColumns: false,
+    addLinePosition,
     lookups: props.lookups,
     actions,
     hasFolders: false,

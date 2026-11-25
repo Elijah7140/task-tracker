@@ -291,7 +291,7 @@ describe("Links section", () => {
     await addLink("https://b.example", "Bee");
     await saveAndClose();
 
-    await itemRow(EDITOR_ITEM).getByTestId("item-row").first().click();
+    await itemRow(EDITOR_ITEM).getByTestId("item-card-header").first().click();
     await userEvent.keyboard("{Control>}z{/Control}");
     await expect.poll(app.storedUrls).toEqual(["https://a.example"]);
     await openEditor();

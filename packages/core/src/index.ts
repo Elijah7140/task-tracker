@@ -112,6 +112,13 @@ export { reminderOffsetCodec } from "./settings/reminder-offset-codec.js";
 export { optionalGuidCodec } from "./settings/optional-guid-codec.js";
 export { optionalHexColorCodec } from "./settings/optional-hex-color-codec.js";
 export { type TrayCardSize, trayCardSizeCodec } from "./settings/tray-card-size-codec.js";
+export { choiceCodec } from "./settings/choice-codec.js";
+export {
+  ADD_LINE_POSITIONS,
+  type AddLinePosition,
+  DETAILS_PANEL_POSITIONS,
+  type DetailsPanelPosition,
+} from "./settings/workspace-layout-choices.js";
 export {
   DEFAULT_REMINDER,
   REMINDER_OFFSET_MINUTES,

@@ -241,6 +241,11 @@ export class FakeSettingsAndLookups {
     urgencyColors: { approaching: null, overdue: null },
     trayCard: { size: "Full", showItems: true },
     showTicketDetailOnCards: true,
+    workspaceLayout: {
+      scaleCardColumnsToWindow: true,
+      addLinePosition: "Top",
+      detailsPanelPosition: "Side",
+    },
   };
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
   readonly reconciledProjects: Array<ReconciledProject> = [];
@@ -431,11 +436,13 @@ export class FakeSettingsAndLookups {
     const trayCard = next.trayCard ?? this.globalSettings.trayCard;
     const showTicketDetailOnCards =
       next.showTicketDetailOnCards ?? this.globalSettings.showTicketDetailOnCards;
+    const workspaceLayout = next.workspaceLayout ?? this.globalSettings.workspaceLayout;
     this.globalSettings = {
       ...next,
       ...(trayCard === undefined ? {} : { trayCard }),
       ...(autoHideCompleted === undefined ? {} : { autoHideCompleted }),
       ...(showTicketDetailOnCards === undefined ? {} : { showTicketDetailOnCards }),
+      ...(workspaceLayout === undefined ? {} : { workspaceLayout }),
       ...(urgencyColors === undefined ? {} : { urgencyColors }),
       ...(addOpensDetails === undefined ? {} : { addOpensDetails }),
       ...(reminders === undefined ? {} : { reminders }),

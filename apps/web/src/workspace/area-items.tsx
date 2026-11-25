@@ -33,6 +33,9 @@ import { keepCompletedInPlace } from "./keep-completed-in-place.js";
 import { QuickAddRow } from "./quick-add-row.js";
 import { type DeletedItemNotice, type ItemActions, useItemActions } from "./use-item-actions.js";
 import { useMissingFolderFallback } from "./use-missing-folder-fallback.js";
+import { useWorkspaceLayout } from "./use-workspace-layout.js";
+import { useDetailsPanelStore } from "../state/details-panel-store.js";
+import { cx } from "../ui/class-names.js";
 import { usePendingItemFocus } from "./use-pending-item-focus.js";
 import { useWorkspaceShortcuts } from "./use-workspace-shortcuts.js";
 
@@ -186,6 +189,7 @@ function LevelTree({
   readonly nodes: ItemSiblings;
   readonly levelParentId: string | null;
 }) {
+  const layout = useWorkspaceLayout();
   if (isEmptyLevel(nodes)) {
     return (
       <div className="flex flex-col gap-3">
@@ -205,6 +209,8 @@ function LevelTree({
         levelParentId === null ? props.sectionKey : `${props.sectionKey}:${levelParentId}`
       }
       cardColumns={snapshot.settings.workspaceCardColumns.value}
+      scaleCardColumns={layout.scaleCardColumnsToWindow}
+      addLinePosition={layout.addLinePosition}
       lookups={lookupsFor(snapshot, props.timeZone)}
       actions={actions}
       hasFolders={props.hasFolders}
@@ -213,27 +219,47 @@ function LevelTree({
   );
 }
 
+/** The drill-in layout for the details placement and whether the details are collapsed. */
+function drilledInLayout(placement: "Side" | "Top", collapsed: boolean) {
+  if (placement === "Top") {
+    return "flex flex-col gap-4";
+  }
+  return cx(
+    "grid items-start gap-6",
+    collapsed ? "grid-cols-[minmax(0,1fr)_2.5rem]" : "grid-cols-[minmax(0,1fr)_22rem]",
+  );
+}
+
 /**
- * A drilled-in item (§7.19): its children as the card grid and its details beside them. An
- * item that left the area, such as one deleted or moved elsewhere, returns to the area.
+ * A drilled-in item (§7.19): its children as the card grid and its details beside them or in a
+ * band above them, as App Settings chooses. An item that left the area, such as one deleted
+ * or moved elsewhere, returns to the area.
  */
 function DrilledInItem(props: AreaContentProps & { readonly snapshot: typeof AreaSnapshot.Type }) {
   const { snapshot, itemId } = props;
+  const placement = useWorkspaceLayout().detailsPanelPosition;
+  const collapsed = useDetailsPanelStore((state) => state.collapsed);
   const node = itemId === null ? undefined : findItemNode(snapshot.items, itemId);
   if (node === undefined) {
     return <Navigate {...areaTarget(snapshot.projectId, snapshot.folderId)} replace />;
   }
+  const details = (
+    <ItemDetailsPanel
+      node={node}
+      lookups={lookupsFor(snapshot, props.timeZone)}
+      actions={props.actions}
+      placement={placement}
+    />
+  );
   return (
     <div
       data-testid="drilled-in-item"
-      className="grid grid-cols-[minmax(0,1fr)_22rem] items-start gap-6"
+      data-details-placement={placement}
+      className={drilledInLayout(placement, collapsed)}
     >
+      {placement === "Top" ? details : null}
       <LevelTree {...props} nodes={node.children} levelParentId={node.item.id} />
-      <ItemDetailsPanel
-        node={node}
-        lookups={lookupsFor(snapshot, props.timeZone)}
-        actions={props.actions}
-      />
+      {placement === "Top" ? null : details}
     </div>
   );
 }
@@ -372,6 +398,7 @@ export function AreaItems(props: AreaItemsProps) {
   const loaded = AsyncResult.isSuccess(area);
   const items = loaded ? area.value.items : EMPTY_SIBLINGS;
   const priorityLevels = loaded ? area.value.priorityLevels : [];
+  const statuses = loaded ? area.value.statuses : [];
   const focus = useAreaFocus(items, loaded, focusQuickAddOnLoad);
   const [deletedBatch, setDeletedBatch] = useState<DeletedItemNotice | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
@@ -380,6 +407,7 @@ export function AreaItems(props: AreaItemsProps) {
     levelParentId: itemId,
     items,
     priorityLevels,
+    statuses,
     onFocusItem: focus.onFocusItem,
     onDeleted: setDeletedBatch,
     onMoveError: setMoveError,

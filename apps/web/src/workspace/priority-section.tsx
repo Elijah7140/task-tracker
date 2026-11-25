@@ -7,7 +7,8 @@ import type { PriorityGroup } from "./priority-groups.js";
 export interface PrioritySectionProps {
   readonly group: PriorityGroup;
   readonly preferredColumns: number;
-  readonly minRowHeight: number;
+  /** Whether Cards per row counts cards at full-screen width (§7.17). */
+  readonly scaleToWindow: boolean;
   readonly isDropTarget: boolean;
   readonly children: ReactNode;
 }
@@ -20,7 +21,7 @@ export interface PrioritySectionProps {
 export function PrioritySection({
   group,
   preferredColumns,
-  minRowHeight,
+  scaleToWindow,
   isDropTarget,
   children,
 }: PrioritySectionProps) {
@@ -64,7 +65,7 @@ export function PrioritySection({
       </div>
       <CardGrid
         preferredColumns={preferredColumns}
-        minRowHeight={minRowHeight}
+        scaleToWindow={scaleToWindow}
         labelledBy={headingId}
       >
         {children}

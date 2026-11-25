@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import type { SeedProject } from "../support/fake-task-tracker-server.js";
-import { renderApp } from "../support/render-app.js";
+import { type RenderAppOptions, renderApp } from "../support/render-app.js";
 
 const PROJECT: SeedProject = {
   name: "Outline",
@@ -25,8 +25,10 @@ const treeItem = (title: string) => page.getByRole("treeitem", { name: title, ex
 const rowSurface = (title: string) => treeItem(title).getByTestId("item-row").first();
 const addLine = (title: string) => treeItem(title).getByTestId("card-add-input");
 
-async function openProject() {
-  const app = await renderApp({ projects: [PROJECT] });
+async function openProject(configure?: RenderAppOptions["configure"]) {
+  const app = await renderApp(
+    configure === undefined ? { projects: [PROJECT] } : { projects: [PROJECT], configure },
+  );
   const projectId = app.store.summaries[0]!.project.id;
   app.history.push(`/projects/${projectId}`);
   await expect.element(treeItem("Release")).toBeVisible();
@@ -79,7 +81,7 @@ describe("ItemCard", () => {
     await expect.element(treeItem("Collect changes")).toBeVisible();
   });
 
-  it("Adds a direct child at the bottom of the card with Enter on the add line", async () => {
+  it("Adds a direct child at the end of the card with Enter on the add line", async () => {
     const { childTitles } = await openProject();
     await addLine("Release").click();
 
@@ -119,5 +121,37 @@ describe("ItemCard", () => {
 
     await expect.element(addLine("Lonely card")).toHaveFocus();
     expect(history.location.pathname).toBe(path);
+  });
+
+  it("Puts the add line at the top of the card by default and keeps it focused there", async () => {
+    const { childTitles } = await openProject();
+    const follows = (first: Element, second: Element) =>
+      (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(addLine("Release").element(), treeItem("Prepare").element())).toBe(true);
+    await addLine("Release").click();
+
+    await userEvent.keyboard("One{Enter}");
+    await expect.element(treeItem("One")).toBeVisible();
+    await userEvent.keyboard("Two{Enter}");
+
+    await expect.element(treeItem("Two")).toBeVisible();
+    await expect.element(addLine("Release")).toHaveFocus();
+    expect(follows(addLine("Release").element(), treeItem("Two").element())).toBe(true);
+    expect(childTitles("Release")).toEqual(["Prepare", "Typed step", "Shipped", "One", "Two"]);
+  });
+
+  it("Puts the add line below the outline when the setting is Bottom", async () => {
+    await openProject((store) => {
+      const settings = store.settingsAndLookups.globalSettings;
+      const layout = { ...settings.workspaceLayout!, addLinePosition: "Bottom" as const };
+      store.settingsAndLookups.globalSettings = { ...settings, workspaceLayout: layout };
+    });
+
+    const line = addLine("Release").element();
+
+    expect(
+      treeItem("Collect changes").element().compareDocumentPosition(line) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
   });
 });
