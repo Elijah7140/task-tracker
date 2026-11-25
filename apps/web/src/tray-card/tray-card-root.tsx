@@ -93,13 +93,7 @@ function StackFrame({
     ),
   });
   return (
-    <TrayCardFrame
-      layout={layout}
-      size={settings.size}
-      count={count}
-      action={action}
-      refs={refs}
-    >
+    <TrayCardFrame layout={layout} size={settings.size} count={count} action={action} refs={refs}>
       {content}
     </TrayCardFrame>
   );

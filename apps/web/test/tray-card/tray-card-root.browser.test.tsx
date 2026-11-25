@@ -47,9 +47,9 @@ const PROJECT: SeedProject = {
 /** The project with the review due imminently, as its area reports it. */
 const URGENT_PROJECT: SeedProject = {
   ...PROJECT,
-  folders: PROJECT.folders?.map((folder) => ({
+  folders: (PROJECT.folders ?? []).map((folder) => ({
     ...folder,
-    items: folder.items?.map((item) => ({ ...item, urgency: "Imminent" as const })),
+    items: (folder.items ?? []).map((item) => ({ ...item, urgency: "Imminent" as const })),
   })),
 };
 
@@ -164,15 +164,17 @@ describe("contents", () => {
     await renderTrayCard({ projects: [PROJECT] });
     const review = cardFor(REVIEW);
 
-    await expect.element(review.getByTestId("tray-card-area")).toHaveTextContent(
-      "Billing › dbo › Views",
-    );
+    await expect
+      .element(review.getByTestId("tray-card-area"))
+      .toHaveTextContent("Billing › dbo › Views");
 
     await expect.element(review.getByTestId("item-status-chip")).toHaveTextContent("In progress");
-    await expect.element(review.getByTestId("item-date").first()).toHaveTextContent("Nov 20, 2026, 2:30 PM");
-    await expect.element(review.getByTestId("item-card-notes")).toHaveTextContent(
-      "Check the summary first.",
-    );
+    await expect
+      .element(review.getByTestId("item-date").first())
+      .toHaveTextContent("Nov 20, 2026, 2:30 PM");
+    await expect
+      .element(review.getByTestId("item-card-notes"))
+      .toHaveTextContent("Check the summary first.");
     await expect.element(outlineRow(REVIEW, CHANGELOG)).toBeVisible();
     await expect.element(outlineRow(REVIEW, TAG)).toBeVisible();
     await expect.element(addLine(REVIEW)).toBeVisible();
@@ -221,7 +223,9 @@ describe("settings", () => {
     await renderTrayCard({
       projects: [PROJECT],
       configure: (store) => {
-        store.settingsAndLookups.globalSettings.trayCard = { size: "Compact", showItems: true };
+        store.settingsAndLookups.setGlobalSettings({
+          trayCard: { size: "Compact", showItems: true },
+        });
       },
     });
     await expect.element(trayCard()).toHaveAttribute("data-size", "Compact");
@@ -239,7 +243,9 @@ describe("settings", () => {
     await renderTrayCard({
       projects: [PROJECT],
       configure: (store) => {
-        store.settingsAndLookups.globalSettings.trayCard = { size: "Full", showItems: false };
+        store.settingsAndLookups.setGlobalSettings({
+          trayCard: { size: "Full", showItems: false },
+        });
       },
     });
     await expect.element(cardTree(REVIEW)).toBeVisible();
@@ -390,7 +396,9 @@ describe("opening and keyboard", () => {
     const { opened } = stubBridge();
     const { store } = await renderTrayCard({ projects: [PROJECT] });
 
-    await trayCard().getByRole("button", { name: `Open ${OUTAGE_LABEL} in Task Tracker` }).click();
+    await trayCard()
+      .getByRole("button", { name: `Open ${OUTAGE_LABEL} in Task Tracker` })
+      .click();
 
     await expect.poll(() => opened).toEqual([itemNamed(store, OUTAGE).id]);
   });

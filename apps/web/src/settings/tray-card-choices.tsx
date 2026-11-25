@@ -31,7 +31,7 @@ export function TrayCardChoices({ value, onChange }: TrayCardChoicesProps) {
     <fieldset className="flex flex-col gap-2" data-testid="global-tray-card">
       <legend className="mb-1 text-[13px] font-medium text-fg-muted">Tray card</legend>
       <div className="flex items-center gap-3">
-        <span aria-hidden="true" className="w-32 text-sm text-fg">
+        <span aria-hidden="true" className="w-52 shrink-0 text-sm text-fg">
           Tray card size
         </span>
         <Select

@@ -245,10 +245,7 @@ export function TrayCardFrame({ children, layout, size, count, action, refs }: T
         <span className="ml-auto">{action}</span>
       </header>
       <div ref={refs?.body} data-testid="tray-card-body" className="min-h-0 flex-1 overflow-y-auto">
-        <div
-          ref={refs?.content}
-          className={cx("px-3 pb-3", size === "Compact" && "[zoom:0.86]")}
-        >
+        <div ref={refs?.content} className={cx("px-3 pb-3", size === "Compact" && "[zoom:0.86]")}>
           {children}
         </div>
       </div>
