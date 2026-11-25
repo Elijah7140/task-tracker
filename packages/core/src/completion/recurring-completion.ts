@@ -1,4 +1,5 @@
 import type { ItemTree } from "../items/item-tree.js";
+import { followsChildren } from "./follows-children.js";
 import {
   advanceRule,
   daysUntil,
@@ -42,18 +43,26 @@ export class RecurringCompletion {
     this.#set(this.tree.get(itemId), true);
   }
 
-  /** Completes a branch from the leaves up; a parent completes only if every child did. */
+  /**
+   * Completes a branch from the leaves up; a ToDo parent completes only if every child
+   * did, while a ticket in the branch completes regardless (§6.1).
+   */
   completeBranch(itemId: string): void {
     for (const child of this.tree.children(itemId)) {
       this.completeBranch(child.id);
     }
-    this.#setFromChildren(this.tree.get(itemId));
+    const item = this.tree.get(itemId);
+    if (followsChildren(item)) {
+      this.#setFromChildren(item);
+    } else {
+      this.#set(item, true);
+    }
   }
 
-  /** Re-evaluates parents in the given bottom-up order against their current children. */
+  /** Re-evaluates ToDo parents in the given bottom-up order against their current children. */
   reconcile(bottomUp: readonly TodoItem[]): void {
     for (const parent of bottomUp) {
-      if (this.tree.children(parent.id).length > 0) {
+      if (followsChildren(parent) && this.tree.children(parent.id).length > 0) {
         this.#setFromChildren(parent);
       }
     }

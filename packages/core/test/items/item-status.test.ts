@@ -155,3 +155,25 @@ it("Archived and missing statuses cannot be assigned", () => {
   expect(archived).toThrow("Status is missing or archived.");
   expect(missing).toThrow("Status is missing or archived.");
 });
+
+it("An Open status reopens a ticket whose sub-items are all complete, changing only the ticket", () => {
+  const items = tree(
+    item("ticket", { kind: "Ticket", ticketNumber: "T-1", statusId: "done", completedAtUtc: earlier }),
+    item("child", { parentItemId: "ticket", statusId: "done", completedAtUtc: earlier }),
+  );
+
+  const result = planStatusChange(items, "ticket", "testing", statuses, true, now);
+
+  expect(result).toEqual({ kind: "applied", changes: [{ itemId: "ticket", completedAtUtc: null }] });
+});
+
+it("A Done status completes a ticket with open sub-items without asking", () => {
+  const items = tree(
+    item("ticket", { kind: "Ticket", ticketNumber: "T-1", statusId: "testing" }),
+    item("child", { parentItemId: "ticket" }),
+  );
+
+  const result = planStatusChange(items, "ticket", "done", statuses, true, now);
+
+  expect(result).toEqual({ kind: "applied", changes: [{ itemId: "ticket", completedAtUtc: now }] });
+});

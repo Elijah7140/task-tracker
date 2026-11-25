@@ -1,13 +1,15 @@
 import type { ItemTree } from "../items/item-tree.js";
 import type { TodoItem } from "../items/todo-item.js";
 import type { AppliedCompletion, CompletionResult } from "./completion-result.js";
+import { followsChildren } from "./follows-children.js";
 import type { ReconciliationPreview } from "./reconciliation-preview.js";
 import { type OccurrenceContext, RecurringCompletion } from "./recurring-completion.js";
 
 /**
  * Propose completion. An approval must match the current set of open descendants.
  * With `recurrence`, completed repeating items add their next occurrences to the
- * tree before parents are re-evaluated (§7.11).
+ * tree before parents are re-evaluated (§7.11). A ticket completes alone: automatic
+ * completion never cascades from it to its sub-items (§6.1).
  */
 export function complete(
   tree: ItemTree,
@@ -17,8 +19,8 @@ export function complete(
   confirmedOpenItemIds?: readonly string[],
   recurrence?: OccurrenceContext,
 ): CompletionResult {
-  tree.get(itemId);
-  const openDescendants = autoComplete
+  const cascades = autoComplete && followsChildren(tree.get(itemId));
+  const openDescendants = cascades
     ? tree.descendants(itemId).filter((row) => row.completedAtUtc === null)
     : [];
   const openSubItemIds = openDescendants.map((row) => row.id);
@@ -26,7 +28,7 @@ export function complete(
     return { kind: "needs-confirmation", openSubItemCount: openSubItemIds.length, openSubItemIds };
   }
   if (recurrence !== undefined) {
-    return completeRecurring(tree, itemId, autoComplete, now, recurrence);
+    return completeRecurring(tree, itemId, autoComplete, cascades, now, recurrence);
   }
 
   const proposed = currentStates(tree);
@@ -44,29 +46,38 @@ function completeRecurring(
   tree: ItemTree,
   itemId: string,
   autoComplete: boolean,
+  cascades: boolean,
   now: Temporal.Instant,
   recurrence: OccurrenceContext,
 ): AppliedCompletion {
   const completion = new RecurringCompletion(tree, now, recurrence);
-  if (!autoComplete) {
+  if (cascades) {
+    completion.completeBranch(itemId);
+  } else {
     completion.completeItem(itemId);
+  }
+  if (!autoComplete) {
     return completion.result();
   }
-  completion.completeBranch(itemId);
   completion.reconcile(tree.ancestors(itemId));
   return completion.result();
 }
 
-/** Propose reopening. Automatic completion blocks reopening a parent whose children are all complete. */
+/**
+ * Propose reopening. Automatic completion blocks reopening a ToDo whose children are
+ * all complete; a ticket reopens regardless of its sub-items (§6.1).
+ */
 export function reopen(
   tree: ItemTree,
   itemId: string,
   autoComplete: boolean,
   now: Temporal.Instant,
 ): CompletionResult {
-  tree.get(itemId);
+  const item = tree.get(itemId);
   const children = tree.children(itemId);
-  if (autoComplete && children.length > 0 && children.every((row) => row.completedAtUtc !== null)) {
+  const allChildrenComplete =
+    children.length > 0 && children.every((row) => row.completedAtUtc !== null);
+  if (autoComplete && followsChildren(item) && allChildrenComplete) {
     return { kind: "blocked", reason: "Reopen a sub-item instead, or add a new one." };
   }
 
@@ -196,7 +207,7 @@ function reconcileParents(
   const byParent = childrenByParent(tree);
   for (const parent of bottomUp) {
     const children = byParent.get(parent.id) ?? [];
-    if (children.length === 0) {
+    if (children.length === 0 || !followsChildren(parent)) {
       continue;
     }
 
