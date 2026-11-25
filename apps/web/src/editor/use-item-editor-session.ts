@@ -15,6 +15,7 @@ import { useUndoBlocker } from "../shell/undo-blockers.js";
 import { dialogStore, resolveDraft } from "../state/dialog-store.js";
 import { useItemEditorStore } from "../state/item-editor-store.js";
 import { noticeCompletion } from "../state/status-notice-store.js";
+import { rememberCompletion } from "../state/completed-here-store.js";
 import type { ItemNode } from "../workspace/item-outline.js";
 import { type EditorDraftStatus, FIX_FIELDS_MESSAGE } from "./editor-draft.js";
 import { FIX_LINK_MESSAGE } from "./link-draft.js";
@@ -90,6 +91,7 @@ export function useItemEditorSession(scope: ItemEditorSessionScope) {
       return false;
     }
     noticeCompletion(exit.value);
+    rememberCompletion(node.item.id, exit.value);
     discard();
     return true;
   };

@@ -74,6 +74,8 @@ interface GlobalDraft {
   readonly startWithSystem: boolean;
   /** Whether Add ToDo and Add Ticket open the detailed add view (§7.19). */
   readonly addOpensDetails: AddViewDefaults;
+  /** Whether a completed ToDo leaves the open list at once (§6.2). */
+  readonly autoHideCompleted: boolean;
   /** The chosen urgency colors; null keeps the theme's (§6.3). */
   readonly urgencyColors: UrgencyColors;
 }
@@ -99,6 +101,9 @@ const sameUrgencyColors = (left: UrgencyColors, right: UrgencyColors) =>
 /** The saved tray choice, off for a server that sent none (§7.12). */
 const keepRunningInTrayOf = (settings: Global) => settings.keepRunningInTray ?? false;
 
+/** The saved auto-hide choice, on for a server that sent none (§6.2). */
+const autoHideCompletedOf = (settings: Global) => settings.autoHideCompleted ?? true;
+
 /** The saved start-with-system choice, off for a server that sent none (§7.13). */
 const startWithSystemOf = (settings: Global) => settings.startWithSystem ?? false;
 
@@ -112,6 +117,7 @@ function sameGlobal(left: Global, right: Global) {
     keepRunningInTrayOf(left) === keepRunningInTrayOf(right) &&
     startWithSystemOf(left) === startWithSystemOf(right) &&
     sameAddViews(addOpensDetailsOf(left), addOpensDetailsOf(right)) &&
+    autoHideCompletedOf(left) === autoHideCompletedOf(right) &&
     sameUrgencyColors(urgencyColorsOf(left), urgencyColorsOf(right))
   );
 }
@@ -126,6 +132,7 @@ function draftFrom(settings: Global): GlobalDraft {
     keepRunningInTray: keepRunningInTrayOf(settings),
     startWithSystem: startWithSystemOf(settings),
     addOpensDetails: addOpensDetailsOf(settings),
+    autoHideCompleted: autoHideCompletedOf(settings),
     urgencyColors: urgencyColorsOf(settings),
   };
 }
@@ -157,6 +164,7 @@ function useGlobalDraft(initial: Global) {
     draft.keepRunningInTray !== keepRunningInTrayOf(saved) ||
     draft.startWithSystem !== startWithSystemOf(saved) ||
     !sameAddViews(draft.addOpensDetails, addOpensDetailsOf(saved)) ||
+    draft.autoHideCompleted !== autoHideCompletedOf(saved) ||
     !sameUrgencyColors(draft.urgencyColors, urgencyColorsOf(saved)) ||
     reminders === null ||
     !sameReminderDefaults(reminders, reminderDefaultsOf(saved));
@@ -218,6 +226,7 @@ function nextGlobal(form: GlobalForm): Global | null {
     keepRunningInTray: form.draft.keepRunningInTray,
     startWithSystem: form.draft.startWithSystem,
     addOpensDetails: form.draft.addOpensDetails,
+    autoHideCompleted: form.draft.autoHideCompleted,
     urgencyColors: form.draft.urgencyColors,
   };
 }
@@ -387,6 +396,13 @@ export function GlobalDefaultsCard({
           testId="global-auto-complete"
         >
           Automatically complete parents when all sub-items are complete
+        </Checkbox>
+        <Checkbox
+          checked={form.draft.autoHideCompleted}
+          onCheckedChange={(autoHideCompleted) => form.edit({ autoHideCompleted })}
+          testId="global-auto-hide-completed"
+        >
+          Auto-hide completed ToDos right away
         </Checkbox>
         <GlobalThresholdRows form={form} />
         <UrgencyColorFields

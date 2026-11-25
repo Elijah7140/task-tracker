@@ -52,6 +52,11 @@ export const SettingsCatalogue = {
   todoAddOpensDetails: new SettingDefinition("todoAddOpensDetails", false, false, booleanCodec),
   /** Whether Add Ticket opens the detailed add view instead of quick add (§7.19). Global only. */
   ticketAddOpensDetails: new SettingDefinition("ticketAddOpensDetails", false, false, booleanCodec),
+  /**
+   * Whether a ToDo completed in the current view leaves the open list at once (§6.2).
+   * Off keeps it in place, checked, until the view is left or reloaded. Global only.
+   */
+  autoHideCompleted: new SettingDefinition("autoHideCompleted", true, false, booleanCodec),
   /** Whether open dated items remind (§7.12). */
   remindersEnabled: new SettingDefinition("remindersEnabled", true, true, booleanCodec),
   /** How long before the due moment an item on the Default choice reminds. */

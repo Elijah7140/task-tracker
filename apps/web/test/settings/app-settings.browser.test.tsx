@@ -200,8 +200,23 @@ describe("AppSettingsPage", () => {
       keepRunningInTray: false,
       startWithSystem: false,
       addOpensDetails: { todo: false, ticket: false },
+      autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
     });
+  });
+
+  it("Saves Auto-hide completed, on by default, from the keyboard", async () => {
+    const { store } = await openAppSettings();
+    const autoHide = page.getByRole("checkbox", { name: "Auto-hide completed ToDos right away" });
+    await expect.element(autoHide).toBeChecked();
+
+    autoHide.element().focus();
+    await userEvent.keyboard(" ");
+    await saveButton().click();
+
+    await expect.element(saveButton()).toBeDisabled();
+    await expect.element(autoHide).not.toBeChecked();
+    expect(store.settingsAndLookups.globalSettings.autoHideCompleted).toBe(false);
   });
 
   it("Chooses Cards per row from the keyboard and saves it with the other defaults", async () => {
@@ -378,6 +393,7 @@ describe("AppSettingsPage", () => {
       keepRunningInTray: false,
       startWithSystem: false,
       addOpensDetails: { todo: false, ticket: false },
+      autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
     });
   });
@@ -424,6 +440,7 @@ describe("AppSettingsPage", () => {
       keepRunningInTray: false,
       startWithSystem: false,
       addOpensDetails: { todo: false, ticket: false },
+      autoHideCompleted: true,
       urgencyColors: { approaching: null, overdue: null },
     });
     expect(store.settingsAndLookups.reconciledProjects).toEqual([]);

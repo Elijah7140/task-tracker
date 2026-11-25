@@ -7,6 +7,7 @@ import { CALENDAR_KEY } from "../rpc/calendar-queries.js";
 import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { setItemStatusAtom } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
+import { markCompletedHere, rememberCompletion } from "../state/completed-here-store.js";
 import { notify } from "../state/dialog-store.js";
 import { noticeCompletion } from "../state/status-notice-store.js";
 
@@ -21,7 +22,8 @@ export interface ItemStatusTarget {
 /**
  * Runs the shared row status action with confirmation. It refreshes the item's
  * area, the project counts and Calendar, so it serves every item row menu.
- * Resolves true when the status changed.
+ * Resolves true when the status changed. An item a Done status completes is remembered
+ * for the current view, so it can stay in place (§6.2).
  */
 export function useSetItemStatus() {
   const setStatus = useAtomSet(setItemStatusAtom, { mode: "promiseExit" });
@@ -36,12 +38,14 @@ export function useSetItemStatus() {
       CALENDAR_KEY,
     ];
     const payload = { itemId: item.id, statusId };
+    markCompletedHere([item.id]);
     const exit = await requestCompletion((approval) =>
       setStatus({
         payload: approval === undefined ? payload : { ...payload, confirmedOpenItemIds: approval },
         reactivityKeys,
       }),
     );
+    rememberCompletion(item.id, exit !== undefined && Exit.isSuccess(exit) ? exit.value : undefined);
     if (exit === undefined) {
       return false;
     }

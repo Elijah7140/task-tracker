@@ -18,6 +18,7 @@ import {
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
 import { confirm, notify, prompt } from "../state/dialog-store.js";
 import { isItemEditorOpen, openItemEditor } from "../state/item-editor-store.js";
+import { markCompletedHere, rememberCompletion } from "../state/completed-here-store.js";
 import { noticeCompletion } from "../state/status-notice-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { itemTarget } from "./area-route.js";
@@ -210,7 +211,10 @@ function useSetPriority(scope: ItemActionScope) {
   };
 }
 
-/** Completes or reopens an item and returns focus after an applied change. */
+/**
+ * Completes or reopens an item and returns focus after an applied change. A completed
+ * item is remembered for this view before the request, so it can stay in place (§6.2).
+ */
 function useToggleComplete(scope: ItemActionScope) {
   const setCompleted = useAtomSet(setItemCompletedAtom, { mode: "promiseExit" });
   const keys = [HISTORY_KEY, areaKey(scope.projectId, scope.folderId), PROJECTS_KEY];
@@ -222,12 +226,16 @@ function useToggleComplete(scope: ItemActionScope) {
       itemId: node.item.id,
       completed: node.item.completedAtUtc === null,
     };
+    if (base.completed) {
+      markCompletedHere([node.item.id]);
+    }
     const exit = await requestCompletion((approval) =>
       setCompleted({
         payload: approval === undefined ? base : { ...base, confirmedOpenItemIds: approval },
         reactivityKeys: keys,
       }),
     );
+    rememberCompletion(node.item.id, exit !== undefined && Exit.isSuccess(exit) ? exit.value : undefined);
     if (exit === undefined || !(await reportItemFailure(exit)) || !Exit.isSuccess(exit)) {
       return;
     }

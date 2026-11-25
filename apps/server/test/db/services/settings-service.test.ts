@@ -783,3 +783,34 @@ it.effect("Resetting an urgency color to the theme color stores empty text", () 
     expect(yield* globalRows).toEqual([{ Key: "urgencyApproachingColor", Value: "" }]);
   }).pipe(withServices, withSchema),
 );
+
+it.effect("Loads auto-hide completed on by default and saves only a change", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const defaults = yield* settings.loadGlobal();
+    const save = (autoHide: boolean) =>
+      settings.saveGlobal(
+        true,
+        3n * day,
+        day,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        autoHide,
+      );
+
+    yield* save(true);
+    const unchangedRows = yield* globalRows;
+    yield* save(false);
+    const saved = yield* settings.loadGlobal();
+
+    expect(defaults.autoHideCompleted).toBe(true);
+    expect(unchangedRows).toEqual([]);
+    expect(saved.autoHideCompleted).toBe(false);
+    expect(yield* globalRows).toEqual([{ Key: "autoHideCompleted", Value: "false" }]);
+  }).pipe(withServices, withSchema),
+);

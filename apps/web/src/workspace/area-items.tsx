@@ -2,14 +2,16 @@ import { useAtomMount, useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import type { AreaSnapshot } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { ListTodo } from "lucide-react";
-import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { areaAtom, areaKey } from "../rpc/area-queries.js";
 import { describeRpcFailure, type RpcFailure } from "../rpc/describe-rpc-failure.js";
+import { globalSettingsAtom } from "../rpc/settings-queries.js";
 import { urgencyRefreshAtom } from "../rpc/urgency-refresh.js";
 import { Navigate } from "@tanstack/react-router";
 import { AddItemDialog } from "../add/add-item-dialog.js";
 import { useAddItemStore } from "../add/add-item-store.js";
 import { ItemEditor } from "../editor/item-editor.js";
+import { clearCompletedHere, useCompletedHereStore } from "../state/completed-here-store.js";
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { closeItemEditorWithArea, dropStrayCarriedEditor } from "../state/item-editor-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
@@ -28,6 +30,7 @@ import {
 import type { ItemRowLookups } from "./item-parts.js";
 import { ItemTree } from "./item-tree.js";
 import { ItemUndoBanner } from "./item-undo-banner.js";
+import { keepCompletedInPlace } from "./keep-completed-in-place.js";
 import { QuickAddRow } from "./quick-add-row.js";
 import { type DeletedItemNotice, type ItemActions, useItemActions } from "./use-item-actions.js";
 import { useMissingFolderFallback } from "./use-missing-folder-fallback.js";
@@ -331,13 +334,42 @@ function MoveError({ message }: { readonly message: string | null }) {
 }
 
 /** Loads an area and keeps its server urgency fresh with a once-a-minute reload. */
-function useArea(projectId: string, folderId: string | null) {
+function useArea(projectId: string, folderId: string | null, itemId: string | null) {
   const atom = areaAtom(projectId, folderId);
-  const area = useAtomValue(atom);
+  const loaded = useAtomValue(atom);
   const refresh = useAtomRefresh(atom);
   const key = areaKey(projectId, folderId);
   useAtomMount(urgencyRefreshAtom(key));
+  const area = useCompletedInPlace(loaded, `${key}:${itemId ?? ""}`);
   return { area, refresh, key };
+}
+
+/**
+ * With Auto-hide completed off, keeps ToDos completed in this view in the open list
+ * through later reloads (§6.2). Entering or leaving the view, such as drilling in or
+ * out, forgets them, so they then show in Completed.
+ */
+function useCompletedInPlace(
+  area: AsyncResult.AsyncResult<typeof AreaSnapshot.Type, RpcFailure>,
+  viewKey: string,
+) {
+  const settings = useAtomValue(globalSettingsAtom);
+  const autoHide = !AsyncResult.isSuccess(settings) || (settings.value.autoHideCompleted ?? true);
+  const heldIds = useCompletedHereStore((state) => state.ids);
+  useEffect(() => {
+    clearCompletedHere();
+    return clearCompletedHere;
+  }, [viewKey]);
+  return useMemo(
+    () =>
+      autoHide
+        ? area
+        : AsyncResult.map(area, (snapshot) => ({
+            ...snapshot,
+            items: keepCompletedInPlace(snapshot.items, heldIds),
+          })),
+    [area, autoHide, heldIds],
+  );
 }
 
 /**
@@ -349,7 +381,7 @@ function useArea(projectId: string, folderId: string | null) {
 export function AreaItems(props: AreaItemsProps) {
   const { projectId, folderId, focusQuickAddOnLoad = false } = props;
   const itemId = props.itemId ?? null;
-  const { area, refresh, key } = useArea(projectId, folderId);
+  const { area, refresh, key } = useArea(projectId, folderId, itemId);
   const leavingMissingFolder = useMissingFolderFallback(area, projectId);
   const loaded = AsyncResult.isSuccess(area);
   const items = loaded ? area.value.items : EMPTY_SIBLINGS;
