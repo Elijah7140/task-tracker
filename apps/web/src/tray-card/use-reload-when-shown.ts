@@ -4,6 +4,7 @@ import { HISTORY_REPLAY_KEY } from "../rpc/history-queries.js";
 import { IN_PROGRESS_KEY } from "../rpc/in-progress-queries.js";
 import { invalidateKeysAtom } from "../rpc/invalidate-keys.js";
 import { SETTINGS_KEY } from "../rpc/settings-queries.js";
+import { clearCompletedHere } from "../state/completed-here-store.js";
 import { syncStoredThemePreference } from "../state/theme-store.js";
 
 /**
@@ -18,6 +19,9 @@ export function useReloadWhenShown() {
     const reload = () => {
       if (document.visibilityState === "visible") {
         syncStoredThemePreference();
+        // Showing the card again starts a new view, so ToDos checked earlier move to
+        // their completed sections (§6.2).
+        clearCompletedHere();
         invalidate([IN_PROGRESS_KEY, HISTORY_REPLAY_KEY, SETTINGS_KEY]);
       }
     };

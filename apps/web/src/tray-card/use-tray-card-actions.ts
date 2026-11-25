@@ -10,6 +10,7 @@ import { HISTORY_KEY } from "../rpc/history-queries.js";
 import { IN_PROGRESS_KEY } from "../rpc/in-progress-queries.js";
 import { createItemAtom, editItemAtom, setItemCompletedAtom } from "../rpc/item-mutations.js";
 import { PROJECTS_KEY } from "../rpc/project-queries.js";
+import { markCompletedHere, rememberCompletion } from "../state/completed-here-store.js";
 import type { ItemNode } from "../workspace/item-outline.js";
 import { editedFields, type ItemActions } from "../workspace/use-item-actions.js";
 import { useSingleRunPerItem } from "../workspace/use-single-run-per-item.js";
@@ -62,7 +63,8 @@ type FeedbackState = ReturnType<typeof useFeedbackState>;
 /**
  * Completing or reopening an item of the card. The tray card shows no dialogs, so the open
  * sub-items question and any refusal appear under the card. Approval is a new request with
- * the approved IDs, which the server revalidates (§4).
+ * the approved IDs, which the server revalidates (§4). As in the workspace, a completed item
+ * is remembered first, so with Auto-hide completed off it stays in place (§6.2).
  */
 function useCompletion(area: TrayCardArea, keys: ReadonlyArray<string>, state: FeedbackState) {
   const setCompleted = useAtomSet(setItemCompletedAtom, { mode: "promiseExit" });
@@ -78,6 +80,9 @@ function useCompletion(area: TrayCardArea, keys: ReadonlyArray<string>, state: F
     const completed = node.item.completedAtUtc === null;
     const { projectId, folderId } = area;
     const base = { projectId, folderId, itemId: node.item.id, completed };
+    if (completed) {
+      markCompletedHere([node.item.id]);
+    }
     state.setBusy(true);
     state.setPending(null);
     state.setMessage(null);
@@ -86,6 +91,7 @@ function useCompletion(area: TrayCardArea, keys: ReadonlyArray<string>, state: F
       reactivityKeys: [...keys],
     });
     state.setBusy(false);
+    rememberCompletion(node.item.id, Exit.isSuccess(exit) ? exit.value : undefined);
     if (state.settle(exit)) {
       receive(node, exit.value, approval !== undefined);
     }

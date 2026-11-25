@@ -1,12 +1,15 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { AreaSnapshot, InProgressItem } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
+import { useMemo } from "react";
 import { openItemFromTrayCard } from "../native/open-item-from-tray-card.js";
 import { areaAtom } from "../rpc/area-queries.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
+import { useCompletedHereStore } from "../state/completed-here-store.js";
 import { lookupsFor } from "../workspace/area-lookups.js";
 import { findItemNode } from "../workspace/item-outline.js";
 import { ItemCardTree } from "../workspace/item-tree.js";
+import { keepCompletedInPlace } from "../workspace/keep-completed-in-place.js";
 import { TrayCardFeedbackPanel, TrayItemCaption, TrayItemPlaceholder } from "./tray-card.js";
 import { useTrayCardActions } from "./use-tray-card-actions.js";
 
@@ -18,6 +21,8 @@ export interface TrayItemCardProps {
   readonly timeZone: string;
   /** Shows the card's outline and add line (§7.18). */
   readonly showItems: boolean;
+  /** Auto-hide completed (§6.2): off keeps ToDos checked here in place. */
+  readonly autoHideCompleted: boolean;
 }
 
 /** "INC-42 Fix invoice view", the name screen readers use for an item. */
@@ -34,9 +39,15 @@ function LoadedTrayCard({
   snapshot,
   timeZone,
   showItems,
+  autoHideCompleted,
 }: TrayItemCardProps & { readonly snapshot: typeof AreaSnapshot.Type }) {
   const { actions, feedback } = useTrayCardActions(item);
-  const node = findItemNode(snapshot.items, item.itemId);
+  const heldIds = useCompletedHereStore((state) => state.ids);
+  const items = useMemo(
+    () => (autoHideCompleted ? snapshot.items : keepCompletedInPlace(snapshot.items, heldIds)),
+    [autoHideCompleted, snapshot.items, heldIds],
+  );
+  const node = findItemNode(items, item.itemId);
   if (node === undefined) {
     return null;
   }
@@ -45,7 +56,7 @@ function LoadedTrayCard({
       <ItemCardTree
         label={itemLabel(item)}
         node={node}
-        allNodes={snapshot.items}
+        allNodes={items}
         lookups={lookupsFor(snapshot, timeZone)}
         actions={actions}
         showOutline={showItems}

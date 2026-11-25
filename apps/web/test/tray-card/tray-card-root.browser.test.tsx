@@ -274,6 +274,23 @@ describe("checking off", () => {
     events.close();
   });
 
+  it("With Auto-hide completed off a checked sub-item stays in place, checked", async () => {
+    await renderTrayCard({
+      projects: [PROJECT],
+      configure: (store) =>
+        store.settingsAndLookups.setGlobalSettings({ autoHideCompleted: false }),
+    });
+
+    await outlineRow(REVIEW, CHANGELOG)
+      .getByRole("button", { name: `Complete ${CHANGELOG}`, exact: true })
+      .click();
+
+    await expect
+      .element(outlineRow(REVIEW, CHANGELOG).getByTestId("item-completion").first())
+      .toHaveAttribute("data-completed", "true");
+    await expect.element(cardTree(REVIEW).getByText("1 completed")).not.toBeInTheDocument();
+  });
+
   it("The card's circle asks about open sub-items under the card and completes on approval", async () => {
     const { store } = await renderTrayCard({ projects: [PROJECT] });
 

@@ -44,10 +44,12 @@ function Stack({
   items,
   layout,
   showItems,
+  autoHideCompleted,
 }: {
   readonly items: ReadonlyArray<Item>;
   readonly layout: TrayCardLayout;
   readonly showItems: boolean;
+  readonly autoHideCompleted: boolean;
 }) {
   const info = useAtomValue(serverInfoAtom);
   if (items.length === 0) {
@@ -64,7 +66,12 @@ function Stack({
       <InProgressCards layout={layout}>
         {items.map((item) => (
           <li key={item.itemId} data-testid="tray-card-item" data-item-id={item.itemId}>
-            <TrayItemCard item={item} timeZone={info.value.timeZone} showItems={showItems} />
+            <TrayItemCard
+              item={item}
+              timeZone={info.value.timeZone}
+              showItems={showItems}
+              autoHideCompleted={autoHideCompleted}
+            />
           </li>
         ))}
       </InProgressCards>
@@ -89,7 +96,12 @@ function StackFrame({
     onInitial: () => null,
     onFailure: ({ cause }) => <LoadFailure message={describeRpcFailure(cause)} />,
     onSuccess: ({ value }) => (
-      <Stack items={value} layout={layout} showItems={settings.showItems} />
+      <Stack
+        items={value}
+        layout={layout}
+        showItems={settings.showItems}
+        autoHideCompleted={settings.autoHideCompleted}
+      />
     ),
   });
   return (
