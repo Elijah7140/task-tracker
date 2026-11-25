@@ -29,6 +29,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
               addOpensDetails,
               autoHideCompleted,
               urgencyColors,
+              trayCard,
             }) => ({
               ...projectGlobalSettings(values),
               reminders: projectReminderDefaults(reminders),
@@ -37,6 +38,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
               addOpensDetails,
               autoHideCompleted,
               urgencyColors,
+              trayCard,
             }),
           ),
           mapOperationError,
@@ -65,6 +67,7 @@ export const settingsRpcHandlers = SettingsRpcs.toLayer(
             values.addOpensDetails,
             values.urgencyColors,
             values.autoHideCompleted,
+            values.trayCard,
           ),
         ).pipe(mapOperationError),
       SaveProjectSettings: ({ projectId, overrides, approval }) =>

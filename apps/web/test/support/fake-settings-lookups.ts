@@ -271,6 +271,7 @@ export class FakeSettingsAndLookups {
     addOpensDetails: { todo: false, ticket: false },
     autoHideCompleted: true,
     urgencyColors: { approaching: null, overdue: null },
+    trayCard: { size: "Full", showItems: true },
   };
   itemTypes: Array<ItemType> = BUILT_IN_TYPES.map((row) => ({ ...row }));
   priorityLevels: Array<PriorityLevel> = BUILT_IN_PRIORITIES.map((row) => ({ ...row }));
@@ -482,8 +483,10 @@ export class FakeSettingsAndLookups {
     const addOpensDetails = next.addOpensDetails ?? this.globalSettings.addOpensDetails;
     const urgencyColors = next.urgencyColors ?? this.globalSettings.urgencyColors;
     const autoHideCompleted = next.autoHideCompleted ?? this.globalSettings.autoHideCompleted;
+    const trayCard = next.trayCard ?? this.globalSettings.trayCard;
     this.globalSettings = {
       ...next,
+      ...(trayCard === undefined ? {} : { trayCard }),
       ...(autoHideCompleted === undefined ? {} : { autoHideCompleted }),
       ...(urgencyColors === undefined ? {} : { urgencyColors }),
       ...(addOpensDetails === undefined ? {} : { addOpensDetails }),

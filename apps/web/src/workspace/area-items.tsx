@@ -15,19 +15,18 @@ import { clearCompletedHere, useCompletedHereStore } from "../state/completed-he
 import { useWorkspaceStore } from "../state/workspace-store.js";
 import { closeItemEditorWithArea, dropStrayCarriedEditor } from "../state/item-editor-store.js";
 import { LoadFailure } from "../ui/load-failure.js";
+import { lookupsFor } from "./area-lookups.js";
 import { areaTarget } from "./area-route.js";
 import type { Folder } from "./folder-outline.js";
 import { ItemDetailsPanel } from "./item-details-panel.js";
 import {
   EMPTY_SIBLINGS,
   findItemNode,
-  findItemTitle,
   isEmptyLevel,
   itemAncestorIds,
   type ItemFocusRequest,
   type ItemSiblings,
 } from "./item-outline.js";
-import type { ItemRowLookups } from "./item-parts.js";
 import { ItemTree } from "./item-tree.js";
 import { ItemUndoBanner } from "./item-undo-banner.js";
 import { keepCompletedInPlace } from "./keep-completed-in-place.js";
@@ -57,19 +56,6 @@ interface QuickAddFocusRequest {
   readonly waitForNonEmpty: boolean;
   /** Drops the request if the user moves focus away from this element first. */
   readonly unlessFocusLeaves?: Element | null;
-}
-
-function lookupsFor(snapshot: typeof AreaSnapshot.Type, timeZone: string): ItemRowLookups {
-  const types = new Map(snapshot.itemTypes.map((type) => [type.id, type.name]));
-  const priorities = new Map(snapshot.priorityLevels.map((level) => [level.id, level.label]));
-  return {
-    typeName: (typeId) => (typeId === null ? null : (types.get(typeId) ?? null)),
-    priorityLevels: snapshot.priorityLevels,
-    statuses: snapshot.statuses,
-    priorityName: (levelId) => (levelId === null ? null : (priorities.get(levelId) ?? null)),
-    itemTitle: (itemId) => findItemTitle(snapshot.items, itemId),
-    timeZone,
-  };
 }
 
 function EmptyArea({ drilledIn = false }: { readonly drilledIn?: boolean }) {

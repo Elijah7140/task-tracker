@@ -41,6 +41,7 @@ export {
 export { TicketListRpcs } from "./ticket-list-rpcs.js";
 export { AddTicketsError, NewTicketInput, TicketRejected } from "./ticket-batch.js";
 export { GlobalSettings, ProjectSettingOverrides, ProjectSettings } from "./settings.js";
+export { TrayCardSettings, TrayCardSize } from "./tray-card-settings.js";
 export {
   ReconciliationApproval,
   SettingsReconciliationPreview,

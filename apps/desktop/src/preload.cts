@@ -26,9 +26,13 @@ electron.contextBridge.exposeInMainWorld("taskTrackerDesktop", {
   // Main accepts this only from the tray card or its pop-out and validates the ID (§7.18).
   openItemFromTrayCard: (itemId: string): Promise<boolean> =>
     electron.ipcRenderer.invoke("task-tracker:open-item-from-tray-card", itemId),
-  // The tray card reports its drawn height so main can fit the window to it.
-  reportTrayCardHeight: (height: number): void => {
-    electron.ipcRenderer.send("task-tracker:tray-card-height", height);
+  // The tray card reports its width and needed height so main can fit the window to it.
+  reportTrayCardSize: (width: number, height: number): void => {
+    electron.ipcRenderer.send("task-tracker:tray-card-size", width, height);
+  },
+  // The tray card holds itself open while a field has unsaved typing; main checks the value.
+  holdTrayCardOpen: (hold: boolean): void => {
+    electron.ipcRenderer.send("task-tracker:tray-card-hold", hold === true);
   },
   // Main accepts this only from the tray card window.
   popOutTrayCard: (): Promise<boolean> =>

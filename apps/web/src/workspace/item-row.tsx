@@ -19,6 +19,7 @@ import {
   urgencySourceTitle,
 } from "./item-parts.js";
 import { ItemStatusChip } from "./item-status-chip.js";
+import { useItemSurface } from "./item-surface.js";
 import { ItemTypeIcon } from "./item-type-icon.js";
 import { UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
@@ -54,9 +55,13 @@ export interface ItemRowProps {
 /**
  * The grip shown on hover. The whole row starts a drag; the grip only signals
  * it, so assistive technology skips it and the keyboard moves rows with
- * Alt+arrows and Tab instead (§8).
+ * Alt+arrows and Tab instead (§8). Tray cards do not drag, so there it only keeps the space.
  */
 function DragHandle() {
+  const surface = useItemSurface();
+  if (surface === "tray") {
+    return <span aria-hidden="true" className="w-4 shrink-0" />;
+  }
   return (
     <span
       aria-hidden="true"
@@ -250,8 +255,9 @@ function RowContent(props: ItemRowProps) {
 export function ItemRow(props: ItemRowProps) {
   const { node, depth, selected, canIndent, hasFolders, dragging, dropIndicator } = props;
   const { lookups, actions, onSelect, onStartDrag } = props;
+  const surface = useItemSurface();
   return (
-    <ContextMenu.Root>
+    <ContextMenu.Root disabled={surface === "tray"}>
       <ContextMenu.Trigger
         data-tree-row=""
         data-testid="item-row"

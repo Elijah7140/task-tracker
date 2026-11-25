@@ -731,6 +731,33 @@ it.effect("Loads the add view choices off by default and saves only the changed 
   }).pipe(withServices, withSchema),
 );
 
+it.effect("Loads full tray cards with items by default and saves only the changed choice", () =>
+  Effect.gen(function* () {
+    const settings = yield* SettingsService;
+    const defaults = yield* settings.loadGlobal();
+
+    yield* settings.saveGlobal(
+      true,
+      3n * day,
+      day,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { size: "Compact", showItems: true },
+    );
+    const saved = yield* settings.loadGlobal();
+
+    expect(defaults.trayCard).toEqual({ size: "Full", showItems: true });
+    expect(saved.trayCard).toEqual({ size: "Compact", showItems: true });
+    expect(yield* globalRows).toEqual([{ Key: "trayCardSize", Value: "Compact" }]);
+  }).pipe(withServices, withSchema),
+);
+
 it.effect("Loads no urgency colors by default and undoes a saved color", () =>
   Effect.gen(function* () {
     const settings = yield* SettingsService;

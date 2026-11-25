@@ -5,6 +5,7 @@ import { localTimeCodec } from "./local-time-codec.js";
 import { optionalHexColorCodec } from "./optional-hex-color-codec.js";
 import { reminderOffsetCodec } from "./reminder-offset-codec.js";
 import { SettingDefinition } from "./setting-definition.js";
+import { trayCardSizeCodec } from "./tray-card-size-codec.js";
 import { wholeNumberCodec } from "./whole-number-codec.js";
 
 /** The typed definitions of the built-in global settings and project overrides. */
@@ -57,6 +58,10 @@ export const SettingsCatalogue = {
    * Off keeps it in place, checked, until the view is left or reloaded. Global only.
    */
   autoHideCompleted: new SettingDefinition("autoHideCompleted", true, false, booleanCodec),
+  /** How big the tray card draws its item cards, Full or Compact (§7.18). Global only. */
+  trayCardSize: new SettingDefinition("trayCardSize", "Full", false, trayCardSizeCodec),
+  /** Whether tray cards show each item's outline and add line (§7.18). Global only. */
+  trayCardShowsItems: new SettingDefinition("trayCardShowsItems", true, false, booleanCodec),
   /** Whether open dated items remind (§7.12). */
   remindersEnabled: new SettingDefinition("remindersEnabled", true, true, booleanCodec),
   /** How long before the due moment an item on the Default choice reminds. */

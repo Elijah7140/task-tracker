@@ -8,6 +8,7 @@ import { MenuContent } from "../ui/menu.js";
 import { Tooltip } from "../ui/tooltip.js";
 import { ItemMenuItems } from "./item-menu-items.js";
 import type { ItemNode } from "./item-outline.js";
+import { useItemSurface } from "./item-surface.js";
 import type { ItemActions } from "./use-item-actions.js";
 
 /** Names and zone that item cards and rows resolve their references with. */
@@ -21,21 +22,26 @@ export interface ItemRowLookups {
   readonly timeZone: string;
 }
 
-/** The completion toggle shared by cards and rows. It never takes a Tab stop (§8). */
+/**
+ * The completion toggle shared by cards and rows. In the workspace it never takes a Tab stop
+ * (§8); a tray card's header circle does (§7.18).
+ */
 export function CompletionMark({
   title,
   completed,
   onToggle,
+  tabbable = false,
 }: {
   readonly title: string;
   readonly completed: boolean;
   readonly onToggle: () => void;
+  readonly tabbable?: boolean | undefined;
 }) {
   const Icon = completed ? CircleCheck : Circle;
   return (
     <button
       type="button"
-      tabIndex={-1}
+      tabIndex={tabbable ? undefined : -1}
       aria-label={completed ? `Reopen ${title}` : `Complete ${title}`}
       data-testid="item-completion"
       data-completed={completed}
@@ -191,7 +197,10 @@ const REVEAL_CLASSES = {
   card: "opacity-0 group-hover/card:opacity-100",
 } as const;
 
-/** The ⋯ button that opens the item's actions; it shows on hover and while open. */
+/**
+ * The ⋯ button that opens the item's actions; it shows on hover and while open. Tray cards
+ * have no item menus (§7.18).
+ */
 export function ItemOverflowMenu({
   node,
   menuOpen,
@@ -202,6 +211,10 @@ export function ItemOverflowMenu({
   onMenuOpenChange,
   revealOn = "row",
 }: ItemOverflowMenuProps) {
+  const surface = useItemSurface();
+  if (surface === "tray") {
+    return null;
+  }
   return (
     <Menu.Root open={menuOpen} onOpenChange={onMenuOpenChange}>
       <Menu.Trigger

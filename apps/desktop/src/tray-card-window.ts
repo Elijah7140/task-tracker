@@ -1,11 +1,9 @@
 import { BrowserWindow, screen } from "electron";
 import { Effect } from "effect";
 import { trayCardHeight } from "./tray-card-height.js";
-import { placeTrayCard, type ScreenPoint } from "./tray-card-placement.js";
+import { placeTrayCard, type ScreenPoint, TRAY_CARD_MARGIN } from "./tray-card-placement.js";
 import { makeTrayCardToggle } from "./tray-card-toggle.js";
-
-/** The card's width in device-independent pixels; the renderer draws a 320-pixel card. */
-const CARD_WIDTH = 320;
+import { DEFAULT_CARD_WIDTH, trayCardWidth } from "./tray-card-width.js";
 
 /** What the tray card window loads and how. */
 export interface TrayCardWindowOptions {
@@ -23,8 +21,17 @@ export interface TrayCardWindow {
   readonly hide: () => void;
   /** Whether IPC came from the card's page, for handlers only the card may call. */
   readonly isSender: (contents: Electron.WebContents) => boolean;
-  /** Fits the window to the height the card's page reports, within fixed bounds. */
-  readonly resize: (reported: unknown) => void;
+  /**
+   * Fits the window to the width and height the card's page reports: one card wide, and
+   * as tall as the card up to the working area's height, after which the card scrolls.
+   */
+  readonly resize: (width: unknown, height: unknown) => void;
+  /**
+   * While true, a field in the card holds unsaved typing, so Escape and focus loss leave
+   * the card showing (§7.18). Releasing the hold after focus has left hides the card. The
+   * value crosses IPC from a renderer, so anything but a boolean is ignored.
+   */
+  readonly hold: (requested: unknown) => void;
   /** Closes the card for good, as when its server connection ends or the app quits. */
   readonly destroy: () => void;
 }
@@ -38,12 +45,13 @@ function trayCursor(): ScreenPoint | undefined {
  * Opens the card with the same isolation as the app window: context isolation,
  * the sandbox, no Node integration, the same preload and session permissions,
  * no pop-ups and no navigation away from its page. It is created on the first
- * click, fits the card's reported height, and hides on Escape or when it loses focus.
+ * click, fits the card's reported size, and hides on Escape or when it loses
+ * focus, unless a field holds unsaved typing.
  */
 function openCardWindow({ url, preload, devTools }: TrayCardWindowOptions) {
   const card = new BrowserWindow({
     title: "In progress",
-    width: CARD_WIDTH,
+    width: DEFAULT_CARD_WIDTH,
     height: 200,
     useContentSize: true,
     show: false,
@@ -75,20 +83,23 @@ function openCardWindow({ url, preload, devTools }: TrayCardWindowOptions) {
 
 /** What the card window reports back to its controller. */
 interface CardWindowEvents {
-  readonly hide: () => void;
+  /** Escape or focus loss: hides the card unless a field holds unsaved typing. */
+  readonly dismiss: () => void;
   readonly place: (window: BrowserWindow) => void;
   readonly ready: (window: BrowserWindow) => void;
   readonly gone: () => void;
   readonly closed: (window: BrowserWindow) => void;
 }
 
-/** Hides on focus loss and Escape and reports the window's life. */
+/**
+ * Dismisses on focus loss and Escape and reports the window's life. Escape reaches the
+ * page too, where it clears an add line or cancels a notes edit.
+ */
 function watchCardWindow(window: BrowserWindow, events: CardWindowEvents) {
-  window.on("blur", events.hide);
-  window.webContents.on("before-input-event", (event, input) => {
+  window.on("blur", events.dismiss);
+  window.webContents.on("before-input-event", (_event, input) => {
     if (input.type === "keyDown" && input.key === "Escape") {
-      event.preventDefault();
-      events.hide();
+      events.dismiss();
     }
   });
   window.once("ready-to-show", () => events.ready(window));
@@ -96,13 +107,32 @@ function watchCardWindow(window: BrowserWindow, events: CardWindowEvents) {
   window.once("closed", () => events.closed(window));
 }
 
+/** The screen the card shows on: the cursor's, or the primary screen without a cursor. */
+function cardDisplay(anchor: ScreenPoint | undefined) {
+  return anchor === undefined ? screen.getPrimaryDisplay() : screen.getDisplayNearestPoint(anchor);
+}
+
 /** Puts the card by the tray icon, inside the working area of the cursor's or primary screen. */
 function placeCardWindow(window: BrowserWindow, anchor: ScreenPoint | undefined) {
-  const display =
-    anchor === undefined ? screen.getPrimaryDisplay() : screen.getDisplayNearestPoint(anchor);
-  const [width = CARD_WIDTH, height = 200] = window.getSize();
-  const position = placeTrayCard(display.workArea, { width, height }, anchor);
+  const [width = DEFAULT_CARD_WIDTH, height = 200] = window.getSize();
+  const position = placeTrayCard(cardDisplay(anchor).workArea, { width, height }, anchor);
   window.setPosition(Math.round(position.x), Math.round(position.y));
+}
+
+/** Fits the card window to its page's reported size, as tall as its screen's working area allows. */
+function fitCardWindow(
+  window: BrowserWindow,
+  anchor: ScreenPoint | undefined,
+  reported: { readonly width: unknown; readonly height: unknown },
+) {
+  const tallest = cardDisplay(anchor).workArea.height - 2 * TRAY_CARD_MARGIN;
+  const width = trayCardWidth(reported.width);
+  const height = trayCardHeight(reported.height, tallest);
+  if (width === undefined || height === undefined) {
+    return;
+  }
+  window.setContentSize(width, height);
+  placeCardWindow(window, anchor);
 }
 
 /** Creates the tray card controller. The window itself opens on the first click. */
@@ -111,6 +141,7 @@ export function createTrayCardWindow(options: TrayCardWindowOptions): TrayCardWi
   let ready = false;
   let showWhenReady = false;
   let anchor: ScreenPoint | undefined;
+  let held = false;
 
   const reveal = (window: BrowserWindow) => {
     showWhenReady = false;
@@ -148,7 +179,11 @@ export function createTrayCardWindow(options: TrayCardWindowOptions): TrayCardWi
   const hide = () => Effect.runSync(toggle.hide);
 
   const events: CardWindowEvents = {
-    hide,
+    dismiss: () => {
+      if (!held) {
+        hide();
+      }
+    },
     place: (window) => placeCardWindow(window, anchor),
     ready: (window) => {
       ready = true;
@@ -182,11 +217,18 @@ export function createTrayCardWindow(options: TrayCardWindowOptions): TrayCardWi
     hide,
     isSender: (contents) =>
       card !== undefined && !card.isDestroyed() && contents === card.webContents,
-    resize: (reported) => {
-      const height = trayCardHeight(reported);
-      if (height !== undefined && card !== undefined && !card.isDestroyed()) {
-        card.setContentSize(CARD_WIDTH, height);
-        placeCardWindow(card, anchor);
+    resize: (width, height) => {
+      if (card !== undefined && !card.isDestroyed()) {
+        fitCardWindow(card, anchor, { width, height });
+      }
+    },
+    hold: (requested) => {
+      if (typeof requested !== "boolean") {
+        return;
+      }
+      held = requested;
+      if (!held && card !== undefined && !card.isDestroyed() && !card.isFocused()) {
+        hide();
       }
     },
     destroy,

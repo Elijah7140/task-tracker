@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { cx } from "../ui/class-names.js";
+import { useItemSurface } from "./item-surface.js";
 
 /** Props for {@link OutlineAddInput}. */
 export interface OutlineAddInputProps {
@@ -51,6 +52,7 @@ function enterIntent(event: KeyboardEvent<HTMLInputElement>): "sibling" | "child
  */
 export function OutlineAddInput(props: OutlineAddInputProps) {
   const { value, onValueChange, onSubmit, onEscape, onBlurEmpty } = props;
+  const surface = useItemSurface();
   const pending = useRef(false);
   // Only the first mount matters: it marks the end of a move to another row.
   const mounted = useRef(props.onMounted);
@@ -117,7 +119,8 @@ export function OutlineAddInput(props: OutlineAddInputProps) {
         placeholder={props.placeholder}
         data-testid={props.testId}
         // Like the card's hover actions it takes no Tab stop, so the tree stays one (§8).
-        tabIndex={-1}
+        // A tray card has no editor to add with, so there the line takes one (§7.18).
+        tabIndex={surface === "tray" ? undefined : -1}
         autoFocus={props.autoFocus}
         autoComplete="off"
         spellCheck={false}
