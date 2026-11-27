@@ -3,6 +3,7 @@ import { page, userEvent } from "vitest/browser";
 import type { FakeItemNode } from "../support/fake-area-items.js";
 import type { FakeProjectStore, SeedProject } from "../support/fake-task-tracker-server.js";
 import { renderTrayCard } from "../support/render-tray-card.js";
+import { useExpandedDetailsStore } from "../../src/state/expanded-details-store.js";
 import { useThemeStore } from "../../src/state/theme-store.js";
 import { THEMES } from "../support/screenshots.js";
 
@@ -133,6 +134,8 @@ function listenForDataChanges() {
 afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.removeItem("task-tracker.in-progress-on-top");
+  localStorage.removeItem("task-tracker.expanded-card-details");
+  useExpandedDetailsStore.setState({ ids: new Set() });
 });
 
 describe("contents", () => {
@@ -482,6 +485,117 @@ describe("opening and keyboard", () => {
   });
 });
 
+const LONG_DETAIL = [
+  "The invoice view times out for every customer with more than two hundred open invoices.",
+  "",
+  "- Started after the **Tuesday** deploy",
+  "- Affects the export too",
+  "- Workaround: filter by month",
+].join("\n");
+const SHORT_DETAIL = "Retry once.";
+const PAGER = "Silence the pager";
+
+/** Two in-progress tickets: one with a long Detail its workspace card hides, one short. */
+const DETAIL_PROJECT: SeedProject = {
+  name: "Billing",
+  items: [
+    {
+      title: OUTAGE,
+      kind: "Ticket",
+      ticketNumber: "INC-42",
+      status: "In progress",
+      description: LONG_DETAIL,
+      showDetail: false,
+    },
+    {
+      title: PAGER,
+      kind: "Ticket",
+      ticketNumber: "INC-43",
+      status: "In progress",
+      description: SHORT_DETAIL,
+    },
+  ],
+};
+
+const detailOf = (label: string) => cardTree(label).getByTestId("item-card-detail");
+const detailText = (label: string) => cardTree(label).getByTestId("item-card-detail-text");
+const detailToggle = (label: string) => cardTree(label).getByTestId("item-card-detail-toggle");
+
+/** The rendered height of a card's Detail text in pixels. */
+const detailHeight = (label: string) => detailText(label).element().getBoundingClientRect().height;
+
+/** Two lines of the Detail text, from its computed line height. */
+function twoLines(label: string) {
+  return Number.parseFloat(getComputedStyle(detailText(label).element()).lineHeight) * 2;
+}
+
+describe("descriptions", () => {
+  it("Shows a ticket's Detail cut to two lines with Show more, even when its workspace card hides it", async () => {
+    await renderTrayCard({ projects: [DETAIL_PROJECT] });
+
+    await expect.element(detailOf(OUTAGE_LABEL)).toBeVisible();
+
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveTextContent("Show more");
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveAttribute("aria-expanded", "false");
+    expect(getComputedStyle(detailText(OUTAGE_LABEL).element()).webkitLineClamp).toBe("2");
+    expect(detailHeight(OUTAGE_LABEL)).toBeLessThanOrEqual(twoLines(OUTAGE_LABEL) + 1);
+  });
+
+  it("A Detail that fits in two lines has no Show more", async () => {
+    await renderTrayCard({ projects: [DETAIL_PROJECT] });
+
+    await expect.element(detailOf(`INC-43 ${PAGER}`)).toHaveTextContent(SHORT_DETAIL);
+
+    await expect.element(detailToggle(`INC-43 ${PAGER}`)).not.toBeInTheDocument();
+  });
+
+  it("Show more shows the whole Detail and Show less cuts it back", async () => {
+    await renderTrayCard({ projects: [DETAIL_PROJECT] });
+    await expect.element(detailToggle(OUTAGE_LABEL)).toBeVisible();
+
+    await detailToggle(OUTAGE_LABEL).click();
+
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveTextContent("Show less");
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveAttribute("aria-expanded", "true");
+    expect(detailHeight(OUTAGE_LABEL)).toBeGreaterThan(twoLines(OUTAGE_LABEL) * 2);
+    await expect
+      .element(detailOf(OUTAGE_LABEL).getByText("Workaround: filter by month"))
+      .toBeVisible();
+
+    await detailToggle(OUTAGE_LABEL).click();
+
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveTextContent("Show more");
+    expect(detailHeight(OUTAGE_LABEL)).toBeLessThanOrEqual(twoLines(OUTAGE_LABEL) + 1);
+  });
+
+  it("An expanded Detail stays expanded when the window opens again", async () => {
+    const first = await renderTrayCard({ projects: [DETAIL_PROJECT] });
+    await detailToggle(OUTAGE_LABEL).click();
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveTextContent("Show less");
+    await first.screen.unmount();
+
+    await renderTrayCard({ projects: [DETAIL_PROJECT], layout: "window" });
+
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveTextContent("Show less");
+  });
+
+  it("Show more is a Tab stop after the circle and toggles with Enter", async () => {
+    await renderTrayCard({ projects: [DETAIL_PROJECT] });
+    const circle = cardTree(OUTAGE_LABEL).getByRole("button", {
+      name: `Complete ${OUTAGE}`,
+      exact: true,
+    });
+    await expect.element(detailToggle(OUTAGE_LABEL)).toBeVisible();
+    (circle.element() as HTMLElement).focus();
+
+    await userEvent.tab();
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveTextContent("Show less");
+  });
+});
+
 describe("pop out", () => {
   it("Pop out asks main to move the stack into its own window", async () => {
     const { poppedOut } = stubBridge();
@@ -558,6 +672,20 @@ describe.each(THEMES)("%s theme", (theme) => {
     await settle();
 
     await expect.element(trayCard()).toMatchScreenshot(`tray-card-${theme}`);
+  });
+
+  it("Clamped and expanded descriptions match the baseline", async () => {
+    await renderTrayCard({ projects: [DETAIL_PROJECT] });
+    await expect.element(detailToggle(OUTAGE_LABEL)).toBeVisible();
+    await expect.element(detailOf(`INC-43 ${PAGER}`)).toBeVisible();
+
+    await settle();
+
+    await expect.element(trayCard()).toMatchScreenshot(`tray-card-detail-clamped-${theme}`);
+    await detailToggle(OUTAGE_LABEL).click();
+    await expect.element(detailToggle(OUTAGE_LABEL)).toHaveTextContent("Show less");
+    await settle();
+    await expect.element(trayCard()).toMatchScreenshot(`tray-card-detail-expanded-${theme}`);
   });
 
   it("The empty card matches the baseline", async () => {

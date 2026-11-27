@@ -3,8 +3,8 @@ import { ContextMenu } from "@base-ui/react/context-menu";
 import { Ticket } from "lucide-react";
 import { type MouseEvent, type PointerEvent, type ReactNode, useState } from "react";
 import { CardAddButton } from "./card-add-buttons.js";
+import { CardDetail } from "./card-detail.js";
 import { CardNotes } from "./card-notes.js";
-import { MarkdownPreview } from "../editor/markdown-preview.js";
 import { cx } from "../ui/class-names.js";
 import { ContextMenuContent } from "../ui/menu.js";
 import { ItemMenuItems } from "./item-menu-items.js";
@@ -23,7 +23,7 @@ import {
   urgencySourceTitle,
 } from "./item-parts.js";
 import { ItemStatusChip } from "./item-status-chip.js";
-import { useItemSurface } from "./item-surface.js";
+import { type ItemSurface, useItemSurface } from "./item-surface.js";
 import { type Urgency, UrgencyBadge } from "./urgency-badge.js";
 import type { ItemActions } from "./use-item-actions.js";
 import type { ItemDropPosition } from "./use-item-drag.js";
@@ -204,24 +204,13 @@ function CardActions(props: ItemCardProps) {
 }
 
 /**
- * The ticket's Detail as rendered Markdown above its notes, when the card shows it (§7.17).
- * The whole text shows; the card grows to fit it.
+ * Whether the card shows its ticket's Detail: in the workspace by the ticket's choice or the
+ * setting (§7.17), and always on an in-progress card (§7.18), where it is clamped. Only when
+ * there is text.
  */
-function CardDetail({ node }: { readonly node: ItemNode }) {
-  return (
-    <div data-testid="item-card-detail" className="px-1 py-0.5">
-      <MarkdownPreview
-        source={node.item.description ?? ""}
-        testId="item-card-detail-preview"
-        className="text-xs text-fg"
-      />
-    </div>
-  );
-}
-
-/** Whether the card shows its ticket's Detail: the ticket's choice or the setting, and text. */
-function showsDetail(node: ItemNode) {
-  return node.showsDetailOnCard && !isBlankText(node.item.description ?? "");
+function showsDetail(node: ItemNode, surface: ItemSurface) {
+  const chosen = surface === "tray" || node.showsDetailOnCard;
+  return chosen && !isBlankText(node.item.description ?? "");
 }
 
 /** True when a pointer or click event started on the card itself rather than a nested row. */
@@ -270,9 +259,9 @@ export function ItemCard(props: ItemCardProps) {
   const date = dateCell(node, lookups.timeZone);
   const hasNotes = !isBlankText(node.item.notes ?? "");
   const open = !node.isFinished;
-  const detail = showsDetail(node);
-  const hasBody = detail || hasNotes || open || props.children !== undefined;
   const surface = useItemSurface();
+  const detail = showsDetail(node, surface);
+  const hasBody = detail || hasNotes || open || props.children !== undefined;
   const addLine =
     open && props.addLine !== false ? <CardAddLine node={node} actions={actions} /> : null;
   const addLineAtTop = (props.addLinePosition ?? "Top") === "Top";

@@ -1,13 +1,14 @@
 import { RegistryProvider, useAtomValue } from "@effect/atom-react";
 import type { InProgressItem } from "@task-tracker/contracts";
 import { AsyncResult } from "effect/reactivity";
-import { type ReactNode, useMemo, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { useDataChangeListener } from "../native/data-change-broadcast.js";
 import { popOutTrayCard } from "../native/tray-card-window.js";
 import { describeRpcFailure } from "../rpc/describe-rpc-failure.js";
 import { inProgressItemsAtom } from "../rpc/in-progress-queries.js";
 import { serverInfoAtom } from "../rpc/server-info-query.js";
 import { rpcProtocolAtom, type RpcProtocolLayer } from "../rpc/task-tracker-client.js";
+import { followExpandedDetails, keepExpandedDetails } from "../state/expanded-details-store.js";
 import { useAppliedTheme } from "../state/use-applied-theme.js";
 import { useAppliedUrgencyColors } from "../state/use-applied-urgency-colors.js";
 import { ItemSurfaceContext } from "../workspace/item-surface.js";
@@ -52,6 +53,9 @@ function Stack({
   readonly autoHideCompleted: boolean;
 }) {
   const info = useAtomValue(serverInfoAtom);
+  useEffect(() => {
+    keepExpandedDetails(items.map((item) => item.itemId));
+  }, [items]);
   if (items.length === 0) {
     return <TrayCardEmpty />;
   }
@@ -147,6 +151,7 @@ function TrayCardScreen({ layout }: { readonly layout: TrayCardLayout }) {
   useAppliedUrgencyColors();
   useDataChangeListener();
   useReloadWhenShown();
+  useEffect(followExpandedDetails, []);
   return layout === "card" ? <CardScreen /> : <WindowScreen />;
 }
 

@@ -1601,7 +1601,7 @@ below were made while building it and are listed for review.
 - **Card body.** The owner's request from 2026-11-23: the body reads like a simple dotted list.
   In order:
   - **Detail.** A ticket's Detail, rendered in full as Markdown and never clamped, when its card
-    shows it (owner request, 25 Nov 2026). App Settings › **Show description on ticket cards**
+    shows it (owner request, 25 Nov 2026). In-progress cards clamp it instead (§7.18). App Settings › **Show description on ticket cards**
     (`showTicketDetailOnCards`, global, default on) decides for every ticket that has not chosen
     for itself. Right-clicking a ticket card (or its ⋯ menu) offers **Show description** or
     **Hide description** by what the card shows now; the choice is stored on the ticket
@@ -1734,6 +1734,12 @@ workspace card, so in-progress work can be viewed, checked off and added to from
     "n completed" expanders, each row's **+**, and the "Add a ToDo…" line. Above each card a
     caption names its project and folder and offers **Open**. Each card reads its area's
     snapshot (`LoadArea`), so it shows exactly what the workspace shows.
+  - **Description:** a ticket's Detail with text always shows on its tray card, even when
+    its workspace card hides it (§7.17), cut to two lines ending in "…" with **Show more** under it. Show more
+    shows the whole Detail and becomes **Show less**, which cuts it back. A Detail that fits
+    in two lines has neither. The choice is kept per item in the renderer's local storage,
+    shared by the card and the pop-out, until the user changes it or the item leaves the
+    stack (owner request, 27 Nov 2026).
   - **Working in a card:** checking items, adding with Enter and Shift+Enter and editing notes
     behave as in the workspace and make the same requests, so each is the same undo step.
     The open sub-items question and any refusal appear under the card instead of a dialog.
@@ -2206,6 +2212,9 @@ CI runs on GitHub-hosted runners for every pull request and push to `main`. The 
     default, or Bottom) places the card add lines and the level's add bar. **Item details
     position** (Side by default, or Top) places a drilled-in item's details, and either
     placement collapses with a toggle remembered per device (§6.5, §7.17, §7.19).
+26. **Descriptions on in-progress cards (27 Nov 2026).** Tray and pop-out cards always show
+    a ticket's Detail, cut to two lines with Show more and Show less. An expanded Detail
+    stays expanded across showing, hiding and popping out until collapsed (§7.18).
 
 ## Appendix A. Historical review log
 
